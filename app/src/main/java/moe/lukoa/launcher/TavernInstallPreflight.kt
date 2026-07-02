@@ -26,7 +26,8 @@ object TavernInstallPreflight {
     ): Boolean {
         if (choice.kind == TavernVersionKind.Custom) return false
         if (!officialVersions.hasData) return true
-        if (choice.repoUrl.isNotBlank() && !sameRepo(choice.repoUrl, repoUrl)) return true
+        if (!sameRepoUrl(officialVersions.repoUrl, repoUrl)) return true
+        if (choice.repoUrl.isNotBlank() && !sameRepoUrl(choice.repoUrl, repoUrl)) return true
         return officialVersions.all.none { candidate ->
             candidate.kind == choice.kind &&
                 candidate.target.equals(choice.target, ignoreCase = true)
@@ -56,6 +57,12 @@ object TavernInstallPreflight {
                 return TavernInstallPreflightResult(
                     ok = false,
                     blockingMessage = "还没从当前源读到官方版本列表，请先检测镜像源或刷新版本列表。",
+                )
+            }
+            if (!sameRepoUrl(officialVersions.repoUrl, request.repoUrl)) {
+                return TavernInstallPreflightResult(
+                    ok = false,
+                    blockingMessage = "当前缓存的版本列表不是这个源的，请先刷新官方版本列表。",
                 )
             }
             val targetExists = officialVersions.all.any { candidate ->
@@ -118,9 +125,5 @@ object TavernInstallPreflight {
         return choice.kind == TavernVersionKind.Test &&
             !choice.target.equals("release", ignoreCase = true) &&
             !choice.name.equals("release", ignoreCase = true)
-    }
-
-    private fun sameRepo(left: String, right: String): Boolean {
-        return left.trim().trimEnd('/').equals(right.trim().trimEnd('/'), ignoreCase = true)
     }
 }

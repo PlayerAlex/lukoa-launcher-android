@@ -133,10 +133,12 @@ fun LukoaLauncherScreen(
         )
     }
     val cachedTavernVersionInfo = TavernVersionParser.parse(initialState.termuxLog)
-    val cachedOfficialVersions = initialState.officialVersionsCache
+    val cachedOfficialVersions = (initialState.officialVersionsCache
         .takeIf { it.isNotBlank() }
         ?.let(TavernOfficialVersionParser::parse)
-        ?: TavernOfficialVersionParser.parse(initialState.termuxLog)
+        ?: TavernOfficialVersionParser.parse(initialState.termuxLog))
+        .takeUnless { it.hasData && !sameRepoUrl(it.repoUrl, initialTavernMirrorConfig.normalizedRepoUrl) }
+        ?: TavernOfficialVersions()
     val cachedSelectedTavernVersion = if (startupRefreshSignal > 0) {
         null
     } else if (cachedTavernVersionInfo.hasData && !cachedTavernVersionInfo.notInstalled) {
@@ -185,9 +187,6 @@ fun LukoaLauncherScreen(
     var termuxReturnDelayMs by remember { mutableLongStateOf(initialState.termuxReturnDelayMs.coerceIn(300L, 2_000L)) }
     var logRefreshInFlight by remember { mutableStateOf(false) }
     var termuxBootstrapCompleted by remember { mutableStateOf(false) }
-    var stopConfirmActive by remember { mutableStateOf(false) }
-    var stopConfirmToken by remember { mutableIntStateOf(0) }
-    var stopConfirmExpiresAtMs by remember { mutableLongStateOf(0L) }
     var updateConfirmActive by remember { mutableStateOf(false) }
     var rollbackConfirmActive by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
@@ -195,6 +194,7 @@ fun LukoaLauncherScreen(
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
     var showManualBackupDialog by remember { mutableStateOf(false) }
     var showAutoBackupSettingsDialog by remember { mutableStateOf(false) }
+    var showStopConfirmDialog by remember { mutableStateOf(false) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
     var backgroundPermissionPromptShown by remember { mutableStateOf(false) }
     var showApplyBackupPathDialog by remember { mutableStateOf(false) }
@@ -308,7 +308,13 @@ fun LukoaLauncherScreen(
     }
 
     fun maybePromptTavernDirectoryChoice(text: String) {
-        if (text.isBlank()) return
+        if (text.isBlank() || !hasTavernDirectoryMissingSignal(text)) return
+        val candidates = TavernDirectoryCandidateParser.parse(text)
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (candidates.isEmpty()) return
+        tavernDirectoryCandidates = candidates
+        showTavernDirectoryChoiceDialog = true
     }
 
     fun dismissTavernDirectoryChoiceDialog() {
@@ -367,6 +373,10 @@ fun LukoaLauncherScreen(
         )
     }
 
+    fun defaultInstallChoice(): TavernVersionChoice {
+        return TavernInstallDefaults.releaseChoice(tavernMirrorConfig.normalizedRepoUrl)
+    }
+
     fun currentMirrorProbeStatus(): TavernMirrorProbeStatus {
         return mirrorProbeStatus.takeIf { it.matches(tavernMirrorConfig) }
             ?: TavernMirrorProbeStatus.unknown(tavernMirrorConfig)
@@ -419,6 +429,9 @@ fun LukoaLauncherScreen(
         inferredRunning?.let { running ->
             tavernRunning = running
             tavernStarting = false
+            if (!running) {
+                showStopConfirmDialog = false
+            }
             if (running) {
                 tavernInstallDetected = true
             }
@@ -1098,20 +1111,26 @@ fun LukoaLauncherScreen(
     fun enterTavernInstallFlow() {
         tavernInstallDetected = false
         if (selectedTavernVersion == null) {
-            selectedTavernVersion = TavernVersionSelection.recommendedInstallChoice(officialVersions)
+            selectedTavernVersion = TavernVersionSelection.recommendedInstallChoice(
+                officialVersions = officialVersions,
+                fallbackRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+            )
         }
         update("已进入酒馆安装流程。", "", true, allowRunningInference = false)
     }
 
     fun useRecommendedTavernVersion() {
-        val recommended = TavernVersionSelection.recommendedInstallChoice(officialVersions)
+        val recommended = TavernVersionSelection.recommendedInstallChoice(
+            officialVersions = officialVersions,
+            fallbackRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+        )
         selectedTavernVersion = recommended
         update("已选择 ${recommended.label}。", "", true, allowRunningInference = false)
     }
 
     fun buildInstallRequest(): PendingTavernInstallRequest? {
-        val choice = selectedTavernVersion ?: TavernInstallDefaults.Release
-        val target = choice.target.trim().ifBlank { TavernInstallDefaults.Release.target }
+        val choice = selectedTavernVersion ?: defaultInstallChoice()
+        val target = choice.target.trim().ifBlank { TavernInstallDefaults.RELEASE_TARGET }
         val repoUrl = choice.repoUrl
             .trim()
             .ifBlank { tavernMirrorConfig.normalizedRepoUrl }
@@ -1187,6 +1206,13 @@ fun LukoaLauncherScreen(
     fun requestInstallPreflight(request: PendingTavernInstallRequest) {
         if (!beginBusy("安装前检查", 60000L)) return
         val requestToken = busyToken
+        val requestMirrorConfig = TavernMirrorConfig(
+            repoUrl = request.repoUrl,
+            npmRegistry = tavernMirrorConfig.normalizedNpmRegistry,
+        )
+        val requestUsesCurrentMirror =
+            TavernMirrorProbeStatus.signatureOf(requestMirrorConfig) ==
+                TavernMirrorProbeStatus.signatureOf(tavernMirrorConfig)
 
         fun isRequestActive(): Boolean {
             return busyToken == requestToken && busyLabel != null
@@ -1207,19 +1233,25 @@ fun LukoaLauncherScreen(
                 return
             }
             update("正在读取目标版本列表。", "", false, allowRunningInference = false)
-            onFetchOfficialTavernVersions(tavernMirrorConfig) { result ->
+            onFetchOfficialTavernVersions(requestMirrorConfig) { result ->
                 if (!isRequestActive()) return@onFetchOfficialTavernVersions
                 if (!result.ok || !result.versions.hasData) {
                     releaseBusy()
                     update(result.message, "", false, allowRunningInference = false)
                     return@onFetchOfficialTavernVersions
                 }
-                applyOfficialVersions(result.versions)
+                if (requestUsesCurrentMirror) {
+                    applyOfficialVersions(result.versions)
+                }
                 finishWithVersions(probeStatus, result.versions)
             }
         }
 
-        val probeStatus = currentMirrorProbeStatus()
+        val probeStatus = if (requestUsesCurrentMirror) {
+            currentMirrorProbeStatus()
+        } else {
+            TavernMirrorProbeStatus.unknown(requestMirrorConfig)
+        }
         if (
             probeStatus.checkedAtMillis > 0L &&
             !probeStatus.checking &&
@@ -1230,10 +1262,14 @@ fun LukoaLauncherScreen(
         }
 
         update("正在检测镜像源。", "", false, allowRunningInference = false)
-        mirrorProbeStatus = TavernMirrorProbeStatus.checking(tavernMirrorConfig)
-        onCheckTavernMirror(tavernMirrorConfig) { result ->
+        if (requestUsesCurrentMirror) {
+            mirrorProbeStatus = TavernMirrorProbeStatus.checking(requestMirrorConfig)
+        }
+        onCheckTavernMirror(requestMirrorConfig) { result ->
             if (!isRequestActive()) return@onCheckTavernMirror
-            mirrorProbeStatus = result
+            if (requestUsesCurrentMirror) {
+                mirrorProbeStatus = result
+            }
             fetchVersions(result)
         }
     }
@@ -1263,7 +1299,7 @@ fun LukoaLauncherScreen(
         configPolicy: AptConfigPolicy,
     ) {
         val target = targetFromTask.ifBlank {
-            selectedTavernVersion?.target?.trim().orEmpty().ifBlank { TavernInstallDefaults.Release.target }
+            selectedTavernVersion?.target?.trim().orEmpty().ifBlank { TavernInstallDefaults.RELEASE_TARGET }
         }
         val repoUrl = repoUrlFromTask.ifBlank {
             selectedTavernVersion?.repoUrl?.trim().orEmpty().ifBlank { tavernMirrorConfig.normalizedRepoUrl }
@@ -1658,18 +1694,34 @@ fun LukoaLauncherScreen(
     }
 
     fun saveTavernMirrorConfig(repoUrl: String = tavernRepoInput, npmRegistry: String = npmRegistryInput) {
+        val previousRepoUrl = tavernMirrorConfig.normalizedRepoUrl
         val nextConfig = TavernMirrorConfig(
             repoUrl = repoUrl.trim(),
             npmRegistry = npmRegistry.trim(),
         )
         val result = onSaveTavernMirrorConfig(nextConfig)
+        val repoChanged = result.saved && !sameRepoUrl(previousRepoUrl, result.config.normalizedRepoUrl)
         tavernMirrorConfig = result.config
         tavernRepoInput = result.config.normalizedRepoUrl
         npmRegistryInput = result.config.normalizedNpmRegistry
         mirrorProbeStatus = TavernMirrorProbeStatus.unknown(result.config)
+        if (repoChanged) {
+            officialVersions = TavernOfficialVersions()
+            selectedTavernVersion = selectedTavernVersion
+                ?.takeIf { it.kind == TavernVersionKind.Custom }
+                ?.copy(repoUrl = result.config.normalizedRepoUrl)
+            updateConfirmActive = false
+            rollbackConfirmActive = false
+        }
         update(
             if (result.saved) {
-                "${result.message}\n后续安装、读取官方版本、更新和回退会使用这个源。"
+                buildString {
+                    append(result.message)
+                    append("\n后续安装、读取官方版本、更新和回退会使用这个源。")
+                    if (repoChanged) {
+                        append("\n旧版本列表已清空，请按新源重新读取官方版本。")
+                    }
+                }
             } else {
                 result.message
             },
@@ -2033,7 +2085,7 @@ fun LukoaLauncherScreen(
         }
         if (!beginBusy("启动酒馆", 15000L)) return
 
-        stopConfirmActive = false
+        showStopConfirmDialog = false
         onForegroundStart { newStatus, termuxOutput, ok ->
             update(newStatus, termuxOutput, ok)
             if (isTransientStatus(newStatus)) {
@@ -2080,27 +2132,15 @@ fun LukoaLauncherScreen(
             return
         }
 
-        val now = SystemClock.elapsedRealtime()
-        val confirmStillValid = stopConfirmActive && now <= stopConfirmExpiresAtMs
-        if (!confirmStillValid) {
-            stopConfirmToken += 1
-            val token = stopConfirmToken
-            stopConfirmActive = true
-            stopConfirmExpiresAtMs = now + 1600L
-            update("再按一次就会停止酒馆。", "", false)
-            scope.launch {
-                delay(1600L)
-                if (stopConfirmToken == token) {
-                    stopConfirmActive = false
-                    stopConfirmExpiresAtMs = 0L
-                }
-            }
+        if (!tavernRunning) {
+            update("酒馆当前未运行。", "", false, allowRunningInference = false)
             return
         }
+        showStopConfirmDialog = true
+    }
 
-        stopConfirmToken += 1
-        stopConfirmActive = false
-        stopConfirmExpiresAtMs = 0L
+    fun confirmStopTavern() {
+        showStopConfirmDialog = false
         if (!beginBusy("停止酒馆", 20000L)) return
         tavernStarting = false
         launchAttemptToken += 1
@@ -2324,6 +2364,14 @@ fun LukoaLauncherScreen(
             candidates = tavernDirectoryCandidates,
             onChoose = ::chooseDetectedTavernDirectory,
             onDismiss = ::dismissTavernDirectoryChoiceDialog,
+        )
+    }
+
+    if (showStopConfirmDialog) {
+        StopTavernConfirmDialog(
+            actionsLocked = actionInProgress,
+            onConfirm = ::confirmStopTavern,
+            onDismiss = { showStopConfirmDialog = false },
         )
     }
 
@@ -2709,6 +2757,7 @@ fun LukoaLauncherScreen(
                                     termuxSetupRecommended = setupRecommended,
                                     officialVersions = officialVersions,
                                     selectedVersion = selectedTavernVersion,
+                                    mirrorRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                                     commandText = TERMUX_EXTERNAL_APPS_COMMAND,
                                     actionsLocked = actionInProgress,
                                     onOpenTermuxDownload = {
@@ -2734,7 +2783,6 @@ fun LukoaLauncherScreen(
                             }
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
-                                stopConfirmActive = stopConfirmActive,
                                 tavernStarting = tavernStarting,
                                 actionInProgress = actionInProgress,
                                 busyLabel = busyLabel,

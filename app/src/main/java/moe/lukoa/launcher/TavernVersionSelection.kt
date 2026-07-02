@@ -35,10 +35,13 @@ object TavernVersionSelection {
         )
     }
 
-    fun recommendedInstallChoice(officialVersions: TavernOfficialVersions): TavernVersionChoice {
+    fun recommendedInstallChoice(
+        officialVersions: TavernOfficialVersions,
+        fallbackRepoUrl: String = TavernMirrorDefaults.OFFICIAL_REPO,
+    ): TavernVersionChoice {
         return officialVersions.stable.firstOrNull()
             ?: officialVersions.test.firstOrNull()
-            ?: TavernInstallDefaults.Release
+            ?: TavernInstallDefaults.releaseChoice(fallbackRepoUrl)
     }
 
     private fun keepExistingOrRecommended(

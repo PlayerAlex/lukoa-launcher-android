@@ -142,11 +142,10 @@ class TermuxCommandRunner(private val context: Context) {
     }
 
     fun runStopTavern(): CommandDispatch {
-        return runCommand(
+        return runBundledScriptCommand(
             command = "stop-direct",
-            args = listOf("-c", buildStopCommand()),
-            nonce = null,
-            executablePath = TERMUX_SH_PATH,
+            scriptCommand = "stop",
+            scriptArgs = emptyList(),
             displayCommand = "stop",
         )
     }

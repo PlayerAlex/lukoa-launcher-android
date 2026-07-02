@@ -31,6 +31,13 @@ fun repoLabelFor(repoUrl: String): String {
     }
 }
 
+fun sameRepoUrl(left: String, right: String): Boolean {
+    val normalizedLeft = left.trim().trimEnd('/')
+    val normalizedRight = right.trim().trimEnd('/')
+    if (normalizedLeft.isBlank() || normalizedRight.isBlank()) return false
+    return normalizedLeft.equals(normalizedRight, ignoreCase = true)
+}
+
 data class TavernMirrorSaveResult(
     val saved: Boolean,
     val config: TavernMirrorConfig,

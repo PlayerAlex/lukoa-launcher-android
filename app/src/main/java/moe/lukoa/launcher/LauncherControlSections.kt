@@ -556,7 +556,6 @@ fun TermuxPermissionHelpSection(
 @Composable
 fun TavernControlSection(
     tavernRunning: Boolean,
-    stopConfirmActive: Boolean,
     tavernStarting: Boolean,
     actionInProgress: Boolean,
     busyLabel: String?,
@@ -595,7 +594,6 @@ fun TavernControlSection(
         !primaryEnabled && primaryDisabledReason?.contains("权限") == true -> "先修权限"
         !primaryEnabled && primaryDisabledReason?.contains("Termux") == true -> "先安装 Termux"
         !primaryEnabled -> "先安装酒馆"
-        tavernRunning && stopConfirmActive -> "再次点击确认停止"
         tavernRunning -> "停止酒馆"
         else -> "启动酒馆"
     }
@@ -608,7 +606,7 @@ fun TavernControlSection(
             statusText = statusText,
             statusDetail = statusDetail,
             statusActive = tavernRunning || tavernStarting || actionInProgress,
-            statusTone = if (tavernRunning && stopConfirmActive) LukoaColors.Danger else LukoaColors.Accent,
+            statusTone = if (tavernRunning) LukoaColors.Danger else LukoaColors.Accent,
             wakeEnabled = !actionInProgress && wakeEnabled,
             onWake = wakeClick,
         )
@@ -3083,6 +3081,52 @@ fun InstallRiskConfirmDialog(
             DialogActionButton(
                 text = "继续安装",
                 tone = ActionTone.Safe,
+                onClick = onConfirm,
+            )
+        },
+        dismissButton = {
+            DialogActionButton(
+                text = "取消",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+fun StopTavernConfirmDialog(
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        titleContentColor = LukoaColors.Danger,
+        textContentColor = LukoaColors.Text,
+        title = {
+            Text("确认停止酒馆")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "停止后，当前酒馆网页会断开连接。确认没有重要操作在跑，再继续。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "这一步不会删除聊天、角色、世界书或备份文件。",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                text = "确认停止",
+                tone = ActionTone.Danger,
+                enabled = !actionsLocked,
                 onClick = onConfirm,
             )
         },

@@ -30,15 +30,25 @@ data class TavernOfficialVersions(
 
     val all: List<TavernVersionChoice>
         get() = stable + test
+
+    val repoUrl: String
+        get() = all.firstOrNull { it.repoUrl.isNotBlank() }?.repoUrl.orEmpty()
 }
 
 object TavernInstallDefaults {
-    val Release = TavernVersionChoice(
-        kind = TavernVersionKind.Test,
-        name = "release",
-        target = "release",
-        repoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
-    )
+    const val RELEASE_TARGET = "release"
+
+    fun releaseChoice(repoUrl: String = TavernMirrorDefaults.OFFICIAL_REPO): TavernVersionChoice {
+        return TavernVersionChoice(
+            kind = TavernVersionKind.Test,
+            name = RELEASE_TARGET,
+            target = RELEASE_TARGET,
+            repoUrl = repoUrl.trim().ifBlank { TavernMirrorDefaults.OFFICIAL_REPO },
+        )
+    }
+
+    val Release: TavernVersionChoice
+        get() = releaseChoice()
 }
 
 object TavernOfficialVersionParser {

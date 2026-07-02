@@ -19,6 +19,11 @@ class LauncherStateStore(private val context: Context) {
     fun load(isTermuxInstalled: Boolean, allowColdStartFallback: Boolean): LauncherLoadResult {
         val defaults = defaultLauncherState(isTermuxInstalled)
         val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+        val loadedAutoBackupIntervalMinutes = readSavedAutoBackupIntervalMinutes(prefs, defaults)
+        val loadedAutoBackupKeepCount = prefs.getInt(KEY_AUTO_BACKUP_KEEP_COUNT, defaults.autoBackupKeepCount)
+            .coerceIn(1, 50)
+        val loadedTermuxReturnDelayMs = prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
+            .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
         if (
             prefs.getBoolean(KEY_CLEAR_ON_NEXT_LAUNCH, false) ||
             (allowColdStartFallback && prefs.getBoolean(KEY_CLEAR_ON_NEXT_COLD_START, false))
@@ -26,6 +31,10 @@ class LauncherStateStore(private val context: Context) {
             val clearedState = defaults.copy(
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, defaults.officialVersionsCache)
                     ?: defaults.officialVersionsCache,
+                autoBackupEnabled = prefs.getBoolean(KEY_AUTO_BACKUP_ENABLED, defaults.autoBackupEnabled),
+                autoBackupIntervalMinutes = loadedAutoBackupIntervalMinutes,
+                autoBackupKeepCount = loadedAutoBackupKeepCount,
+                termuxReturnDelayMs = loadedTermuxReturnDelayMs,
                 appLog = logEntry("App", "上次启动器已从后台任务中移除，已自动清除启动器显示日志。"),
             )
             saveClearedLaunchState(clearedState)
@@ -34,12 +43,6 @@ class LauncherStateStore(private val context: Context) {
                 startupRefreshRequested = true,
             )
         }
-
-        val loadedAutoBackupIntervalMinutes = readSavedAutoBackupIntervalMinutes(prefs, defaults)
-        val loadedAutoBackupKeepCount = prefs.getInt(KEY_AUTO_BACKUP_KEEP_COUNT, defaults.autoBackupKeepCount)
-            .coerceIn(1, 50)
-        val loadedTermuxReturnDelayMs = prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
-            .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
 
         if (!prefs.contains(KEY_STATUS)) {
             val bootstrapState = defaults.copy(

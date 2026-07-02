@@ -133,21 +133,19 @@ discover_tavern_dir() {
 }
 
 adopt_detected_tavern_dir() {
-  discover_tavern_dir || return 1
-  [ -n "${DISCOVERED_TAVERN_DIR:-}" ] || return 1
-  TAVERN_DIR="$DISCOVERED_TAVERN_DIR"
-  return 0
+  collect_tavern_dir_candidates
+  return 1
 }
 
 emit_tavern_dir_candidates() {
-  [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 1 ] || return 0
+  [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 0 ] || return 0
   printf "\n==== SillyTavern directory candidates ====\n"
   printf "%s\n" "$TAVERN_CANDIDATE_LIST" | awk '{ printf "candidate.%d=%s\n", NR, $0 }'
   printf "==== end SillyTavern directory candidates ====\n"
 }
 
 missing_tavern_dir_exit_code() {
-  if [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 1 ]; then
+  if [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 0 ]; then
     printf "67"
   else
     printf "66"
@@ -157,7 +155,9 @@ missing_tavern_dir_exit_code() {
 write_tavern_dir_error() {
   code="$(missing_tavern_dir_exit_code)"
   if [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 1 ]; then
-    write_status "error" "Multiple SillyTavern directories found; choose one in the launcher" false "$code"
+    write_status "error" "SillyTavern directory not found: $TAVERN_DIR. Multiple candidates were found; choose one manually in the launcher." false "$code"
+  elif [ "${TAVERN_CANDIDATE_COUNT:-0}" -eq 1 ]; then
+    write_status "error" "SillyTavern directory not found: $TAVERN_DIR. A possible directory was found; confirm it manually in the launcher." false "$code"
   else
     write_status "error" "SillyTavern directory not found: $TAVERN_DIR" false "$code"
   fi
@@ -2657,7 +2657,8 @@ cmd_restore() {
   printf "archive=%s\n" "$restore_archive"
   printf "restoredTo=%s\n" "$TAVERN_DIR"
   printf "previousDirectory=%s\n" "${rollback_dir:-none}"
-  printf "preRestoreSafetyBackup=%s\n" "${pre_restore_archive:-unknown}"
+  printf "preRestoreSafetyBackup=%s\n" "${pre_restore_archive:-none}"
+  printf "preRestoreSafetyNote=%s\n" "Restore does not create a new archive automatically; previousDirectory is the moved-aside old directory."
   printf "externalDataRootRestored=%s\n" "$external_restored"
   printf "externalDataRootPrevious=%s\n" "$external_rollback"
   printf "notice=If dependencies are missing after restore, run update or npm install before starting SillyTavern.\n"

@@ -41,6 +41,7 @@ fun QuickStartGuideSection(
     termuxSetupRecommended: Boolean,
     officialVersions: TavernOfficialVersions,
     selectedVersion: TavernVersionChoice?,
+    mirrorRepoUrl: String,
     commandText: String,
     actionsLocked: Boolean,
     onOpenTermuxDownload: () -> Unit,
@@ -60,6 +61,7 @@ fun QuickStartGuideSection(
     onInstallTavern: () -> Unit,
 ) {
     val permissionReady = termuxInstalled && runCommandPermissionGranted && !externalAppsBlocked
+    val effectiveSelectedVersion = selectedVersion ?: TavernInstallDefaults.releaseChoice(mirrorRepoUrl)
     val stepIndex = when {
         !termuxInstalled -> 1
         !permissionReady -> 2
@@ -138,7 +140,7 @@ fun QuickStartGuideSection(
             step = "第 4 步",
             title = "安装酒馆",
             detail = "默认安装 release 分支。会自动补 git、nodejs，然后执行 npm install。",
-            primaryText = "安装 ${selectedVersion?.label ?: TavernInstallDefaults.Release.label}",
+            primaryText = "安装 ${effectiveSelectedVersion.label}",
             primaryEnabled = !actionsLocked,
             primary = onInstallTavern,
             secondary = listOf(
@@ -247,6 +249,7 @@ fun QuickStartGuideSection(
                     WizardVersionPicker(
                         officialVersions = officialVersions,
                         selectedVersion = selectedVersion,
+                        mirrorRepoUrl = mirrorRepoUrl,
                         actionsLocked = actionsLocked,
                         onSelectVersion = onSelectVersion,
                     )
@@ -398,11 +401,13 @@ private fun CommandSnippet(text: String) {
 private fun WizardVersionPicker(
     officialVersions: TavernOfficialVersions,
     selectedVersion: TavernVersionChoice?,
+    mirrorRepoUrl: String,
     actionsLocked: Boolean,
     onSelectVersion: (TavernVersionChoice) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val choices = officialVersions.all
+    val effectiveSelectedVersion = selectedVersion ?: TavernInstallDefaults.releaseChoice(mirrorRepoUrl)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -430,7 +435,7 @@ private fun WizardVersionPicker(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = selectedVersion?.label ?: TavernInstallDefaults.Release.label,
+                        text = effectiveSelectedVersion.label,
                         color = LukoaColors.Text,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
@@ -517,7 +522,7 @@ private fun WizardVersionPicker(
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                text = "当前源：${repoLabelFor(selectedVersion?.repoUrl.orEmpty().ifBlank { TavernMirrorDefaults.OFFICIAL_REPO })}",
+                text = "当前源：${repoLabelFor(effectiveSelectedVersion.repoUrl)}",
                 color = LukoaColors.Muted,
                 style = MaterialTheme.typography.bodySmall,
             )
