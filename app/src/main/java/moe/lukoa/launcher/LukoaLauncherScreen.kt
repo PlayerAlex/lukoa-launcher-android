@@ -276,6 +276,9 @@ fun LukoaLauncherScreen(
             ),
         )
     }
+    val initialPendingLauncherTask = remember { PendingLauncherTaskStore.load(context) }
+    var pendingLauncherTask by remember { mutableStateOf(initialPendingLauncherTask) }
+    var showPendingTaskDialog by remember { mutableStateOf(initialPendingLauncherTask != null) }
     val actionInProgress = busyLabel != null
     val issueAnalysis = TavernIssueAnalyzer.analyze(termuxLog, status)
     val scope = rememberCoroutineScope()
@@ -311,6 +314,44 @@ fun LukoaLauncherScreen(
             backupHistory = backupHistory,
             termuxReturnDelayMs = termuxReturnDelayMs,
         )
+    }
+
+    fun rememberPendingLauncherTask(
+        task: PendingLauncherTask,
+        showDialog: Boolean = false,
+    ) {
+        pendingLauncherTask = task
+        showPendingTaskDialog = showDialog
+        PendingLauncherTaskStore.save(context, task)
+    }
+
+    fun clearPendingLauncherTask() {
+        pendingLauncherTask = null
+        PendingLauncherTaskStore.clear(context)
+    }
+
+    fun selectedVersionTargetLabel(): String {
+        return selectedTavernVersion?.label?.trim().orEmpty()
+            .ifBlank { selectedTavernVersion?.target?.trim().orEmpty() }
+    }
+
+    fun buildSafetyBackupLabel(operationPrefix: String): String {
+        return "安全备份-$operationPrefix-${System.currentTimeMillis()}"
+    }
+
+    fun latestPendingResult(task: PendingLauncherTask): TermuxResultDisplay? {
+        return onLatestTermuxResult()?.takeIf { it.command == task.commandName }
+    }
+
+    fun pendingTaskDefaultTab(task: PendingLauncherTask): LauncherTab {
+        return when (task.kind) {
+            PendingLauncherTaskKind.ManualBackup,
+            PendingLauncherTaskKind.RestoreBackup -> LauncherTab.Backup
+
+            PendingLauncherTaskKind.InstallTavern,
+            PendingLauncherTaskKind.UpdateTavern,
+            PendingLauncherTaskKind.RollbackTavern -> LauncherTab.Version
+        }
     }
 
     fun hasTavernDirectoryMissingSignal(text: String): Boolean {
@@ -658,6 +699,24 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun runPendingGuardedCommand(
+        task: PendingLauncherTask,
+        label: String,
+        timeoutMs: Long,
+        allowRunningInference: Boolean = false,
+        action: (LauncherUpdate) -> Unit,
+    ) {
+        if (!beginBusy(label, timeoutMs)) return
+        rememberPendingLauncherTask(task)
+        action { newStatus, termuxOutput, ok ->
+            update(newStatus, termuxOutput, ok, allowRunningInference)
+            if (!isTransientStatus(newStatus)) {
+                clearPendingLauncherTask()
+                releaseBusy()
+            }
+        }
+    }
+
     fun runStartupRefresh() {
         if (
             startupRefreshInFlight ||
@@ -936,6 +995,97 @@ fun LukoaLauncherScreen(
         }
         runGuarded(busyText, timeoutMs, allowRunningInference = false) { guardedUpdate ->
             onCommand(command, guardedUpdate)
+        }
+    }
+
+    fun runSelectedVersionCommandWithSafetyBackup(
+        baseCommand: String,
+        emptyMessage: String,
+        busyText: String,
+        taskKind: PendingLauncherTaskKind,
+        safetyBackupPrefix: String,
+    ) {
+        val command = selectedVersionCommand(baseCommand)
+        if (command == null) {
+            if (selectedTavernVersion == null) {
+                update(emptyMessage, "", false, allowRunningInference = false)
+            }
+            return
+        }
+        val startedAtMillis = System.currentTimeMillis()
+        val targetLabel = selectedVersionTargetLabel()
+        val taskTitle = taskKind.title
+        val safetyBackupCommand = "tavern-backup-manual::${buildSafetyBackupLabel(safetyBackupPrefix)}"
+        if (!beginBusy(busyText, 1_200_000L)) return
+        rememberPendingLauncherTask(
+            PendingLauncherTask(
+                kind = taskKind,
+                commandName = "tavern-backup",
+                detail = "正在自动创建安全备份",
+                startedAtMillis = startedAtMillis,
+                targetLabel = targetLabel,
+            ),
+        )
+        update("正在自动创建安全备份，完成后才会继续${taskTitle}。", "", false, allowRunningInference = false)
+        onCommand(safetyBackupCommand) { backupStatus, backupOutput, backupOk ->
+            val backupFinished = !isTransientStatus(backupStatus)
+            val backupStatusText = if (backupFinished && !backupOk) {
+                "$backupStatus\n这次${taskTitle}没有开始。"
+            } else {
+                backupStatus
+            }
+            update(backupStatusText, backupOutput, backupOk, allowRunningInference = false)
+            if (!backupFinished) return@onCommand
+            if (!backupOk) {
+                clearPendingLauncherTask()
+                releaseBusy()
+                return@onCommand
+            }
+            val safetyBackupPath = BackupHistoryReducer.extractCreatedBackupArchive(backupOutput, backupOk).orEmpty()
+            if (safetyBackupPath.isBlank()) {
+                clearPendingLauncherTask()
+                releaseBusy()
+                update(
+                    "自动安全备份已完成，但没有读到备份路径。为稳妥起见，这次没有开始${taskTitle}。",
+                    backupOutput,
+                    false,
+                    allowRunningInference = false,
+                )
+                return@onCommand
+            }
+            rememberPendingLauncherTask(
+                PendingLauncherTask(
+                    kind = taskKind,
+                    commandName = baseCommand,
+                    detail = "自动安全备份已完成，正在${taskTitle}",
+                    startedAtMillis = startedAtMillis,
+                    targetLabel = targetLabel,
+                    safetyBackupPath = safetyBackupPath,
+                ),
+            )
+            onCommand(command) { newStatus, termuxOutput, ok ->
+                val finished = !isTransientStatus(newStatus)
+                val statusWithBackupPath = if (finished) {
+                    buildString {
+                        append(newStatus)
+                        append('\n')
+                        append(
+                            if (ok) {
+                                "自动安全备份已保留：$safetyBackupPath"
+                            } else {
+                                "自动安全备份在：$safetyBackupPath"
+                            },
+                        )
+                    }
+                } else {
+                    newStatus
+                }
+                update(statusWithBackupPath, termuxOutput, ok, allowRunningInference = false)
+                if (finished) {
+                    clearPendingLauncherTask()
+                    releaseBusy()
+                }
+            }
         }
     }
 
@@ -1359,7 +1509,17 @@ fun LukoaLauncherScreen(
             return
         }
         val commandArgument = TavernInstallCommandCodec.encode(target, repoUrl, configPolicy)
-        runGuarded("安装酒馆", 900000L, allowRunningInference = false) { guardedUpdate ->
+        runPendingGuardedCommand(
+            task = PendingLauncherTask(
+                kind = PendingLauncherTaskKind.InstallTavern,
+                commandName = "tavern-install",
+                detail = "正在安装酒馆",
+                startedAtMillis = System.currentTimeMillis(),
+                targetLabel = target,
+            ),
+            label = "安装酒馆",
+            timeoutMs = 900000L,
+        ) { guardedUpdate ->
             onCommand("tavern-install::$commandArgument", guardedUpdate)
         }
     }
@@ -1420,7 +1580,17 @@ fun LukoaLauncherScreen(
             return
         }
         showApplyBackupPreviewDialog = false
-        runGuarded("应用酒馆备份", 600000L, allowRunningInference = false) { guardedUpdate ->
+        runPendingGuardedCommand(
+            task = PendingLauncherTask(
+                kind = PendingLauncherTaskKind.RestoreBackup,
+                commandName = "tavern-restore",
+                detail = "正在应用酒馆备份",
+                startedAtMillis = System.currentTimeMillis(),
+                archivePath = archivePath,
+            ),
+            label = "应用酒馆备份",
+            timeoutMs = 600000L,
+        ) { guardedUpdate ->
             onCommand("tavern-restore::$archivePath", guardedUpdate)
         }
     }
@@ -2237,6 +2407,142 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun runLauncherQuickFixAction(action: LauncherQuickFixAction) {
+        when (action.type) {
+            LauncherQuickFixActionType.RunHealthCheck -> {
+                selectedTab = LauncherTab.Settings
+                runHealthCheck()
+            }
+
+            LauncherQuickFixActionType.RequestRunPermission -> {
+                requestRunCommandPermission()
+            }
+
+            LauncherQuickFixActionType.CopyExternalAppsCommand -> {
+                copyTermuxPermissionCommand()
+            }
+
+            LauncherQuickFixActionType.PrepareTermuxEnvironment -> {
+                prepareTermuxEnvironment()
+            }
+
+            LauncherQuickFixActionType.OpenPathSettings -> {
+                selectedTab = LauncherTab.Settings
+                update("已切到设置里的路径分区。先确认酒馆目录。", "", true, allowRunningInference = false)
+            }
+
+            LauncherQuickFixActionType.OpenNetworkSettings -> {
+                selectedTab = LauncherTab.Settings
+                update("已切到设置里的网络分区。先检查 Git 源、npm 源和 Termux 包源。", "", true, allowRunningInference = false)
+            }
+
+            LauncherQuickFixActionType.RecheckTavernVersion -> {
+                selectedTab = LauncherTab.Version
+                checkTavernInstall()
+            }
+
+            LauncherQuickFixActionType.RequestTermuxStoragePermission -> {
+                requestTermuxStoragePermission()
+            }
+        }
+    }
+
+    fun continuePendingLauncherTask() {
+        val task = pendingLauncherTask ?: return
+        showPendingTaskDialog = false
+        selectedTab = pendingTaskDefaultTab(task)
+        val latest = latestPendingResult(task)
+        if (latest != null) {
+            if (latest.key != lastSyncedTermuxResultKey) {
+                syncTermuxResult(latest)
+                lastSyncedTermuxResultKey = latest.key
+            }
+            when (task.kind) {
+                PendingLauncherTaskKind.ManualBackup -> refreshBackupList()
+                PendingLauncherTaskKind.RestoreBackup -> {
+                    refreshBackupList()
+                    runStartupRefresh()
+                }
+
+                PendingLauncherTaskKind.InstallTavern,
+                PendingLauncherTaskKind.UpdateTavern,
+                PendingLauncherTaskKind.RollbackTavern -> runStartupRefresh()
+            }
+            if (
+                task.commandName == "tavern-backup" &&
+                (task.kind == PendingLauncherTaskKind.UpdateTavern || task.kind == PendingLauncherTaskKind.RollbackTavern)
+            ) {
+                val backupPath = BackupHistoryReducer.extractCreatedBackupArchive(latest.output, latest.ok).orEmpty()
+                clearPendingLauncherTask()
+                if (backupPath.isNotBlank()) {
+                    refreshBackupList()
+                }
+                update(
+                    when {
+                        latest.ok && backupPath.isNotBlank() -> {
+                            "已继续检查上次${task.title}：自动安全备份已经生成。\n安全备份在：$backupPath\n后续${task.title}还没确认继续开始，请重新点一次。"
+                        }
+
+                        latest.ok -> {
+                            "已继续检查上次${task.title}：安全备份命令返回成功，但没有读到备份路径。为稳妥起见，请重新点一次。"
+                        }
+
+                        else -> {
+                            "已继续检查上次${task.title}：自动安全备份失败，这次风险操作没有继续执行。"
+                        }
+                    },
+                    "",
+                    latest.ok,
+                    allowRunningInference = false,
+                )
+                return
+            }
+            val followUp = when {
+                task.safetyBackupPath.isNotBlank() && latest.ok -> "\n自动安全备份已保留：${task.safetyBackupPath}"
+                task.safetyBackupPath.isNotBlank() -> "\n自动安全备份还在：${task.safetyBackupPath}"
+                else -> ""
+            }
+            clearPendingLauncherTask()
+            update(
+                "已继续检查上次${task.title}，已经收到结果。$followUp",
+                "",
+                latest.ok,
+                allowRunningInference = false,
+            )
+            return
+        }
+
+        when (task.kind) {
+            PendingLauncherTaskKind.ManualBackup -> refreshBackupList()
+            PendingLauncherTaskKind.RestoreBackup -> {
+                refreshBackupList()
+                runStartupRefresh()
+            }
+
+            PendingLauncherTaskKind.InstallTavern,
+            PendingLauncherTaskKind.UpdateTavern,
+            PendingLauncherTaskKind.RollbackTavern -> runStartupRefresh()
+        }
+        update(
+            "还没读到上次${task.title}的最终回传。已先帮你重新检查相关状态；如果 Termux 还在跑，稍后再点一次“继续检查”。",
+            "",
+            false,
+            allowRunningInference = false,
+        )
+    }
+
+    fun abandonPendingLauncherTask() {
+        showPendingTaskDialog = false
+        clearPendingLauncherTask()
+        OperationLockStore.release(context)
+        update(
+            "已放弃记录这次未完成任务。不会删除已经生成的备份和现有文件。",
+            "",
+            true,
+            allowRunningInference = false,
+        )
+    }
+
     fun runHealthCheckPrimaryAction() {
         val action = healthCheckReport?.primaryAction
         when (action?.type) {
@@ -2531,11 +2837,12 @@ fun LukoaLauncherScreen(
 
         rollbackConfirmActive = false
         updateConfirmActive = false
-        runSelectedVersionCommand(
+        runSelectedVersionCommandWithSafetyBackup(
             baseCommand = "tavern-rollback",
             emptyMessage = "请先选择一个版本。",
             busyText = "回退酒馆版本",
-            timeoutMs = 600000L,
+            taskKind = PendingLauncherTaskKind.RollbackTavern,
+            safetyBackupPrefix = "回退前",
         )
     }
 
@@ -2568,11 +2875,12 @@ fun LukoaLauncherScreen(
 
         updateConfirmActive = false
         rollbackConfirmActive = false
-        runSelectedVersionCommand(
+        runSelectedVersionCommandWithSafetyBackup(
             baseCommand = "tavern-update",
             emptyMessage = "请先选择一个版本。",
             busyText = "更新酒馆源码",
-            timeoutMs = 600000L,
+            taskKind = PendingLauncherTaskKind.UpdateTavern,
+            safetyBackupPrefix = "更新前",
         )
     }
 
@@ -2693,6 +3001,16 @@ fun LukoaLauncherScreen(
         )
     }
 
+    pendingLauncherTask?.takeIf { showPendingTaskDialog }?.let { task ->
+        PendingTaskResumeDialog(
+            task = task,
+            activeLockLabel = OperationLockStore.activeLabel(context),
+            onContinueCheck = ::continuePendingLauncherTask,
+            onAbandon = ::abandonPendingLauncherTask,
+            onDismiss = { showPendingTaskDialog = false },
+        )
+    }
+
     if (showInstallRiskDialog) {
         installRiskConfirmation?.let { confirmation ->
             InstallRiskConfirmDialog(
@@ -2779,7 +3097,20 @@ fun LukoaLauncherScreen(
                 }
                 showManualBackupDialog = false
                 manualBackupName = ""
-                runGuarded("创建酒馆备份", 600000L, allowRunningInference = false) { guardedUpdate ->
+                runPendingGuardedCommand(
+                    task = PendingLauncherTask(
+                        kind = PendingLauncherTaskKind.ManualBackup,
+                        commandName = "tavern-backup",
+                        detail = if (backupName.isBlank()) {
+                            "正在创建酒馆备份"
+                        } else {
+                            "备份名：$backupName"
+                        },
+                        startedAtMillis = System.currentTimeMillis(),
+                    ),
+                    label = "创建酒馆备份",
+                    timeoutMs = 600000L,
+                ) { guardedUpdate ->
                     if (backupName.isBlank()) {
                         onCommand("tavern-backup-manual", guardedUpdate)
                     } else {
@@ -3170,7 +3501,11 @@ fun LukoaLauncherScreen(
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
                             )
-                            IssueAnalysisPanel(issueAnalysis)
+                            IssueAnalysisPanel(
+                                issues = issueAnalysis,
+                                actionsLocked = actionInProgress,
+                                onQuickFixAction = ::runLauncherQuickFixAction,
+                            )
                             LogPanel(
                                 title = "Termux 调用返回",
                                 content = termuxLog,

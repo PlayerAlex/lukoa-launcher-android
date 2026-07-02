@@ -5,6 +5,7 @@ data class TavernIssue(
     val detail: String,
     val action: String,
     val severity: IssueSeverity,
+    val quickFixAction: LauncherQuickFixAction? = null,
 )
 
 enum class IssueSeverity {
@@ -36,6 +37,10 @@ object TavernIssueAnalyzer {
                 detail = "Termux 已安装，但还不允许启动器调用它。",
                 action = "在权限引导里复制命令，打开 Termux 粘贴执行，再回启动器重新检测。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.CopyExternalAppsCommand,
+                    label = "复制权限命令",
+                ),
             )
         }
 
@@ -95,6 +100,10 @@ object TavernIssueAnalyzer {
                 detail = "启动器能看到备份，但 Termux 读不到 Download 里的备份包。",
                 action = "打开 Termux，执行 termux-setup-storage，允许文件权限后再点应用。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.RequestTermuxStoragePermission,
+                    label = "申请存储权限",
+                ),
             )
         }
 
@@ -140,6 +149,10 @@ object TavernIssueAnalyzer {
                 detail = "Termux 没有可用包源，基础依赖装不上。",
                 action = "先到设置里切换 Termux 清华源，再点“准备 Termux 环境”。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.OpenNetworkSettings,
+                    label = "检查镜像源",
+                ),
             )
         }
 
@@ -179,6 +192,10 @@ object TavernIssueAnalyzer {
                 detail = "Termux 的包数据库还没收尾，所以升级会失败。",
                 action = "新版会自动修复；如果还失败，打开 Termux 等它跑完，再点“准备 Termux 环境”。",
                 severity = IssueSeverity.Warning,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.PrepareTermuxEnvironment,
+                    label = "修复依赖",
+                ),
             )
         }
 
@@ -209,6 +226,10 @@ object TavernIssueAnalyzer {
                 detail = "curl 或 git 的动态库版本不匹配，下载酒馆会失败。",
                 action = "点“准备 Termux 环境”自动执行升级；失败就先切换 Termux 清华源再试。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.PrepareTermuxEnvironment,
+                    label = "修复依赖",
+                ),
             )
         }
 
@@ -240,6 +261,10 @@ object TavernIssueAnalyzer {
                 detail = "npm 改了 package-lock.json，所以酒馆显示 dirty。",
                 action = "新版会自动清理这类依赖文件改动，再重新检测版本即可。",
                 severity = IssueSeverity.Warning,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.RecheckTavernVersion,
+                    label = "重新读取版本",
+                ),
             )
         }
 
@@ -254,6 +279,10 @@ object TavernIssueAnalyzer {
                 detail = "当前酒馆 Git 源可能连不上，国内网络常见。",
                 action = "到设置里的网络与镜像源，切换 GitHub 加速或填写可用镜像源。",
                 severity = IssueSeverity.Warning,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.OpenNetworkSettings,
+                    label = "检查镜像源",
+                ),
             )
         }
 
@@ -267,6 +296,10 @@ object TavernIssueAnalyzer {
                 detail = "npm 依赖源可能连不上或太慢。",
                 action = "到设置里的网络与镜像源，切换 npm 镜像后重试。",
                 severity = IssueSeverity.Warning,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.OpenNetworkSettings,
+                    label = "检查镜像源",
+                ),
             )
         }
 

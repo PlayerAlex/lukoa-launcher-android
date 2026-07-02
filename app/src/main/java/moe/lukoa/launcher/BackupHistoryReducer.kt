@@ -51,7 +51,7 @@ object BackupHistoryReducer {
         return ok && termuxOutput.contains("==== SillyTavern backups ====")
     }
 
-    private fun extractCreatedBackupArchive(termuxOutput: String, ok: Boolean): String? {
+    fun extractCreatedBackupArchive(termuxOutput: String, ok: Boolean): String? {
         if (!ok || !termuxOutput.contains("==== SillyTavern backup ====")) return null
         return termuxOutput.lineSequence()
             .map { it.trim() }
