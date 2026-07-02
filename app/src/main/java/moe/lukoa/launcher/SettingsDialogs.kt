@@ -110,7 +110,6 @@ fun TavernPathSettingsDialog(
 fun LauncherUpdateSettingsDialog(
     repositoryInput: String,
     githubUpdateState: GithubUpdateUiState,
-    actionsLocked: Boolean,
     onRepositoryInputChange: (String) -> Unit,
     onSaveRepository: () -> Unit,
     onRestoreDefaultRepository: () -> Unit,
@@ -120,7 +119,7 @@ fun LauncherUpdateSettingsDialog(
     onOpenRelease: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val updateLocked = actionsLocked || githubUpdateState.checking || githubUpdateState.downloading
+    val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
@@ -138,7 +137,7 @@ fun LauncherUpdateSettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "这里只管露科亚启动器 APK 更新。酒馆版本的安装、更新、回退还在版本页处理。",
+                    text = "这里只管露科亚启动器 APK 更新，走的是 App 自己的 GitHub 下载和安装流程，不用靠 Termux。酒馆版本的安装、更新、回退还在版本页处理。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

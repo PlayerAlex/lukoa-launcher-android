@@ -2415,7 +2415,6 @@ fun SettingsSection(
         LauncherUpdateSettingsDialog(
             repositoryInput = repositoryInput,
             githubUpdateState = githubUpdateState,
-            actionsLocked = actionsLocked,
             onRepositoryInputChange = onRepositoryInputChange,
             onSaveRepository = onSaveRepository,
             onRestoreDefaultRepository = onRestoreDefaultRepository,
@@ -2595,7 +2594,7 @@ fun SettingsSection(
 
             SettingsPageView.Update -> SectionPanel(title = "应用更新", accentColor = LukoaColors.Accent) {
                 Text(
-                    text = "这里管理的是启动器更新，不是酒馆版本更新。",
+                    text = "这里管理的是启动器更新，走 App 自己的 GitHub 更新流程，不是酒馆版本更新，也不是 Termux 里的更新。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
