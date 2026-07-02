@@ -17,6 +17,7 @@
     [string[]]$CurrentHighlights = @(),
     [string]$AndroidHome = "",
     [switch]$SkipBuild,
+    [switch]$AllowUntracked,
     [switch]$ValidateOnly
 )
 
@@ -59,6 +60,62 @@ function Invoke-Gh {
     & $GhPath @CommandArgs
     if ($LASTEXITCODE -ne 0) {
         throw ('gh command failed: gh {0}' -f ($CommandArgs -join ' '))
+    }
+}
+
+function Get-UntrackedFiles {
+    $lines = & git ls-files --others --exclude-standard
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to read untracked files."
+    }
+    return @($lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Assert-NoUntrackedFiles {
+    param(
+        [switch]$SkipCheck
+    )
+
+    if ($SkipCheck) {
+        return
+    }
+
+    $untrackedFiles = Get-UntrackedFiles
+    if ($untrackedFiles.Count -eq 0) {
+        return
+    }
+
+    $details = ($untrackedFiles | ForEach-Object { ' - {0}' -f $_ }) -join [Environment]::NewLine
+    throw @"
+Release script stopped because untracked files were found.
+It will not guess whether these files should be included in the release commit.
+Please git add the files that belong in this release first, or move/remove unrelated scratch files.
+$details
+"@
+}
+
+function Test-GhReleaseExists {
+    param(
+        [string]$GhPath,
+        [string]$TagName
+    )
+
+    $nativeErrorPreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+    $previousNativeErrorPreference = $null
+    if ($nativeErrorPreference) {
+        $previousNativeErrorPreference = $nativeErrorPreference.Value
+        $script:PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    try {
+        & $GhPath release view $TagName 1>$null 2>$null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        if ($nativeErrorPreference) {
+            $script:PSNativeCommandUseErrorActionPreference = $previousNativeErrorPreference
+        }
     }
 }
 
@@ -180,9 +237,12 @@ if ($ValidateOnly) {
         autoNotes = $AutoNotes
         autoNotesMode = $AutoNotesMode
         preRelease = $PreRelease
+        allowUntracked = $AllowUntracked
     } | ConvertTo-Json
     exit 0
 }
+
+Assert-NoUntrackedFiles -SkipCheck:$AllowUntracked
 
 Update-VersionInGradle -GradlePath $gradleFile -NextVersionName $VersionName -NextVersionCode $VersionCode
 
@@ -213,7 +273,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($statusLines) {
-    Invoke-Git add -A
+    Invoke-Git add -u
     Invoke-Git commit -m ('Release {0}' -f $VersionName)
 }
 
@@ -239,8 +299,7 @@ $notesPath = Resolve-ReleaseNotesPath `
     -CurrentVersionHighlights $CurrentHighlights
 $title = if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) { $tagName } else { $ReleaseTitle }
 
-& $ghPath release view $tagName 1>$null 2>$null
-if ($LASTEXITCODE -eq 0) {
+if (Test-GhReleaseExists -GhPath $ghPath -TagName $tagName) {
     Invoke-Gh $ghPath release upload $tagName $releaseApkPath --clobber
 } else {
     $createArgs = @(

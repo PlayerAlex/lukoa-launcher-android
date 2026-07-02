@@ -23,8 +23,15 @@ if (-not (Test-Path -LiteralPath $env:ANDROID_HOME)) {
     throw "Android SDK directory does not exist: $env:ANDROID_HOME"
 }
 
+$GradleWrapper = Join-Path $ProjectRoot "gradlew.bat"
 $GradleCommandInfo = Get-Command gradle -ErrorAction SilentlyContinue
-$GradleCommand = if ($GradleCommandInfo) { $GradleCommandInfo.Source } else { $null }
+$GradleCommand = if (Test-Path -LiteralPath $GradleWrapper) {
+    $GradleWrapper
+} elseif ($GradleCommandInfo) {
+    $GradleCommandInfo.Source
+} else {
+    $null
+}
 if (-not $GradleCommand) {
     $CachedGradle = Get-ChildItem "$env:USERPROFILE\.gradle\wrapper\dists" -Recurse -Filter gradle.bat -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending |
@@ -38,7 +45,7 @@ if (-not $GradleCommand) {
     throw "gradle command was not found. Install Gradle, or import this project in Android Studio."
 }
 
-& $GradleCommand ":app:assembleDebug"
+& $GradleCommand "--no-daemon" ":app:assembleDebug"
 if ($LASTEXITCODE -ne 0) {
     throw "Gradle build failed with exit code $LASTEXITCODE"
 }
