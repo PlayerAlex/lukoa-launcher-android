@@ -143,6 +143,12 @@ fun LauncherUpdateSettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 UpdateStatusSummary(githubUpdateState = githubUpdateState)
+                githubReleaseNotesEntries(githubUpdateState).forEach { (title, updateInfo) ->
+                    GithubReleaseNotesCard(
+                        title = title,
+                        updateInfo = updateInfo,
+                    )
+                }
                 UpdateChannelSelectorCard(
                     channel = githubUpdateState.channel,
                     enabled = !updateLocked,
@@ -223,6 +229,74 @@ fun LauncherUpdateSettingsDialog(
         confirmButton = {},
         dismissButton = {},
     )
+}
+
+@Composable
+fun GithubReleaseNotesCard(
+    title: String,
+    updateInfo: GithubUpdateInfo,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = title,
+                color = LukoaColors.Accent,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            MiniInfoLine("版本", "v${updateInfo.versionName}")
+            MiniInfoLine("类型", updateInfo.releaseTypeLabel)
+            if (updateInfo.releaseName.isNotBlank() && updateInfo.releaseName != updateInfo.tagName) {
+                MiniInfoLine("标题", updateInfo.releaseName)
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = LukoaColors.Surface,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.35f)),
+            ) {
+                Text(
+                    text = updateInfo.body.ifBlank { "这个版本没有填写更新说明。" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 88.dp, max = 180.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+fun githubReleaseNotesEntries(
+    githubUpdateState: GithubUpdateUiState,
+): List<Pair<String, GithubUpdateInfo>> {
+    val current = githubUpdateState.currentRelease
+    val latest = githubUpdateState.latest
+    return buildList {
+        if (current != null) {
+            add("当前版本更新内容" to current)
+        }
+        if (latest != null && latest.tagName != current?.tagName) {
+            add(
+                if (latest.isNewer) {
+                    "最新版本更新内容" to latest
+                } else {
+                    "当前通道最新版本更新内容" to latest
+                },
+            )
+        }
+    }
 }
 
 @Composable

@@ -2600,6 +2600,12 @@ fun SettingsSection(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 GithubUpdateStatusCard(githubUpdateState)
+                githubReleaseNotesEntries(githubUpdateState).forEach { (title, updateInfo) ->
+                    GithubReleaseNotesCard(
+                        title = title,
+                        updateInfo = updateInfo,
+                    )
+                }
                 VersionInfoLine("当前仓库", githubUpdateState.repository.ifBlank { "未配置" })
                 VersionInfoLine("更新通道", githubUpdateState.channel.label)
                 githubUpdateState.latest?.let { latest ->
@@ -2851,7 +2857,13 @@ fun UpdateAvailableDialog(
             Text("发现${updateInfo.releaseTypeLabel} v${updateInfo.versionName}")
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Surface(
                     color = LukoaColors.SurfaceAlt,
                     shape = RoundedCornerShape(12.dp),

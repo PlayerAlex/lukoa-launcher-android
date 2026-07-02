@@ -1646,6 +1646,7 @@ fun LukoaLauncherScreen(
 
         onCheckGithubUpdate(repository, githubUpdateChannel) { result ->
             val nextLatest = result.info ?: githubUpdateState.latest
+            val nextCurrentRelease = result.currentInfo ?: githubUpdateState.currentRelease
             val shouldPrompt = result.info?.isNewer == true &&
                 (manual || result.info.tagName != ignoredUpdateTag)
             githubUpdateState = githubUpdateState.copy(
@@ -1654,6 +1655,7 @@ fun LukoaLauncherScreen(
                 checking = false,
                 downloading = false,
                 latest = nextLatest,
+                currentRelease = nextCurrentRelease,
                 message = result.message,
                 lastCheckedText = "刚刚检查",
             )

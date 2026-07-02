@@ -38,6 +38,7 @@ data class GithubUpdateCheckResult(
     val ok: Boolean,
     val message: String,
     val info: GithubUpdateInfo? = null,
+    val currentInfo: GithubUpdateInfo? = null,
 )
 
 data class GithubUpdateInstallResult(
@@ -51,6 +52,7 @@ data class GithubUpdateUiState(
     val checking: Boolean = false,
     val downloading: Boolean = false,
     val latest: GithubUpdateInfo? = null,
+    val currentRelease: GithubUpdateInfo? = null,
     val message: String = "未配置 GitHub 仓库。",
     val lastCheckedText: String = "",
 ) {
@@ -120,15 +122,19 @@ class GithubUpdateManager(private val context: Context) {
         }
 
         return try {
-            val release = bestVersionedRelease(repository, channel)
+            val releases = loadReleases(repository)
+            val currentRelease = releaseForVersion(releases, currentVersionName)
+            val release = bestVersionedRelease(releases, channel)
                 ?: return GithubUpdateCheckResult(
                     ok = false,
                     message = when (channel) {
                         GithubReleaseChannel.Stable -> "仓库里还没有可用稳定版 Release。"
                         GithubReleaseChannel.Test -> "仓库里还没有可用 Release。"
                     },
+                    currentInfo = currentRelease?.toUpdateInfo(repository, currentVersionName),
                 )
             val info = release.toUpdateInfo(repository, currentVersionName)
+            val currentInfo = currentRelease?.toUpdateInfo(repository, currentVersionName)
 
             val compareToCurrent = VersionComparator.compare(info.versionName, currentVersionName)
             val message = when {
@@ -137,7 +143,12 @@ class GithubUpdateManager(private val context: Context) {
                 info.apkDownloadUrl.isBlank() -> "发现${info.releaseTypeLabel} v${info.versionName}，但没有 APK。"
                 else -> "发现${info.releaseTypeLabel} v${info.versionName}。"
             }
-            GithubUpdateCheckResult(ok = true, message = message, info = info)
+            GithubUpdateCheckResult(
+                ok = true,
+                message = message,
+                info = info,
+                currentInfo = currentInfo,
+            )
         } catch (error: Exception) {
             GithubUpdateCheckResult(
                 ok = false,
@@ -146,14 +157,24 @@ class GithubUpdateManager(private val context: Context) {
         }
     }
 
-    private fun bestVersionedRelease(repository: String, channel: GithubReleaseChannel): JSONObject? {
+    private fun loadReleases(repository: String): List<JSONObject> {
         val releasesText = httpGetText("https://api.github.com/repos/$repository/releases?per_page=30")
         val releases = JSONArray(releasesText)
+        return buildList {
+            for (index in 0 until releases.length()) {
+                releases.optJSONObject(index)?.let(::add)
+            }
+        }
+    }
+
+    private fun bestVersionedRelease(
+        releases: List<JSONObject>,
+        channel: GithubReleaseChannel,
+    ): JSONObject? {
         var bestRelease: JSONObject? = null
         var bestVersion = "0"
         var bestPrerelease = false
-        for (index in 0 until releases.length()) {
-            val release = releases.optJSONObject(index) ?: continue
+        for (release in releases) {
             if (release.optBoolean("draft")) continue
             val prerelease = release.optBoolean("prerelease")
             if (channel == GithubReleaseChannel.Stable && prerelease) continue
@@ -174,6 +195,22 @@ class GithubUpdateManager(private val context: Context) {
             }
         }
         return bestRelease
+    }
+
+    private fun releaseForVersion(
+        releases: List<JSONObject>,
+        currentVersionName: String,
+    ): JSONObject? {
+        val normalizedVersion = currentVersionName.trim()
+        if (normalizedVersion.isBlank()) return null
+        val expectedTag = "v$normalizedVersion"
+        return releases.firstOrNull { release ->
+            if (release.optBoolean("draft")) return@firstOrNull false
+            val tagName = release.optString("tag_name").ifBlank { release.optString("name") }
+            tagName.equals(expectedTag, ignoreCase = true) ||
+                tagName.equals(normalizedVersion, ignoreCase = true) ||
+                VersionComparator.extractVersionName(tagName).equals(normalizedVersion, ignoreCase = true)
+        }
     }
 
     private fun JSONObject.toUpdateInfo(repository: String, currentVersionName: String): GithubUpdateInfo {
