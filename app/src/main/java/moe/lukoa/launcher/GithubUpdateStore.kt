@@ -64,7 +64,7 @@ class GithubUpdateStore(private val context: Context) {
 }
 
 object GithubUpdateDefaults {
-    const val REPOSITORY = ""
+    const val REPOSITORY = "PlayerAlex/lukoa-launcher-android"
 }
 
 object GithubRepositoryParser {
