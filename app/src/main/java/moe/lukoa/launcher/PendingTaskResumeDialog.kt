@@ -96,6 +96,76 @@ fun PendingTaskResumeDialog(
 }
 
 @Composable
+fun PendingTaskNoticePanel(
+    task: PendingLauncherTask,
+    activeLockLabel: String?,
+    actionsLocked: Boolean,
+    onContinueCheck: () -> Unit,
+    onAbandon: () -> Unit,
+) {
+    SectionPanel(
+        title = "检测到未完成任务",
+        accentColor = LukoaColors.Amber,
+    ) {
+        Text(
+            text = "上次正在${task.title}。如果刚才把弹窗关掉了，也可以直接在这里继续检查或放弃记录。",
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PendingTaskInfoLine("任务", task.title)
+                task.detail.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("阶段", it) }
+                task.targetLabel.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("目标", it) }
+                PendingTaskInfoLine("开始时间", formatPendingTaskTime(task.startedAtMillis))
+            }
+        }
+        activeLockLabel?.takeIf { it.isNotBlank() }?.let {
+            Surface(
+                color = LukoaColors.AmberSoft,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.35f)),
+            ) {
+                Text(
+                    text = "系统里还记着一个进行中的步骤：$it。先点“继续检查”更稳。",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            ToneActionButton(
+                text = "继续检查",
+                enabled = !actionsLocked,
+                tone = ActionTone.Safe,
+                modifier = Modifier.weight(1f),
+                onClick = onContinueCheck,
+            )
+            ToneActionButton(
+                text = "放弃记录",
+                enabled = !actionsLocked,
+                tone = ActionTone.Warning,
+                modifier = Modifier.weight(1f),
+                onClick = onAbandon,
+            )
+        }
+    }
+}
+
+@Composable
 private fun PendingTaskInfoLine(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
