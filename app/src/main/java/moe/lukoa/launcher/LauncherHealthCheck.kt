@@ -72,6 +72,12 @@ object LauncherHealthCheck {
             if (!installUnknownAppsGranted) add("安装未知应用")
             if (termuxStoragePermissionBlocked) add("Termux 存储")
         }
+        val hasReadableTermuxRepo = doctorReport?.let {
+            it.termuxRepoUri.isNotBlank() || (
+                it.termuxRepoLabel.isNotBlank() &&
+                    it.termuxRepoLabel != "未读取"
+            )
+        } == true
         val pathProblem = doctorReport != null && (
             doctorReport.tavernDirExists == false ||
                 doctorReport.packageJsonExists == false ||
@@ -313,15 +319,20 @@ object LauncherHealthCheck {
                         level = LauncherHealthLevel.Unknown,
                     )
 
-                    doctorReport.termuxRepoUri.isBlank() -> LauncherHealthItem(
+                    !hasReadableTermuxRepo -> LauncherHealthItem(
                         title = "Termux 包源",
-                        detail = "还没读到当前 Termux 包源。",
+                        detail = "这次没读到当前 Termux 包源，不一定代表你没有包源。更像是读取失败，去网络设置里点一次“读取当前 Termux 包源”再确认。",
                         level = LauncherHealthLevel.Warning,
                     )
 
                     else -> LauncherHealthItem(
                         title = "Termux 包源",
-                        detail = "当前使用 ${doctorReport.termuxRepoLabel}。",
+                        detail = buildString {
+                            append("当前使用 ${doctorReport.termuxRepoLabel}。")
+                            if (doctorReport.termuxRepoUri.isNotBlank()) {
+                                append(" 地址是 ${doctorReport.termuxRepoUri}。")
+                            }
+                        },
                         level = LauncherHealthLevel.Good,
                     )
                 },

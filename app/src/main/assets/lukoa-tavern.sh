@@ -374,6 +374,38 @@ http_ok() {
   curl -fsS --max-time 3 "http://127.0.0.1:$TAVERN_PORT/" >/dev/null 2>&1
 }
 
+PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
+TERMUX_APT_SOURCES_FILE="$PREFIX_DIR/etc/apt/sources.list"
+TERMUX_APT_DEB822_FILE="$PREFIX_DIR/etc/apt/sources.list.d/termux.sources"
+
+termux_apt_label_for_uri() {
+  uri="${1:-}"
+  case "$uri" in
+    *mirrors.tuna.tsinghua.edu.cn*) printf "清华源" ;;
+    *packages.termux.dev*) printf "官方源" ;;
+    "") printf "未读取" ;;
+    *) printf "自定义" ;;
+  esac
+}
+
+termux_apt_current_uri() {
+  if [ -f "$TERMUX_APT_SOURCES_FILE" ]; then
+    found_uri="$(awk '$1 == "deb" { print $2; exit }' "$TERMUX_APT_SOURCES_FILE" 2>/dev/null || true)"
+    if [ -n "$found_uri" ]; then
+      printf "%s" "$found_uri"
+      return 0
+    fi
+  fi
+  if [ -f "$TERMUX_APT_DEB822_FILE" ]; then
+    found_uri="$(awk 'tolower($1) == "uris:" { print $2; exit }' "$TERMUX_APT_DEB822_FILE" 2>/dev/null || true)"
+    if [ -n "$found_uri" ]; then
+      printf "%s" "$found_uri"
+      return 0
+    fi
+  fi
+  return 0
+}
+
 port_listening() {
   port_hex="$(printf '%04X' "$TAVERN_PORT" 2>/dev/null || printf '')"
   [ -n "$port_hex" ] || return 1
