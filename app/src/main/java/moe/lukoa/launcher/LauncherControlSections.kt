@@ -64,6 +64,7 @@ private enum class VersionPageView {
 }
 
 private enum class SettingsPageView {
+    Health,
     Path,
     Mirror,
     Permissions,
@@ -2266,6 +2267,8 @@ fun SettingsSection(
     customTermuxRepoInput: String,
     repositoryInput: String,
     githubUpdateState: GithubUpdateUiState,
+    healthCheckReport: LauncherHealthReport?,
+    healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
@@ -2291,9 +2294,12 @@ fun SettingsSection(
     onRepositoryInputChange: (String) -> Unit,
     onSaveRepository: () -> Unit,
     onRestoreDefaultRepository: () -> Unit,
+    onSaveUpdateChannel: (GithubReleaseChannel) -> Unit,
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
+    onRunHealthCheck: () -> Unit,
+    onRunHealthCheckPrimaryAction: () -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -2319,10 +2325,19 @@ fun SettingsSection(
     var showWakeDelayDialog by remember { mutableStateOf(false) }
     var selectedView by remember {
         mutableStateOf(
-            if (permissionReadyCount >= 5) SettingsPageView.Mirror else SettingsPageView.Permissions,
+            if (healthCheckReport?.hasData == true) {
+                if (permissionReadyCount >= 5) SettingsPageView.Mirror else SettingsPageView.Permissions
+            } else {
+                SettingsPageView.Health
+            },
         )
     }
     val sectionOptions = listOf(
+        SectionSwitchOption(
+            value = SettingsPageView.Health,
+            label = "体检",
+            description = "先做一键体检，集中看权限、路径、镜像源和酒馆环境哪里卡住了。",
+        ),
         SectionSwitchOption(
             value = SettingsPageView.Path,
             label = "路径",
@@ -2404,6 +2419,7 @@ fun SettingsSection(
             onRepositoryInputChange = onRepositoryInputChange,
             onSaveRepository = onSaveRepository,
             onRestoreDefaultRepository = onRestoreDefaultRepository,
+            onSaveUpdateChannel = onSaveUpdateChannel,
             onCheckUpdate = onCheckUpdate,
             onInstallUpdate = onInstallUpdate,
             onOpenRelease = onOpenRelease,
@@ -2438,6 +2454,14 @@ fun SettingsSection(
         )
 
         when (selectedView) {
+            SettingsPageView.Health -> HealthCheckSection(
+                report = healthCheckReport,
+                checking = healthCheckInFlight,
+                actionsLocked = actionsLocked,
+                onRunHealthCheck = onRunHealthCheck,
+                onPrimaryAction = onRunHealthCheckPrimaryAction,
+            )
+
             SettingsPageView.Path -> SectionPanel(title = "酒馆路径", accentColor = LukoaColors.Accent) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2576,7 +2600,11 @@ fun SettingsSection(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 GithubUpdateStatusCard(githubUpdateState)
-                VersionInfoLine("当前仓库", repositoryInput.ifBlank { "未配置" })
+                VersionInfoLine("当前仓库", githubUpdateState.repository.ifBlank { "未配置" })
+                VersionInfoLine("更新通道", githubUpdateState.channel.label)
+                githubUpdateState.latest?.let { latest ->
+                    VersionInfoLine("最新类型", latest.releaseTypeLabel)
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2726,6 +2754,7 @@ private fun SettingsOverviewCard(
         githubUpdateState.latest != null -> "已是最新"
         else -> "未检查"
     }
+    val updateSummaryText = "$updateStatusText · ${githubUpdateState.channel.label}"
     val updateStatusColor = when {
         githubUpdateState.downloading -> LukoaColors.Accent
         githubUpdateState.checking -> LukoaColors.Amber
@@ -2786,7 +2815,7 @@ private fun SettingsOverviewCard(
                 )
                 SettingsStatBlock(
                     label = "启动器更新",
-                    value = updateStatusText,
+                    value = updateSummaryText,
                     accentColor = updateStatusColor,
                     modifier = Modifier.weight(1f),
                 )
@@ -2819,7 +2848,7 @@ fun UpdateAvailableDialog(
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = {
-            Text("发现新版本 v${updateInfo.versionName}")
+            Text("发现${updateInfo.releaseTypeLabel} v${updateInfo.versionName}")
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2849,12 +2878,27 @@ fun UpdateAvailableDialog(
                                 modifier = Modifier.weight(1f),
                             )
                         }
+                        VersionInfoLine("版本类型", updateInfo.releaseTypeLabel)
                         if (publishedText.isNotBlank()) {
                             VersionInfoLine("发布时间", publishedText)
                         }
                         if (updateInfo.releaseName.isNotBlank() && updateInfo.releaseName != updateInfo.tagName) {
                             VersionInfoLine("版本标题", updateInfo.releaseName)
                         }
+                    }
+                }
+                if (updateInfo.prerelease) {
+                    Surface(
+                        color = LukoaColors.AmberSoft,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.4f)),
+                    ) {
+                        Text(
+                            text = "这是测试版更新，功能会更早到，但稳定性可能不如正式版。",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            color = LukoaColors.Amber,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
 
@@ -3007,8 +3051,17 @@ private fun GithubUpdateStatusCard(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
+            VersionInfoLine("更新通道", githubUpdateState.channel.label)
             githubUpdateState.latest?.let { latest ->
                 VersionInfoLine("GitHub 最新", "v${latest.versionName}")
+                VersionInfoLine("版本类型", latest.releaseTypeLabel)
+                if (latest.prerelease) {
+                    Text(
+                        text = "当前读到的是测试版发布，可能比稳定版更早，但不保证和正式版一样稳定。",
+                        color = LukoaColors.Amber,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
             githubUpdateState.lastCheckedText
                 .takeIf { it.isNotBlank() }

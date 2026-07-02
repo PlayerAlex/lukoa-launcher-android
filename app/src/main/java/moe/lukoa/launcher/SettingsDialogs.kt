@@ -114,12 +114,13 @@ fun LauncherUpdateSettingsDialog(
     onRepositoryInputChange: (String) -> Unit,
     onSaveRepository: () -> Unit,
     onRestoreDefaultRepository: () -> Unit,
+    onSaveUpdateChannel: (GithubReleaseChannel) -> Unit,
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
+    val updateLocked = actionsLocked || githubUpdateState.checking || githubUpdateState.downloading
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
@@ -142,6 +143,11 @@ fun LauncherUpdateSettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 UpdateStatusSummary(githubUpdateState = githubUpdateState)
+                UpdateChannelSelectorCard(
+                    channel = githubUpdateState.channel,
+                    enabled = !updateLocked,
+                    onSelectChannel = onSaveUpdateChannel,
+                )
                 OutlinedTextField(
                     value = repositoryInput,
                     onValueChange = onRepositoryInputChange,
@@ -217,6 +223,84 @@ fun LauncherUpdateSettingsDialog(
         confirmButton = {},
         dismissButton = {},
     )
+}
+
+@Composable
+private fun UpdateChannelSelectorCard(
+    channel: GithubReleaseChannel,
+    enabled: Boolean,
+    onSelectChannel: (GithubReleaseChannel) -> Unit,
+) {
+    val channelColor = if (channel == GithubReleaseChannel.Test) LukoaColors.Amber else LukoaColors.Accent
+    val channelBackground = if (channel == GithubReleaseChannel.Test) LukoaColors.AmberSoft else LukoaColors.AccentSoft
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "更新通道",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                StatusPill(
+                    text = channel.label,
+                    active = true,
+                    toneColor = channelColor,
+                    activeBackground = channelBackground,
+                )
+            }
+            Text(
+                text = channel.description,
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = if (channel == GithubReleaseChannel.Test) {
+                    "测试版会包含 GitHub pre-release。遇到问题时，随时切回稳定版即可。"
+                } else {
+                    "稳定版只接收正式 Release，适合大多数人。"
+                },
+                color = if (channel == GithubReleaseChannel.Test) LukoaColors.Amber else LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DialogActionButton(
+                    text = GithubReleaseChannel.Stable.label,
+                    enabled = enabled && channel != GithubReleaseChannel.Stable,
+                    tone = if (channel == GithubReleaseChannel.Stable) ActionTone.Neutral else ActionTone.Safe,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectChannel(GithubReleaseChannel.Stable) },
+                )
+                DialogActionButton(
+                    text = GithubReleaseChannel.Test.label,
+                    enabled = enabled && channel != GithubReleaseChannel.Test,
+                    tone = if (channel == GithubReleaseChannel.Test) ActionTone.Neutral else ActionTone.Warning,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectChannel(GithubReleaseChannel.Test) },
+                )
+            }
+            Text(
+                text = "切换后会立刻重新检查，并清掉旧通道里已忽略的版本红点。",
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 @Composable
@@ -499,8 +583,17 @@ private fun UpdateStatusSummary(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
+            MiniInfoLine("更新通道", githubUpdateState.channel.label)
             githubUpdateState.latest?.let { latest ->
                 MiniInfoLine("GitHub 最新", "v${latest.versionName}")
+                MiniInfoLine("版本类型", latest.releaseTypeLabel)
+                if (latest.prerelease) {
+                    Text(
+                        text = "这是测试版发布，可能会比稳定版更早，但也更容易遇到问题。",
+                        color = LukoaColors.Amber,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
             githubUpdateState.lastCheckedText
                 .takeIf { it.isNotBlank() }

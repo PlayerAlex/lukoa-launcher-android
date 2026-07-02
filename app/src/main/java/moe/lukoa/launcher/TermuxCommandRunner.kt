@@ -159,6 +159,15 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernDoctor(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "tavern-doctor-direct",
+            scriptCommand = "tavern-doctor",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-doctor",
+        )
+    }
+
     fun runTavernOfficialVersions(): CommandDispatch {
         return runBundledScriptCommand(
             command = "tavern-official-versions-direct",

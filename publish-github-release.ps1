@@ -13,6 +13,7 @@
     [string]$AutoNotesSource = "",
     [ValidateSet("Long", "Short")]
     [string]$AutoNotesMode = "Long",
+    [switch]$PreRelease,
     [string[]]$CurrentHighlights = @(),
     [string]$AndroidHome = "",
     [switch]$SkipBuild,
@@ -178,6 +179,7 @@ if ($ValidateOnly) {
         gh = $ghPath
         autoNotes = $AutoNotes
         autoNotesMode = $AutoNotesMode
+        preRelease = $PreRelease
     } | ConvertTo-Json
     exit 0
 }
@@ -241,7 +243,17 @@ $title = if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) { $tagName } else { $R
 if ($LASTEXITCODE -eq 0) {
     Invoke-Gh $ghPath release upload $tagName $releaseApkPath --clobber
 } else {
-    Invoke-Gh $ghPath release create $tagName $releaseApkPath --title $title --notes-file $notesPath --latest
+    $createArgs = @(
+        "release", "create", $tagName, $releaseApkPath,
+        "--title", $title,
+        "--notes-file", $notesPath
+    )
+    if ($PreRelease) {
+        $createArgs += "--prerelease"
+    } else {
+        $createArgs += "--latest"
+    }
+    Invoke-Gh $ghPath @createArgs
 }
 
 [pscustomobject]@{
@@ -251,5 +263,6 @@ if ($LASTEXITCODE -eq 0) {
     versionCode = $VersionCode
     tag = $tagName
     apk = $releaseApkPath
+    preRelease = $PreRelease
 } | ConvertTo-Json
 

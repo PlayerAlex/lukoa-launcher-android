@@ -27,8 +27,12 @@ data class GithubUpdateInfo(
     val apkDownloadUrl: String,
     val publishedAt: String,
     val body: String,
+    val prerelease: Boolean,
     val isNewer: Boolean,
-)
+) {
+    val releaseTypeLabel: String
+        get() = if (prerelease) "测试版" else "稳定版"
+}
 
 data class GithubUpdateCheckResult(
     val ok: Boolean,
@@ -43,6 +47,7 @@ data class GithubUpdateInstallResult(
 
 data class GithubUpdateUiState(
     val repository: String = "",
+    val channel: GithubReleaseChannel = GithubUpdateDefaults.CHANNEL,
     val checking: Boolean = false,
     val downloading: Boolean = false,
     val latest: GithubUpdateInfo? = null,
@@ -61,11 +66,12 @@ class GithubUpdateManager(private val context: Context) {
         scope: CoroutineScope,
         repository: String,
         currentVersionName: String,
+        channel: GithubReleaseChannel,
         callback: (GithubUpdateCheckResult) -> Unit,
     ) {
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                checkLatestBlocking(repository, currentVersionName)
+                checkLatestBlocking(repository, currentVersionName, channel)
             }
             callback(result)
         }
@@ -103,6 +109,7 @@ class GithubUpdateManager(private val context: Context) {
     private fun checkLatestBlocking(
         repositoryInput: String,
         currentVersionName: String,
+        channel: GithubReleaseChannel,
     ): GithubUpdateCheckResult {
         val repository = GithubRepositoryParser.normalize(repositoryInput)
         if (repository == null || repository.isBlank()) {
@@ -113,19 +120,22 @@ class GithubUpdateManager(private val context: Context) {
         }
 
         return try {
-            val release = bestVersionedRelease(repository)
+            val release = bestVersionedRelease(repository, channel)
                 ?: return GithubUpdateCheckResult(
                     ok = false,
-                    message = "仓库里还没有可用 Release。",
+                    message = when (channel) {
+                        GithubReleaseChannel.Stable -> "仓库里还没有可用稳定版 Release。"
+                        GithubReleaseChannel.Test -> "仓库里还没有可用 Release。"
+                    },
                 )
             val info = release.toUpdateInfo(repository, currentVersionName)
 
             val compareToCurrent = VersionComparator.compare(info.versionName, currentVersionName)
             val message = when {
-                compareToCurrent == 0 -> "当前已是最新版本：v$currentVersionName。"
-                compareToCurrent < 0 -> "本机版本比 GitHub 高：v$currentVersionName。"
-                info.apkDownloadUrl.isBlank() -> "发现新版 v${info.versionName}，但没有 APK。"
-                else -> "发现新版 v${info.versionName}。"
+                compareToCurrent == 0 -> "当前已是最新${channel.label}：v$currentVersionName。"
+                compareToCurrent < 0 -> "本机版本比 GitHub 的${channel.label}更高：v$currentVersionName。"
+                info.apkDownloadUrl.isBlank() -> "发现${info.releaseTypeLabel} v${info.versionName}，但没有 APK。"
+                else -> "发现${info.releaseTypeLabel} v${info.versionName}。"
             }
             GithubUpdateCheckResult(ok = true, message = message, info = info)
         } catch (error: Exception) {
@@ -136,19 +146,31 @@ class GithubUpdateManager(private val context: Context) {
         }
     }
 
-    private fun bestVersionedRelease(repository: String): JSONObject? {
+    private fun bestVersionedRelease(repository: String, channel: GithubReleaseChannel): JSONObject? {
         val releasesText = httpGetText("https://api.github.com/repos/$repository/releases?per_page=30")
         val releases = JSONArray(releasesText)
         var bestRelease: JSONObject? = null
         var bestVersion = "0"
+        var bestPrerelease = false
         for (index in 0 until releases.length()) {
             val release = releases.optJSONObject(index) ?: continue
             if (release.optBoolean("draft")) continue
+            val prerelease = release.optBoolean("prerelease")
+            if (channel == GithubReleaseChannel.Stable && prerelease) continue
             val tagName = release.optString("tag_name").ifBlank { release.optString("name") }
             val version = VersionComparator.extractVersionName(tagName)
-            if (bestRelease == null || VersionComparator.compare(version, bestVersion) > 0) {
+            if (
+                bestRelease == null ||
+                VersionComparator.compareRelease(
+                    left = version,
+                    leftPrerelease = prerelease,
+                    right = bestVersion,
+                    rightPrerelease = bestPrerelease,
+                ) > 0
+            ) {
                 bestRelease = release
                 bestVersion = version
+                bestPrerelease = prerelease
             }
         }
         return bestRelease
@@ -168,6 +190,7 @@ class GithubUpdateManager(private val context: Context) {
             apkDownloadUrl = asset?.second.orEmpty(),
             publishedAt = optString("published_at"),
             body = optString("body"),
+            prerelease = optBoolean("prerelease"),
             isNewer = VersionComparator.compare(latestVersion, currentVersionName) > 0,
         )
     }
@@ -365,23 +388,105 @@ class GithubUpdateManager(private val context: Context) {
 
 object VersionComparator {
     fun extractVersionName(text: String): String {
-        return Regex("\\d+(?:\\.\\d+){0,3}")
-            .find(text)
-            ?.value
-            ?: text.removePrefix("v").removePrefix("V").ifBlank { "0" }
+        return parse(text)?.normalized
+            ?: text.removePrefix("v").removePrefix("V").trim().ifBlank { "0" }
     }
 
     fun compare(left: String, right: String): Int {
-        val leftParts = extractVersionName(left).split(".").map { it.toIntOrNull() ?: 0 }
-        val rightParts = extractVersionName(right).split(".").map { it.toIntOrNull() ?: 0 }
-        val maxSize = maxOf(leftParts.size, rightParts.size, 4)
+        val leftParsed = parse(left)
+        val rightParsed = parse(right)
+        if (leftParsed != null && rightParsed != null) {
+            return compareParsed(leftParsed, rightParsed)
+        }
+        val leftText = extractVersionName(left)
+        val rightText = extractVersionName(right)
+        return leftText.compareTo(rightText)
+    }
+
+    fun compareRelease(
+        left: String,
+        leftPrerelease: Boolean,
+        right: String,
+        rightPrerelease: Boolean,
+    ): Int {
+        val base = compare(left, right)
+        if (base != 0) return base
+        return when {
+            leftPrerelease == rightPrerelease -> 0
+            leftPrerelease -> -1
+            else -> 1
+        }
+    }
+
+    private data class ParsedVersion(
+        val numbers: List<Int>,
+        val prereleaseLabel: String?,
+        val prereleaseNumber: Int?,
+        val normalized: String,
+    )
+
+    private fun parse(text: String): ParsedVersion? {
+        val match = VERSION_PATTERN.find(text.removePrefix("v").removePrefix("V").trim()) ?: return null
+        val numberText = match.groupValues[1]
+        val prereleaseLabel = match.groupValues.getOrNull(2)?.lowercase(Locale.US)?.ifBlank { null }
+        val prereleaseNumber = match.groupValues.getOrNull(3)?.toIntOrNull()
+        val normalized = buildString {
+            append(numberText)
+            if (prereleaseLabel != null) {
+                append("-")
+                append(prereleaseLabel)
+                if (prereleaseNumber != null) {
+                    append(prereleaseNumber)
+                }
+            }
+        }
+        return ParsedVersion(
+            numbers = numberText.split(".").map { it.toIntOrNull() ?: 0 },
+            prereleaseLabel = prereleaseLabel,
+            prereleaseNumber = prereleaseNumber,
+            normalized = normalized,
+        )
+    }
+
+    private fun compareParsed(left: ParsedVersion, right: ParsedVersion): Int {
+        val maxSize = maxOf(left.numbers.size, right.numbers.size, 4)
         for (index in 0 until maxSize) {
-            val l = leftParts.getOrElse(index) { 0 }
-            val r = rightParts.getOrElse(index) { 0 }
+            val l = left.numbers.getOrElse(index) { 0 }
+            val r = right.numbers.getOrElse(index) { 0 }
             if (l != r) return l.compareTo(r)
         }
-        return 0
+
+        if (left.prereleaseLabel == null && right.prereleaseLabel == null) return 0
+        if (left.prereleaseLabel == null) return 1
+        if (right.prereleaseLabel == null) return -1
+
+        val leftRank = prereleaseRank(left.prereleaseLabel)
+        val rightRank = prereleaseRank(right.prereleaseLabel)
+        if (leftRank != rightRank) return leftRank.compareTo(rightRank)
+
+        val leftNumber = left.prereleaseNumber ?: 0
+        val rightNumber = right.prereleaseNumber ?: 0
+        if (leftNumber != rightNumber) return leftNumber.compareTo(rightNumber)
+
+        return left.prereleaseLabel.compareTo(right.prereleaseLabel)
     }
+
+    private fun prereleaseRank(label: String): Int {
+        return when {
+            label.startsWith("dev") -> 0
+            label.startsWith("canary") -> 1
+            label.startsWith("alpha") || label == "a" -> 2
+            label.startsWith("preview") || label.startsWith("test") -> 3
+            label.startsWith("beta") || label == "b" -> 4
+            label.startsWith("rc") -> 5
+            else -> 3
+        }
+    }
+
+    private val VERSION_PATTERN = Regex(
+        pattern = """(\d+(?:\.\d+){0,3})(?:[-._]?([A-Za-z]+)(?:[-._]?(\d+))?)?""",
+        option = RegexOption.IGNORE_CASE,
+    )
 }
 
 private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R {

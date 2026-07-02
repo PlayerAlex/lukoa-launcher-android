@@ -102,6 +102,7 @@ class MainActivity : ComponentActivity() {
         stateStore.armColdStartClearFallback()
         val versionInfo = VersionBackupManager.versionInfo(applicationContext)
         val githubRepository = githubUpdateStore.loadRepository()
+        val githubUpdateChannel = githubUpdateStore.loadChannel()
         val tavernMirrorStore = TavernMirrorStore(applicationContext)
         val tavernMirrorConfig = tavernMirrorStore.load()
         val tavernPathStore = TavernPathStore(applicationContext)
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
                     initialState = initialState,
                     versionInfo = versionInfo,
                     initialGithubRepository = githubRepository,
+                    initialGithubUpdateChannel = githubUpdateChannel,
                     initialTavernMirrorConfig = tavernMirrorConfig,
                     initialTavernPathConfig = tavernPathConfig,
                     initialIgnoredUpdateTag = ignoredUpdateTag,
@@ -203,12 +205,14 @@ class MainActivity : ComponentActivity() {
                     onSaveTavernPathConfig = tavernPathStore::save,
                     onRestoreDefaultTavernPath = tavernPathStore::restoreDefault,
                     onSaveGithubRepository = githubUpdateStore::saveRepository,
+                    onSaveGithubUpdateChannel = githubUpdateStore::saveChannel,
                     onIgnoreGithubUpdate = githubUpdateStore::ignoreUpdateTag,
-                    onCheckGithubUpdate = { repository, callback ->
+                    onCheckGithubUpdate = { repository, channel, callback ->
                         githubUpdateManager.checkLatest(
                             scope = lifecycleScope,
                             repository = repository,
                             currentVersionName = versionInfo.versionName,
+                            channel = channel,
                             callback = callback,
                         )
                     },

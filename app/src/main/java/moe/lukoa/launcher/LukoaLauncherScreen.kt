@@ -57,6 +57,7 @@ fun LukoaLauncherScreen(
     initialState: LauncherUiState,
     versionInfo: VersionInfo,
     initialGithubRepository: String,
+    initialGithubUpdateChannel: GithubReleaseChannel,
     initialTavernMirrorConfig: TavernMirrorConfig,
     initialTavernPathConfig: TavernPathConfig,
     initialIgnoredUpdateTag: String,
@@ -99,8 +100,9 @@ fun LukoaLauncherScreen(
     onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
     onRestoreDefaultTavernPath: () -> TavernPathSaveResult,
     onSaveGithubRepository: (String) -> GithubRepositorySaveResult,
+    onSaveGithubUpdateChannel: (GithubReleaseChannel) -> GithubUpdateChannelSaveResult,
     onIgnoreGithubUpdate: (String) -> Unit,
-    onCheckGithubUpdate: (String, (GithubUpdateCheckResult) -> Unit) -> Unit,
+    onCheckGithubUpdate: (String, GithubReleaseChannel, (GithubUpdateCheckResult) -> Unit) -> Unit,
     onFetchOfficialTavernVersions: (TavernMirrorConfig, (TavernOfficialVersionFetchResult) -> Unit) -> Unit,
     onCheckTavernMirror: (TavernMirrorConfig, (TavernMirrorProbeStatus) -> Unit) -> Unit,
     onInstallGithubUpdate: (GithubUpdateInfo, (GithubUpdateInstallResult) -> Unit) -> Unit,
@@ -226,6 +228,9 @@ fun LukoaLauncherScreen(
     var startupRefreshInFlight by remember { mutableStateOf(false) }
     var startupRefreshToken by remember { mutableIntStateOf(0) }
     var startupGithubCheckPending by remember { mutableStateOf(false) }
+    var healthCheckInFlight by remember { mutableStateOf(false) }
+    var healthCheckToken by remember { mutableIntStateOf(0) }
+    var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
     var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
     val viewConfiguration = LocalViewConfiguration.current
@@ -238,6 +243,7 @@ fun LukoaLauncherScreen(
         pageCount = { LauncherTab.entries.size },
     )
     var githubRepository by remember { mutableStateOf(initialGithubRepository) }
+    var githubUpdateChannel by remember { mutableStateOf(initialGithubUpdateChannel) }
     var githubRepositoryInput by remember { mutableStateOf(initialGithubRepository) }
     var tavernMirrorConfig by remember { mutableStateOf(initialTavernMirrorConfig) }
     var tavernPathConfig by remember { mutableStateOf(initialTavernPathConfig) }
@@ -256,6 +262,7 @@ fun LukoaLauncherScreen(
         mutableStateOf(
             GithubUpdateUiState(
                 repository = initialGithubRepository,
+                channel = initialGithubUpdateChannel,
                 message = if (initialGithubRepository.isBlank()) {
                     "未配置 GitHub 仓库。"
                 } else {
@@ -380,6 +387,24 @@ fun LukoaLauncherScreen(
     fun currentMirrorProbeStatus(): TavernMirrorProbeStatus {
         return mirrorProbeStatus.takeIf { it.matches(tavernMirrorConfig) }
             ?: TavernMirrorProbeStatus.unknown(tavernMirrorConfig)
+    }
+
+    fun buildHealthCheckReport(
+        doctorReport: TavernDoctorReport?,
+        mirrorStatus: TavernMirrorProbeStatus = currentMirrorProbeStatus(),
+    ): LauncherHealthReport {
+        return LauncherHealthCheck.build(
+            termuxInstalled = termuxInstalled,
+            runCommandPermissionGranted = runCommandPermissionGranted,
+            termuxExternalAppsBlocked = termuxExternalAppsBlocked,
+            backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            allFilesAccessGranted = allFilesAccessGranted,
+            installUnknownAppsGranted = installUnknownAppsGranted,
+            termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
+            tavernRunning = tavernRunning,
+            mirrorProbeStatus = mirrorStatus,
+            doctorReport = doctorReport,
+        )
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -1597,6 +1622,7 @@ fun LukoaLauncherScreen(
             update("请先填写 GitHub 仓库。", "", false, allowRunningInference = false)
             githubUpdateState = githubUpdateState.copy(
                 repository = repository,
+                channel = githubUpdateChannel,
                 message = "未配置 GitHub 仓库。",
                 checking = false,
                 downloading = false,
@@ -1606,18 +1632,20 @@ fun LukoaLauncherScreen(
 
         githubUpdateState = githubUpdateState.copy(
             repository = repository,
+            channel = githubUpdateChannel,
             checking = true,
             downloading = false,
-            message = "正在检查 GitHub 更新。",
+            message = "正在检查${githubUpdateChannel.label}更新。",
         )
-        if (manual) update("正在检查 GitHub 更新。", "", false, allowRunningInference = false)
+        if (manual) update("正在检查${githubUpdateChannel.label}更新。", "", false, allowRunningInference = false)
 
-        onCheckGithubUpdate(repository) { result ->
+        onCheckGithubUpdate(repository, githubUpdateChannel) { result ->
             val nextLatest = result.info ?: githubUpdateState.latest
             val shouldPrompt = result.info?.isNewer == true &&
                 (manual || result.info.tagName != ignoredUpdateTag)
             githubUpdateState = githubUpdateState.copy(
                 repository = repository,
+                channel = githubUpdateChannel,
                 checking = false,
                 downloading = false,
                 latest = nextLatest,
@@ -1685,11 +1713,31 @@ fun LukoaLauncherScreen(
         ignoredUpdateTag = ""
         githubUpdateState = GithubUpdateUiState(
             repository = result.repository,
-            message = if (result.saved) result.message else result.message,
+            channel = githubUpdateChannel,
+            message = result.message,
         )
         update(result.message, "", result.saved, allowRunningInference = false)
         if (result.saved && result.repository.isNotBlank()) {
             checkGithubUpdate(repositoryOverride = result.repository, manual = true)
+        }
+    }
+
+    fun saveGithubUpdateChannel(channel: GithubReleaseChannel) {
+        if (githubUpdateState.checking || githubUpdateState.downloading) {
+            update("GitHub 更新处理中，结束后再切换通道。", "", false, allowRunningInference = false)
+            return
+        }
+        val result = onSaveGithubUpdateChannel(channel)
+        githubUpdateChannel = result.channel
+        ignoredUpdateTag = ""
+        githubUpdateState = GithubUpdateUiState(
+            repository = githubRepository,
+            channel = result.channel,
+            message = result.message,
+        )
+        update(result.message, "", result.saved, allowRunningInference = false)
+        if (result.saved && githubRepository.isNotBlank()) {
+            checkGithubUpdate(repositoryOverride = githubRepository, manual = true)
         }
     }
 
@@ -1850,6 +1898,7 @@ fun LukoaLauncherScreen(
         ignoredUpdateTag = ""
         githubUpdateState = GithubUpdateUiState(
             repository = result.repository,
+            channel = githubUpdateChannel,
             message = if (result.saved) {
                 if (result.repository.isBlank()) {
                     "已恢复默认仓库。当前未填写启动器更新仓库。"
@@ -2074,6 +2123,145 @@ fun LukoaLauncherScreen(
                     termuxBootstrapCompleted = true
                 }
                 releaseBusy()
+            }
+        }
+    }
+
+    fun runHealthCheck() {
+        if (healthCheckInFlight) {
+            update("正在体检，等这次完成再点。", "", false, allowRunningInference = false)
+            return
+        }
+        if (!beginBusy("一键体检", 45_000L)) return
+        healthCheckInFlight = true
+        healthCheckToken += 1
+        val token = healthCheckToken
+
+        scope.launch {
+            delay(45_000L)
+            if (healthCheckInFlight && healthCheckToken == token) {
+                healthCheckToken += 1
+                healthCheckInFlight = false
+                releaseBusy()
+                update("体检超时，请重试一次。", "", false, allowRunningInference = false)
+            }
+        }
+
+        fun finishHealthCheck(doctorReport: TavernDoctorReport?, mirrorStatus: TavernMirrorProbeStatus) {
+            if (healthCheckToken != token) return
+            val report = buildHealthCheckReport(
+                doctorReport = doctorReport,
+                mirrorStatus = mirrorStatus,
+            )
+            healthCheckReport = report
+            healthCheckInFlight = false
+            releaseBusy()
+            val ok = report.errorCount == 0
+            val message = if (ok && report.warningCount == 0) {
+                "体检已完成：当前环境基本正常。"
+            } else {
+                "体检已完成：${report.summaryTitle}"
+            }
+            update(message, "", ok, allowRunningInference = false)
+        }
+
+        if (!termuxInstalled || !runCommandPermissionGranted || termuxExternalAppsBlocked) {
+            finishHealthCheck(
+                doctorReport = null,
+                mirrorStatus = currentMirrorProbeStatus(),
+            )
+            return
+        }
+
+        onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
+            if (healthCheckToken != token) return@onCommand
+            if (isTransientStatus(newStatus) && termuxOutput.isBlank()) {
+                update(newStatus, termuxOutput, ok, allowRunningInference = false)
+                return@onCommand
+            }
+            update(newStatus, termuxOutput, ok, allowRunningInference = false)
+            val doctorReport = TavernDoctorParser.parse(termuxOutput)
+            mirrorProbeStatus = TavernMirrorProbeStatus.checking(tavernMirrorConfig)
+            onCheckTavernMirror(tavernMirrorConfig) { mirrorResult ->
+                if (healthCheckToken != token) return@onCheckTavernMirror
+                mirrorProbeStatus = mirrorResult
+                finishHealthCheck(doctorReport, mirrorResult)
+            }
+        }
+    }
+
+    fun runHealthCheckPrimaryAction() {
+        val action = healthCheckReport?.primaryAction
+        when (action?.type) {
+            LauncherHealthActionType.DownloadTermux -> {
+                openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
+            }
+
+            LauncherHealthActionType.RequestRunPermission -> {
+                requestRunCommandPermission()
+            }
+
+            LauncherHealthActionType.CopyExternalAppsCommand -> {
+                copyTermuxPermissionCommand()
+            }
+
+            LauncherHealthActionType.PrepareTermuxEnvironment -> {
+                prepareTermuxEnvironment()
+            }
+
+            LauncherHealthActionType.ChooseDetectedDirectory -> {
+                val candidates = healthCheckReport?.doctorReport?.candidateDirectories.orEmpty()
+                if (candidates.isEmpty()) {
+                    selectedTab = LauncherTab.Settings
+                    update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
+                } else {
+                    tavernDirectoryCandidates = candidates
+                    showTavernDirectoryChoiceDialog = true
+                }
+            }
+
+            LauncherHealthActionType.OpenPathSettings -> {
+                selectedTab = LauncherTab.Settings
+                update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
+            }
+
+            LauncherHealthActionType.OpenNetworkSettings -> {
+                selectedTab = LauncherTab.Settings
+                update("请到设置里的网络分区检查 Git 源、npm 源和 Termux 包源。", "", false, allowRunningInference = false)
+            }
+
+            LauncherHealthActionType.RequestBackgroundRunPermission -> {
+                val opened = onRequestBackgroundRunPermission()
+                update(
+                    if (opened) {
+                        "已打开后台运行权限页面。允许后回启动器即可。"
+                    } else {
+                        "打开后台运行权限页面失败，请到系统设置里允许后台运行。"
+                    },
+                    "",
+                    opened,
+                    allowRunningInference = false,
+                )
+            }
+
+            LauncherHealthActionType.OpenAllFilesAccessSettings -> {
+                openAllFilesAccessSettings()
+            }
+
+            LauncherHealthActionType.OpenUnknownAppSourcesSettings -> {
+                openUnknownAppSourcesSettings()
+            }
+
+            LauncherHealthActionType.StopTavern -> {
+                when {
+                    actionInProgress -> update("正在处理，完成后再停止酒馆。", "", false, allowRunningInference = false)
+                    !tavernRunning -> update("酒馆当前未运行。", "", false, allowRunningInference = false)
+                    else -> showStopConfirmDialog = true
+                }
+            }
+
+            null -> {
+                update("当前没有需要优先处理的快捷修复项。", "", true, allowRunningInference = false)
             }
         }
     }
@@ -2871,6 +3059,8 @@ fun LukoaLauncherScreen(
                             customTermuxRepoInput = customTermuxRepoInput,
                             repositoryInput = githubRepositoryInput,
                             githubUpdateState = githubUpdateState,
+                            healthCheckReport = healthCheckReport,
+                            healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
@@ -2935,6 +3125,7 @@ fun LukoaLauncherScreen(
                             onRepositoryInputChange = { githubRepositoryInput = it },
                             onSaveRepository = ::saveGithubRepository,
                             onRestoreDefaultRepository = ::restoreDefaultGithubRepository,
+                            onSaveUpdateChannel = ::saveGithubUpdateChannel,
                             onCheckUpdate = { checkGithubUpdate(manual = true) },
                             onInstallUpdate = {
                                 if (githubUpdateState.hasUpdate) {
@@ -2949,6 +3140,8 @@ fun LukoaLauncherScreen(
                                     update(result.message, "", result.ok, allowRunningInference = false)
                                 }
                             },
+                            onRunHealthCheck = ::runHealthCheck,
+                            onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {

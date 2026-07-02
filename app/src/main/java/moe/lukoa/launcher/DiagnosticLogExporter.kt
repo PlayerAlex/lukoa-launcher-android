@@ -131,10 +131,13 @@ object DiagnosticLogExporter {
 
             appendLine("==== GitHub 更新 ====")
             appendLine("仓库=${snapshot.githubRepository}")
+            appendLine("更新通道=${snapshot.githubUpdateState.channel.label}")
             appendLine("检查中=${snapshot.githubUpdateState.checking}")
             appendLine("下载中=${snapshot.githubUpdateState.downloading}")
             appendLine("提示=${snapshot.githubUpdateState.message}")
             appendLine("最新版本=${snapshot.githubUpdateState.latest?.versionName ?: "未读取"}")
+            appendLine("最新标签=${snapshot.githubUpdateState.latest?.tagName ?: "未读取"}")
+            appendLine("最新类型=${snapshot.githubUpdateState.latest?.releaseTypeLabel ?: "未读取"}")
             appendLine("有新版本=${snapshot.githubUpdateState.hasUpdate}")
             appendLine("APK=${snapshot.githubUpdateState.latest?.apkName.orEmpty().ifBlank { "无" }}")
             appendLine()

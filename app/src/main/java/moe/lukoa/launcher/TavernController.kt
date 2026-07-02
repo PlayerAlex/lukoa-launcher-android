@@ -69,6 +69,7 @@ class TavernController(
             "stop" -> runner.runStopTavern()
             "tavern-version" -> runner.runTavernVersion()
             "tavern-version-startup" -> runner.runTavernVersion()
+            "tavern-doctor" -> runner.runTavernDoctor()
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
             "termux-repo-status" -> runner.runTermuxPackageMirrorStatus()
@@ -281,6 +282,7 @@ class TavernController(
             "start" -> "启动命令已发送到 Termux。"
             "tavern-version" -> "正在读取酒馆版本。"
             "tavern-version-startup" -> "正在检测酒馆版本。"
+            "tavern-doctor" -> "正在体检当前环境。"
             "tavern-official-versions" -> "正在读取官方版本列表。"
             "termux-storage-permission" -> "正在请求 Termux 存储权限。"
             "termux-repo-status" -> "正在读取当前 Termux 包源。"
@@ -314,6 +316,7 @@ class TavernController(
             "start" -> if (ok) "启动命令已返回。" else "启动酒馆失败。"
             "tavern-version" -> if (ok) "酒馆版本已读取。" else "读取酒馆版本失败。"
             "tavern-version-startup" -> if (ok) "酒馆版本已读取。" else "检测酒馆版本失败。"
+            "tavern-doctor" -> if (ok) "体检已完成。" else "体检失败。"
             "tavern-official-versions" -> if (ok) "官方版本列表已读取。" else "读取官方版本失败。"
             "termux-storage-permission" -> if (ok) "Termux 存储权限已可用。" else "Termux 存储权限还没打开。"
             "termux-repo-status" -> if (ok) "当前 Termux 包源已读取。" else "读取 Termux 包源失败。"
@@ -387,6 +390,7 @@ class TavernController(
             "status",
             "log",
             "tavern-version",
+            "tavern-doctor",
             "tavern-backup-list" -> 48
             "tavern-version-startup" -> 8
             "tavern-official-versions" -> 120

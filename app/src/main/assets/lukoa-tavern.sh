@@ -374,6 +374,25 @@ http_ok() {
   curl -fsS --max-time 3 "http://127.0.0.1:$TAVERN_PORT/" >/dev/null 2>&1
 }
 
+port_listening() {
+  port_hex="$(printf '%04X' "$TAVERN_PORT" 2>/dev/null || printf '')"
+  [ -n "$port_hex" ] || return 1
+  for table in /proc/net/tcp /proc/net/tcp6; do
+    [ -r "$table" ] || continue
+    awk -v target="$port_hex" '
+      NR > 1 {
+        split($2, local, ":")
+        if (toupper(local[2]) == target && $4 == "0A") {
+          found = 1
+          exit
+        }
+      }
+      END { exit found ? 0 : 1 }
+    ' "$table" 2>/dev/null && return 0
+  done
+  return 1
+}
+
 tavern_running_value() {
   if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
     printf "true"
@@ -718,6 +737,111 @@ cmd_status() {
     write_status "stopped" "SillyTavern process is not running" false 0
   fi
   emit_status
+  emit_tavern_dir_candidates
+}
+
+cmd_doctor() {
+  write_command "doctor"
+  adopt_detected_tavern_dir >/dev/null 2>&1 || true
+  collect_tavern_dir_candidates
+
+  git_ok=0
+  node_ok=0
+  npm_ok=0
+  curl_ok=0
+  dir_exists=0
+  package_json_ok=0
+  start_entry_ok=0
+  git_repo_ok=0
+  pid_file_ok=0
+  process_found=0
+  http_ok_flag=0
+  port_listening_flag=0
+  port_conflict=0
+
+  command -v git >/dev/null 2>&1 && git_ok=1
+  command -v node >/dev/null 2>&1 && node_ok=1
+  command -v npm >/dev/null 2>&1 && npm_ok=1
+  command -v curl >/dev/null 2>&1 && curl_ok=1
+  [ -f "$PID_FILE" ] && pid_file_ok=1
+  [ -d "$TAVERN_DIR" ] && dir_exists=1
+  [ -f "$TAVERN_DIR/package.json" ] && package_json_ok=1
+  if [ -f "$TAVERN_DIR/start.sh" ] || [ -f "$TAVERN_DIR/server.js" ]; then
+    start_entry_ok=1
+  fi
+  [ -d "$TAVERN_DIR/.git" ] && git_repo_ok=1
+  if is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    process_found=1
+  fi
+  if http_ok; then
+    http_ok_flag=1
+  fi
+  if port_listening; then
+    port_listening_flag=1
+  fi
+  if [ "$port_listening_flag" = "1" ] && [ "$http_ok_flag" != "1" ] && [ "$process_found" != "1" ]; then
+    port_conflict=1
+  fi
+
+  termux_repo_uri="$(termux_apt_current_uri 2>/dev/null || true)"
+  termux_repo_label="$(termux_apt_label_for_uri "$termux_repo_uri")"
+
+  summary_level="healthy"
+  summary_message="当前环境基本正常。"
+  if [ "$git_ok" != "1" ] || [ "$node_ok" != "1" ] || [ "$npm_ok" != "1" ]; then
+    summary_level="failed"
+    summary_message="Termux 缺少 git、node 或 npm。先准备 Termux 环境。"
+  elif [ "$dir_exists" != "1" ]; then
+    summary_level="failed"
+    if [ "${TAVERN_CANDIDATE_COUNT:-0}" -gt 0 ]; then
+      summary_message="当前路径没找到酒馆，但发现了候选目录。请先确认路径。"
+    else
+      summary_message="当前路径没有找到酒馆目录。请先确认路径或安装酒馆。"
+    fi
+  elif [ "$package_json_ok" != "1" ] || [ "$start_entry_ok" != "1" ]; then
+    summary_level="failed"
+    summary_message="当前目录不像完整的 SillyTavern。请确认你填的是酒馆根目录。"
+  elif [ "$git_repo_ok" != "1" ]; then
+    summary_level="failed"
+    summary_message="当前酒馆目录不是 Git 仓库，后续更新和回退会失败。"
+  elif [ "$port_conflict" = "1" ]; then
+    summary_level="warning"
+    summary_message="酒馆端口已被别的进程占用，启动前请先处理。"
+  elif [ "$process_found" = "1" ] && [ "$http_ok_flag" != "1" ]; then
+    summary_level="warning"
+    if [ "$curl_ok" = "1" ]; then
+      summary_message="检测到酒馆进程，但网页当前没有响应。"
+    else
+      summary_message="检测到酒馆进程，但缺少 curl，暂时没法确认网页状态。"
+    fi
+  elif [ "$curl_ok" != "1" ]; then
+    summary_level="warning"
+    summary_message="Termux 缺少 curl，启动器没法准确检测网页状态。"
+  fi
+
+  write_status "doctor" "Lukoa doctor completed" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  printf "\n==== Lukoa doctor ====\n"
+  printf "doctor.tavernDir=%s\n" "$TAVERN_DIR"
+  printf "doctor.port=%s\n" "$TAVERN_PORT"
+  printf "doctor.termuxRepo.label=%s\n" "$termux_repo_label"
+  printf "doctor.termuxRepo.uri=%s\n" "$termux_repo_uri"
+  printf "doctor.tool.git=%s\n" "$git_ok"
+  printf "doctor.tool.node=%s\n" "$node_ok"
+  printf "doctor.tool.npm=%s\n" "$npm_ok"
+  printf "doctor.tool.curl=%s\n" "$curl_ok"
+  printf "doctor.tavernDir.exists=%s\n" "$dir_exists"
+  printf "doctor.tavernDir.packageJson=%s\n" "$package_json_ok"
+  printf "doctor.tavernDir.startEntry=%s\n" "$start_entry_ok"
+  printf "doctor.tavernDir.gitRepo=%s\n" "$git_repo_ok"
+  printf "doctor.process.pidFile=%s\n" "$pid_file_ok"
+  printf "doctor.process.detected=%s\n" "$process_found"
+  printf "doctor.process.httpOk=%s\n" "$http_ok_flag"
+  printf "doctor.process.portListening=%s\n" "$port_listening_flag"
+  printf "doctor.process.portConflict=%s\n" "$port_conflict"
+  printf "doctor.summary.level=%s\n" "$summary_level"
+  printf "doctor.summary.message=%s\n" "$summary_message"
+  printf "==== end Lukoa doctor ====\n"
   emit_tavern_dir_candidates
 }
 
@@ -2687,6 +2811,9 @@ main() {
       ;;
     status)
       cmd_status
+      ;;
+    doctor|tavern-doctor)
+      cmd_doctor
       ;;
     log|logs|tail)
       cmd_log

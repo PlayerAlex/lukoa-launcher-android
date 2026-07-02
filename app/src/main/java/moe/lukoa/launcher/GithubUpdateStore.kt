@@ -8,12 +8,40 @@ data class GithubRepositorySaveResult(
     val message: String,
 )
 
+data class GithubUpdateChannelSaveResult(
+    val saved: Boolean,
+    val channel: GithubReleaseChannel,
+    val message: String,
+)
+
+enum class GithubReleaseChannel(
+    val label: String,
+    val description: String,
+) {
+    Stable(
+        label = "稳定版",
+        description = "只接收正式 Release，适合大多数人。",
+    ),
+    Test(
+        label = "测试版",
+        description = "也接收 pre-release，可能更早但不稳定。",
+    ),
+}
+
 class GithubUpdateStore(private val context: Context) {
     fun loadRepository(): String {
         val saved = context.getSharedPreferences(PREFS_GITHUB_UPDATE, Context.MODE_PRIVATE)
             .getString(KEY_REPOSITORY, GithubUpdateDefaults.REPOSITORY)
             .orEmpty()
         return saved.ifBlank { GithubUpdateDefaults.REPOSITORY }
+    }
+
+    fun loadChannel(): GithubReleaseChannel {
+        val value = context.getSharedPreferences(PREFS_GITHUB_UPDATE, Context.MODE_PRIVATE)
+            .getString(KEY_RELEASE_CHANNEL, GithubUpdateDefaults.CHANNEL.name)
+            .orEmpty()
+        return GithubReleaseChannel.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+            ?: GithubUpdateDefaults.CHANNEL
     }
 
     fun loadIgnoredUpdateTag(): String {
@@ -56,15 +84,31 @@ class GithubUpdateStore(private val context: Context) {
             .apply()
     }
 
+    fun saveChannel(channel: GithubReleaseChannel): GithubUpdateChannelSaveResult {
+        context.getSharedPreferences(PREFS_GITHUB_UPDATE, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_RELEASE_CHANNEL, channel.name)
+            .remove(KEY_IGNORED_UPDATE_TAG)
+            .apply()
+
+        return GithubUpdateChannelSaveResult(
+            saved = true,
+            channel = channel,
+            message = "已切换到${channel.label}通道。",
+        )
+    }
+
     private companion object {
         const val PREFS_GITHUB_UPDATE = "github_update"
         const val KEY_REPOSITORY = "repository"
         const val KEY_IGNORED_UPDATE_TAG = "ignored_update_tag"
+        const val KEY_RELEASE_CHANNEL = "release_channel"
     }
 }
 
 object GithubUpdateDefaults {
     const val REPOSITORY = "PlayerAlex/lukoa-launcher-android"
+    val CHANNEL = GithubReleaseChannel.Stable
 }
 
 object GithubRepositoryParser {
