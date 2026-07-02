@@ -51,6 +51,9 @@ import kotlin.math.absoluteValue
 import kotlin.math.abs
 import kotlin.math.hypot
 
+private const val START_FAST_PATH_WINDOW_MS = 60_000L
+private const val START_PREFLIGHT_CACHE_WINDOW_MS = 120_000L
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LukoaLauncherScreen(
@@ -232,6 +235,7 @@ fun LukoaLauncherScreen(
     var healthCheckInFlight by remember { mutableStateOf(false) }
     var healthCheckToken by remember { mutableIntStateOf(0) }
     var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
+    var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
     val viewConfiguration = LocalViewConfiguration.current
@@ -408,6 +412,16 @@ fun LukoaLauncherScreen(
         )
     }
 
+    fun rememberLaunchReadinessSnapshot(output: String) {
+        if (
+            output.contains("==== SillyTavern version ====") ||
+            output.contains("==== Current SillyTavern version ====") ||
+            output.contains("==== Lukoa doctor ====")
+        ) {
+            lastLaunchReadinessSnapshotAtMillis = System.currentTimeMillis()
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _: LifecycleOwner, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -484,6 +498,7 @@ fun LukoaLauncherScreen(
         appLog = newAppLog
         termuxLog = newTermuxLog
         backupHistory = nextBackupHistory
+        rememberLaunchReadinessSnapshot(termuxOutput)
         applyTavernVersionInfoFromOutput(termuxOutput)
         inferTavernInstalledFromOutput(newStatus, termuxOutput)?.let {
             tavernInstallDetected = it
@@ -556,6 +571,7 @@ fun LukoaLauncherScreen(
         termuxLog = newTermuxLog
         appLog = newAppLog
         backupHistory = nextBackupHistory
+        rememberLaunchReadinessSnapshot(display.output)
         applyTavernVersionInfoFromOutput(display.output)
         inferTavernInstalledFromOutput(newStatus, display.output)?.let {
             tavernInstallDetected = it
@@ -2092,6 +2108,30 @@ fun LukoaLauncherScreen(
         return !termuxBootstrapCompleted && termuxInstalled && !termuxPermissionBlocked() && hasTermuxDependencyError()
     }
 
+    fun cachedStartPreflight(nowMillis: Long = System.currentTimeMillis()): TavernStartPreflightResult? {
+        val report = healthCheckReport ?: return null
+        val doctorReport = report.doctorReport ?: return null
+        if (report.checkedAtMillis <= 0L) return null
+        if (nowMillis - report.checkedAtMillis > START_PREFLIGHT_CACHE_WINDOW_MS) return null
+        if (lastLaunchReadinessSnapshotAtMillis > report.checkedAtMillis) return null
+        return TavernStartPreflight.evaluate(
+            termuxInstalled = termuxInstalled,
+            runCommandPermissionGranted = runCommandPermissionGranted,
+            termuxExternalAppsBlocked = termuxExternalAppsBlocked,
+            doctorReport = doctorReport,
+        )
+    }
+
+    fun canFastPathStart(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (tavernRunning || tavernStarting) return false
+        if (termuxKnownMissing() || termuxPermissionBlocked()) return false
+        if (termuxSetupRecommended()) return false
+        if (tavernInstallDetected != true) return false
+        if (!tavernVersionInfo.hasData || tavernVersionInfo.notInstalled) return false
+        if (lastLaunchReadinessSnapshotAtMillis <= 0L) return false
+        return nowMillis - lastLaunchReadinessSnapshotAtMillis <= START_FAST_PATH_WINDOW_MS
+    }
+
     fun prepareTermuxEnvironment() {
         when {
             !termuxInstalled -> {
@@ -2323,6 +2363,21 @@ fun LukoaLauncherScreen(
             update("请先把 Termux 调用权限修好，再启动酒馆。", "", false, allowRunningInference = false)
             return
         }
+        cachedStartPreflight()?.let { preflight ->
+            if (!preflight.ok) {
+                pendingStartPreflight = preflight
+                update(preflight.summary, "", false, allowRunningInference = false)
+                return
+            }
+            pendingStartPreflight = null
+            performForegroundStart()
+            return
+        }
+        if (canFastPathStart()) {
+            pendingStartPreflight = null
+            performForegroundStart()
+            return
+        }
         if (!beginBusy("启动前预检", 20000L)) return
 
         onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
@@ -2345,44 +2400,8 @@ fun LukoaLauncherScreen(
                 update(preflight.summary, "", false, allowRunningInference = false)
                 return@onCommand
             }
+            pendingStartPreflight = null
             performForegroundStart()
-        }
-    }
-
-    fun startTavern() {
-        if (tavernStarting) {
-            update("酒馆正在启动中，请稍等。", "", false)
-            return
-        }
-        if (!beginBusy("启动酒馆", 15000L)) return
-
-        showStopConfirmDialog = false
-        onForegroundStart { newStatus, termuxOutput, ok ->
-            update(newStatus, termuxOutput, ok)
-            if (isTransientStatus(newStatus)) {
-                return@onForegroundStart
-            }
-            releaseBusy()
-            if (ok) {
-                tavernStarting = true
-                tavernRunning = false
-                launchAttemptToken += 1
-                val token = launchAttemptToken
-                scope.launch {
-                    delay(60_000L)
-                    if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
-                        tavernStarting = false
-                        update(
-                            "启动太久了，请看下方 Termux 返回。",
-                            "",
-                            false,
-                            allowRunningInference = false,
-                        )
-                    }
-                }
-            } else {
-                tavernStarting = false
-            }
         }
     }
 
