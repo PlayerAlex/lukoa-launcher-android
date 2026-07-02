@@ -3148,6 +3148,83 @@ fun InstallRiskConfirmDialog(
 }
 
 @Composable
+fun StartPreflightConfirmDialog(
+    result: TavernStartPreflightResult,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        titleContentColor = LukoaColors.Amber,
+        textContentColor = LukoaColors.Text,
+        title = {
+            Text(result.title.ifBlank { "启动前发现问题" })
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = result.summary,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                result.details.takeIf { it.isNotEmpty() }?.let { details ->
+                    Surface(
+                        color = LukoaColors.SurfaceAlt,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState())
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            details.forEach { item ->
+                                Text(
+                                    text = "• $item",
+                                    color = LukoaColors.Text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            result.action?.let { action ->
+                DialogActionButton(
+                    text = action.label,
+                    tone = when (action.type) {
+                        TavernStartPreflightActionType.PrepareTermuxEnvironment,
+                        TavernStartPreflightActionType.StopDetectedProcess -> ActionTone.Warning
+
+                        TavernStartPreflightActionType.DownloadTermux,
+                        TavernStartPreflightActionType.RequestRunPermission,
+                        TavernStartPreflightActionType.CopyExternalAppsCommand,
+                        TavernStartPreflightActionType.ChooseDetectedDirectory,
+                        TavernStartPreflightActionType.OpenPathSettings,
+                        TavernStartPreflightActionType.ReturnToTavern,
+                        TavernStartPreflightActionType.Retry -> ActionTone.Safe
+                    },
+                    onClick = onConfirm,
+                )
+            }
+        },
+        dismissButton = {
+            DialogActionButton(
+                text = if (result.action == null) "知道了" else "稍后",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
 fun StopTavernConfirmDialog(
     actionsLocked: Boolean,
     onConfirm: () -> Unit,

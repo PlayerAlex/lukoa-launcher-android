@@ -220,6 +220,7 @@ fun LukoaLauncherScreen(
     var pendingAptConfigTask by remember { mutableStateOf<PendingAptConfigTask?>(null) }
     var pendingInstallRiskRequest by remember { mutableStateOf<PendingTavernInstallRequest?>(null) }
     var installRiskConfirmation by remember { mutableStateOf<TavernInstallConfirmation?>(null) }
+    var pendingStartPreflight by remember { mutableStateOf<TavernStartPreflightResult?>(null) }
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var busyStartedAtMillis by remember { mutableLongStateOf(0L) }
     var busyToken by remember { mutableIntStateOf(0) }
@@ -1186,6 +1187,10 @@ fun LukoaLauncherScreen(
         showInstallRiskDialog = false
         pendingInstallRiskRequest = null
         installRiskConfirmation = null
+    }
+
+    fun clearStartPreflightDialog() {
+        pendingStartPreflight = null
     }
 
     fun confirmInstallRiskDialog() {
@@ -2266,6 +2271,82 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun performForegroundStart() {
+        if (tavernStarting) {
+            update("酒馆正在启动中，请稍等。", "", false)
+            return
+        }
+        if (!beginBusy("启动酒馆", 15000L)) return
+
+        showStopConfirmDialog = false
+        onForegroundStart { newStatus, termuxOutput, ok ->
+            update(newStatus, termuxOutput, ok)
+            if (isTransientStatus(newStatus)) {
+                return@onForegroundStart
+            }
+            releaseBusy()
+            if (ok) {
+                tavernStarting = true
+                tavernRunning = false
+                launchAttemptToken += 1
+                val token = launchAttemptToken
+                scope.launch {
+                    delay(60_000L)
+                    if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
+                        tavernStarting = false
+                        update(
+                            "启动太久了，请看下方 Termux 返回。",
+                            "",
+                            false,
+                            allowRunningInference = false,
+                        )
+                    }
+                }
+            } else {
+                tavernStarting = false
+            }
+        }
+    }
+
+    fun requestStartTavern() {
+        if (tavernStarting) {
+            update("酒馆正在启动中，请稍等。", "", false, allowRunningInference = false)
+            return
+        }
+        if (termuxKnownMissing()) {
+            update("请先安装并打开 Termux，再启动酒馆。", "", false, allowRunningInference = false)
+            return
+        }
+        if (termuxPermissionBlocked()) {
+            update("请先把 Termux 调用权限修好，再启动酒馆。", "", false, allowRunningInference = false)
+            return
+        }
+        if (!beginBusy("启动前预检", 20000L)) return
+
+        onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
+            if (isTransientStatus(newStatus) && termuxOutput.isBlank()) {
+                update(newStatus, termuxOutput, ok, allowRunningInference = false)
+                return@onCommand
+            }
+            update(newStatus, termuxOutput, ok, allowRunningInference = false)
+            val doctorReport = TavernDoctorParser.parse(termuxOutput)
+            healthCheckReport = buildHealthCheckReport(doctorReport)
+            val preflight = TavernStartPreflight.evaluate(
+                termuxInstalled = termuxInstalled,
+                runCommandPermissionGranted = runCommandPermissionGranted,
+                termuxExternalAppsBlocked = termuxExternalAppsBlocked,
+                doctorReport = doctorReport,
+            )
+            releaseBusy()
+            if (!preflight.ok) {
+                pendingStartPreflight = preflight
+                update(preflight.summary, "", false, allowRunningInference = false)
+                return@onCommand
+            }
+            performForegroundStart()
+        }
+    }
+
     fun startTavern() {
         if (tavernStarting) {
             update("酒馆正在启动中，请稍等。", "", false)
@@ -2311,6 +2392,61 @@ fun LukoaLauncherScreen(
             else -> onOpenTavern { newStatus, termuxOutput, ok ->
                 update(newStatus, termuxOutput, ok, allowRunningInference = false)
             }
+        }
+    }
+
+    fun confirmStartPreflightDialog() {
+        val result = pendingStartPreflight ?: run {
+            clearStartPreflightDialog()
+            return
+        }
+        clearStartPreflightDialog()
+        when (result.action?.type) {
+            TavernStartPreflightActionType.DownloadTermux -> {
+                openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
+            }
+
+            TavernStartPreflightActionType.RequestRunPermission -> {
+                requestRunCommandPermission()
+            }
+
+            TavernStartPreflightActionType.CopyExternalAppsCommand -> {
+                copyTermuxPermissionCommand()
+            }
+
+            TavernStartPreflightActionType.PrepareTermuxEnvironment -> {
+                prepareTermuxEnvironment()
+            }
+
+            TavernStartPreflightActionType.ChooseDetectedDirectory -> {
+                val candidates = result.doctorReport?.candidateDirectories.orEmpty()
+                if (candidates.isEmpty()) {
+                    selectedTab = LauncherTab.Settings
+                    update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
+                } else {
+                    tavernDirectoryCandidates = candidates
+                    showTavernDirectoryChoiceDialog = true
+                }
+            }
+
+            TavernStartPreflightActionType.OpenPathSettings -> {
+                selectedTab = LauncherTab.Settings
+                update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
+            }
+
+            TavernStartPreflightActionType.StopDetectedProcess -> {
+                showStopConfirmDialog = true
+            }
+
+            TavernStartPreflightActionType.ReturnToTavern -> {
+                returnToTavern()
+            }
+
+            TavernStartPreflightActionType.Retry -> {
+                requestStartTavern()
+            }
+
+            null -> Unit
         }
     }
 
@@ -2544,6 +2680,14 @@ fun LukoaLauncherScreen(
                 onDismiss = ::clearInstallRiskDialog,
             )
         }
+    }
+
+    pendingStartPreflight?.let { result ->
+        StartPreflightConfirmDialog(
+            result = result,
+            onConfirm = ::confirmStartPreflightDialog,
+            onDismiss = ::clearStartPreflightDialog,
+        )
     }
 
     if (showTavernDirectoryChoiceDialog && tavernDirectoryCandidates.isNotEmpty()) {
@@ -3000,7 +3144,7 @@ fun LukoaLauncherScreen(
                                     }
                                 },
                                 onPrimaryAction = {
-                                    if (tavernRunning) requestStopTavern() else startTavern()
+                                    if (tavernRunning) requestStopTavern() else requestStartTavern()
                                 },
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
