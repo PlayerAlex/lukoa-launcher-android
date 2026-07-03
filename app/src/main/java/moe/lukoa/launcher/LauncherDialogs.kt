@@ -754,6 +754,93 @@ fun BackgroundRunPermissionDialog(
 }
 
 @Composable
+fun FirstTavernStartGuideDialog(
+    guide: FirstTavernStartGuide,
+    onPrimaryAction: () -> Unit,
+    onContinueStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = when (guide.kind) {
+        FirstTavernStartGuideKind.IQooBackgroundPermission -> "第一次启动前先开 Termux 后台"
+        FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> "第一次启动前先把 Termux 挂小窗"
+    }
+    val summary = when (guide.kind) {
+        FirstTavernStartGuideKind.IQooBackgroundPermission ->
+            "这台手机看起来是 iQOO。第一次启动酒馆前，建议先给 Termux 打开后台运行或省电白名单。"
+
+        FirstTavernStartGuideKind.KeepTermuxInSmallWindow ->
+            "这台手机不是 iQOO。第一次启动酒馆时，更稳的做法是先把 Termux 挂到小窗或分屏，不要直接完全退到后台。"
+    }
+    val detail = when (guide.kind) {
+        FirstTavernStartGuideKind.IQooBackgroundPermission ->
+            "不然系统更容易在后台把 Termux 停掉，安装、启动和日志同步都可能中断。点下面按钮可直接去给 Termux 授权。"
+
+        FirstTavernStartGuideKind.KeepTermuxInSmallWindow ->
+            "看到 Termux 已经开始刷安装或启动日志后，再回启动器等待即可。这样首次启动更不容易突然断掉。"
+    }
+    val primaryLabel = when (guide.kind) {
+        FirstTavernStartGuideKind.IQooBackgroundPermission -> "给 Termux 开后台"
+        FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> "打开 Termux"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        titleContentColor = LukoaColors.Amber,
+        textContentColor = LukoaColors.Text,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = summary,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = LukoaColors.Amber.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+                ) {
+                    Text(
+                        text = detail,
+                        modifier = Modifier.padding(12.dp),
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                DialogActionButton(
+                    text = primaryLabel,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onPrimaryAction,
+                )
+                DialogActionButton(
+                    text = "我已了解，继续启动",
+                    tone = ActionTone.Neutral,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onContinueStart,
+                )
+                DialogActionButton(
+                    text = "稍后再看",
+                    tone = ActionTone.Safe,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onDismiss,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {},
+    )
+}
+
+@Composable
 fun DeleteBackupConfirmDialog(
     archivePath: String,
     onConfirm: () -> Unit,

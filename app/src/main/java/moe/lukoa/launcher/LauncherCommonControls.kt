@@ -334,3 +334,46 @@ fun StatusPill(
         )
     }
 }
+
+@Composable
+fun NoticeCard(
+    title: String,
+    detail: String,
+    modifier: Modifier = Modifier,
+    accentColor: Color = LukoaColors.Amber,
+    actionLabel: String? = null,
+    actionTone: ActionTone = ActionTone.Warning,
+    onAction: (() -> Unit)? = null,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = accentColor.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.22f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = title,
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = detail,
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (!actionLabel.isNullOrBlank() && onAction != null) {
+                DialogActionButton(
+                    text = actionLabel,
+                    tone = actionTone,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onAction,
+                )
+            }
+        }
+    }
+}

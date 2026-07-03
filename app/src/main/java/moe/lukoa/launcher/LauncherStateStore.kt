@@ -161,6 +161,18 @@ class LauncherStateStore(private val context: Context) {
         prefs.edit().putString(KEY_APP_LOG, updated).apply()
     }
 
+    fun hasSeenFirstTavernStartGuide(): Boolean {
+        return context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+            .getBoolean(KEY_FIRST_TAVERN_START_GUIDE_SEEN, false)
+    }
+
+    fun markFirstTavernStartGuideSeen() {
+        context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_FIRST_TAVERN_START_GUIDE_SEEN, true)
+            .apply()
+    }
+
     @SuppressLint("ApplySharedPref")
     fun markClearOnNextLaunch() {
         context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
@@ -245,6 +257,7 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_BACKUP_HISTORY = "backup_history"
         const val KEY_TERMUX_RETURN_DELAY_MS = "termux_return_delay_ms"
         const val KEY_LAST_TERMUX_WAKE_AT = "last_termux_wake_at"
+        const val KEY_FIRST_TAVERN_START_GUIDE_SEEN = "first_tavern_start_guide_seen"
         const val KEY_CLEAR_ON_NEXT_LAUNCH = "clear_on_next_launch"
         const val KEY_CLEAR_ON_NEXT_COLD_START = "clear_on_next_cold_start"
         const val MIN_TERMUX_RETURN_DELAY_MS = 300L

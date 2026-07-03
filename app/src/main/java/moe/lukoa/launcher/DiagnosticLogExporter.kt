@@ -12,6 +12,7 @@ data class DiagnosticSnapshot(
     val termuxInstalled: Boolean,
     val runCommandPermissionGranted: Boolean,
     val backgroundRunPermissionGranted: Boolean,
+    val termuxBackgroundRunPermissionGranted: Boolean,
     val allFilesAccessGranted: Boolean,
     val installUnknownAppsGranted: Boolean,
     val termuxStoragePermissionBlocked: Boolean,
@@ -88,6 +89,7 @@ object DiagnosticLogExporter {
             appendLine("Termux已安装=${snapshot.termuxInstalled}")
             appendLine("RUN_COMMAND权限=${snapshot.runCommandPermissionGranted}")
             appendLine("后台运行权限=${snapshot.backgroundRunPermissionGranted}")
+            appendLine("Termux后台常驻权限=${snapshot.termuxBackgroundRunPermissionGranted}")
             appendLine("所有文件权限=${snapshot.allFilesAccessGranted}")
             appendLine("安装未知来源权限=${snapshot.installUnknownAppsGranted}")
             appendLine("Termux存储权限被拦=${snapshot.termuxStoragePermissionBlocked}")

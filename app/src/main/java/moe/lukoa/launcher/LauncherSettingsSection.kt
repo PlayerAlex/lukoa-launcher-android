@@ -65,6 +65,7 @@ fun SettingsSection(
     termuxInstalled: Boolean,
     runCommandPermissionGranted: Boolean,
     backgroundRunPermissionGranted: Boolean,
+    termuxBackgroundRunPermissionGranted: Boolean,
     termuxExternalAppsBlocked: Boolean,
     termuxStoragePermissionBlocked: Boolean,
     allFilesAccessGranted: Boolean,
@@ -96,6 +97,7 @@ fun SettingsSection(
     onReadTermuxRepoStatus: () -> Unit,
     onApplyCustomTermuxMirror: () -> Unit,
     onRequestBackgroundRunPermission: () -> Unit,
+    onRequestTermuxBackgroundRunPermission: () -> Unit,
     onRequestRunCommandPermission: () -> Unit,
     onOpenPermissionSettings: () -> Unit,
     onCopyExternalAppsCommand: () -> Unit,
@@ -121,15 +123,18 @@ fun SettingsSection(
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
     val termuxExternalAppsReady = termuxInstalled && !termuxExternalAppsBlocked
-    val permissionReadyCount = listOf(
-        runCommandPermissionGranted,
-        termuxExternalAppsReady,
-        backgroundRunPermissionGranted,
-        allFilesAccessGranted,
-        installUnknownAppsGranted,
-    ).count { it }
-    val permissionSummaryText = "$permissionReadyCount/5 已就绪"
-    val permissionSummaryColor = if (permissionReadyCount >= 4) LukoaColors.Accent else LukoaColors.Amber
+    val permissionNotice = PermissionStatusSummary.settingsNotice(
+        termuxInstalled = termuxInstalled,
+        runCommandPermissionGranted = runCommandPermissionGranted,
+        termuxExternalAppsReady = termuxExternalAppsReady,
+        launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
+        termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
+        allFilesAccessGranted = allFilesAccessGranted,
+        installUnknownAppsGranted = installUnknownAppsGranted,
+        termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
+    )
+    val healthSummaryText = settingsHealthSummaryText(healthCheckReport)
+    val healthSummaryColor = settingsHealthSummaryColor(healthCheckReport)
     val pathIsDefault = tavernPathConfig.normalizedTavernDir == TavernPathDefaults.DEFAULT_TAVERN_DIR_NORMALIZED
     var showPathSettingsDialog by remember { mutableStateOf(false) }
     var showPermissionCenterDialog by remember { mutableStateOf(false) }
@@ -138,7 +143,11 @@ fun SettingsSection(
     var selectedView by remember {
         mutableStateOf(
             if (healthCheckReport?.hasData == true) {
-                if (permissionReadyCount >= 5) SettingsPageView.Mirror else SettingsPageView.Permissions
+                if (termuxInstalled && permissionNotice.pendingItems.isEmpty()) {
+                    SettingsPageView.Mirror
+                } else {
+                    SettingsPageView.Permissions
+                }
             } else {
                 SettingsPageView.Health
             },
@@ -208,6 +217,7 @@ fun SettingsSection(
             runCommandPermissionGranted = runCommandPermissionGranted,
             termuxExternalAppsReady = termuxExternalAppsReady,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
             allFilesAccessGranted = allFilesAccessGranted,
             installUnknownAppsGranted = installUnknownAppsGranted,
             termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
@@ -216,6 +226,7 @@ fun SettingsSection(
             onCopyExternalAppsCommand = onCopyExternalAppsCommand,
             onOpenTermuxOnly = onOpenTermuxOnly,
             onRequestBackgroundRunPermission = onRequestBackgroundRunPermission,
+            onRequestTermuxBackgroundRunPermission = onRequestTermuxBackgroundRunPermission,
             onOpenAllFilesAccessSettings = onOpenAllFilesAccessSettings,
             onOpenUnknownAppSourcesSettings = onOpenUnknownAppSourcesSettings,
             onShowTermuxStoragePermissionGuide = onShowTermuxStoragePermissionGuide,
@@ -252,8 +263,8 @@ fun SettingsSection(
         SettingsOverviewCard(
             tavernPathConfig = tavernPathConfig,
             mirrorProbeStatus = mirrorProbeStatus,
-            permissionSummaryText = permissionSummaryText,
-            permissionSummaryColor = permissionSummaryColor,
+            healthSummaryText = healthSummaryText,
+            healthSummaryColor = healthSummaryColor,
             githubUpdateState = githubUpdateState,
         )
         SectionSwitcherCard(
@@ -344,59 +355,20 @@ fun SettingsSection(
 
             SettingsPageView.Permissions -> SectionPanel(title = "权限与授权", accentColor = LukoaColors.Accent) {
                 Text(
-                    text = "把启动器会用到的权限和授权都集中在这里。看不准时，先把没准备好的项目逐个补齐。",
+                    text = "启动页负责显示当前运行状态；这里主要放权限处理入口和必要提醒，避免把状态到处重复塞满。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    StatusPill(
-                        text = if (runCommandPermissionGranted) "RUN_COMMAND 已允许" else "RUN_COMMAND 未允许",
-                        active = runCommandPermissionGranted,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusPill(
-                        text = if (termuxExternalAppsReady) "外部调用已开启" else "外部调用未开启",
-                        active = termuxExternalAppsReady,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    StatusPill(
-                        text = if (backgroundRunPermissionGranted) "后台运行已允许" else "后台运行未允许",
-                        active = backgroundRunPermissionGranted,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusPill(
-                        text = if (allFilesAccessGranted) "文件权限已允许" else "文件权限未允许",
-                        active = allFilesAccessGranted,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    StatusPill(
-                        text = if (installUnknownAppsGranted) "安装权限已允许" else "安装权限未允许",
-                        active = installUnknownAppsGranted,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusPill(
-                        text = if (termuxStoragePermissionBlocked) "Termux 存储待处理" else "Termux 存储按需申请",
-                        active = !termuxStoragePermissionBlocked,
-                        modifier = Modifier.weight(1f),
-                        toneColor = if (termuxStoragePermissionBlocked) LukoaColors.Amber else LukoaColors.Muted,
-                        activeBackground = if (termuxStoragePermissionBlocked) LukoaColors.AmberSoft else LukoaColors.SurfaceAlt,
-                    )
-                }
+                NoticeCard(
+                    title = permissionNotice.title,
+                    detail = permissionNotice.detail,
+                    accentColor = when (permissionNotice.tone) {
+                        PermissionNoticeTone.Info -> LukoaColors.Info
+                        PermissionNoticeTone.Warning -> LukoaColors.Amber
+                    },
+                )
                 SecondaryActionButton(
-                    text = "查看权限详情",
+                    text = "查看并处理权限",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -560,8 +532,8 @@ private fun SettingsStatBlock(
 private fun SettingsOverviewCard(
     tavernPathConfig: TavernPathConfig,
     mirrorProbeStatus: TavernMirrorProbeStatus,
-    permissionSummaryText: String,
-    permissionSummaryColor: Color,
+    healthSummaryText: String,
+    healthSummaryColor: Color,
     githubUpdateState: GithubUpdateUiState,
 ) {
     val updateStatusText = when {
@@ -625,9 +597,9 @@ private fun SettingsOverviewCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 SettingsStatBlock(
-                    label = "权限状态",
-                    value = permissionSummaryText,
-                    accentColor = permissionSummaryColor,
+                    label = "一键体检",
+                    value = healthSummaryText,
+                    accentColor = healthSummaryColor,
                     modifier = Modifier.weight(1f),
                 )
                 SettingsStatBlock(
@@ -638,6 +610,26 @@ private fun SettingsOverviewCard(
                 )
             }
         }
+    }
+}
+
+private fun settingsHealthSummaryText(report: LauncherHealthReport?): String {
+    val effectiveReport = report?.takeIf { it.hasData }
+    return when {
+        effectiveReport == null -> "未体检"
+        effectiveReport.errorCount > 0 -> "${effectiveReport.errorCount} 个问题"
+        effectiveReport.warningCount > 0 -> "${effectiveReport.warningCount} 个提醒"
+        else -> "基本正常"
+    }
+}
+
+private fun settingsHealthSummaryColor(report: LauncherHealthReport?): Color {
+    val effectiveReport = report?.takeIf { it.hasData }
+    return when {
+        effectiveReport == null -> LukoaColors.Muted
+        effectiveReport.errorCount > 0 -> LukoaColors.Danger
+        effectiveReport.warningCount > 0 -> LukoaColors.Amber
+        else -> LukoaColors.Accent
     }
 }
 

@@ -235,6 +235,11 @@ fun QuickStartGuideSection(
                             color = LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        Text(
+                            text = "第一次启动前，启动器会按你的手机类型再提醒一次：非 iQOO 先把 Termux 挂小窗，iQOO 先给 Termux 开后台。",
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
 

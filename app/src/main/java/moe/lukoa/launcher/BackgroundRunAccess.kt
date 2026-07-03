@@ -7,25 +7,34 @@ import android.os.PowerManager
 import android.provider.Settings
 
 object BackgroundRunAccess {
-    fun isGranted(context: Context): Boolean {
+    fun isGranted(
+        context: Context,
+        packageName: String = context.packageName,
+    ): Boolean {
         val powerManager = context.getSystemService(PowerManager::class.java) ?: return false
-        return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 
-    fun request(context: Context): Boolean {
-        if (isGranted(context)) return true
+    fun request(
+        context: Context,
+        packageName: String = context.packageName,
+    ): Boolean {
+        if (packageName != context.packageName && !isPackageInstalled(context, packageName)) {
+            return false
+        }
+        if (isGranted(context, packageName)) return true
         val intents = buildList {
             add(
                 Intent(
                     Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:${context.packageName}"),
+                    Uri.parse("package:$packageName"),
                 ),
             )
             add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             add(
                 Intent(
                     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.fromParts("package", context.packageName, null),
+                    Uri.fromParts("package", packageName, null),
                 ),
             )
         }
@@ -36,6 +45,24 @@ object BackgroundRunAccess {
             } catch (_: Exception) {
                 false
             }
+        }
+    }
+
+    fun isTermuxGranted(context: Context): Boolean {
+        return isPackageInstalled(context, TermuxCommandRunner.TERMUX_PACKAGE) &&
+            isGranted(context, TermuxCommandRunner.TERMUX_PACKAGE)
+    }
+
+    fun requestTermux(context: Context): Boolean {
+        return request(context, TermuxCommandRunner.TERMUX_PACKAGE)
+    }
+
+    private fun isPackageInstalled(context: Context, packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 }

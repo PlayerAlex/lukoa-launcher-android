@@ -89,6 +89,11 @@ class MainActivity : ComponentActivity() {
         val isTermuxInstalled = runner.isTermuxInstalled()
         val hasRunCommandPermission = isTermuxInstalled && runner.hasRunCommandPermission()
         val backgroundRunPermissionGranted = BackgroundRunAccess.isGranted(applicationContext)
+        val termuxBackgroundRunPermissionGranted = if (isTermuxInstalled) {
+            BackgroundRunAccess.isTermuxGranted(applicationContext)
+        } else {
+            false
+        }
         if (isTermuxInstalled) {
             requestRunCommandPermissionIfNeeded()
         }
@@ -108,6 +113,7 @@ class MainActivity : ComponentActivity() {
         val tavernPathStore = TavernPathStore(applicationContext)
         val tavernPathConfig = tavernPathStore.load()
         val ignoredUpdateTag = githubUpdateStore.loadIgnoredUpdateTag()
+        val firstTavernStartGuideSeen = stateStore.hasSeenFirstTavernStartGuide()
         val shouldRunStartupRefresh = isTermuxInstalled && hasRunCommandPermission
         val startupRefreshSignal = if (shouldRunStartupRefresh) 1 else 0
         val allFilesAccessGranted = hasAllFilesAccessPermission()
@@ -132,6 +138,8 @@ class MainActivity : ComponentActivity() {
                     initialTermuxInstalled = isTermuxInstalled,
                     initialRunCommandPermissionGranted = hasRunCommandPermission,
                     initialBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
+                    initialTermuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
+                    initialFirstTavernStartGuideSeen = firstTavernStartGuideSeen,
                     initialAllFilesAccessGranted = allFilesAccessGranted,
                     initialInstallUnknownAppsGranted = installUnknownAppsGranted,
                     startupRefreshSignal = startupRefreshSignal,
@@ -170,6 +178,13 @@ class MainActivity : ComponentActivity() {
                     onRequestBackgroundRunPermission = {
                         BackgroundRunAccess.request(applicationContext)
                     },
+                    onCheckTermuxBackgroundRunPermission = {
+                        BackgroundRunAccess.isTermuxGranted(applicationContext)
+                    },
+                    onRequestTermuxBackgroundRunPermission = {
+                        BackgroundRunAccess.requestTermux(applicationContext)
+                    },
+                    onMarkFirstTavernStartGuideSeen = stateStore::markFirstTavernStartGuideSeen,
                     onCheckAllFilesAccessPermission = ::hasAllFilesAccessPermission,
                     onCheckInstallUnknownAppsPermission = ::canInstallUnknownApps,
                     onConfigureAutoBackupSchedule = { enabled, intervalMinutes, resetCountdown ->

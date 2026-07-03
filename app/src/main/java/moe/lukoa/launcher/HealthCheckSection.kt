@@ -187,7 +187,9 @@ private fun primaryActionColor(type: LauncherHealthActionType): Color {
         LauncherHealthActionType.DownloadTermux,
         LauncherHealthActionType.RequestRunPermission,
         LauncherHealthActionType.CopyExternalAppsCommand,
-        LauncherHealthActionType.PrepareTermuxEnvironment -> LukoaColors.Amber
+        LauncherHealthActionType.PrepareTermuxEnvironment,
+        LauncherHealthActionType.RequestBackgroundRunPermission,
+        LauncherHealthActionType.RequestTermuxBackgroundRunPermission -> LukoaColors.Amber
 
         LauncherHealthActionType.StopTavern -> LukoaColors.Danger
         else -> LukoaColors.Accent

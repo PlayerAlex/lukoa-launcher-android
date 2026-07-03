@@ -434,6 +434,7 @@ fun PermissionCenterDialog(
     runCommandPermissionGranted: Boolean,
     termuxExternalAppsReady: Boolean,
     backgroundRunPermissionGranted: Boolean,
+    termuxBackgroundRunPermissionGranted: Boolean,
     allFilesAccessGranted: Boolean,
     installUnknownAppsGranted: Boolean,
     termuxStoragePermissionBlocked: Boolean,
@@ -442,6 +443,7 @@ fun PermissionCenterDialog(
     onCopyExternalAppsCommand: () -> Unit,
     onOpenTermuxOnly: () -> Unit,
     onRequestBackgroundRunPermission: () -> Unit,
+    onRequestTermuxBackgroundRunPermission: () -> Unit,
     onOpenAllFilesAccessSettings: () -> Unit,
     onOpenUnknownAppSourcesSettings: () -> Unit,
     onShowTermuxStoragePermissionGuide: () -> Unit,
@@ -451,9 +453,16 @@ fun PermissionCenterDialog(
         runCommandPermissionGranted,
         termuxExternalAppsReady,
         backgroundRunPermissionGranted,
+        termuxBackgroundRunPermissionGranted,
         allFilesAccessGranted,
         installUnknownAppsGranted,
     ).count { it }
+    val readinessText = if (termuxInstalled) {
+        "$readyCount/6 已就绪"
+    } else {
+        "先安装 Termux"
+    }
+    val readinessActive = termuxInstalled && readyCount >= 5
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
@@ -484,11 +493,11 @@ fun PermissionCenterDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     StatusPill(
-                        text = "$readyCount/5 已就绪",
-                        active = readyCount >= 4,
+                        text = readinessText,
+                        active = readinessActive,
                         modifier = Modifier.weight(1f),
-                        toneColor = if (readyCount >= 4) LukoaColors.Accent else LukoaColors.Amber,
-                        activeBackground = if (readyCount >= 4) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
+                        toneColor = if (readinessActive) LukoaColors.Accent else LukoaColors.Amber,
+                        activeBackground = if (readinessActive) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
                     )
                     StatusPill(
                         text = if (termuxStoragePermissionBlocked) "Termux 存储待处理" else "Termux 存储按需申请",
@@ -537,6 +546,18 @@ fun PermissionCenterDialog(
                     },
                     primaryLabel = if (backgroundRunPermissionGranted) "重新打开权限页" else "去授权",
                     onPrimaryClick = onRequestBackgroundRunPermission,
+                )
+                PermissionDetailCard(
+                    title = "Termux 后台常驻",
+                    active = termuxBackgroundRunPermissionGranted,
+                    description = "部分手机会单独限制 Termux 的后台存活。没放行时，长任务、前台日志和自动备份更容易被系统打断。",
+                    detail = if (termuxBackgroundRunPermissionGranted) {
+                        "当前已检测到 Termux 基本不受省电限制。"
+                    } else {
+                        "建议把 Termux 也加入后台运行、自启动或省电白名单。"
+                    },
+                    primaryLabel = if (termuxBackgroundRunPermissionGranted) "重新打开权限页" else "给 Termux 授权",
+                    onPrimaryClick = onRequestTermuxBackgroundRunPermission,
                 )
                 PermissionDetailCard(
                     title = "文件管理权限",

@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -67,6 +68,8 @@ fun LukoaLauncherScreen(
     initialTermuxInstalled: Boolean,
     initialRunCommandPermissionGranted: Boolean,
     initialBackgroundRunPermissionGranted: Boolean,
+    initialTermuxBackgroundRunPermissionGranted: Boolean,
+    initialFirstTavernStartGuideSeen: Boolean,
     initialAllFilesAccessGranted: Boolean,
     initialInstallUnknownAppsGranted: Boolean,
     startupRefreshSignal: Int,
@@ -83,6 +86,9 @@ fun LukoaLauncherScreen(
     onRequestRunCommandPermission: () -> Unit,
     onCheckBackgroundRunPermission: () -> Boolean,
     onRequestBackgroundRunPermission: () -> Boolean,
+    onCheckTermuxBackgroundRunPermission: () -> Boolean,
+    onRequestTermuxBackgroundRunPermission: () -> Boolean,
+    onMarkFirstTavernStartGuideSeen: () -> Unit,
     onCheckAllFilesAccessPermission: () -> Boolean,
     onCheckInstallUnknownAppsPermission: () -> Boolean,
     onConfigureAutoBackupSchedule: (Boolean, Int, Boolean) -> Unit,
@@ -128,6 +134,10 @@ fun LukoaLauncherScreen(
     var termuxInstalled by remember { mutableStateOf(initialTermuxInstalled) }
     var runCommandPermissionGranted by remember { mutableStateOf(initialRunCommandPermissionGranted) }
     var backgroundRunPermissionGranted by remember { mutableStateOf(initialBackgroundRunPermissionGranted) }
+    var termuxBackgroundRunPermissionGranted by remember {
+        mutableStateOf(initialTermuxBackgroundRunPermissionGranted)
+    }
+    var firstTavernStartGuideSeen by remember { mutableStateOf(initialFirstTavernStartGuideSeen) }
     var allFilesAccessGranted by remember { mutableStateOf(initialAllFilesAccessGranted) }
     var installUnknownAppsGranted by remember { mutableStateOf(initialInstallUnknownAppsGranted) }
     var termuxExternalAppsBlocked by remember {
@@ -202,6 +212,7 @@ fun LukoaLauncherScreen(
     var showAutoBackupSettingsDialog by remember { mutableStateOf(false) }
     var showStopConfirmDialog by remember { mutableStateOf(false) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
+    var showFirstTavernStartGuideDialog by remember { mutableStateOf(false) }
     var backgroundPermissionPromptShown by remember { mutableStateOf(false) }
     var showApplyBackupPathDialog by remember { mutableStateOf(false) }
     var showApplyBackupPreviewDialog by remember { mutableStateOf(false) }
@@ -265,6 +276,7 @@ fun LukoaLauncherScreen(
     var showInstallRiskDialog by remember { mutableStateOf(false) }
     var showTavernDirectoryChoiceDialog by remember { mutableStateOf(false) }
     var tavernDirectoryCandidates by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingFirstTavernStartGuide by remember { mutableStateOf<FirstTavernStartGuide?>(null) }
     var githubUpdateState by remember {
         mutableStateOf(
             GithubUpdateUiState(
@@ -284,6 +296,13 @@ fun LukoaLauncherScreen(
     val actionInProgress = busyLabel != null
     val issueAnalysis = TavernIssueAnalyzer.analyze(termuxLog, status)
     val scope = rememberCoroutineScope()
+    val firstTavernStartGuide = remember {
+        FirstTavernStartGuideResolver.resolve(
+            brand = Build.BRAND.orEmpty(),
+            manufacturer = Build.MANUFACTURER.orEmpty(),
+            model = Build.MODEL.orEmpty(),
+        )
+    }
     val showGithubUpdateBadge = githubUpdateState.hasUpdate &&
         githubUpdateState.latest?.tagName != ignoredUpdateTag
     var lastSyncedTermuxResultKey by remember {
@@ -331,6 +350,37 @@ fun LukoaLauncherScreen(
         pendingLauncherTask = null
         showPendingTaskDialog = false
         PendingLauncherTaskStore.clear(context)
+    }
+
+    fun hideFirstTavernStartGuideDialog() {
+        showFirstTavernStartGuideDialog = false
+        pendingFirstTavernStartGuide = null
+    }
+
+    fun markFirstTavernStartGuideSeen() {
+        if (firstTavernStartGuideSeen) return
+        firstTavernStartGuideSeen = true
+        onMarkFirstTavernStartGuideSeen()
+    }
+
+    fun maybeShowFirstTavernStartGuideBeforeStart(): Boolean {
+        if (FirstTavernStartGuideResolver.hasSuccessfulStartHistory(termuxLog, appLog)) {
+            markFirstTavernStartGuideSeen()
+            return false
+        }
+        if (!FirstTavernStartGuideResolver.shouldShow(
+                alreadyShown = firstTavernStartGuideSeen,
+                tavernInstallDetected = tavernInstallDetected,
+                tavernRunning = tavernRunning,
+                termuxLog = termuxLog,
+                appLog = appLog,
+            )
+        ) {
+            return false
+        }
+        pendingFirstTavernStartGuide = firstTavernStartGuide
+        showFirstTavernStartGuideDialog = true
+        return true
     }
 
     fun hasTavernDirectoryMissingSignal(text: String): Boolean {
@@ -423,6 +473,7 @@ fun LukoaLauncherScreen(
             runCommandPermissionGranted = runCommandPermissionGranted,
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
             allFilesAccessGranted = allFilesAccessGranted,
             installUnknownAppsGranted = installUnknownAppsGranted,
             termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
@@ -446,9 +497,11 @@ fun LukoaLauncherScreen(
         val observer = LifecycleEventObserver { _: LifecycleOwner, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 val installed = onCheckTermuxInstalled()
+                val launcherBackgroundGranted = onCheckBackgroundRunPermission()
                 termuxInstalled = installed
                 runCommandPermissionGranted = installed && onCheckRunCommandPermission()
-                backgroundRunPermissionGranted = onCheckBackgroundRunPermission()
+                backgroundRunPermissionGranted = launcherBackgroundGranted
+                termuxBackgroundRunPermissionGranted = installed && onCheckTermuxBackgroundRunPermission()
                 allFilesAccessGranted = onCheckAllFilesAccessPermission()
                 installUnknownAppsGranted = onCheckInstallUnknownAppsPermission()
             }
@@ -582,22 +635,6 @@ fun LukoaLauncherScreen(
             allowRunningInference = false,
         )
         return true
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val granted = onCheckBackgroundRunPermission()
-                if (granted != backgroundRunPermissionGranted) {
-                    backgroundRunPermissionGranted = granted
-                    if (granted) {
-                        update("后台运行权限已允许。自动备份到点后会继续在后台尝试执行。", "", true, allowRunningInference = false)
-                    }
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     fun syncTermuxResult(display: TermuxResultDisplay) {
@@ -1178,6 +1215,7 @@ fun LukoaLauncherScreen(
             termuxInstalled = termuxInstalled,
             runCommandPermissionGranted = runCommandPermissionGranted,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
             allFilesAccessGranted = allFilesAccessGranted,
             installUnknownAppsGranted = installUnknownAppsGranted,
             termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
@@ -2595,6 +2633,20 @@ fun LukoaLauncherScreen(
                 )
             }
 
+            LauncherHealthActionType.RequestTermuxBackgroundRunPermission -> {
+                val opened = onRequestTermuxBackgroundRunPermission()
+                update(
+                    if (opened) {
+                        "已打开 Termux 后台常驻权限页面。允许后回启动器即可。"
+                    } else {
+                        "打开 Termux 后台常驻权限页面失败，请到系统设置里放行 Termux。"
+                    },
+                    "",
+                    opened,
+                    allowRunningInference = false,
+                )
+            }
+
             LauncherHealthActionType.OpenAllFilesAccessSettings -> {
                 openAllFilesAccessSettings()
             }
@@ -2654,6 +2706,11 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun continueStartAfterFirstGuideIfNeeded() {
+        if (maybeShowFirstTavernStartGuideBeforeStart()) return
+        performForegroundStart()
+    }
+
     fun requestStartTavern() {
         if (tavernStarting) {
             update("酒馆正在启动中，请稍等。", "", false, allowRunningInference = false)
@@ -2674,12 +2731,12 @@ fun LukoaLauncherScreen(
                 return
             }
             pendingStartPreflight = null
-            performForegroundStart()
+            continueStartAfterFirstGuideIfNeeded()
             return
         }
         if (canFastPathStart()) {
             pendingStartPreflight = null
-            performForegroundStart()
+            continueStartAfterFirstGuideIfNeeded()
             return
         }
         if (!beginBusy("启动前预检", 20000L)) return
@@ -2705,7 +2762,7 @@ fun LukoaLauncherScreen(
                 return@onCommand
             }
             pendingStartPreflight = null
-            performForegroundStart()
+            continueStartAfterFirstGuideIfNeeded()
         }
     }
 
@@ -2993,6 +3050,51 @@ fun LukoaLauncherScreen(
             onContinueCheck = ::continuePendingLauncherTask,
             onAbandon = ::abandonPendingLauncherTask,
             onDismiss = { showPendingTaskDialog = false },
+        )
+    }
+
+    pendingFirstTavernStartGuide?.takeIf { showFirstTavernStartGuideDialog }?.let { guide ->
+        FirstTavernStartGuideDialog(
+            guide = guide,
+            onPrimaryAction = {
+                hideFirstTavernStartGuideDialog()
+                markFirstTavernStartGuideSeen()
+                when (guide.kind) {
+                    FirstTavernStartGuideKind.IQooBackgroundPermission -> {
+                        val opened = onRequestTermuxBackgroundRunPermission()
+                        update(
+                            if (opened) {
+                                "已打开 Termux 后台权限页面。允许后再回来启动酒馆会更稳。"
+                            } else {
+                                "打开 Termux 后台权限页面失败，请到系统设置里放行 Termux。"
+                            },
+                            "",
+                            opened,
+                            allowRunningInference = false,
+                        )
+                    }
+
+                    FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> {
+                        val opened = onOpenTermuxOnly()
+                        update(
+                            if (opened) {
+                                "已打开 Termux。请先把 Termux 挂到小窗或分屏，再回启动器继续启动酒馆。"
+                            } else {
+                                "没找到 Termux。请先安装并打开一次 Termux。"
+                            },
+                            "",
+                            opened,
+                            allowRunningInference = false,
+                        )
+                    }
+                }
+            },
+            onContinueStart = {
+                hideFirstTavernStartGuideDialog()
+                markFirstTavernStartGuideSeen()
+                performForegroundStart()
+            },
+            onDismiss = ::hideFirstTavernStartGuideDialog,
         )
     }
 
@@ -3425,6 +3527,12 @@ fun LukoaLauncherScreen(
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Launch -> {
+                            val launchPermissionReminder = PermissionStatusSummary.launchReminder(
+                                termuxInstalled = termuxInstalled,
+                                launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
+                                termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
+                                termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
+                            )
                             OverviewPanel(
                                 summary = summary,
                                 status = status,
@@ -3433,6 +3541,18 @@ fun LukoaLauncherScreen(
                                 tavernStarting = tavernStarting,
                                 syncActive = termuxInstalled && runCommandPermissionGranted,
                             )
+                            launchPermissionReminder?.let { reminder ->
+                                NoticeCard(
+                                    title = reminder.title,
+                                    detail = reminder.detail,
+                                    accentColor = LukoaColors.Amber,
+                                    actionLabel = "去权限页处理",
+                                    onAction = {
+                                        selectedTab = LauncherTab.Settings
+                                        update("请到设置里的权限分区补齐后台常驻或备份相关权限。", "", false, allowRunningInference = false)
+                                    },
+                                )
+                            }
                             if (busyLabel != null) {
                                 BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                             }
@@ -3555,6 +3675,7 @@ fun LukoaLauncherScreen(
                             termuxInstalled = termuxInstalled,
                             runCommandPermissionGranted = runCommandPermissionGranted,
                             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+                            termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
                             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
                             termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
                             allFilesAccessGranted = allFilesAccessGranted,
@@ -3609,6 +3730,19 @@ fun LukoaLauncherScreen(
                                         "已打开后台运行权限页面。允许后回启动器即可。"
                                     } else {
                                         "打开后台运行权限页面失败，请到系统设置里允许后台运行。"
+                                    },
+                                    "",
+                                    opened,
+                                    allowRunningInference = false,
+                                )
+                            },
+                            onRequestTermuxBackgroundRunPermission = {
+                                val opened = onRequestTermuxBackgroundRunPermission()
+                                update(
+                                    if (opened) {
+                                        "已打开 Termux 后台常驻权限页面。允许后回启动器即可。"
+                                    } else {
+                                        "打开 Termux 后台常驻权限页面失败，请到系统设置里放行 Termux。"
                                     },
                                     "",
                                     opened,

@@ -16,6 +16,7 @@ enum class LauncherHealthActionType {
     OpenPathSettings,
     OpenNetworkSettings,
     RequestBackgroundRunPermission,
+    RequestTermuxBackgroundRunPermission,
     OpenAllFilesAccessSettings,
     OpenUnknownAppSourcesSettings,
     StopTavern,
@@ -53,6 +54,7 @@ object LauncherHealthCheck {
         runCommandPermissionGranted: Boolean,
         termuxExternalAppsBlocked: Boolean,
         backgroundRunPermissionGranted: Boolean,
+        termuxBackgroundRunPermissionGranted: Boolean,
         allFilesAccessGranted: Boolean,
         installUnknownAppsGranted: Boolean,
         termuxStoragePermissionBlocked: Boolean,
@@ -67,7 +69,8 @@ object LauncherHealthCheck {
             if (doctorReport?.npmAvailable == false) add("npm")
         }
         val extraPermissionWarnings = buildList {
-            if (!backgroundRunPermissionGranted) add("后台运行")
+            if (!backgroundRunPermissionGranted) add("启动器后台运行")
+            if (termuxInstalled && !termuxBackgroundRunPermissionGranted) add("Termux 后台常驻")
             if (!allFilesAccessGranted) add("文件权限")
             if (!installUnknownAppsGranted) add("安装未知应用")
             if (termuxStoragePermissionBlocked) add("Termux 存储")
@@ -134,7 +137,11 @@ object LauncherHealthCheck {
                 if (extraPermissionWarnings.isEmpty()) {
                     LauncherHealthItem(
                         title = "系统权限",
-                        detail = "后台运行、文件和安装相关权限都已基本就绪。",
+                        detail = if (termuxInstalled) {
+                            "启动器后台运行、Termux 后台常驻、文件和安装相关权限都已基本就绪。"
+                        } else {
+                            "后台运行、文件和安装相关权限都已基本就绪。"
+                        },
                         level = LauncherHealthLevel.Good,
                     )
                 } else {
@@ -346,6 +353,7 @@ object LauncherHealthCheck {
             runCommandPermissionGranted = runCommandPermissionGranted,
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
             allFilesAccessGranted = allFilesAccessGranted,
             installUnknownAppsGranted = installUnknownAppsGranted,
             tavernRunning = tavernRunning,
@@ -401,6 +409,7 @@ object LauncherHealthCheck {
         runCommandPermissionGranted: Boolean,
         termuxExternalAppsBlocked: Boolean,
         backgroundRunPermissionGranted: Boolean,
+        termuxBackgroundRunPermissionGranted: Boolean,
         allFilesAccessGranted: Boolean,
         installUnknownAppsGranted: Boolean,
         tavernRunning: Boolean,
@@ -453,6 +462,11 @@ object LauncherHealthCheck {
             !backgroundRunPermissionGranted -> LauncherHealthAction(
                 type = LauncherHealthActionType.RequestBackgroundRunPermission,
                 label = "开后台权限",
+            )
+
+            termuxInstalled && !termuxBackgroundRunPermissionGranted -> LauncherHealthAction(
+                type = LauncherHealthActionType.RequestTermuxBackgroundRunPermission,
+                label = "开 Termux 后台",
             )
 
             !allFilesAccessGranted -> LauncherHealthAction(
