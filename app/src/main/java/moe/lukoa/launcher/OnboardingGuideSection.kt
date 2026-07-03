@@ -139,12 +139,16 @@ fun QuickStartGuideSection(
         tavernInstallDetected == false -> WizardAction(
             step = "第 4 步",
             title = "安装酒馆",
-            detail = "默认安装 release 分支。会自动补 git、nodejs，然后执行 npm install。",
+            detail = "默认安装 release 稳定分支。装完回到本页，直接点“启动酒馆”就行。",
             primaryText = "安装 ${effectiveSelectedVersion.label}",
             primaryEnabled = !actionsLocked,
             primary = onInstallTavern,
             secondary = listOf(
-                WizardSecondaryAction("换个版本", !actionsLocked, onRefreshOfficialVersions),
+                WizardSecondaryAction(
+                    if (officialVersions.hasData) "恢复默认稳定版" else "读取可选版本",
+                    !actionsLocked,
+                    if (officialVersions.hasData) onUseRecommendedVersion else onRefreshOfficialVersions,
+                ),
                 WizardSecondaryAction("重新检测", !actionsLocked && !tavernVersionChecking, onCheckTavern),
             ),
             tone = LukoaColors.Accent,
@@ -211,13 +215,23 @@ fun QuickStartGuideSection(
                 if (tavernInstallDetected == false) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "release 是当前的最新稳定版。",
+                            text = "不懂版本就直接装默认稳定版。",
                             color = LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = "安装通常会持续 5-10 分钟，这是正常的，等待即可。",
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            text = "默认会装到设置里的酒馆路径；没改过的话就是 ~/SillyTavern。",
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            text = "安装完成后，回到上方酒馆控制，点一次“启动酒馆”即可。",
                             color = LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )

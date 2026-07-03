@@ -545,77 +545,98 @@ fun ApplyBackupPreviewDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    RiskyActionDialogScaffold(
+        title = "确认应用备份",
+        titleTone = ActionTone.Danger,
+        confirmText = "确认应用",
+        confirmTone = ActionTone.Danger,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
+            color = LukoaColors.Danger,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "启动器不会自动复制一份当前酒馆。需要保留当前数据时，请先手动备份。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            text = "应用前请确认酒馆已经停止。若 Termux 没有存储权限，启动器会提示你授权。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("备份名", preview.backupName)
+                VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
+                VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
+                VersionInfoLine("恢复到", preview.restoreTargetDir)
+                Text(
+                    text = preview.archivePath,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Danger.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.28f)),
+        ) {
+            Text(
+                text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RiskyActionDialogScaffold(
+    title: String,
+    titleTone: ActionTone,
+    confirmText: String,
+    confirmTone: ActionTone,
+    confirmEnabled: Boolean = true,
+    dismissText: String = "取消",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Danger,
+        titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.Text,
-        title = { Text("确认应用备份") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
-                    color = LukoaColors.Danger,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "启动器不会自动复制一份当前酒馆。需要保留当前数据时，请先手动备份。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = "应用前请确认酒馆已经停止。若 Termux 没有存储权限，启动器会提示你授权。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = LukoaColors.SurfaceAlt,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        VersionInfoLine("备份名", preview.backupName)
-                        VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
-                        VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
-                        VersionInfoLine("恢复到", preview.restoreTargetDir)
-                        Text(
-                            text = preview.archivePath,
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = LukoaColors.Danger.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.28f)),
-                ) {
-                    Text(
-                        text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
-                        modifier = Modifier.padding(12.dp),
-                        color = LukoaColors.Text,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
+        title = { Text(title) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } },
         confirmButton = {
             DialogActionButton(
-                text = "确认应用",
-                tone = ActionTone.Danger,
+                text = confirmText,
+                enabled = confirmEnabled,
+                tone = confirmTone,
                 onClick = onConfirm,
             )
         },
         dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Danger, onClick = onDismiss)
+            DialogActionButton(dismissText, tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }
@@ -1256,44 +1277,83 @@ fun StopTavernConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Danger,
-        textContentColor = LukoaColors.Text,
-        title = {
-            Text("确认停止酒馆")
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "停止后，当前酒馆网页会断开连接。确认没有重要操作在跑，再继续。",
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    text = "这一步不会删除聊天、角色、世界书或备份文件。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+    RiskyActionDialogScaffold(
+        title = "确认停止酒馆",
+        titleTone = ActionTone.Danger,
+        confirmText = "确认停止",
+        confirmTone = ActionTone.Danger,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "停止后，当前酒馆网页会断开连接。确认没有重要操作在跑，再继续。",
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "这一步不会删除聊天、角色、世界书或备份文件。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+fun TavernVersionActionConfirmDialog(
+    confirmation: TavernVersionActionConfirmation,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = confirmation.kind.dialogTitle,
+        titleTone = ActionTone.Warning,
+        confirmText = confirmation.kind.confirmLabel,
+        confirmTone = ActionTone.Warning,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = confirmation.summary,
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("当前版本", confirmation.currentVersion)
+                VersionInfoLine("目标版本", confirmation.targetVersion)
+                VersionInfoLine("当前源", confirmation.sourceLabel)
             }
-        },
-        confirmButton = {
-            DialogActionButton(
-                text = "确认停止",
-                tone = ActionTone.Danger,
-                enabled = !actionsLocked,
-                onClick = onConfirm,
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+        ) {
+            Text(
+                text = confirmation.detail,
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
             )
-        },
-        dismissButton = {
-            DialogActionButton(
-                text = "取消",
-                tone = ActionTone.Neutral,
-                onClick = onDismiss,
-            )
-        },
-    )
+        }
+        Text(
+            text = confirmation.riskTip,
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable

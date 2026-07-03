@@ -61,8 +61,6 @@ fun VersionManagementSection(
     officialVersions: TavernOfficialVersions,
     currentRepoUrl: String,
     selectedVersion: TavernVersionChoice?,
-    rollbackConfirmActive: Boolean,
-    updateConfirmActive: Boolean,
     onRefreshOfficialVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
     onTavernVersion: () -> Unit,
@@ -226,7 +224,7 @@ fun VersionManagementSection(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     SecondaryActionButton(
-                        text = if (updateConfirmActive) "再次确认" else "更新",
+                        text = "更新",
                         enabled = updateEnabled,
                         accentColor = LukoaColors.Amber,
                         modifier = Modifier
@@ -234,7 +232,7 @@ fun VersionManagementSection(
                         onClick = onTavernUpdate,
                     )
                     SecondaryActionButton(
-                        text = if (rollbackConfirmActive) "再次确认" else "回退",
+                        text = "回退",
                         enabled = rollbackEnabled,
                         accentColor = LukoaColors.Amber,
                         modifier = Modifier
@@ -247,7 +245,7 @@ fun VersionManagementSection(
                     text = if (tavernVersionInfo.notInstalled) {
                         "未安装时不能更新或回退，先安装酒馆。"
                     } else {
-                        "只切换程序版本，不删聊天、角色、世界书和插件。"
+                        "执行前会先自动创建一份安全备份，只切换程序版本，不删聊天、角色、世界书和插件。"
                     },
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,

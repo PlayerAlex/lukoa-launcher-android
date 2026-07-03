@@ -192,8 +192,9 @@ fun LukoaLauncherScreen(
     var termuxReturnDelayMs by remember { mutableLongStateOf(initialState.termuxReturnDelayMs.coerceIn(300L, 2_000L)) }
     var logRefreshInFlight by remember { mutableStateOf(false) }
     var termuxBootstrapCompleted by remember { mutableStateOf(false) }
-    var updateConfirmActive by remember { mutableStateOf(false) }
-    var rollbackConfirmActive by remember { mutableStateOf(false) }
+    var pendingTavernVersionActionConfirmation by remember {
+        mutableStateOf<TavernVersionActionConfirmation?>(null)
+    }
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearLogScopeDialog by remember { mutableStateOf(false) }
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
@@ -1989,8 +1990,7 @@ fun LukoaLauncherScreen(
             selectedTavernVersion = selectedTavernVersion
                 ?.takeIf { it.kind == TavernVersionKind.Custom }
                 ?.copy(repoUrl = result.config.normalizedRepoUrl)
-            updateConfirmActive = false
-            rollbackConfirmActive = false
+            pendingTavernVersionActionConfirmation = null
         }
         update(
             if (result.saved) {
@@ -2804,92 +2804,65 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun requestTavernRollback() {
-        if (actionInProgress) {
-            update("正在处理，完成后再回退。", "", false, allowRunningInference = false)
-            return
-        }
-        if (blockIfPendingTaskExists("回退酒馆")) return
+    fun dismissTavernVersionActionDialog() {
+        pendingTavernVersionActionConfirmation = null
+    }
 
-        TavernVersionActionGuards.evaluate(
-            current = tavernVersionInfo,
-            target = selectedTavernVersion,
-            officialVersions = officialVersions,
-            currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
-        ).rollbackDisabledReason?.let {
-            update("不能回退：$it", "", false, allowRunningInference = false)
-            return
-        }
-
-        if (!rollbackConfirmActive) {
-            rollbackConfirmActive = true
-            updateConfirmActive = false
-            update(
-                "2 秒内再点一次“回退”才会执行。",
-                "",
-                false,
-                allowRunningInference = false,
-            )
-            scope.launch {
-                delay(2000)
-                rollbackConfirmActive = false
-            }
-            return
-        }
-
-        rollbackConfirmActive = false
-        updateConfirmActive = false
+    fun confirmTavernVersionActionDialog() {
+        val confirmation = pendingTavernVersionActionConfirmation ?: return
+        dismissTavernVersionActionDialog()
         runSelectedVersionCommandWithSafetyBackup(
-            baseCommand = "tavern-rollback",
+            baseCommand = confirmation.kind.baseCommand,
             emptyMessage = "请先选择一个版本。",
-            busyText = "回退酒馆版本",
-            taskKind = PendingLauncherTaskKind.RollbackTavern,
-            safetyBackupPrefix = "回退前",
+            busyText = confirmation.kind.busyText,
+            taskKind = confirmation.kind.taskKind,
+            safetyBackupPrefix = confirmation.kind.safetyBackupPrefix,
         )
     }
 
-    fun requestTavernUpdate() {
+    fun requestTavernVersionAction(kind: TavernVersionActionKind) {
+        val actionLabel = when (kind) {
+            TavernVersionActionKind.Update -> "更新"
+            TavernVersionActionKind.Rollback -> "回退"
+        }
         if (actionInProgress) {
-            update("正在处理，完成后再更新。", "", false, allowRunningInference = false)
+            update("正在处理，完成后再${actionLabel}。", "", false, allowRunningInference = false)
             return
         }
-        if (blockIfPendingTaskExists("更新酒馆")) return
+        if (blockIfPendingTaskExists("${actionLabel}酒馆")) return
 
-        TavernVersionActionGuards.evaluate(
+        val actionState = TavernVersionActionGuards.evaluate(
             current = tavernVersionInfo,
             target = selectedTavernVersion,
             officialVersions = officialVersions,
             currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
-        ).updateDisabledReason?.let {
-            update("不能更新：$it", "", false, allowRunningInference = false)
-            return
-        }
-
-        if (!updateConfirmActive) {
-            updateConfirmActive = true
-            rollbackConfirmActive = false
-            update(
-                "2 秒内再点一次“更新”才会执行。建议先备份。",
-                "",
-                false,
-                allowRunningInference = false,
-            )
-            scope.launch {
-                delay(2000)
-                updateConfirmActive = false
-            }
-            return
-        }
-
-        updateConfirmActive = false
-        rollbackConfirmActive = false
-        runSelectedVersionCommandWithSafetyBackup(
-            baseCommand = "tavern-update",
-            emptyMessage = "请先选择一个版本。",
-            busyText = "更新酒馆源码",
-            taskKind = PendingLauncherTaskKind.UpdateTavern,
-            safetyBackupPrefix = "更新前",
         )
+        val disabledReason = when (kind) {
+            TavernVersionActionKind.Update -> actionState.updateDisabledReason
+            TavernVersionActionKind.Rollback -> actionState.rollbackDisabledReason
+        }
+        if (disabledReason != null) {
+            update("不能${actionLabel}：$disabledReason", "", false, allowRunningInference = false)
+            return
+        }
+        val selectedVersion = selectedTavernVersion ?: run {
+            update("请先选择一个版本。", "", false, allowRunningInference = false)
+            return
+        }
+        pendingTavernVersionActionConfirmation = TavernVersionActionConfirmationBuilder.build(
+            kind = kind,
+            current = tavernVersionInfo,
+            target = selectedVersion,
+            fallbackRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+        )
+    }
+
+    fun requestTavernRollback() {
+        requestTavernVersionAction(TavernVersionActionKind.Rollback)
+    }
+
+    fun requestTavernUpdate() {
+        requestTavernVersionAction(TavernVersionActionKind.Update)
     }
 
     LaunchedEffect(selectedTab) {
@@ -3051,6 +3024,15 @@ fun LukoaLauncherScreen(
             actionsLocked = actionInProgress,
             onConfirm = ::confirmStopTavern,
             onDismiss = { showStopConfirmDialog = false },
+        )
+    }
+
+    pendingTavernVersionActionConfirmation?.let { confirmation ->
+        TavernVersionActionConfirmDialog(
+            confirmation = confirmation,
+            actionsLocked = actionInProgress,
+            onConfirm = ::confirmTavernVersionActionDialog,
+            onDismiss = ::dismissTavernVersionActionDialog,
         )
     }
 
@@ -3420,13 +3402,10 @@ fun LukoaLauncherScreen(
                             officialVersions = officialVersions,
                             currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                             selectedVersion = selectedTavernVersion,
-                            rollbackConfirmActive = rollbackConfirmActive,
-                            updateConfirmActive = updateConfirmActive,
                             onRefreshOfficialVersions = ::refreshOfficialVersions,
                             onSelectVersion = {
                                 selectedTavernVersion = it
-                                updateConfirmActive = false
-                                rollbackConfirmActive = false
+                                pendingTavernVersionActionConfirmation = null
                             },
                             onTavernVersion = {
                                 runGuarded("重新检测酒馆版本", 18000L, allowRunningInference = false) { guardedUpdate ->

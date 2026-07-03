@@ -355,7 +355,7 @@ class TavernController(
             "tavern-backup-import" -> if (ok) "酒馆备份已导入。" else "导入酒馆备份失败。"
             "tavern-backup-rename" -> if (ok) "酒馆备份已重命名。" else "重命名酒馆备份失败。"
             "tavern-restore" -> if (ok) {
-                "酒馆备份已应用。"
+                TavernRestoreAftercareMessage.successMessage(stdout)
             } else if (
                 stdout.contains("termux-storage-permission", ignoreCase = true) ||
                 (
