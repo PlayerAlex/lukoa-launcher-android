@@ -59,6 +59,7 @@ fun VersionManagementSection(
     actionsLocked: Boolean,
     tavernVersionInfo: TavernVersionInfo,
     officialVersions: TavernOfficialVersions,
+    currentRepoUrl: String,
     selectedVersion: TavernVersionChoice?,
     rollbackConfirmActive: Boolean,
     updateConfirmActive: Boolean,
@@ -69,7 +70,12 @@ fun VersionManagementSection(
     onTavernRollback: () -> Unit,
     onPagerLockChange: (Boolean) -> Unit = {},
 ) {
-    val actionState = TavernVersionActionGuards.evaluate(tavernVersionInfo, selectedVersion)
+    val actionState = TavernVersionActionGuards.evaluate(
+        current = tavernVersionInfo,
+        target = selectedVersion,
+        officialVersions = officialVersions,
+        currentRepoUrl = currentRepoUrl,
+    )
     val versionManagementChoices = TavernVersionSelection.versionManagementChoices(
         officialVersions = officialVersions,
         current = tavernVersionInfo,
@@ -191,6 +197,21 @@ fun VersionManagementSection(
                     },
                     onRefreshOfficialVersions = onRefreshOfficialVersions,
                     onSelectVersion = onSelectVersion,
+                )
+                Text(
+                    text = when {
+                        !officialVersions.hasData -> "当前还没读到这个 Git 源的官方版本列表。"
+                        !TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl) ->
+                            "当前显示的是旧 Git 源的版本列表，请先刷新。"
+                        else -> "当前列表来源：${repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl })}"
+                    },
+                    color = when {
+                        !officialVersions.hasData -> LukoaColors.Muted
+                        !TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl) ->
+                            LukoaColors.Amber
+                        else -> LukoaColors.Muted
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                 )
 
                 VersionOperationStatusCard(

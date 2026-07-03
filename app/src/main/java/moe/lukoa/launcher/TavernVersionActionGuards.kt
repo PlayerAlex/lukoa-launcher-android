@@ -16,11 +16,13 @@ object TavernVersionActionGuards {
     fun evaluate(
         current: TavernVersionInfo,
         target: TavernVersionChoice?,
+        officialVersions: TavernOfficialVersions,
+        currentRepoUrl: String,
     ): TavernVersionActionState {
         val relation = TavernVersionComparator.relation(current, target)
         return TavernVersionActionState(
-            updateDisabledReason = updateDisabledReason(current, target, relation),
-            rollbackDisabledReason = rollbackDisabledReason(current, target, relation),
+            updateDisabledReason = updateDisabledReason(current, target, relation, officialVersions, currentRepoUrl),
+            rollbackDisabledReason = rollbackDisabledReason(current, target, relation, officialVersions, currentRepoUrl),
             relation = relation,
         )
     }
@@ -39,12 +41,16 @@ object TavernVersionActionGuards {
         current: TavernVersionInfo,
         target: TavernVersionChoice?,
         relation: TavernTargetRelation,
+        officialVersions: TavernOfficialVersions,
+        currentRepoUrl: String,
     ): String? {
         return when {
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
             current.hasLocalChanges -> "源码有本地改动，先处理。"
             target == null -> "先选目标版本。"
+            else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
+        } ?: when {
             relation == TavernTargetRelation.Older -> "目标更旧，不能更新。"
             relation == TavernTargetRelation.Same -> "当前已经是这个版本。"
             else -> null
@@ -55,17 +61,42 @@ object TavernVersionActionGuards {
         current: TavernVersionInfo,
         target: TavernVersionChoice?,
         relation: TavernTargetRelation,
+        officialVersions: TavernOfficialVersions,
+        currentRepoUrl: String,
     ): String? {
         return when {
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
             current.hasLocalChanges -> "源码有本地改动，先处理。"
             target == null -> "先选目标版本。"
+            else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
+        } ?: when {
             relation == TavernTargetRelation.Newer -> "目标更新，不能回退。"
             relation == TavernTargetRelation.Same -> "当前已经是这个版本。"
             relation == TavernTargetRelation.Unknown ->
                 "无法判断目标是不是更旧，不能直接回退。"
             else -> null
         }
+    }
+
+    private fun officialSelectionReason(
+        target: TavernVersionChoice?,
+        officialVersions: TavernOfficialVersions,
+        currentRepoUrl: String,
+    ): String? {
+        if (!TavernVersionCatalog.requiresOfficialCatalog(target)) return null
+        if (!TavernVersionCatalog.matchesCurrentMirror(target, currentRepoUrl)) {
+            return "已选版本来自旧 Git 源，请重新选择。"
+        }
+        if (!officialVersions.hasData) {
+            return "先读取当前源的官方版本列表。"
+        }
+        if (!TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl)) {
+            return "当前版本列表不是这个 Git 源的，请先刷新。"
+        }
+        if (!TavernVersionCatalog.containsChoice(officialVersions, target)) {
+            return "当前版本列表里没有这个目标，请先刷新。"
+        }
+        return null
     }
 }

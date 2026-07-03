@@ -31,6 +31,13 @@ data class BackupLibraryOperationResult(
     val size: Long = 0L,
 )
 
+data class BackupLibraryArchiveDetails(
+    val fileName: String,
+    val termuxReadablePath: String,
+    val size: Long,
+    val modifiedAtMillis: Long,
+)
+
 data class BackupLibraryPruneResult(
     val deletedPaths: List<String>,
     val remainingPaths: List<String>,
@@ -240,6 +247,30 @@ object BackupLibraryFiles {
         return runCatching {
             openLibrarySource(context, archivePath).canOpen()
         }.getOrDefault(false)
+    }
+
+    fun describeLibraryArchive(context: Context, archivePath: String): BackupLibraryArchiveDetails? {
+        val normalizedPath = archivePath.trim()
+        val listed = runCatching { listLibraryArchiveEntries(context) }.getOrDefault(emptyList())
+            .firstOrNull { it.termuxReadablePath.equals(normalizedPath, ignoreCase = true) }
+        if (listed != null) {
+            return BackupLibraryArchiveDetails(
+                fileName = listed.fileName,
+                termuxReadablePath = listed.termuxReadablePath,
+                size = listed.size,
+                modifiedAtMillis = listed.modifiedAtMillis,
+            )
+        }
+
+        return runCatching {
+            val source = openLibrarySource(context, normalizedPath)
+            BackupLibraryArchiveDetails(
+                fileName = source.fileName,
+                termuxReadablePath = normalizedPath,
+                size = source.size,
+                modifiedAtMillis = 0L,
+            )
+        }.getOrNull()
     }
 
     private fun BackupLibrarySource.canOpen(): Boolean {

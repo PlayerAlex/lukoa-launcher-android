@@ -11,6 +11,10 @@ data class DiagnosticSnapshot(
     val versionInfo: VersionInfo,
     val termuxInstalled: Boolean,
     val runCommandPermissionGranted: Boolean,
+    val backgroundRunPermissionGranted: Boolean,
+    val allFilesAccessGranted: Boolean,
+    val installUnknownAppsGranted: Boolean,
+    val termuxStoragePermissionBlocked: Boolean,
     val termuxExternalAppsBlocked: Boolean,
     val tavernRunning: Boolean,
     val tavernStarting: Boolean,
@@ -24,6 +28,7 @@ data class DiagnosticSnapshot(
     val tavernPathConfig: TavernPathConfig,
     val githubRepository: String,
     val githubUpdateState: GithubUpdateUiState,
+    val healthCheckReport: LauncherHealthReport?,
     val issueAnalysis: List<TavernIssue>,
 )
 
@@ -82,6 +87,10 @@ object DiagnosticLogExporter {
             appendLine("已确认=${snapshot.state.verified}")
             appendLine("Termux已安装=${snapshot.termuxInstalled}")
             appendLine("RUN_COMMAND权限=${snapshot.runCommandPermissionGranted}")
+            appendLine("后台运行权限=${snapshot.backgroundRunPermissionGranted}")
+            appendLine("所有文件权限=${snapshot.allFilesAccessGranted}")
+            appendLine("安装未知来源权限=${snapshot.installUnknownAppsGranted}")
+            appendLine("Termux存储权限被拦=${snapshot.termuxStoragePermissionBlocked}")
             appendLine("Termux外部调用被拦=${snapshot.termuxExternalAppsBlocked}")
             appendLine("酒馆运行中=${snapshot.tavernRunning}")
             appendLine("酒馆启动中=${snapshot.tavernStarting}")
@@ -89,6 +98,16 @@ object DiagnosticLogExporter {
             appendLine("当前忙碌=${snapshot.actionInProgress}")
             appendLine("忙碌任务=${snapshot.busyLabel ?: "无"}")
             appendLine("返回等待=${snapshot.state.termuxReturnDelayMs}ms")
+            appendLine()
+
+            appendLine("==== 一键体检 ====")
+            snapshot.healthCheckReport?.takeIf { it.hasData }?.let { report ->
+                appendLine("摘要=${report.summaryTitle}")
+                appendLine("说明=${report.summaryDetail}")
+                appendLine("错误数=${report.errorCount}")
+                appendLine("提醒数=${report.warningCount}")
+                appendLine("建议操作=${report.primaryAction?.label ?: "无"}")
+            } ?: appendLine("还没有体检记录。")
             appendLine()
 
             appendLine("==== 版本管理 ====")

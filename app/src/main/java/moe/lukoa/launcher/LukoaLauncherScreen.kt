@@ -213,6 +213,7 @@ fun LukoaLauncherScreen(
     var selectedClearLogMode by remember { mutableStateOf(ExportLogMode.Both) }
     var clearLogConfirmText by remember { mutableStateOf("") }
     var applyBackupPath by remember { mutableStateOf("") }
+    var applyBackupPreview by remember { mutableStateOf<BackupRestorePreview?>(null) }
     var storagePermissionRetryArchivePath by remember { mutableStateOf("") }
     var termuxStoragePermissionBlocked by remember {
         mutableStateOf(hasTermuxStoragePermissionProblem(initialRuntimeText))
@@ -496,15 +497,27 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun reduceTermuxOutputForDisplay(output: String): String {
+        if (output.isBlank()) return ""
+        if (output.contains("No SillyTavern log file yet")) {
+            lastTrackedLogBody = ""
+            return output.trim()
+        }
+        val reduced = TermuxDisplayLogReducer.reduce(output, lastTrackedLogBody)
+        lastTrackedLogBody = reduced.trackedRecentLogBody
+        return reduced.displayChunk
+    }
+
     fun update(newStatus: String, termuxOutput: String, ok: Boolean, allowRunningInference: Boolean = true) {
+        val displayTermuxOutput = reduceTermuxOutputForDisplay(termuxOutput)
         val newSummary = StatusSummarizer.summarize(newStatus, termuxOutput, ok)
         RuntimeLogArchive.appendApp(context, newStatus)
-        if (termuxOutput.isNotBlank()) {
-            RuntimeLogArchive.appendTermux(context, termuxOutput)
+        if (displayTermuxOutput.isNotBlank()) {
+            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
         }
         val newAppLog = appendLog(appLog, "App", newStatus)
-        val newTermuxLog = if (termuxOutput.isNotBlank()) {
-            appendLog(termuxLog, "Termux", termuxOutput)
+        val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
+            appendLog(termuxLog, "Termux", displayTermuxOutput)
         } else {
             termuxLog
         }
@@ -588,11 +601,18 @@ fun LukoaLauncherScreen(
 
     fun syncTermuxResult(display: TermuxResultDisplay) {
         if (display.output.isBlank()) return
+        val displayTermuxOutput = reduceTermuxOutputForDisplay(display.output)
         val newStatus = "已同步 Termux：${display.command}"
         val newSummary = StatusSummarizer.summarize(newStatus, display.output, display.ok)
         RuntimeLogArchive.appendApp(context, newStatus)
-        RuntimeLogArchive.appendTermux(context, display.output)
-        val newTermuxLog = appendLog(termuxLog, "Termux", display.output)
+        if (displayTermuxOutput.isNotBlank()) {
+            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
+        }
+        val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
+            appendLog(termuxLog, "Termux", displayTermuxOutput)
+        } else {
+            termuxLog
+        }
         val newAppLog = appendLog(appLog, "App", newStatus)
         val nextBackupHistory = BackupHistoryReducer.reduce(backupHistory, display.output, display.ok)
 
@@ -837,6 +857,7 @@ fun LukoaLauncherScreen(
                 applyDetectedTavernState(termuxOutput)
                 return
             }
+            lastTrackedLogBody = TermuxLogDelta.appendLiveDelta(lastTrackedLogBody, liveBody)
             RuntimeLogArchive.appendTermux(context, liveBody)
             val newTermuxLog = appendLog(termuxLog, "Termux 实时新增", liveBody)
             applyDetectedTavernState("$termuxOutput\n$liveBody", newTermuxLog)
@@ -887,6 +908,7 @@ fun LukoaLauncherScreen(
         }
 
         if (termuxOutput.contains("No SillyTavern log file yet")) {
+            lastTrackedLogBody = ""
             return
         }
 
@@ -1152,6 +1174,10 @@ fun LukoaLauncherScreen(
             versionInfo = versionInfo,
             termuxInstalled = termuxInstalled,
             runCommandPermissionGranted = runCommandPermissionGranted,
+            backgroundRunPermissionGranted = backgroundRunPermissionGranted,
+            allFilesAccessGranted = allFilesAccessGranted,
+            installUnknownAppsGranted = installUnknownAppsGranted,
+            termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             tavernRunning = tavernRunning,
             tavernStarting = tavernStarting,
@@ -1165,6 +1191,7 @@ fun LukoaLauncherScreen(
             tavernPathConfig = tavernPathConfig,
             githubRepository = githubRepository,
             githubUpdateState = githubUpdateState,
+            healthCheckReport = healthCheckReport,
             issueAnalysis = issueAnalysis,
         )
         onExportDiagnostic(snapshot, ::update)
@@ -1533,6 +1560,27 @@ fun LukoaLauncherScreen(
         )
     }
 
+    fun dismissApplyBackupPreview() {
+        showApplyBackupPreviewDialog = false
+        applyBackupPreview = null
+    }
+
+    fun openApplyBackupPreview(path: String): Boolean {
+        val normalized = path.trim()
+        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
+            update("备份路径无效：$reason", "", false, allowRunningInference = false)
+            return false
+        }
+        applyBackupPath = normalized
+        applyBackupPreview = BackupRestorePreviewResolver.resolve(
+            context = context,
+            archivePath = normalized,
+            restoreTargetDir = tavernPathConfig.displayTavernDir,
+        )
+        showApplyBackupPreviewDialog = true
+        return true
+    }
+
     fun requestApplyBackup(path: String) {
         val normalized = path.trim()
         if (normalized.isBlank()) {
@@ -1540,17 +1588,12 @@ fun LukoaLauncherScreen(
             showApplyBackupPathDialog = true
             return
         }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        applyBackupPath = normalized
-        showApplyBackupPreviewDialog = true
+        openApplyBackupPreview(normalized)
     }
 
     fun applySelectedBackup() {
         if (blockIfPendingTaskExists("应用备份")) {
-            showApplyBackupPreviewDialog = false
+            dismissApplyBackupPreview()
             return
         }
         val archivePath = applyBackupPath.trim()
@@ -1569,12 +1612,12 @@ fun LukoaLauncherScreen(
         }
         if (termuxStoragePermissionBlocked && isSharedStorageBackupPath(archivePath)) {
             storagePermissionRetryArchivePath = archivePath
-            showApplyBackupPreviewDialog = false
+            dismissApplyBackupPreview()
             showTermuxStoragePermissionDialog = true
             update("应用备份前需要先给 Termux 存储权限。", "", false, allowRunningInference = false)
             return
         }
-        showApplyBackupPreviewDialog = false
+        dismissApplyBackupPreview()
         runPendingGuardedCommand(
             task = PendingLauncherTask(
                 kind = PendingLauncherTaskKind.RestoreBackup,
@@ -2768,7 +2811,12 @@ fun LukoaLauncherScreen(
         }
         if (blockIfPendingTaskExists("回退酒馆")) return
 
-        TavernVersionActionGuards.evaluate(tavernVersionInfo, selectedTavernVersion).rollbackDisabledReason?.let {
+        TavernVersionActionGuards.evaluate(
+            current = tavernVersionInfo,
+            target = selectedTavernVersion,
+            officialVersions = officialVersions,
+            currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+        ).rollbackDisabledReason?.let {
             update("不能回退：$it", "", false, allowRunningInference = false)
             return
         }
@@ -2807,7 +2855,12 @@ fun LukoaLauncherScreen(
         }
         if (blockIfPendingTaskExists("更新酒馆")) return
 
-        TavernVersionActionGuards.evaluate(tavernVersionInfo, selectedTavernVersion).updateDisabledReason?.let {
+        TavernVersionActionGuards.evaluate(
+            current = tavernVersionInfo,
+            target = selectedTavernVersion,
+            officialVersions = officialVersions,
+            currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+        ).updateDisabledReason?.let {
             update("不能更新：$it", "", false, allowRunningInference = false)
             return
         }
@@ -3168,20 +3221,20 @@ fun LukoaLauncherScreen(
             path = applyBackupPath,
             onPathChange = { applyBackupPath = it },
             onNext = {
-                showApplyBackupPathDialog = false
-                showApplyBackupPreviewDialog = true
+                if (openApplyBackupPreview(applyBackupPath)) {
+                    showApplyBackupPathDialog = false
+                }
             },
             onDismiss = { showApplyBackupPathDialog = false },
         )
     }
 
-    if (showApplyBackupPreviewDialog) {
+    val activeApplyBackupPreview = applyBackupPreview
+    if (showApplyBackupPreviewDialog && activeApplyBackupPreview != null) {
         ApplyBackupPreviewDialog(
-            archivePath = applyBackupPath.trim(),
+            preview = activeApplyBackupPreview,
             onConfirm = ::applySelectedBackup,
-            onDismiss = {
-                showApplyBackupPreviewDialog = false
-            },
+            onDismiss = ::dismissApplyBackupPreview,
         )
     }
 
@@ -3365,6 +3418,7 @@ fun LukoaLauncherScreen(
                             actionsLocked = actionInProgress,
                             tavernVersionInfo = tavernVersionInfo,
                             officialVersions = officialVersions,
+                            currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                             selectedVersion = selectedTavernVersion,
                             rollbackConfirmActive = rollbackConfirmActive,
                             updateConfirmActive = updateConfirmActive,

@@ -1,6 +1,8 @@
 package moe.lukoa.launcher
 
 object TermuxLogDelta {
+    private const val MAX_TRACKED_LOG_BODY_CHARS = 240_000
+
     fun extractLiveLogBody(output: String): String? {
         return extractMarkedBody(
             output = output,
@@ -54,6 +56,16 @@ object TermuxLogDelta {
 
     fun firstImportantSnapshot(current: String): String {
         return TavernLogSignals.importantTail(current)
+    }
+
+    fun appendLiveDelta(previous: String, liveDelta: String): String {
+        if (liveDelta.isBlank()) return previous
+        val next = if (previous.isBlank()) {
+            liveDelta.trim()
+        } else {
+            "$previous\n$liveDelta".trim()
+        }
+        return next.takeLast(MAX_TRACKED_LOG_BODY_CHARS)
     }
 
     private inline fun List<String>.indexOfFirstAfter(startIndex: Int, predicate: (String) -> Boolean): Int {

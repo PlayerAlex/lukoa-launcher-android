@@ -541,7 +541,7 @@ fun ApplyBackupPathDialog(
 
 @Composable
 fun ApplyBackupPreviewDialog(
-    archivePath: String,
+    preview: BackupRestorePreview,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -575,13 +575,34 @@ fun ApplyBackupPreviewDialog(
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
                 ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        VersionInfoLine("备份名", preview.backupName)
+                        VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
+                        VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
+                        VersionInfoLine("恢复到", preview.restoreTargetDir)
+                        Text(
+                            text = preview.archivePath,
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = LukoaColors.Danger.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.28f)),
+                ) {
                     Text(
-                        text = archivePath,
-                        modifier = Modifier.padding(10.dp),
-                        color = LukoaColors.Muted,
+                        text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
+                        modifier = Modifier.padding(12.dp),
+                        color = LukoaColors.Text,
                         style = MaterialTheme.typography.bodySmall,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

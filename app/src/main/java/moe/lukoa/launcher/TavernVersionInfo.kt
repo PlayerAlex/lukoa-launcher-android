@@ -137,7 +137,8 @@ object TavernVersionComparator {
     }
 
     fun relation(current: TavernVersionInfo, target: TavernVersionChoice?): TavernTargetRelation {
-        if (!current.hasData || target == null) return TavernTargetRelation.Unknown
+        if (!current.hasData || current.notInstalled || target == null) return TavernTargetRelation.Unknown
+        branchRelation(current, target)?.let { return it }
         val currentVersion = parseVersion(current.packageVersion)
             ?: parseVersion(current.describe)
             ?: parseVersion(current.displayVersion)
@@ -150,6 +151,31 @@ object TavernVersionComparator {
             compare > 0 -> TavernTargetRelation.Older
             compare < 0 -> TavernTargetRelation.Newer
             else -> TavernTargetRelation.Same
+        }
+    }
+
+    private fun branchRelation(
+        current: TavernVersionInfo,
+        target: TavernVersionChoice,
+    ): TavernTargetRelation? {
+        val currentBranch = current.branch.trim()
+        val targetBranch = target.target.trim()
+        if (currentBranch.isBlank() || targetBranch.isBlank()) return null
+        if (!currentBranch.equals(targetBranch, ignoreCase = true)) return null
+
+        val currentCommit = current.commit.trim()
+        val targetCommit = target.commit.trim()
+        if (currentCommit.isBlank() || targetCommit.isBlank()) return null
+        if (
+            currentCommit.startsWith(targetCommit, ignoreCase = true) ||
+            targetCommit.startsWith(currentCommit, ignoreCase = true)
+        ) {
+            return TavernTargetRelation.Same
+        }
+        return if (target.kind == TavernVersionKind.Test) {
+            TavernTargetRelation.Newer
+        } else {
+            null
         }
     }
 
