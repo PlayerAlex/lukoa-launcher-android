@@ -18,10 +18,11 @@ object TermuxDisplayLogReducer {
         }
 
         TermuxLogDelta.extractRecentLogBody(output)?.let { recentBody ->
+            val visibleRecentBody = TavernLogSignals.prepareForApp(recentBody)
             val displayBody = when {
-                recentBody.isBlank() -> ""
-                lastTrackedRecentLogBody.isBlank() -> TermuxLogDelta.firstImportantSnapshot(recentBody)
-                else -> TermuxLogDelta.newSuffix(lastTrackedRecentLogBody, recentBody)
+                visibleRecentBody.isBlank() -> ""
+                lastTrackedRecentLogBody.isBlank() -> TermuxLogDelta.firstImportantSnapshot(visibleRecentBody)
+                else -> TermuxLogDelta.newSuffix(lastTrackedRecentLogBody, visibleRecentBody)
             }
             return TermuxDisplayLogReduceResult(
                 displayChunk = replaceMarkedBody(
@@ -30,24 +31,25 @@ object TermuxDisplayLogReducer {
                     endPrefix = "==== end SillyTavern recent log",
                     replacementBody = displayBody,
                 ),
-                trackedRecentLogBody = recentBody.ifBlank { lastTrackedRecentLogBody },
+                trackedRecentLogBody = visibleRecentBody.ifBlank { lastTrackedRecentLogBody },
             )
         }
 
         TermuxLogDelta.extractLiveLogBody(output)?.let { liveBody ->
+            val visibleLiveBody = TavernLogSignals.prepareForApp(liveBody)
             return TermuxDisplayLogReduceResult(
                 displayChunk = replaceMarkedBody(
                     output = output,
                     startPrefix = "==== SillyTavern live log:",
                     endPrefix = "==== end SillyTavern live log",
-                    replacementBody = liveBody,
+                    replacementBody = visibleLiveBody,
                 ),
-                trackedRecentLogBody = TermuxLogDelta.appendLiveDelta(lastTrackedRecentLogBody, liveBody),
+                trackedRecentLogBody = TermuxLogDelta.appendLiveDelta(lastTrackedRecentLogBody, visibleLiveBody),
             )
         }
 
         return TermuxDisplayLogReduceResult(
-            displayChunk = output.trim(),
+            displayChunk = TavernLogSignals.prepareForApp(output).trim(),
             trackedRecentLogBody = lastTrackedRecentLogBody,
         )
     }

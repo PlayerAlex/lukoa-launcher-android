@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TermuxLogDeltaTest {
@@ -36,5 +37,19 @@ class TermuxLogDeltaTest {
     fun `new suffix returns current when overlap cannot be found`() {
         assertEquals("fresh log", TermuxLogDelta.newSuffix("old", "fresh log"))
         assertEquals("", TermuxLogDelta.newSuffix("", "fresh log"))
+    }
+
+    @Test
+    fun `first important snapshot falls back to latest session tail`() {
+        val snapshot = TermuxLogDelta.firstImportantSnapshot(
+            """
+                [2026-07-03T08:03:07Z] ===== Lukoa launcher foreground session =====
+                SillyTavern 1.18.0
+                Running 'release'
+            """.trimIndent(),
+        )
+
+        assertTrue(snapshot.contains("2026-07-03T08:03:07Z"))
+        assertTrue(snapshot.contains("SillyTavern 1.18.0"))
     }
 }

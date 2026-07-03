@@ -133,7 +133,7 @@ class TavernController(
                 startTime = startTime,
                 nonce = null,
                 expectedCommand = dispatch.displayCommand,
-                attempts = 4,
+                attempts = 6,
             )
             if (result != null) {
                 val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0

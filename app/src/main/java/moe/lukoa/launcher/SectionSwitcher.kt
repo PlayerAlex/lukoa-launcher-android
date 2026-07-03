@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +42,9 @@ fun <T> SectionSwitcherCard(
     onSelect: (T) -> Unit,
 ) {
     val selectedOption = options.firstOrNull { it.value == selected } ?: options.first()
+    DisposableEffect(onPagerLockChange) {
+        onDispose { onPagerLockChange?.invoke(false) }
+    }
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -48,7 +52,8 @@ fun <T> SectionSwitcherCard(
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> onPagerLockChange?.invoke(true)
                     MotionEvent.ACTION_UP,
-                    MotionEvent.ACTION_CANCEL -> onPagerLockChange?.invoke(false)
+                    MotionEvent.ACTION_CANCEL,
+                    MotionEvent.ACTION_OUTSIDE -> onPagerLockChange?.invoke(false)
                 }
                 false
             },

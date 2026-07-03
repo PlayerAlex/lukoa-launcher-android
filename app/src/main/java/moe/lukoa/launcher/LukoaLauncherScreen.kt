@@ -853,6 +853,7 @@ fun LukoaLauncherScreen(
         }
 
         val liveBody = TermuxLogDelta.extractLiveLogBody(termuxOutput)
+            ?.let(TavernLogSignals::prepareForApp)
         if (liveBody != null) {
             if (liveBody.isBlank()) {
                 applyDetectedTavernState(termuxOutput)
@@ -866,6 +867,7 @@ fun LukoaLauncherScreen(
         }
 
         val currentBody = TermuxLogDelta.extractRecentLogBody(termuxOutput)
+            ?.let(TavernLogSignals::prepareForApp)
         if (currentBody != null) {
             if (currentBody.isBlank()) {
                 applyDetectedTavernState(termuxOutput)
@@ -2894,6 +2896,8 @@ fun LukoaLauncherScreen(
 
     LaunchedEffect(pagerState.settledPage) {
         val pagerTab = LauncherTab.entries[pagerState.settledPage]
+        pagerInteractionLocked = false
+        pagerAxisGuard.reset()
         if (selectedTab != pagerTab) {
             selectedTab = pagerTab
         }
@@ -3328,9 +3332,13 @@ fun LukoaLauncherScreen(
                 .nestedScroll(pagerAxisGuard)
                 .pointerInteropFilter { event ->
                     when (event.actionMasked) {
-                        MotionEvent.ACTION_DOWN,
+                        MotionEvent.ACTION_DOWN -> pagerAxisGuard.reset()
                         MotionEvent.ACTION_UP,
-                        MotionEvent.ACTION_CANCEL -> pagerAxisGuard.reset()
+                        MotionEvent.ACTION_CANCEL,
+                        MotionEvent.ACTION_OUTSIDE -> {
+                            pagerInteractionLocked = false
+                            pagerAxisGuard.reset()
+                        }
                     }
                     false
                 },

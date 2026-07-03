@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -235,6 +236,9 @@ fun GithubReleaseNotesCard(
     title: String,
     updateInfo: GithubUpdateInfo,
 ) {
+    val formattedReleaseNotes = remember(updateInfo.versionName, updateInfo.body) {
+        GithubReleaseNotesFormatter.format(updateInfo.versionName, updateInfo.body)
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.SurfaceAlt,
@@ -263,7 +267,7 @@ fun GithubReleaseNotesCard(
                 border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.35f)),
             ) {
                 Text(
-                    text = updateInfo.body.ifBlank { "这个版本没有填写更新说明。" },
+                    text = formattedReleaseNotes,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 88.dp, max = 180.dp)

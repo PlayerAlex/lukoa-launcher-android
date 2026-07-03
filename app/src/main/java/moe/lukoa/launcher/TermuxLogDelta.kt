@@ -56,6 +56,7 @@ object TermuxLogDelta {
 
     fun firstImportantSnapshot(current: String): String {
         return TavernLogSignals.importantTail(current)
+            .ifBlank { TavernLogSignals.latestSessionTail(current) }
     }
 
     fun appendLiveDelta(previous: String, liveDelta: String): String {

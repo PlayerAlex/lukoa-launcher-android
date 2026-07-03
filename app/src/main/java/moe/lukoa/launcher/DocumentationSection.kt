@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,9 @@ fun DocumentationSection(
     onPagerLockChange: (Boolean) -> Unit = {},
 ) {
     var selectedCategory by remember { mutableStateOf(DocCategory.NewUser) }
+    DisposableEffect(onPagerLockChange) {
+        onDispose { onPagerLockChange(false) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SectionPanel(title = "文档导航", accentColor = LukoaColors.Accent) {
             Row(
@@ -57,7 +61,8 @@ fun DocumentationSection(
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> onPagerLockChange(true)
                             MotionEvent.ACTION_UP,
-                            MotionEvent.ACTION_CANCEL -> onPagerLockChange(false)
+                            MotionEvent.ACTION_CANCEL,
+                            MotionEvent.ACTION_OUTSIDE -> onPagerLockChange(false)
                         }
                         false
                     }

@@ -878,6 +878,9 @@ fun UpdateAvailableDialog(
     val publishedText = remember(updateInfo.publishedAt) {
         formatGithubPublishedTime(updateInfo.publishedAt)
     }
+    val formattedReleaseNotes = remember(updateInfo.versionName, updateInfo.body) {
+        GithubReleaseNotesFormatter.format(updateInfo.versionName, updateInfo.body)
+    }
     val primaryActionText = when {
         downloading -> "下载中..."
         updateInfo.apkDownloadUrl.isBlank() -> "打开发布页"
@@ -961,7 +964,7 @@ fun UpdateAvailableDialog(
                     border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
                 ) {
                     Text(
-                        text = updateInfo.body.ifBlank { "这个版本没有填写更新说明。" },
+                        text = formattedReleaseNotes,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 96.dp, max = 220.dp)
