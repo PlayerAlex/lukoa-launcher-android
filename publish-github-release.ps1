@@ -179,16 +179,20 @@ function Resolve-ReleaseNotesPath {
         return $tempPath
     }
 
-    $defaultNotes = if ([string]::IsNullOrWhiteSpace($Notes)) {
-@"
-## Updated
+    if ([string]::IsNullOrWhiteSpace($Notes)) {
+        throw @"
+Release notes are required.
+Provide -ReleaseNotes, -ReleaseNotesFile, or use -AutoNotes intentionally.
 
-- Release v$Version
-- See the commit history for details
+For this repository, public release notes must follow:
+- AGENTS.md
+- .agents/skills/release-announcement/SKILL.md
+
+Do not fall back to generic developer-style release notes.
 "@
-    } else {
-        $Notes
     }
+
+    $defaultNotes = $Notes
 
     $tempPath = Join-Path $env:TEMP ("lukoa-release-notes-{0}.md" -f $Version)
     Set-Content -LiteralPath $tempPath -Value $defaultNotes -Encoding UTF8
@@ -244,6 +248,18 @@ if ($ValidateOnly) {
 
 Assert-NoUntrackedFiles -SkipCheck:$AllowUntracked
 
+$notesPath = Resolve-ReleaseNotesPath `
+    -ProjectRoot $projectRoot `
+    -Version $VersionName `
+    -Notes $ReleaseNotes `
+    -NotesFilePath $ReleaseNotesFile `
+    -UseAutoNotes $AutoNotes.IsPresent `
+    -AutoNotesFromVersion $AutoNotesFrom `
+    -AutoNotesSourcePath $AutoNotesSource `
+    -AutoNotesFormat $AutoNotesMode `
+    -CurrentVersionHighlights $CurrentHighlights
+$title = if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) { "v{0}" -f $VersionName } else { $ReleaseTitle }
+
 Update-VersionInGradle -GradlePath $gradleFile -NextVersionName $VersionName -NextVersionCode $VersionCode
 
 if (-not $SkipBuild) {
@@ -252,7 +268,15 @@ if (-not $SkipBuild) {
         throw ('Build script not found: {0}' -f $buildScript)
     }
 
-    & powershell -ExecutionPolicy Bypass -File $buildScript -AndroidHome $AndroidHome
+    $buildArgs = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $buildScript
+    )
+    if (-not [string]::IsNullOrWhiteSpace($AndroidHome)) {
+        $buildArgs += @("-AndroidHome", $AndroidHome)
+    }
+
+    & powershell @buildArgs
     if ($LASTEXITCODE -ne 0) {
         throw "APK build failed."
     }
@@ -287,17 +311,9 @@ Invoke-Git tag $tagName
 Invoke-Git push origin $branch
 Invoke-Git push origin $tagName
 
-$notesPath = Resolve-ReleaseNotesPath `
-    -ProjectRoot $projectRoot `
-    -Version $VersionName `
-    -Notes $ReleaseNotes `
-    -NotesFilePath $ReleaseNotesFile `
-    -UseAutoNotes $AutoNotes.IsPresent `
-    -AutoNotesFromVersion $AutoNotesFrom `
-    -AutoNotesSourcePath $AutoNotesSource `
-    -AutoNotesFormat $AutoNotesMode `
-    -CurrentVersionHighlights $CurrentHighlights
-$title = if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) { $tagName } else { $ReleaseTitle }
+if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) {
+    $title = $tagName
+}
 
 if (Test-GhReleaseExists -GhPath $ghPath -TagName $tagName) {
     Invoke-Gh $ghPath release upload $tagName $releaseApkPath --clobber
