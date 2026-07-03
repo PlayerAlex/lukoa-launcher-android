@@ -1,0 +1,27 @@
+name: 功能建议
+description: 提交一个希望加入的功能或流程优化
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你现在卡在哪里
+      description: 先说当前问题，再说你想要的功能
+      placeholder: 例如：更新失败后只有日志，没有直接可点的修复动作
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 你希望怎么改
+      placeholder: 例如：在失败弹窗里增加重新检测权限、重新读取版本、重新检查镜像源
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: 你担心的风险
+      description: 如果这个功能做不好，可能会带来什么副作用
+      placeholder: 例如：不能误删备份、不能自动乱改酒馆路径

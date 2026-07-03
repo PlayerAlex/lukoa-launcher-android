@@ -1,0 +1,57 @@
+name: Bug 反馈
+description: 提交一个可以复现的问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 用最直接的话说明你遇到了什么问题
+      placeholder: 例如：点击启动酒馆后一直显示正在启动，但实际没有启动成功
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 尽量按顺序写，方便别人稳定复现
+      placeholder: |
+        1. 打开设置
+        2. 点击更新
+        3. 选择测试版
+        4. 出现...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      placeholder: 原本你以为会发生什么
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      placeholder: 实际发生了什么
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: 启动器版本
+      placeholder: 例如 0.8.33-beta8
+    validations:
+      required: true
+  - type: input
+    id: android_version
+    attributes:
+      label: Android 版本
+      placeholder: 例如 Android 14
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: 诊断日志或截图
+      description: 如果有诊断包、日志或截图，请在这里补充
