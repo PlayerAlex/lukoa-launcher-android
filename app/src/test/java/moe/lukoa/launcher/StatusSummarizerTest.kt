@@ -14,4 +14,18 @@ class StatusSummarizerTest {
 
         assertEquals("正在启动酒馆", summary)
     }
+
+    @Test
+    fun `unreachable foreground result is not summarized as stopped`() {
+        val summary = StatusSummarizer.summarize(
+            status = "已同步 Termux：foreground-console",
+            termuxOutput = """
+                {"status": "unreachable", "running": true, "exitCode": 75}
+                SillyTavern process already exists, but HTTP endpoint is not responding.
+            """.trimIndent(),
+            ok = false,
+        )
+
+        assertEquals("酒馆进程存在，但网页暂时打不开", summary)
+    }
 }

@@ -183,7 +183,10 @@ object TavernStartPreflight {
         if (doctorReport.portConflict == true) {
             return blocked(
                 summary = "酒馆端口已经被别的进程占用，先处理端口占用再启动。",
-                details = listOf("端口 ${doctorReport.port} 当前不是空闲状态。"),
+                details = listOf(
+                    "端口 ${doctorReport.port} 当前不是空闲状态。",
+                    "先关闭占用端口的应用，或重启 Termux/手机后重新体检。",
+                ),
                 doctorReport = doctorReport,
             )
         }
