@@ -205,6 +205,9 @@ fun LukoaLauncherScreen(
     var pendingTavernVersionActionConfirmation by remember {
         mutableStateOf<TavernVersionActionConfirmation?>(null)
     }
+    var pendingTavernProfileRemovalConfirmation by remember {
+        mutableStateOf<TavernProfileRemovalConfirmation?>(null)
+    }
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearLogScopeDialog by remember { mutableStateOf(false) }
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
@@ -554,6 +557,43 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun resetVisibleStateForActiveProfile(statusText: String, summaryText: String) {
+        val activeLabel = tavernPathConfig.activeProfileLabel
+        val waitingLog = "正在读取${activeLabel}的运行状态和版本信息。"
+        val clearedVersionInfo = TavernVersionInfo()
+        val customSelection = selectedTavernVersion?.takeIf { it.kind == TavernVersionKind.Custom }
+
+        status = statusText
+        summary = summaryText
+        verified = true
+        termuxLog = waitingLog
+        appLog = "App：$statusText"
+        tavernRunning = false
+        tavernStarting = false
+        tavernInstallDetected = null
+        tavernVersionInfo = clearedVersionInfo
+        selectedTavernVersion = normalizeTavernVersionSelection(
+            currentInfo = clearedVersionInfo,
+            availableVersions = officialVersions,
+            currentSelection = customSelection,
+        )
+        healthCheckReport = null
+        showStopConfirmDialog = false
+        pendingStartPreflight = null
+        pendingTavernVersionActionConfirmation = null
+        pendingTavernProfileRemovalConfirmation = null
+        launchAttemptToken += 1
+        lastTrackedLogBody = ""
+        lastSyncedTermuxResultKey = onLatestTermuxResult()?.key.orEmpty()
+        onPersistState(currentState().copy(
+            status = statusText,
+            summary = summaryText,
+            termuxLog = waitingLog,
+            appLog = "App：$statusText",
+            verified = true,
+        ))
+    }
+
     fun reduceTermuxOutputForDisplay(output: String): String {
         if (output.isBlank()) return ""
         if (output.contains("No SillyTavern log file yet")) {
@@ -828,6 +868,28 @@ fun LukoaLauncherScreen(
 
         update("正在检测酒馆是否运行。", "", false, allowRunningInference = false)
         runStep("status", refreshToken)
+    }
+
+    fun refreshActiveProfileState(statusText: String) {
+        val canAutoRefresh =
+            termuxInstalled &&
+                runCommandPermissionGranted &&
+                !termuxExternalAppsBlocked &&
+                !actionInProgress
+        resetVisibleStateForActiveProfile(
+            statusText = statusText,
+            summaryText = if (canAutoRefresh) {
+                "正在刷新当前实例状态"
+            } else {
+                "当前实例已切换，状态会在下一次检测时更新"
+            },
+        )
+        if (canAutoRefresh) {
+            scope.launch {
+                delay(250)
+                runStartupRefresh()
+            }
+        }
     }
 
     fun updateTermuxLogOnly(termuxOutput: String, ok: Boolean) {
@@ -2066,26 +2128,18 @@ fun LukoaLauncherScreen(
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
         tavernPortInput = result.config.normalizedPort.toString()
-        update(
-            if (result.saved) {
-                "${result.message}\n后续启动、停止、版本读取和备份都会使用这个目录。"
-            } else {
-                result.message
-            },
-            "",
-            result.saved,
-            allowRunningInference = false,
-        )
+        if (result.saved) {
+            refreshActiveProfileState(
+                "${result.config.activeProfileLabel}已保存，后续启动、停止、版本读取和备份都会使用这个目录和端口。",
+            )
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
     fun chooseDetectedTavernDirectory(path: String) {
         dismissTavernDirectoryChoiceDialog()
         saveTavernPathConfig(path)
-        if (termuxInstalled && runCommandPermissionGranted && !actionInProgress) {
-            runGuarded("重新检测酒馆版本", 18000L, allowRunningInference = false) { guardedUpdate ->
-                onCommand("tavern-version", guardedUpdate)
-            }
-        }
     }
 
     fun restoreDefaultTavernPath() {
@@ -2093,7 +2147,11 @@ fun LukoaLauncherScreen(
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
         tavernPortInput = result.config.normalizedPort.toString()
-        update(result.message, "", result.saved, allowRunningInference = false)
+        if (result.saved) {
+            refreshActiveProfileState("已恢复${result.config.activeProfileLabel}的默认路径和默认端口。")
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
     fun selectTavernProfile(profileId: String) {
@@ -2101,7 +2159,11 @@ fun LukoaLauncherScreen(
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
         tavernPortInput = result.config.normalizedPort.toString()
-        update(result.message, "", result.saved, allowRunningInference = false)
+        if (result.saved) {
+            refreshActiveProfileState("已切换到${result.config.activeProfileLabel}。")
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
     fun addTavernProfile() {
@@ -2109,23 +2171,46 @@ fun LukoaLauncherScreen(
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
         tavernPortInput = result.config.normalizedPort.toString()
-        update(result.message, "", result.saved, allowRunningInference = false)
+        if (result.saved) {
+            refreshActiveProfileState("已新建并切换到${result.config.activeProfileLabel}。")
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
-    fun removeCurrentTavernProfile() {
-        if (!tavernPathConfig.hasMultipleProfiles) {
-            update("当前至少要保留一个实例。", "", false, allowRunningInference = false)
-            return
+    fun requestRemoveCurrentTavernProfile() {
+        when (
+            val decision = TavernProfileRemovalGuard.evaluate(
+                config = tavernPathConfig,
+                tavernRunning = tavernRunning,
+                tavernStarting = tavernStarting,
+                actionsLocked = actionInProgress,
+            )
+        ) {
+            is TavernProfileRemovalDecision.Blocked -> {
+                update(decision.message, "", false, allowRunningInference = false)
+            }
+
+            is TavernProfileRemovalDecision.Confirm -> {
+                pendingTavernProfileRemovalConfirmation = decision.confirmation
+            }
         }
-        if (tavernPathConfig.isActiveProfileMain) {
-            update("主实例暂时不能删除。先切换到要删的分身实例，再删除它。", "", false, allowRunningInference = false)
-            return
-        }
-        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(tavernPathConfig.activeProfile.id))
+    }
+
+    fun confirmRemoveCurrentTavernProfile() {
+        val confirmation = pendingTavernProfileRemovalConfirmation ?: return
+        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(confirmation.profileId))
+        pendingTavernProfileRemovalConfirmation = null
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
         tavernPortInput = result.config.normalizedPort.toString()
-        update(result.message, "", result.saved, allowRunningInference = false)
+        if (result.saved) {
+            refreshActiveProfileState(
+                "已移除${confirmation.profileName}，现在切换到${result.config.activeProfileLabel}继续管理。原目录和备份都还保留着。",
+            )
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
     fun useOfficialTavernMirror() {
@@ -3434,6 +3519,15 @@ fun LukoaLauncherScreen(
         )
     }
 
+    pendingTavernProfileRemovalConfirmation?.let { confirmation ->
+        DeleteTavernProfileConfirmDialog(
+            confirmation = confirmation,
+            actionsLocked = actionInProgress,
+            onConfirm = ::confirmRemoveCurrentTavernProfile,
+            onDismiss = { pendingTavernProfileRemovalConfirmation = null },
+        )
+    }
+
     if (showImportBackupDialog) {
         ImportBackupDialog(
             path = importBackupPath,
@@ -3743,7 +3837,7 @@ fun LukoaLauncherScreen(
                             onTavernPortInputChange = { tavernPortInput = it },
                             onSelectTavernProfile = ::selectTavernProfile,
                             onAddTavernProfile = ::addTavernProfile,
-                            onRemoveCurrentTavernProfile = ::removeCurrentTavernProfile,
+                            onRemoveCurrentTavernProfile = ::requestRemoveCurrentTavernProfile,
                             onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
                             onSaveTavernPath = { saveTavernPathConfig() },
                             onRestoreDefaultTavernPath = ::restoreDefaultTavernPath,

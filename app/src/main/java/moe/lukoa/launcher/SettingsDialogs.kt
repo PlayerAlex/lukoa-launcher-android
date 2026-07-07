@@ -112,6 +112,12 @@ fun TavernPathSettingsDialog(
                         color = LukoaColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                } else if (tavernPathConfig.canRemoveActiveProfile) {
+                    Text(
+                        text = "删除实例前会再确认一次。这里只会移除启动器里的实例配置，不会删除酒馆目录和备份。",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 OutlinedTextField(
                     value = tavernPathInput,

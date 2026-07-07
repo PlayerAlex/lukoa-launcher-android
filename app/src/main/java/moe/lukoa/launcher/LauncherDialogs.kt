@@ -1362,6 +1362,65 @@ fun StartPreflightConfirmDialog(
 }
 
 @Composable
+fun DeleteTavernProfileConfirmDialog(
+    confirmation: TavernProfileRemovalConfirmation,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = "确认删除实例",
+        titleTone = ActionTone.Warning,
+        confirmText = "确认删除实例",
+        confirmTone = ActionTone.Warning,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "会把这个实例从启动器配置里移除，并切换到另一个实例继续管理。",
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("实例名称", confirmation.profileName)
+                VersionInfoLine("实例目录", confirmation.profilePath)
+                VersionInfoLine("实例端口", confirmation.profilePort.toString())
+                VersionInfoLine("删除后切换到", confirmation.nextProfileName)
+                VersionInfoLine("删除后剩余", "${confirmation.remainingProfileCount} 个实例")
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+        ) {
+            Text(
+                text = "这一步只会移除启动器里的实例配置，不会删除这个目录里的酒馆文件，也不会删除备份。",
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text(
+            text = "如果以后还想重新管理这个目录，可以再新建一个分身实例并把路径改回来。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
 fun StopTavernConfirmDialog(
     actionsLocked: Boolean,
     onConfirm: () -> Unit,
