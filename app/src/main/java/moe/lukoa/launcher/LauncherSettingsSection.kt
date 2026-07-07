@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -202,37 +203,43 @@ fun SettingsSection(
     )
 
     if (showPathSettingsDialog) {
-        TavernPathSettingsDialog(
-            tavernPathConfig = tavernPathConfig,
-            currentPathInfo = activePathInfo,
-            tavernPathInput = tavernPathInput,
-            tavernPortInput = tavernPortInput,
-            tavernPathError = tavernPathError,
-            tavernPortError = tavernPortError,
-            displayPathPreview = TavernPathNormalizer.toDisplayPath(
-                TavernPathNormalizer.normalize(tavernPathInput),
-            ),
-            actionsLocked = actionsLocked,
-            onPathChange = onTavernPathInputChange,
-            onPortChange = onTavernPortInputChange,
-            onSelectProfile = { profileId ->
-                onSelectTavernProfile(profileId)
-                showPathSettingsDialog = true
-            },
-            onAddProfile = onAddTavernProfile,
-            onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
-            onMigrateToManagedPath = onMigrateToManagedTavernPath,
-            onMigrateToTraditionalPath = onMigrateToTraditionalTavernPath,
-            onMigrateToCustomPath = onMigrateToCustomTavernPath,
-            onSave = {
-                onSaveTavernPath()
-                if (tavernPathError == null && tavernPortError == null) {
-                    showPathSettingsDialog = false
-                }
-            },
-            onRestoreDefault = onRestoreDefaultTavernPath,
-            onDismiss = { showPathSettingsDialog = false },
-        )
+        key(
+            tavernPathConfig.activeProfile.id,
+            activePathInfo.currentPath,
+            tavernPathConfig.activeProfile.normalizedPort,
+        ) {
+            TavernPathSettingsDialog(
+                tavernPathConfig = tavernPathConfig,
+                currentPathInfo = activePathInfo,
+                tavernPathInput = tavernPathInput,
+                tavernPortInput = tavernPortInput,
+                tavernPathError = tavernPathError,
+                tavernPortError = tavernPortError,
+                displayPathPreview = TavernPathNormalizer.toDisplayPath(
+                    TavernPathNormalizer.normalize(tavernPathInput),
+                ),
+                actionsLocked = actionsLocked,
+                onPathChange = onTavernPathInputChange,
+                onPortChange = onTavernPortInputChange,
+                onSelectProfile = { profileId ->
+                    onSelectTavernProfile(profileId)
+                    showPathSettingsDialog = true
+                },
+                onAddProfile = onAddTavernProfile,
+                onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
+                onMigrateToManagedPath = onMigrateToManagedTavernPath,
+                onMigrateToTraditionalPath = onMigrateToTraditionalTavernPath,
+                onMigrateToCustomPath = onMigrateToCustomTavernPath,
+                onSave = {
+                    onSaveTavernPath()
+                    if (tavernPathError == null && tavernPortError == null) {
+                        showPathSettingsDialog = false
+                    }
+                },
+                onRestoreDefault = onRestoreDefaultTavernPath,
+                onDismiss = { showPathSettingsDialog = false },
+            )
+        }
     }
 
     if (showPermissionCenterDialog) {

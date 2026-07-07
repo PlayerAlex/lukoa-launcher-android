@@ -95,7 +95,7 @@ gh auth status
 然后运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.9.1-beta12 -VersionCode 185 -ReleaseNotes "这里写测试版公告" -PreRelease
+powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.9.1-beta13 -VersionCode 186 -ReleaseNotes "这里写测试版公告" -PreRelease
 ```
 
 这个脚本会自动完成：

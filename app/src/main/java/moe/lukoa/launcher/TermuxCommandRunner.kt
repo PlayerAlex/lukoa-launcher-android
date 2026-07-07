@@ -1180,7 +1180,11 @@ class TermuxCommandRunner(private val context: Context) {
                 args="${'$'}(tr '\000' ' ' 2>/dev/null < "/proc/${'$'}pid/cmdline" || true)"
               fi
               case "${'$'}args" in
-                *"${'$'}TAVERN_DIR"*) return 0 ;;
+                *"server.js"*|*"start.sh"*)
+                  case "${'$'}args" in
+                    *"${'$'}TAVERN_DIR"*) return 0 ;;
+                  esac
+                  ;;
               esac
               if process_cwd_matches "${'$'}pid"; then
                 case "${'$'}args" in

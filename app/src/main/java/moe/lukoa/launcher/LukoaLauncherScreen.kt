@@ -421,13 +421,32 @@ fun LukoaLauncherScreen(
         showTavernDirectoryChoiceDialog = true
     }
 
-    fun dismissTavernDirectoryChoiceDialog() {
+    fun clearTavernDirectoryChoiceState() {
         showTavernDirectoryChoiceDialog = false
         tavernDirectoryCandidates = emptyList()
     }
 
+    fun clearTransientTavernPathUiState() {
+        clearTavernDirectoryChoiceState()
+        pendingTavernProfileMigrationConfirmation = null
+        showCustomTavernPathMigrationDialog = false
+        customMigrationPathInput = ""
+    }
+
+    fun dismissTavernDirectoryChoiceDialog() {
+        clearTavernDirectoryChoiceState()
+    }
+
     fun maybePromptTavernDirectoryChoice(text: String) {
         if (text.isBlank() || !hasTavernDirectoryMissingSignal(text)) return
+        if (
+            !TavernDirectoryChoicePromptPolicy.shouldPrompt(
+                text = text,
+                currentPath = tavernPathConfig.activeProfile.normalizedTavernDir,
+            )
+        ) {
+            return
+        }
         openTavernDirectoryChoice(TavernDirectoryCandidateParser.parse(text))
     }
 
@@ -603,9 +622,7 @@ fun LukoaLauncherScreen(
         pendingStartPreflight = null
         pendingTavernVersionActionConfirmation = null
         pendingTavernProfileRemovalConfirmation = null
-        pendingTavernProfileMigrationConfirmation = null
-        showCustomTavernPathMigrationDialog = false
-        customMigrationPathInput = ""
+        clearTransientTavernPathUiState()
         launchAttemptToken += 1
         lastTrackedLogBody = ""
         lastSyncedTermuxResultKey = onLatestTermuxResult()?.key.orEmpty()
@@ -1460,6 +1477,7 @@ fun LukoaLauncherScreen(
                         message = "酒馆目录已经迁移，但启动器保存新路径失败：${saveResult.message}",
                     )
                 }
+                clearTransientTavernPathUiState()
                 val updatedProfile = saveResult.config.availableProfiles
                     .firstOrNull { it.id == task.profileId }
                 PendingTaskResolveResult(
@@ -1490,6 +1508,7 @@ fun LukoaLauncherScreen(
                         message = "分身实例托管目录已经删除，但启动器移除实例配置失败：${saveResult.message}",
                     )
                 }
+                clearTransientTavernPathUiState()
                 PendingTaskResolveResult(
                     ok = true,
                     message = "已删除${profileName}的托管目录，并切换到${saveResult.config.activeProfileLabel}继续管理。",
