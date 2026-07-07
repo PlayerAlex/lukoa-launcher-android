@@ -12,8 +12,8 @@ android {
         applicationId = "moe.lukoa.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 178
-        versionName = "0.9.1-beta5"
+        versionCode = 179
+        versionName = "0.9.1-beta6"
     }
 
     buildTypes {

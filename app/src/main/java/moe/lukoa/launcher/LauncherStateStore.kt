@@ -188,17 +188,18 @@ class LauncherStateStore(private val context: Context) {
             .commit()
     }
 
-    @SuppressLint("ApplySharedPref")
-    fun claimTermuxWakeSlot(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    fun hasRecentTermuxWake(nowMillis: Long = System.currentTimeMillis()): Boolean {
         val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
         val lastWakeAt = prefs.getLong(KEY_LAST_TERMUX_WAKE_AT, 0L)
-        if (nowMillis - lastWakeAt < TERMUX_WAKE_PERSISTENT_COOLDOWN_MS) {
-            return false
-        }
+        return nowMillis - lastWakeAt < TERMUX_WAKE_PERSISTENT_COOLDOWN_MS
+    }
+
+    @SuppressLint("ApplySharedPref")
+    fun recordTermuxWake(nowMillis: Long = System.currentTimeMillis()) {
+        val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
         prefs.edit()
             .putLong(KEY_LAST_TERMUX_WAKE_AT, nowMillis)
             .commit()
-        return true
     }
 
     @SuppressLint("ApplySharedPref")

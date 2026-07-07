@@ -366,7 +366,7 @@ class MainActivity : ComponentActivity() {
                 message = "刚刚已经安排过一次 Termux 唤醒，避免重复跳转。",
             )
         }
-        if (!stateStore.claimTermuxWakeSlot(now)) {
+        if (stateStore.hasRecentTermuxWake(now)) {
             lastTermuxWakeAt = now
             return TermuxWakeResult(
                 ok = true,
@@ -375,13 +375,15 @@ class MainActivity : ComponentActivity() {
         }
 
         termuxWakeInProgress = true
-        lastTermuxWakeAt = now
         val woke = controller.wakeTermuxThenReturn(lifecycleScope, returnDelayMs)
-        lifecycleScope.launch {
-            delay(TERMUX_WAKE_GUARD_MS)
-            termuxWakeInProgress = false
-        }
-        if (!woke) {
+        if (woke) {
+            lastTermuxWakeAt = now
+            stateStore.recordTermuxWake(now)
+            lifecycleScope.launch {
+                delay(TERMUX_WAKE_GUARD_MS)
+                termuxWakeInProgress = false
+            }
+        } else {
             termuxWakeInProgress = false
         }
         return if (woke) {

@@ -159,7 +159,7 @@ class TavernController(
                 if (woke) {
                     "启动命令已发送。"
                 } else {
-                    "启动命令已发送，请手动打开 Termux。"
+                    "启动命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点启动。"
                 }
             } else {
                 dispatch.message
