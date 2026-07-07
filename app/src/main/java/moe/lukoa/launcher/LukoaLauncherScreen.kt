@@ -208,6 +208,9 @@ fun LukoaLauncherScreen(
     var pendingTavernProfileRemovalConfirmation by remember {
         mutableStateOf<TavernProfileRemovalConfirmation?>(null)
     }
+    var pendingTavernProfileMigrationConfirmation by remember {
+        mutableStateOf<TavernProfileMigrationConfirmation?>(null)
+    }
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearLogScopeDialog by remember { mutableStateOf(false) }
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
@@ -279,7 +282,9 @@ fun LukoaLauncherScreen(
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showInstallRiskDialog by remember { mutableStateOf(false) }
     var showTavernDirectoryChoiceDialog by remember { mutableStateOf(false) }
+    var showCustomTavernPathMigrationDialog by remember { mutableStateOf(false) }
     var tavernDirectoryCandidates by remember { mutableStateOf<List<TavernDirectoryCandidateOption>>(emptyList()) }
+    var customMigrationPathInput by remember { mutableStateOf("") }
     var pendingFirstTavernStartGuide by remember { mutableStateOf<FirstTavernStartGuide?>(null) }
     var githubUpdateState by remember {
         mutableStateOf(
@@ -339,6 +344,20 @@ fun LukoaLauncherScreen(
             backupHistory = backupHistory,
             termuxReturnDelayMs = termuxReturnDelayMs,
         )
+    }
+
+    fun applyTavernPathSaveResult(result: TavernPathSaveResult) {
+        tavernPathConfig = result.config
+        tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
+    }
+
+    fun customMigrationPathInputError(): String? {
+        val trimmed = customMigrationPathInput.trim()
+        if (trimmed.isBlank()) {
+            return "请先填写要迁移到的目录。"
+        }
+        return TavernPathValidator.validate(trimmed)
     }
 
     fun rememberPendingLauncherTask(
@@ -584,6 +603,9 @@ fun LukoaLauncherScreen(
         pendingStartPreflight = null
         pendingTavernVersionActionConfirmation = null
         pendingTavernProfileRemovalConfirmation = null
+        pendingTavernProfileMigrationConfirmation = null
+        showCustomTavernPathMigrationDialog = false
+        customMigrationPathInput = ""
         launchAttemptToken += 1
         lastTrackedLogBody = ""
         lastSyncedTermuxResultKey = onLatestTermuxResult()?.key.orEmpty()
@@ -1387,6 +1409,131 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun runPendingTaskFollowUpRefresh(
+        refreshTargets: PendingTaskRefreshTargets,
+        startupDelayMs: Long = 0L,
+    ) {
+        if (refreshTargets.backupList) {
+            refreshBackupList()
+        }
+        if (refreshTargets.startupState) {
+            if (startupDelayMs <= 0L) {
+                runStartupRefresh()
+            } else {
+                scope.launch {
+                    delay(startupDelayMs)
+                    runStartupRefresh()
+                }
+            }
+        }
+    }
+
+    fun applyProfileMutationTaskSideEffect(
+        task: PendingLauncherTask,
+        ok: Boolean,
+        output: String,
+    ): PendingTaskResolveResult? {
+        if (!ok) return null
+        return when (task.kind) {
+            PendingLauncherTaskKind.MigrateTavernDirectory -> {
+                val profile = tavernPathConfig.availableProfiles.firstOrNull { it.id == task.profileId }
+                    ?: return PendingTaskResolveResult(
+                        ok = false,
+                        message = "酒馆目录已经迁移，但启动器没找到要更新的实例配置。请手动检查当前实例路径。",
+                    )
+                val targetPath = TavernProfilePathMutationOutputParser.migratedTargetPath(output)
+                    ?: task.targetPath.takeIf { it.isNotBlank() }
+                    ?: return PendingTaskResolveResult(
+                        ok = false,
+                        message = "酒馆目录已经迁移，但启动器没读到新的目录路径。请手动检查当前实例路径。",
+                    )
+                val saveResult = onSaveTavernPathConfig(
+                    tavernPathConfig.withUpdatedProfile(
+                        profileId = task.profileId,
+                        tavernDir = targetPath,
+                    ),
+                )
+                applyTavernPathSaveResult(saveResult)
+                if (!saveResult.saved) {
+                    return PendingTaskResolveResult(
+                        ok = false,
+                        message = "酒馆目录已经迁移，但启动器保存新路径失败：${saveResult.message}",
+                    )
+                }
+                val updatedProfile = saveResult.config.availableProfiles
+                    .firstOrNull { it.id == task.profileId }
+                PendingTaskResolveResult(
+                    ok = true,
+                    message = "${profile.normalizedName}的酒馆目录已迁移到${updatedProfile?.displayTavernDir ?: TavernPathNormalizer.toDisplayPath(TavernPathNormalizer.normalize(targetPath))}。",
+                    refreshTargets = PendingTaskRefreshTargets(
+                        startupState = saveResult.config.activeProfile.id == task.profileId,
+                    ),
+                )
+            }
+
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory -> {
+                if (task.profileId.isBlank()) {
+                    return PendingTaskResolveResult(
+                        ok = false,
+                        message = "分身实例托管目录已经删除，但启动器没找到要移除的实例配置。请手动检查实例列表。",
+                    )
+                }
+                val profileName = tavernPathConfig.availableProfiles
+                    .firstOrNull { it.id == task.profileId }
+                    ?.normalizedName
+                    ?: "这个分身实例"
+                val saveResult = onSaveTavernPathConfig(tavernPathConfig.removeProfile(task.profileId))
+                applyTavernPathSaveResult(saveResult)
+                if (!saveResult.saved) {
+                    return PendingTaskResolveResult(
+                        ok = false,
+                        message = "分身实例托管目录已经删除，但启动器移除实例配置失败：${saveResult.message}",
+                    )
+                }
+                PendingTaskResolveResult(
+                    ok = true,
+                    message = "已删除${profileName}的托管目录，并切换到${saveResult.config.activeProfileLabel}继续管理。",
+                    refreshTargets = PendingTaskRefreshTargets(startupState = true),
+                )
+            }
+
+            else -> null
+        }
+    }
+
+    fun runProfileMutationPendingCommand(
+        task: PendingLauncherTask,
+        label: String,
+        timeoutMs: Long,
+        command: String,
+    ) {
+        if (!beginBusy(label, timeoutMs)) return
+        rememberPendingLauncherTask(task)
+        onCommand(command) { newStatus, termuxOutput, ok ->
+            val finalResult = if (isTransientStatus(newStatus)) {
+                null
+            } else {
+                applyProfileMutationTaskSideEffect(task, ok, termuxOutput)
+            }
+            update(
+                finalResult?.message ?: newStatus,
+                termuxOutput,
+                finalResult?.ok ?: ok,
+                allowRunningInference = false,
+            )
+            if (!isTransientStatus(newStatus)) {
+                clearPendingLauncherTask()
+                releaseBusy()
+                finalResult?.let { resolved ->
+                    runPendingTaskFollowUpRefresh(
+                        refreshTargets = resolved.refreshTargets,
+                        startupDelayMs = 250L,
+                    )
+                }
+            }
+        }
+    }
+
     fun checkTavernInstall() {
         if (!termuxInstalled || !runCommandPermissionGranted) {
             update("请先准备好 Termux。", "", false, allowRunningInference = false)
@@ -2130,9 +2277,7 @@ fun LukoaLauncherScreen(
             port = safePort,
         )
         val result = onSaveTavernPathConfig(nextConfig)
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
+        applyTavernPathSaveResult(result)
         if (result.saved) {
             refreshActiveProfileState(
                 "${result.config.activeProfileLabel}已保存，后续启动、停止、版本读取和备份都会使用这个目录和端口。",
@@ -2156,9 +2301,7 @@ fun LukoaLauncherScreen(
 
     fun restoreDefaultTavernPath() {
         val result = onRestoreDefaultTavernPath()
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
+        applyTavernPathSaveResult(result)
         if (result.saved) {
             refreshActiveProfileState("已恢复${result.config.activeProfileLabel}的默认路径和默认端口。")
         } else {
@@ -2168,9 +2311,7 @@ fun LukoaLauncherScreen(
 
     fun selectTavernProfile(profileId: String) {
         val result = onSaveTavernPathConfig(tavernPathConfig.withActiveProfile(profileId))
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
+        applyTavernPathSaveResult(result)
         if (result.saved) {
             refreshActiveProfileState("已切换到${result.config.activeProfileLabel}。")
         } else {
@@ -2180,9 +2321,7 @@ fun LukoaLauncherScreen(
 
     fun addTavernProfile() {
         val result = onSaveTavernPathConfig(tavernPathConfig.addSuggestedProfile())
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
+        applyTavernPathSaveResult(result)
         if (result.saved) {
             refreshActiveProfileState("已新建并切换到${result.config.activeProfileLabel}。")
         } else {
@@ -2209,13 +2348,106 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun requestTavernPathMigration(
+        targetPath: String,
+        targetKind: TavernProfileMigrationTargetKind,
+    ): Boolean {
+        return when (
+            val decision = TavernProfileMigrationGuard.evaluate(
+                config = tavernPathConfig,
+                targetPath = targetPath,
+                targetKind = targetKind,
+                tavernRunning = tavernRunning,
+                tavernStarting = tavernStarting,
+                actionsLocked = actionInProgress,
+            )
+        ) {
+            is TavernProfileMigrationDecision.Blocked -> {
+                update(decision.message, "", false, allowRunningInference = false)
+                false
+            }
+
+            is TavernProfileMigrationDecision.Confirm -> {
+                pendingTavernProfileMigrationConfirmation = decision.confirmation
+                true
+            }
+        }
+    }
+
+    fun requestMigrateToManagedTavernPath() {
+        val pathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
+        requestTavernPathMigration(
+            targetPath = pathInfo.launcherManagedDefaultPath,
+            targetKind = TavernProfileMigrationTargetKind.LauncherManaged,
+        )
+    }
+
+    fun requestMigrateToTraditionalTavernPath() {
+        val pathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
+        requestTavernPathMigration(
+            targetPath = pathInfo.traditionalDefaultPath,
+            targetKind = TavernProfileMigrationTargetKind.TraditionalDefault,
+        )
+    }
+
+    fun openCustomTavernPathMigrationDialog() {
+        customMigrationPathInput = ""
+        showCustomTavernPathMigrationDialog = true
+    }
+
+    fun confirmCustomTavernPathMigrationDialog() {
+        if (requestTavernPathMigration(customMigrationPathInput, TavernProfileMigrationTargetKind.Custom)) {
+            showCustomTavernPathMigrationDialog = false
+        }
+    }
+
+    fun confirmMigrateCurrentTavernPath() {
+        val confirmation = pendingTavernProfileMigrationConfirmation ?: return
+        if (blockIfPendingTaskExists("迁移酒馆目录")) {
+            return
+        }
+        pendingTavernProfileMigrationConfirmation = null
+        val encodedTargetPath = TavernProfileMigrationCommandCodec.encode(confirmation.targetPath)
+        runProfileMutationPendingCommand(
+            task = PendingLauncherTask(
+                kind = PendingLauncherTaskKind.MigrateTavernDirectory,
+                commandName = "tavern-migrate-dir",
+                detail = "把${confirmation.profileName}迁移到${confirmation.targetPath}",
+                startedAtMillis = System.currentTimeMillis(),
+                profileId = confirmation.profileId,
+                targetPath = confirmation.targetPath,
+            ),
+            label = "迁移酒馆目录",
+            timeoutMs = 900000L,
+            command = "tavern-migrate-dir::$encodedTargetPath",
+        )
+    }
+
     fun confirmRemoveCurrentTavernProfile() {
         val confirmation = pendingTavernProfileRemovalConfirmation ?: return
-        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(confirmation.profileId))
         pendingTavernProfileRemovalConfirmation = null
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
+        if (confirmation.deletesProfileDirectory) {
+            if (blockIfPendingTaskExists("删除实例")) {
+                pendingTavernProfileRemovalConfirmation = confirmation
+                return
+            }
+            runProfileMutationPendingCommand(
+                task = PendingLauncherTask(
+                    kind = PendingLauncherTaskKind.RemoveManagedProfileDirectory,
+                    commandName = "tavern-delete-managed-profile-dir",
+                    detail = "删除${confirmation.profileName}的托管目录",
+                    startedAtMillis = System.currentTimeMillis(),
+                    profileId = confirmation.profileId,
+                    targetPath = confirmation.deletedDirectoryPath,
+                ),
+                label = "删除分身实例托管目录",
+                timeoutMs = 900000L,
+                command = "tavern-delete-managed-profile-dir",
+            )
+            return
+        }
+        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(confirmation.profileId))
+        applyTavernPathSaveResult(result)
         if (result.saved) {
             refreshActiveProfileState(
                 "已移除${confirmation.profileName}，现在切换到${result.config.activeProfileLabel}继续管理。原目录和备份都还保留着。",
@@ -2676,13 +2908,9 @@ fun LukoaLauncherScreen(
                 syncTermuxResult(latest)
                 lastSyncedTermuxResultKey = latest.key
             }
-            val resolved = PendingLauncherTaskSupport.resolveLatestResult(task, latest)
-            if (resolved.refreshTargets.backupList) {
-                refreshBackupList()
-            }
-            if (resolved.refreshTargets.startupState) {
-                runStartupRefresh()
-            }
+            val resolved = applyProfileMutationTaskSideEffect(task, latest.ok, latest.output)
+                ?: PendingLauncherTaskSupport.resolveLatestResult(task, latest)
+            runPendingTaskFollowUpRefresh(resolved.refreshTargets)
             clearPendingLauncherTask()
             update(
                 resolved.message,
@@ -2694,12 +2922,7 @@ fun LukoaLauncherScreen(
         }
 
         val waitingRefreshTargets = PendingLauncherTaskSupport.waitingRefreshTargets(task)
-        if (waitingRefreshTargets.backupList) {
-            refreshBackupList()
-        }
-        if (waitingRefreshTargets.startupState) {
-            runStartupRefresh()
-        }
+        runPendingTaskFollowUpRefresh(waitingRefreshTargets)
         update(
             PendingLauncherTaskSupport.waitingMessage(task),
             "",
@@ -3538,6 +3761,30 @@ fun LukoaLauncherScreen(
         )
     }
 
+    pendingTavernProfileMigrationConfirmation?.let { confirmation ->
+        TavernProfileMigrationConfirmDialog(
+            confirmation = confirmation,
+            actionsLocked = actionInProgress,
+            onConfirm = ::confirmMigrateCurrentTavernPath,
+            onDismiss = { pendingTavernProfileMigrationConfirmation = null },
+        )
+    }
+
+    if (showCustomTavernPathMigrationDialog) {
+        CustomTavernPathMigrationDialog(
+            currentPath = tavernPathConfig.displayTavernDir,
+            pathInput = customMigrationPathInput,
+            pathError = customMigrationPathInputError(),
+            actionsLocked = actionInProgress,
+            onPathChange = { customMigrationPathInput = it },
+            onConfirm = ::confirmCustomTavernPathMigrationDialog,
+            onDismiss = {
+                showCustomTavernPathMigrationDialog = false
+                customMigrationPathInput = ""
+            },
+        )
+    }
+
     if (showImportBackupDialog) {
         ImportBackupDialog(
             path = importBackupPath,
@@ -3848,6 +4095,9 @@ fun LukoaLauncherScreen(
                             onSelectTavernProfile = ::selectTavernProfile,
                             onAddTavernProfile = ::addTavernProfile,
                             onRemoveCurrentTavernProfile = ::requestRemoveCurrentTavernProfile,
+                            onMigrateToManagedTavernPath = ::requestMigrateToManagedTavernPath,
+                            onMigrateToTraditionalTavernPath = ::requestMigrateToTraditionalTavernPath,
+                            onMigrateToCustomTavernPath = ::openCustomTavernPathMigrationDialog,
                             onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
                             onSaveTavernPath = { saveTavernPathConfig() },
                             onRestoreDefaultTavernPath = ::restoreDefaultTavernPath,

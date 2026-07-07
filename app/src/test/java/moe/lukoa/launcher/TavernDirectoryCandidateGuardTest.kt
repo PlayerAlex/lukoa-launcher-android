@@ -13,8 +13,8 @@ class TavernDirectoryCandidateGuardTest {
         val options = TavernDirectoryCandidateGuard.resolve(
             config = config,
             candidates = listOf(
-                "/data/data/com.termux/files/home/SillyTavern",
-                "/data/data/com.termux/files/home/SillyTavern-2",
+                "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern",
+                "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern2",
             ),
         )
 
@@ -27,10 +27,10 @@ class TavernDirectoryCandidateGuardTest {
     @Test
     fun `absolute termux home path is shown as tilde path`() {
         val option = TavernDirectoryCandidateOption(
-            path = "/data/data/com.termux/files/home/SillyTavern-2",
+            path = "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern2",
             selectable = true,
         )
 
-        assertEquals("~/SillyTavern-2", option.displayPath)
+        assertEquals("~/LukoaLauncher/SillyTavern2", option.displayPath)
     }
 }

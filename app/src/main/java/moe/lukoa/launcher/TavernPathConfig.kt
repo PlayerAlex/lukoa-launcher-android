@@ -94,6 +94,27 @@ data class TavernPathConfig(
         )
     }
 
+    fun withUpdatedProfile(
+        profileId: String,
+        tavernDir: String? = null,
+        port: Int? = null,
+        name: String? = null,
+    ): TavernPathConfig {
+        val targetProfile = availableProfiles.firstOrNull { it.id == profileId }
+            ?: return withProfiles(availableProfiles, activeProfile.id)
+        val updated = targetProfile.copy(
+            name = name ?: targetProfile.name,
+            tavernDir = tavernDir ?: targetProfile.tavernDir,
+            port = port ?: targetProfile.port,
+        )
+        return withProfiles(
+            availableProfiles.map { profile ->
+                if (profile.id == profileId) updated else profile
+            },
+            activeProfile.id,
+        )
+    }
+
     fun restoreActiveProfileDefault(): TavernPathConfig {
         val defaults = TavernProfileDefaults.profileForId(activeProfile.id)
         return withUpdatedActiveProfile(
@@ -155,8 +176,12 @@ data class TavernPathSaveResult(
 )
 
 object TavernPathDefaults {
-    const val DEFAULT_TAVERN_DIR = "~/SillyTavern"
-    const val DEFAULT_TAVERN_DIR_NORMALIZED = "\$HOME/SillyTavern"
+    const val LAUNCHER_MANAGED_ROOT_DIR = "~/LukoaLauncher"
+    const val LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED = "\$HOME/LukoaLauncher"
+    const val LEGACY_DEFAULT_TAVERN_DIR = "~/SillyTavern"
+    const val LEGACY_DEFAULT_TAVERN_DIR_NORMALIZED = "\$HOME/SillyTavern"
+    const val DEFAULT_TAVERN_DIR = "$LAUNCHER_MANAGED_ROOT_DIR/SillyTavern"
+    const val DEFAULT_TAVERN_DIR_NORMALIZED = "$LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED/SillyTavern"
     const val TERMUX_HOME_DIR = "/data/data/com.termux/files/home"
 }
 
@@ -201,11 +226,7 @@ object TavernProfileDefaults {
     }
 
     private fun defaultPathForSlot(slot: Int): String {
-        return if (slot <= 1) {
-            TavernPathDefaults.DEFAULT_TAVERN_DIR
-        } else {
-            "~/SillyTavern-$slot"
-        }
+        return TavernProfilePathPolicy.launcherManagedDefaultPathForProfileId(profileIdForSlot(slot))
     }
 
     private fun defaultPortForSlot(slot: Int): Int {

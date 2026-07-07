@@ -473,7 +473,7 @@ class MainActivity : ComponentActivity() {
         callback(
             BackupExportDestinationResult(
                 ok = false,
-                message = "读不到备份源文件。请确认备份还在 Download/lukoa/backups/sd 或 zd。",
+                message = "读不到备份源文件。请确认备份还在 Download/LukoaLauncher/backups/sd 或 zd。",
             ),
         )
         return false

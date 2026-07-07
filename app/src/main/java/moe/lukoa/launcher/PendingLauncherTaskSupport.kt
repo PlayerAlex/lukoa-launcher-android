@@ -39,6 +39,9 @@ object PendingLauncherTaskSupport {
             PendingLauncherTaskKind.InstallTavern,
             PendingLauncherTaskKind.UpdateTavern,
             PendingLauncherTaskKind.RollbackTavern -> LauncherTab.Version
+
+            PendingLauncherTaskKind.MigrateTavernDirectory,
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory -> LauncherTab.Settings
         }
     }
 
@@ -54,7 +57,7 @@ object PendingLauncherTaskSupport {
         return if (isSafetyBackupStage(task)) {
             "还没读到上次${task.title}前自动安全备份的最终回传。如果 Termux 还在跑，稍后再点一次“继续检查”。"
         } else {
-            "还没读到上次${task.title}的最终回传。已先帮你重新检查相关状态；如果 Termux 还在跑，稍后再点一次“继续检查”。"
+            "还没读到上次${task.title}的最终回传。已经先帮你重新检查相关状态；如果 Termux 还在跑，稍后再点一次“继续检查”。"
         }
     }
 
@@ -62,7 +65,7 @@ object PendingLauncherTaskSupport {
         task: PendingLauncherTask,
         actionName: String,
     ): String {
-        return "检测到上次${task.title}还没收尾。为避免把${actionName}和旧任务状态混在一起，请先继续检查或放弃那次任务。"
+        return "检测到上次${task.title}还没收尾。为了避免把${actionName}和旧任务状态混在一起，请先继续检查或放弃那次任务。"
     }
 
     fun resolveLatestResult(
@@ -79,7 +82,7 @@ object PendingLauncherTaskSupport {
                     }
 
                     latest.ok -> {
-                        "已继续检查上次${task.title}：安全备份命令返回成功，但没有读到备份路径。为稳妥起见，请重新点一次。"
+                        "已继续检查上次${task.title}：安全备份命令返回成功，但没读到备份路径。为稳妥起见，请重新点一次。"
                     }
 
                     else -> {
@@ -123,7 +126,11 @@ object PendingLauncherTaskSupport {
 
             PendingLauncherTaskKind.InstallTavern,
             PendingLauncherTaskKind.UpdateTavern,
-            PendingLauncherTaskKind.RollbackTavern -> PendingTaskRefreshTargets(startupState = true)
+            PendingLauncherTaskKind.RollbackTavern,
+            PendingLauncherTaskKind.MigrateTavernDirectory,
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory -> {
+                PendingTaskRefreshTargets(startupState = true)
+            }
         }
     }
 }

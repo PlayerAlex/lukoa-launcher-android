@@ -99,7 +99,7 @@ object TavernStartPreflight {
 
         if (doctorReport.tavernDirExists == false) {
             val details = buildList {
-                add("当前配置路径：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}")
+                add("当前配置路径：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}")
                 if (doctorReport.candidateDirectories.isNotEmpty()) {
                     add("已发现 ${doctorReport.candidateDirectories.size} 个候选目录，可以直接选。")
                 } else {
@@ -130,7 +130,7 @@ object TavernStartPreflight {
             doctorReport.gitRepo == false
         ) {
             val details = buildList {
-                add("当前配置路径：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}")
+                add("当前配置路径：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}")
                 if (doctorReport.packageJsonExists == false) {
                     add("目录里缺少 package.json。")
                 }

@@ -44,9 +44,10 @@ data class BackupLibraryPruneResult(
 )
 
 object BackupLibraryFiles {
-    const val ROOT_RELATIVE_DIR = "lukoa/backups"
-    const val MANUAL_RELATIVE_DIR = "lukoa/backups/sd"
-    const val AUTO_RELATIVE_DIR = "lukoa/backups/zd"
+    const val ROOT_RELATIVE_DIR = "LukoaLauncher/backups"
+    const val MANUAL_RELATIVE_DIR = "LukoaLauncher/backups/sd"
+    const val AUTO_RELATIVE_DIR = "LukoaLauncher/backups/zd"
+    const val LEGACY_ROOT_RELATIVE_DIR = "lukoa/backups"
     const val RELATIVE_DIR = ROOT_RELATIVE_DIR
     private const val ANDROID_MANUAL_RELATIVE_PATH = "Download/$MANUAL_RELATIVE_DIR/"
     private const val ANDROID_AUTO_RELATIVE_PATH = "Download/$AUTO_RELATIVE_DIR/"
@@ -194,7 +195,7 @@ object BackupLibraryFiles {
             }
         }
 
-        error("没有在 Download/lukoa/backups/sd 或 zd 找到可重命名的文件")
+        error("没有在 Download/LukoaLauncher/backups/sd 或 zd 找到可重命名的文件")
     }
 
     fun deleteLibraryArchive(context: Context, archivePath: String): BackupLibraryOperationResult {
@@ -212,7 +213,7 @@ object BackupLibraryFiles {
             deleted = deleteMediaStoreBackups(context, archivePath) || deleted
         }
         if (!deleted) {
-            error("删除失败：没有在 Download/lukoa/backups/sd 或 zd 找到这个备份，或文件被占用")
+            error("删除失败：没有在 Download/LukoaLauncher/backups/sd 或 zd 找到这个备份，或文件被占用")
         }
         return BackupLibraryOperationResult(
             fileName = fileName,
@@ -240,7 +241,7 @@ object BackupLibraryFiles {
                 )
             }
         }
-        error("没有在 Download/lukoa/backups/sd 或 zd 找到：$fileName")
+        error("没有在 Download/LukoaLauncher/backups/sd 或 zd 找到：$fileName")
     }
 
     fun canReadLibrarySource(context: Context, archivePath: String): Boolean {
@@ -645,14 +646,18 @@ object BackupLibraryFiles {
         return when {
             normalized.contains("/$MANUAL_RELATIVE_DIR/", ignoreCase = true) -> relativeDir == MANUAL_RELATIVE_DIR
             normalized.contains("/$AUTO_RELATIVE_DIR/", ignoreCase = true) -> relativeDir == AUTO_RELATIVE_DIR
+            normalized.contains("/$LEGACY_ROOT_RELATIVE_DIR/", ignoreCase = true) -> false
             isUnsupportedRootBackupPath(normalized) -> false
             else -> true
         }
     }
 
     private fun rejectUnsupportedRootBackupPath(archivePath: String) {
+        if (archivePath.trim().replace('\\', '/').contains("/$LEGACY_ROOT_RELATIVE_DIR/", ignoreCase = true)) {
+            error("旧的 Download/lukoa/backups 目录已不再支持。请改用 Download/LukoaLauncher/backups/sd 或 zd。")
+        }
         if (isUnsupportedRootBackupPath(archivePath)) {
-            error("不再支持 Download/lukoa/backups 根目录里的备份。请放到 sd 或 zd 文件夹。")
+            error("不再支持 Download/LukoaLauncher/backups 根目录里的备份。请放到 sd 或 zd 文件夹。")
         }
         if (archivePath.trim().replace('\\', '/').contains("/lukoa-tavern-backups/", ignoreCase = true)) {
             error("不再支持旧版 lukoa-tavern-backups 目录。请先导入到备份库。")

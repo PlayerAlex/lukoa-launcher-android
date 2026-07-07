@@ -213,7 +213,7 @@ object LauncherHealthCheck {
                         }
                         LauncherHealthItem(
                             title = "酒馆路径",
-                            detail = "$candidateMessage 当前配置是：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}",
+                            detail = "$candidateMessage 当前配置是：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}",
                             level = LauncherHealthLevel.Error,
                         )
                     }
@@ -238,7 +238,7 @@ object LauncherHealthCheck {
 
                     else -> LauncherHealthItem(
                         title = "酒馆路径",
-                        detail = "当前目录看起来是完整的酒馆目录：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}",
+                        detail = "当前目录看起来是完整的酒馆目录：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}",
                         level = LauncherHealthLevel.Good,
                     )
                 },

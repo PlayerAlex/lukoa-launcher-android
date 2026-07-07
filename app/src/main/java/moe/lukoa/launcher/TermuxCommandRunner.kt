@@ -526,6 +526,40 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernMigrateDirectory(encodedArgument: String?): CommandDispatch {
+        val migrationArgs = TavernProfileMigrationCommandCodec.decode(encodedArgument)
+            ?: return CommandDispatch(
+                sent = false,
+                message = "迁移酒馆目录失败：迁移参数损坏，请重新点一次。",
+                displayCommand = "tavern-migrate-dir",
+            )
+        val safeTargetPath = migrationArgs.targetPath.trim()
+        TavernPathValidator.validate(safeTargetPath)?.let { reason ->
+            return CommandDispatch(
+                sent = false,
+                message = "迁移酒馆目录失败：目标目录无效。$reason",
+                displayCommand = "tavern-migrate-dir",
+            )
+        }
+        return runBundledScriptCommand(
+            command = "tavern-migrate-dir-direct",
+            scriptCommand = "tavern-migrate-dir",
+            scriptArgs = listOf(TavernPathNormalizer.normalize(safeTargetPath)),
+            displayCommand = "tavern-migrate-dir",
+            background = false,
+        )
+    }
+
+    fun runDeleteManagedProfileDirectory(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "tavern-delete-managed-profile-dir-direct",
+            scriptCommand = "tavern-delete-managed-profile-dir",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-delete-managed-profile-dir",
+            background = false,
+        )
+    }
+
     fun requestReturnToLauncher(): CommandDispatch {
         val returnCommand = "am start --activity-clear-top --activity-single-top --activity-reorder-to-front -n ${context.packageName}/.MainActivity >/dev/null 2>&1"
         return runCommand(
@@ -795,7 +829,8 @@ class TermuxCommandRunner(private val context: Context) {
             HOME_DIR="${'$'}{LUKOA_HOME:-${'$'}{HOME:-/data/data/com.termux/files/home}}"
             STATE_DIR="${'$'}{LUKOA_STATE_DIR:-${'$'}HOME_DIR/.local/state/${'$'}APP_NAME}"
             CONFIG_FILE="${'$'}{LUKOA_CONFIG_FILE:-${'$'}HOME_DIR/.config/${'$'}APP_NAME/config.env}"
-            DEFAULT_TAVERN_DIR="${'$'}HOME_DIR/SillyTavern"
+            LAUNCHER_TAVERN_ROOT_DIR="${'$'}HOME_DIR/LukoaLauncher"
+            LEGACY_DEFAULT_TAVERN_DIR="${'$'}HOME_DIR/SillyTavern"
             TAVERN_PORT="${'$'}{TAVERN_PORT:-8000}"
             if [ -f "${'$'}CONFIG_FILE" ]; then
               . "${'$'}CONFIG_FILE"
@@ -820,6 +855,33 @@ class TermuxCommandRunner(private val context: Context) {
             elif [ -z "${'$'}{TAVERN_PROFILE_ID:-}" ]; then
               TAVERN_PROFILE_ID="${'$'}APP_CONFIG_TAVERN_PROFILE_ID"
             fi
+            profile_slot_number() {
+              profile_id="${'$'}{1:-main}"
+              if [ "${'$'}profile_id" = "main" ]; then
+                printf "1"
+                return 0
+              fi
+              slot="${'$'}{profile_id#profile-}"
+              case "${'$'}slot" in
+                ''|*[!0-9]*) printf "2" ;;
+                *)
+                  if [ "${'$'}slot" -lt 2 ]; then
+                    printf "2"
+                  else
+                    printf "%s" "${'$'}slot"
+                  fi
+                  ;;
+              esac
+            }
+            launcher_managed_profile_dir() {
+              slot="${'$'}(profile_slot_number "${'$'}{1:-${'$'}{TAVERN_PROFILE_ID:-main}}")"
+              if [ "${'$'}slot" -le 1 ]; then
+                printf "%s/SillyTavern" "${'$'}LAUNCHER_TAVERN_ROOT_DIR"
+              else
+                printf "%s/SillyTavern%s" "${'$'}LAUNCHER_TAVERN_ROOT_DIR" "${'$'}slot"
+              fi
+            }
+            DEFAULT_TAVERN_DIR="${'$'}(launcher_managed_profile_dir "${'$'}{TAVERN_PROFILE_ID:-main}")"
             sanitize_profile_state_key() {
               raw="${'$'}{1:-main}"
               sanitized="${'$'}(printf "%s" "${'$'}raw" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
@@ -923,21 +985,71 @@ class TermuxCommandRunner(private val context: Context) {
               TAVERN_CANDIDATE_COUNT=0
               TAVERN_CANDIDATE_FIRST=""
               DISCOVERED_TAVERN_DIR=""
+              if looks_like_tavern_dir "${'$'}TAVERN_DIR"; then
+                append_tavern_candidate "${'$'}TAVERN_DIR"
+              fi
+              if [ "${'$'}DEFAULT_TAVERN_DIR" != "${'$'}TAVERN_DIR" ] && looks_like_tavern_dir "${'$'}DEFAULT_TAVERN_DIR"; then
+                append_tavern_candidate "${'$'}DEFAULT_TAVERN_DIR"
+              fi
+              if [ "${'$'}LEGACY_DEFAULT_TAVERN_DIR" != "${'$'}TAVERN_DIR" ] &&
+                [ "${'$'}LEGACY_DEFAULT_TAVERN_DIR" != "${'$'}DEFAULT_TAVERN_DIR" ] &&
+                looks_like_tavern_dir "${'$'}LEGACY_DEFAULT_TAVERN_DIR"; then
+                append_tavern_candidate "${'$'}LEGACY_DEFAULT_TAVERN_DIR"
+              fi
+              if [ -d "${'$'}LAUNCHER_TAVERN_ROOT_DIR" ]; then
+                for candidate in "${'$'}LAUNCHER_TAVERN_ROOT_DIR"/SillyTavern*; do
+                  [ -d "${'$'}candidate" ] || continue
+                  [ "${'$'}candidate" != "${'$'}TAVERN_DIR" ] || continue
+                  [ "${'$'}candidate" != "${'$'}DEFAULT_TAVERN_DIR" ] || continue
+                  [ "${'$'}candidate" != "${'$'}LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+                  looks_like_tavern_dir "${'$'}candidate" || continue
+                  append_tavern_candidate "${'$'}candidate"
+                done
+              fi
+              for candidate in "${'$'}HOME_DIR"/*; do
+                [ -d "${'$'}candidate" ] || continue
+                [ "${'$'}candidate" != "${'$'}TAVERN_DIR" ] || continue
+                [ "${'$'}candidate" != "${'$'}DEFAULT_TAVERN_DIR" ] || continue
+                [ "${'$'}candidate" != "${'$'}LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+                [ "${'$'}candidate" != "${'$'}LAUNCHER_TAVERN_ROOT_DIR" ] || continue
+                looks_like_tavern_dir "${'$'}candidate" || continue
+                append_tavern_candidate "${'$'}candidate"
+              done
             }
             discover_tavern_dir() {
+              collect_tavern_dir_candidates
+              if [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -eq 1 ] && [ -n "${'$'}{TAVERN_CANDIDATE_FIRST:-}" ]; then
+                DISCOVERED_TAVERN_DIR="${'$'}TAVERN_CANDIDATE_FIRST"
+                return 0
+              fi
               return 1
             }
             adopt_detected_tavern_dir() {
+              collect_tavern_dir_candidates
               return 1
             }
             emit_tavern_dir_candidates() {
-              return 0
+              [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -gt 0 ] || return 0
+              printf "\n==== SillyTavern directory candidates ====\n"
+              printf "%s\n" "${'$'}TAVERN_CANDIDATE_LIST" | awk '{ printf "candidate.%d=%s\n", NR, $0 }'
+              printf "==== end SillyTavern directory candidates ====\n"
             }
             missing_tavern_dir_exit_code() {
-              printf "66"
+              if [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -gt 0 ]; then
+                printf "67"
+              else
+                printf "66"
+              fi
             }
             write_tavern_dir_error() {
-              write_status "error" "SillyTavern directory not found: ${'$'}TAVERN_DIR" false 66
+              code="${'$'}(missing_tavern_dir_exit_code)"
+              if [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -gt 1 ]; then
+                write_status "error" "SillyTavern directory not found: ${'$'}TAVERN_DIR. Multiple candidates were found; choose one manually in the launcher." false "${'$'}code"
+              elif [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -eq 1 ]; then
+                write_status "error" "SillyTavern directory not found: ${'$'}TAVERN_DIR. A possible directory was found; confirm it manually in the launcher." false "${'$'}code"
+              else
+                write_status "error" "SillyTavern directory not found: ${'$'}TAVERN_DIR" false "${'$'}code"
+              fi
             }
             timestamp() {
               date -u +"%Y-%m-%dT%H:%M:%SZ"

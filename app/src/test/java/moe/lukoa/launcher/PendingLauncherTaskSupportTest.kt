@@ -71,7 +71,7 @@ class PendingLauncherTaskSupportTest {
             ok = true,
             output = """
                 ==== SillyTavern backup ====
-                archive=/data/data/com.termux/files/home/.local/state/lukoa-launcher/backups/sd/safe.tar.gz
+                archive=/storage/emulated/0/Download/LukoaLauncher/backups/sd/safe.tar.gz
             """.trimIndent(),
         )
 

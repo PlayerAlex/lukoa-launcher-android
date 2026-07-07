@@ -91,6 +91,9 @@ fun SettingsSection(
     onSelectTavernProfile: (String) -> Unit,
     onAddTavernProfile: () -> Unit,
     onRemoveCurrentTavernProfile: () -> Unit,
+    onMigrateToManagedTavernPath: () -> Unit,
+    onMigrateToTraditionalTavernPath: () -> Unit,
+    onMigrateToCustomTavernPath: () -> Unit,
     onCustomTermuxRepoInputChange: (String) -> Unit,
     onSaveTavernPath: () -> Unit,
     onRestoreDefaultTavernPath: () -> Unit,
@@ -142,6 +145,7 @@ fun SettingsSection(
     val healthSummaryColor = settingsHealthSummaryColor(healthCheckReport)
     val tavernPortError = LauncherInputGuards.validateTavernPort(tavernPortInput.trim())
     val pathIsDefault = tavernPathConfig.isActiveProfileDefault
+    val activePathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
     var showPathSettingsDialog by remember { mutableStateOf(false) }
     var showPermissionCenterDialog by remember { mutableStateOf(false) }
     var showUpdateSettingsDialog by remember { mutableStateOf(false) }
@@ -168,7 +172,7 @@ fun SettingsSection(
         SectionSwitchOption(
             value = SettingsPageView.Path,
             label = "路径",
-            description = "管理酒馆目录路径，适合文件夹名不是默认 SillyTavern 的情况。",
+            description = "管理实例目录、迁移位置和端口，也可以处理旧酒馆目录迁移到启动器托管目录。",
         ),
         SectionSwitchOption(
             value = SettingsPageView.Mirror,
@@ -200,6 +204,7 @@ fun SettingsSection(
     if (showPathSettingsDialog) {
         TavernPathSettingsDialog(
             tavernPathConfig = tavernPathConfig,
+            currentPathInfo = activePathInfo,
             tavernPathInput = tavernPathInput,
             tavernPortInput = tavernPortInput,
             tavernPathError = tavernPathError,
@@ -216,6 +221,9 @@ fun SettingsSection(
             },
             onAddProfile = onAddTavernProfile,
             onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
+            onMigrateToManagedPath = onMigrateToManagedTavernPath,
+            onMigrateToTraditionalPath = onMigrateToTraditionalTavernPath,
+            onMigrateToCustomPath = onMigrateToCustomTavernPath,
             onSave = {
                 onSaveTavernPath()
                 if (tavernPathError == null && tavernPortError == null) {
@@ -306,7 +314,7 @@ fun SettingsSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     StatusPill(
-                        text = if (pathIsDefault) "默认路径" else "已自定义",
+                        text = if (pathIsDefault) "实例默认路径" else "实例已改路径",
                         active = !pathIsDefault,
                         modifier = Modifier.weight(1f),
                         toneColor = if (pathIsDefault) LukoaColors.Muted else LukoaColors.Accent,
@@ -339,6 +347,21 @@ fun SettingsSection(
                         activeBackground = LukoaColors.InfoSoft,
                     )
                 }
+                StatusPill(
+                    text = activePathInfo.kind.label,
+                    active = activePathInfo.kind != TavernProfilePathKind.TraditionalDefault,
+                    modifier = Modifier.fillMaxWidth(),
+                    toneColor = when (activePathInfo.kind) {
+                        TavernProfilePathKind.LauncherManaged -> LukoaColors.Accent
+                        TavernProfilePathKind.TraditionalDefault -> LukoaColors.Amber
+                        TavernProfilePathKind.Custom -> LukoaColors.Info
+                    },
+                    activeBackground = when (activePathInfo.kind) {
+                        TavernProfilePathKind.LauncherManaged -> LukoaColors.AccentSoft
+                        TavernProfilePathKind.TraditionalDefault -> LukoaColors.AmberSoft
+                        TavernProfilePathKind.Custom -> LukoaColors.InfoSoft
+                    },
+                )
                 Text(
                     text = tavernPathConfig.displayTavernDir,
                     color = LukoaColors.Text,
@@ -348,7 +371,13 @@ fun SettingsSection(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "默认目录是 ~/SillyTavern。只有你改过酒馆文件夹名，或者酒馆不在默认目录时，才需要改这里。",
+                    text = buildString {
+                        append("主实例推荐默认目录是 ${TavernPathDefaults.DEFAULT_TAVERN_DIR}。")
+                        append(" 分身实例会自动分配到各自的托管目录；传统 ~/SillyTavern 只作为旧目录兼容保留。")
+                        if (activePathInfo.canDeleteDirectoryWithProfile) {
+                            append(" 当前分身如果直接删除实例，会连同这个托管目录一起删掉。")
+                        }
+                    },
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

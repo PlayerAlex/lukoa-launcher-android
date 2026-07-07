@@ -12,7 +12,7 @@ class TavernPathConfigTest {
 
         assertEquals(2, config.availableProfiles.size)
         assertEquals("profile-2", config.activeProfile.id)
-        assertEquals("~/SillyTavern-2", config.activeProfile.tavernDir)
+        assertEquals("~/LukoaLauncher/SillyTavern2", config.activeProfile.tavernDir)
         assertEquals(8001, config.activeProfile.port)
     }
 
@@ -28,7 +28,7 @@ class TavernPathConfigTest {
         val restored = config.restoreActiveProfileDefault()
 
         assertEquals("profile-2", restored.activeProfile.id)
-        assertEquals("~/SillyTavern-2", restored.activeProfile.tavernDir)
+        assertEquals("~/LukoaLauncher/SillyTavern2", restored.activeProfile.tavernDir)
         assertEquals(8001, restored.activeProfile.port)
         assertTrue(restored.isActiveProfileDefault)
     }

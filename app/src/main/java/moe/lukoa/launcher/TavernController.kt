@@ -92,6 +92,8 @@ class TavernController(
             "tavern-backup-import" -> runner.runTavernBackupImport(parsed.argument)
             "tavern-backup-rename" -> runner.runTavernBackupRename(parsed.argument)
             "tavern-restore" -> runner.runTavernRestore(parsed.argument)
+            "tavern-migrate-dir" -> runner.runTavernMigrateDirectory(parsed.argument)
+            "tavern-delete-managed-profile-dir" -> runner.runDeleteManagedProfileDirectory()
             else -> runner.runAction(parsed.name)
         }
         update(dispatchMessage(parsed.name, dispatch), "", false)
@@ -314,6 +316,8 @@ class TavernController(
             "tavern-backup-import" -> "正在导入酒馆备份。"
             "tavern-backup-rename" -> "正在重命名酒馆备份。"
             "tavern-restore" -> "正在应用酒馆备份，Termux 前台会显示进度。"
+            "tavern-migrate-dir" -> "正在迁移当前实例的酒馆目录，Termux 前台会显示进度。"
+            "tavern-delete-managed-profile-dir" -> "正在删除这个分身实例的托管目录。"
             else -> dispatch.message
         }
     }
@@ -365,6 +369,8 @@ class TavernController(
             "tavern-backup-copy" -> if (ok) "酒馆备份已复制。" else "复制酒馆备份失败。"
             "tavern-backup-import" -> if (ok) "酒馆备份已导入。" else "导入酒馆备份失败。"
             "tavern-backup-rename" -> if (ok) "酒馆备份已重命名。" else "重命名酒馆备份失败。"
+            "tavern-migrate-dir" -> if (ok) "酒馆目录已迁移。" else "迁移酒馆目录失败。"
+            "tavern-delete-managed-profile-dir" -> if (ok) "分身实例托管目录已删除。" else "删除分身实例托管目录失败。"
             "tavern-restore" -> if (ok) {
                 TavernRestoreAftercareMessage.successMessage(stdout)
             } else if (
@@ -396,6 +402,8 @@ class TavernController(
             "tavern-backup-import",
             "tavern-backup-rename",
             "tavern-restore",
+            "tavern-migrate-dir",
+            "tavern-delete-managed-profile-dir",
             "tavern-backup" -> 1200
             "start" -> 120
             "status",

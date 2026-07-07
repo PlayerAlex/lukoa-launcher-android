@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TavernPathSettingsDialog(
     tavernPathConfig: TavernPathConfig,
+    currentPathInfo: TavernProfilePathInfo,
     tavernPathInput: String,
     tavernPortInput: String,
     tavernPathError: String?,
@@ -38,6 +39,9 @@ fun TavernPathSettingsDialog(
     onSelectProfile: (String) -> Unit,
     onAddProfile: () -> Unit,
     onRemoveCurrentProfile: () -> Unit,
+    onMigrateToManagedPath: () -> Unit,
+    onMigrateToTraditionalPath: () -> Unit,
+    onMigrateToCustomPath: () -> Unit,
     onSave: () -> Unit,
     onRestoreDefault: () -> Unit,
     onDismiss: () -> Unit,
@@ -63,8 +67,19 @@ fun TavernPathSettingsDialog(
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Text(
+                    text = "“保存当前实例”只会改启动器配置，不会搬动现有文件；下面的迁移按钮才会真的移动酒馆目录。",
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 MiniInfoLine("当前实例", tavernPathConfig.activeProfileLabel)
                 MiniInfoLine("实例数量", "${tavernPathConfig.availableProfiles.size}")
+                MiniInfoLine("当前路径类型", currentPathInfo.kind.label)
+                MiniInfoLine("托管默认目录", currentPathInfo.launcherManagedDefaultDisplayPath)
+                if (currentPathInfo.canMigrateToTraditionalDefault || currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                    MiniInfoLine("传统默认目录", currentPathInfo.traditionalDefaultDisplayPath)
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -114,7 +129,11 @@ fun TavernPathSettingsDialog(
                     )
                 } else if (tavernPathConfig.canRemoveActiveProfile) {
                     Text(
-                        text = "删除实例前会再确认一次。这里只会移除启动器里的实例配置，不会删除酒馆目录和备份。",
+                        text = if (currentPathInfo.canDeleteDirectoryWithProfile) {
+                            "当前分身正在使用它自己的托管默认目录。删除这个实例时，会连同这个目录里的酒馆文件一起删掉；备份库不会删。"
+                        } else {
+                            "删除实例前会再确认一次。当前只会移除启动器里的实例配置，不会删除酒馆目录和备份。"
+                        },
                         color = LukoaColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -125,7 +144,7 @@ fun TavernPathSettingsDialog(
                     enabled = !actionsLocked,
                     singleLine = true,
                     label = { Text("酒馆目录路径") },
-                    placeholder = { Text("~/SillyTavern-2") },
+                    placeholder = { Text(currentPathInfo.launcherManagedDefaultDisplayPath) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = lukoaTextFieldColors(),
@@ -143,6 +162,23 @@ fun TavernPathSettingsDialog(
                 )
                 MiniInfoLine("当前预览", displayPathPreview)
                 MiniInfoLine("当前端口", tavernPortInput.ifBlank { "未填写" })
+                Text(
+                    text = when (currentPathInfo.kind) {
+                        TavernProfilePathKind.LauncherManaged -> {
+                            "当前实例正在使用启动器托管目录。后续从启动器安装酒馆时，默认也会装到这类目录。"
+                        }
+
+                        TavernProfilePathKind.TraditionalDefault -> {
+                            "当前实例还在用传统默认目录 ~/SillyTavern。这个位置会继续兼容旧习惯，但新实例更推荐迁到托管目录。"
+                        }
+
+                        TavernProfilePathKind.Custom -> {
+                            "当前实例正在使用自定义目录。删除实例时不会自动删除这个目录，后续路径识别也会更依赖你自己确认。"
+                        }
+                    },
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 tavernPathError?.let { error ->
                     Text(
                         text = error,
@@ -175,6 +211,36 @@ fun TavernPathSettingsDialog(
                         onClick = onRestoreDefault,
                     )
                 }
+                DialogActionButton(
+                    text = if (currentPathInfo.kind == TavernProfilePathKind.LauncherManaged) {
+                        "当前已在托管目录"
+                    } else {
+                        "迁移到托管默认目录"
+                    },
+                    enabled = !actionsLocked && currentPathInfo.kind != TavernProfilePathKind.LauncherManaged,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onMigrateToManagedPath,
+                )
+                if (currentPathInfo.canMigrateToTraditionalDefault || currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                    DialogActionButton(
+                        text = if (currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                            "当前已在传统默认目录"
+                        } else {
+                            "迁移到传统默认目录"
+                        },
+                        enabled = !actionsLocked && currentPathInfo.kind != TavernProfilePathKind.TraditionalDefault,
+                        tone = ActionTone.Neutral,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onMigrateToTraditionalPath,
+                    )
+                }
+                DialogActionButton(
+                    text = "迁移到自定义地址",
+                    enabled = !actionsLocked,
+                    tone = ActionTone.Warning,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onMigrateToCustomPath,
+                )
                 DialogActionButton(
                     text = "关闭",
                     enabled = true,

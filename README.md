@@ -15,6 +15,7 @@
 - 启动、停止、检测 SillyTavern 状态
 - 同步 Termux 调用返回和运行日志
 - 新手引导、权限检查、Termux 唤醒
+- 按实例管理酒馆目录、端口，以及托管目录迁移
 - 酒馆版本读取、安装、更新、回退
 - 官方源 / 镜像源切换与可用性检测
 - 手动备份、自动备份、导入、导出、应用备份
@@ -94,7 +95,7 @@ gh auth status
 然后运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.8.24 -VersionCode 154
+powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.9.1-beta12 -VersionCode 185 -ReleaseNotes "这里写测试版公告" -PreRelease
 ```
 
 这个脚本会自动完成：

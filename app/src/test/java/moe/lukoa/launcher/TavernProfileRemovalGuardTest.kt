@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,5 +64,23 @@ class TavernProfileRemovalGuardTest {
         assertEquals(9002, confirmation.profilePort)
         assertEquals("主实例", confirmation.nextProfileName)
         assertEquals(1, confirmation.remainingProfileCount)
+        assertFalse(confirmation.deletesProfileDirectory)
+    }
+
+    @Test
+    fun `launcher managed clone removal marks directory deletion`() {
+        val config = TavernPathConfig().addSuggestedProfile()
+
+        val decision = TavernProfileRemovalGuard.evaluate(
+            config = config,
+            tavernRunning = false,
+            tavernStarting = false,
+            actionsLocked = false,
+        )
+
+        assertTrue(decision is TavernProfileRemovalDecision.Confirm)
+        val confirmation = (decision as TavernProfileRemovalDecision.Confirm).confirmation
+        assertTrue(confirmation.deletesProfileDirectory)
+        assertEquals("~/LukoaLauncher/SillyTavern2", confirmation.deletedDirectoryPath)
     }
 }

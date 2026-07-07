@@ -226,7 +226,7 @@ fun QuickStartGuideSection(
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Text(
-                            text = "默认会装到设置里的酒馆路径；没改过的话就是 ~/SillyTavern。",
+                            text = "默认会装到设置里的酒馆路径；没改过的话就是 ~/LukoaLauncher/SillyTavern。",
                             color = LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )

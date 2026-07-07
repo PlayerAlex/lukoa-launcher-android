@@ -239,7 +239,7 @@ fun ManualBackupConfirmDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "会生成到 Download/lukoa/backups/sd，包含酒馆、聊天、角色、插件、配置和密钥。",
+                    text = "会生成到 Download/LukoaLauncher/backups/sd，包含酒馆、聊天、角色、插件、配置和密钥。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -338,7 +338,7 @@ fun AutoBackupSettingsDialog(
                     onIncrease = onIncreaseKeep,
                 )
                 Text(
-                    text = "间隔范围 10 分钟到 12 小时。只清理 Download/lukoa/backups/zd 里最旧的自动备份。",
+                    text = "间隔范围 10 分钟到 12 小时。只清理 Download/LukoaLauncher/backups/zd 里最旧的自动备份。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -498,7 +498,7 @@ fun ApplyBackupPathDialog(
                     value = path,
                     onValueChange = onPathChange,
                     label = { Text("备份文件完整路径") },
-                    placeholder = { Text("/storage/emulated/0/Download/lukoa/backups/sd/xxx.tar.gz") },
+                    placeholder = { Text("/storage/emulated/0/Download/LukoaLauncher/backups/sd/xxx.tar.gz") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -1378,7 +1378,11 @@ fun DeleteTavernProfileConfirmDialog(
         onDismiss = onDismiss,
     ) {
         Text(
-            text = "会把这个实例从启动器配置里移除，并切换到另一个实例继续管理。",
+            text = if (confirmation.deletesProfileDirectory) {
+                "会把这个分身实例从启动器配置里移除，并删除它当前的托管酒馆目录，然后切换到另一个实例继续管理。"
+            } else {
+                "会把这个实例从启动器配置里移除，并切换到另一个实例继续管理。"
+            },
             color = LukoaColors.Text,
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -1397,6 +1401,9 @@ fun DeleteTavernProfileConfirmDialog(
                 VersionInfoLine("实例端口", confirmation.profilePort.toString())
                 VersionInfoLine("删除后切换到", confirmation.nextProfileName)
                 VersionInfoLine("删除后剩余", "${confirmation.remainingProfileCount} 个实例")
+                if (confirmation.deletesProfileDirectory && confirmation.deletedDirectoryPath.isNotBlank()) {
+                    VersionInfoLine("将删除目录", confirmation.deletedDirectoryPath)
+                }
             }
         }
         Surface(
@@ -1406,18 +1413,170 @@ fun DeleteTavernProfileConfirmDialog(
             border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
         ) {
             Text(
-                text = "这一步只会移除启动器里的实例配置，不会删除这个目录里的酒馆文件，也不会删除备份。",
+                text = if (confirmation.deletesProfileDirectory) {
+                    "这一步会删除实例配置，并删除这个托管目录里的酒馆文件。启动器备份库不会删，但这个目录下未备份的内容会一起消失。"
+                } else {
+                    "这一步只会移除启动器里的实例配置，不会删除这个目录里的酒馆文件，也不会删除备份。"
+                },
                 modifier = Modifier.padding(12.dp),
                 color = LukoaColors.Text,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Text(
-            text = "如果以后还想重新管理这个目录，可以再新建一个分身实例并把路径改回来。",
+            text = if (confirmation.deletesProfileDirectory) {
+                "如果以后还想重新管理这个位置，可以再新建一个分身实例；但这次删掉的目录内容不能自动恢复，建议先备份。"
+            } else {
+                "如果以后还想重新管理这个目录，可以再新建一个分身实例并把路径改回来。"
+            },
             color = LukoaColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
     }
+}
+
+@Composable
+fun TavernProfileMigrationConfirmDialog(
+    confirmation: TavernProfileMigrationConfirmation,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = "确认迁移酒馆目录",
+        titleTone = ActionTone.Warning,
+        confirmText = "确认迁移目录",
+        confirmTone = ActionTone.Warning,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "这一步会真的搬动当前实例的酒馆目录，不只是改启动器里的路径配置。迁移过程中不要再重复点启动、停止或删除实例。",
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("实例名称", confirmation.profileName)
+                VersionInfoLine("当前目录", confirmation.sourcePath)
+                VersionInfoLine("目标目录", confirmation.targetPath)
+                VersionInfoLine("目标类型", confirmation.targetKindLabel)
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+        ) {
+            Text(
+                text = confirmation.riskNote,
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text(
+            text = "如果你还没做过备份，建议先去备份页手动备份一次，再回来迁移。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+fun CustomTavernPathMigrationDialog(
+    currentPath: String,
+    pathInput: String,
+    pathError: String?,
+    actionsLocked: Boolean,
+    onPathChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        titleContentColor = LukoaColors.Amber,
+        textContentColor = LukoaColors.Text,
+        title = {
+            Text("迁移到自定义地址")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "这里填写的不是启动器推荐默认目录。迁移过去后，删除实例时不会自动帮你删这个目录，后续路径识别和风险判断也会更依赖你自己确认。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "当前目录：$currentPath",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = pathInput,
+                    onValueChange = onPathChange,
+                    enabled = !actionsLocked,
+                    singleLine = true,
+                    label = { Text("目标目录") },
+                    placeholder = { Text("~/my-sillytavern") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = LukoaColors.Text,
+                        unfocusedTextColor = LukoaColors.Text,
+                        disabledTextColor = LukoaColors.Dim,
+                        focusedContainerColor = LukoaColors.SurfaceAlt,
+                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
+                        disabledContainerColor = LukoaColors.Surface,
+                        focusedBorderColor = LukoaColors.Amber,
+                        unfocusedBorderColor = LukoaColors.Line,
+                        disabledBorderColor = LukoaColors.Line,
+                        focusedLabelColor = LukoaColors.Amber,
+                        unfocusedLabelColor = LukoaColors.Muted,
+                        cursorColor = LukoaColors.Amber,
+                    ),
+                )
+                Text(
+                    text = "如果目标目录里已经有旧文件，启动器会先把旧目录挪到安全备份名，再继续迁移。但这不是默认酒馆位置，后续问题需要你自己承担。",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                pathError?.let { error ->
+                    Text(
+                        text = error,
+                        color = LukoaColors.Danger,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                text = "继续确认",
+                enabled = !actionsLocked && pathError == null,
+                tone = ActionTone.Warning,
+                onClick = onConfirm,
+            )
+        },
+        dismissButton = {
+            DialogActionButton(
+                text = "取消",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
+    )
 }
 
 @Composable

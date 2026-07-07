@@ -147,9 +147,7 @@ object BackupHistoryReducer {
         if (normalized.contains("/lukoa/exports/")) return false
         if (normalized.contains("/lukoa-tavern-exports/")) return false
         if (normalized.contains("/lukoa-tavern-imports/")) return false
-        return normalized.contains("/lukoa/backups/sd/") ||
-            normalized.contains("/lukoa/backups/zd/") ||
-            normalized.contains("/.local/state/lukoa-launcher/backups/sd/") ||
-            normalized.contains("/.local/state/lukoa-launcher/backups/zd/")
+        return normalized.contains("/${BackupLibraryFiles.MANUAL_RELATIVE_DIR}/") ||
+            normalized.contains("/${BackupLibraryFiles.AUTO_RELATIVE_DIR}/")
     }
 }

@@ -7,6 +7,8 @@ data class TavernProfileRemovalConfirmation(
     val profilePort: Int,
     val nextProfileName: String,
     val remainingProfileCount: Int,
+    val deletesProfileDirectory: Boolean,
+    val deletedDirectoryPath: String,
 )
 
 sealed interface TavernProfileRemovalDecision {
@@ -47,6 +49,7 @@ object TavernProfileRemovalGuard {
         }
 
         val profile = config.activeProfile
+        val pathInfo = TavernProfilePathPolicy.describe(profile)
         val remainingProfiles = config.availableProfiles.filterNot { it.id == profile.id }
         val nextProfile = remainingProfiles.firstOrNull()
             ?: TavernProfileDefaults.profileForId(TavernProfileDefaults.MAIN_PROFILE_ID)
@@ -58,6 +61,12 @@ object TavernProfileRemovalGuard {
                 profilePort = profile.normalizedPort,
                 nextProfileName = nextProfile.normalizedName,
                 remainingProfileCount = remainingProfiles.size,
+                deletesProfileDirectory = pathInfo.canDeleteDirectoryWithProfile,
+                deletedDirectoryPath = if (pathInfo.canDeleteDirectoryWithProfile) {
+                    profile.displayTavernDir
+                } else {
+                    ""
+                },
             ),
         )
     }

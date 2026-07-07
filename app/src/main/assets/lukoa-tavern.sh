@@ -6,9 +6,10 @@ APP_NAME="lukoa-launcher"
 HOME_DIR="${LUKOA_HOME:-${HOME:-/data/data/com.termux/files/home}}"
 STATE_DIR="${LUKOA_STATE_DIR:-$HOME_DIR/.local/state/$APP_NAME}"
 CONFIG_FILE="${LUKOA_CONFIG_FILE:-$HOME_DIR/.config/$APP_NAME/config.env}"
-DEFAULT_TAVERN_DIR="$HOME_DIR/SillyTavern"
+LAUNCHER_TAVERN_ROOT_DIR="$HOME_DIR/LukoaLauncher"
+LEGACY_DEFAULT_TAVERN_DIR="$HOME_DIR/SillyTavern"
 TAVERN_PORT="${TAVERN_PORT:-8000}"
-BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_BACKUP_LIBRARY_RELATIVE_DIR:-lukoa/backups}"
+BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_BACKUP_LIBRARY_RELATIVE_DIR:-LukoaLauncher/backups}"
 MANUAL_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_MANUAL_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/sd}"
 AUTO_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_AUTO_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/zd}"
 
@@ -28,6 +29,36 @@ fi
 if [ -n "${LUKOA_TAVERN_PROFILE_ID:-}" ]; then
   TAVERN_PROFILE_ID="$LUKOA_TAVERN_PROFILE_ID"
 fi
+
+profile_slot_number() {
+  profile_id="${1:-main}"
+  if [ "$profile_id" = "main" ]; then
+    printf "1"
+    return 0
+  fi
+  slot="${profile_id#profile-}"
+  case "$slot" in
+    ''|*[!0-9]*) printf "2" ;;
+    *)
+      if [ "$slot" -lt 2 ]; then
+        printf "2"
+      else
+        printf "%s" "$slot"
+      fi
+      ;;
+  esac
+}
+
+launcher_managed_profile_dir() {
+  slot="$(profile_slot_number "${1:-${TAVERN_PROFILE_ID:-main}}")"
+  if [ "$slot" -le 1 ]; then
+    printf "%s/SillyTavern" "$LAUNCHER_TAVERN_ROOT_DIR"
+  else
+    printf "%s/SillyTavern%s" "$LAUNCHER_TAVERN_ROOT_DIR" "$slot"
+  fi
+}
+
+DEFAULT_TAVERN_DIR="$(launcher_managed_profile_dir "${TAVERN_PROFILE_ID:-main}")"
 
 sanitize_profile_state_key() {
   raw="${1:-main}"
@@ -160,10 +191,27 @@ collect_tavern_dir_candidates() {
   if [ "$DEFAULT_TAVERN_DIR" != "$TAVERN_DIR" ] && looks_like_tavern_dir "$DEFAULT_TAVERN_DIR"; then
     append_tavern_candidate "$DEFAULT_TAVERN_DIR"
   fi
+  if [ "$LEGACY_DEFAULT_TAVERN_DIR" != "$TAVERN_DIR" ] &&
+    [ "$LEGACY_DEFAULT_TAVERN_DIR" != "$DEFAULT_TAVERN_DIR" ] &&
+    looks_like_tavern_dir "$LEGACY_DEFAULT_TAVERN_DIR"; then
+    append_tavern_candidate "$LEGACY_DEFAULT_TAVERN_DIR"
+  fi
+  if [ -d "$LAUNCHER_TAVERN_ROOT_DIR" ]; then
+    for candidate in "$LAUNCHER_TAVERN_ROOT_DIR"/SillyTavern*; do
+      [ -d "$candidate" ] || continue
+      [ "$candidate" != "$TAVERN_DIR" ] || continue
+      [ "$candidate" != "$DEFAULT_TAVERN_DIR" ] || continue
+      [ "$candidate" != "$LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+      looks_like_tavern_dir "$candidate" || continue
+      append_tavern_candidate "$candidate"
+    done
+  fi
   for candidate in "$HOME_DIR"/*; do
     [ -d "$candidate" ] || continue
     [ "$candidate" != "$TAVERN_DIR" ] || continue
     [ "$candidate" != "$DEFAULT_TAVERN_DIR" ] || continue
+    [ "$candidate" != "$LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+    [ "$candidate" != "$LAUNCHER_TAVERN_ROOT_DIR" ] || continue
     looks_like_tavern_dir "$candidate" || continue
     append_tavern_candidate "$candidate"
   done
@@ -1507,12 +1555,9 @@ backup_dir() {
   downloads_root="$(shared_download_dir || true)"
   if [ -n "$downloads_root" ]; then
     printf "%s/%s" "$downloads_root" "$relative_dir"
-  else
-    case "${1:-${BACKUP_KIND:-manual}}" in
-      auto) printf "%s/backups/zd" "$STATE_DIR" ;;
-      *) printf "%s/backups/sd" "$STATE_DIR" ;;
-    esac
+    return 0
   fi
+  return 1
 }
 
 backup_library_dirs() {
@@ -1522,8 +1567,6 @@ backup_library_dirs() {
   printf "%s/%s\n" "/storage/emulated/0/Download" "$AUTO_BACKUP_LIBRARY_RELATIVE_DIR"
   printf "%s/%s\n" "/sdcard/Download" "$MANUAL_BACKUP_LIBRARY_RELATIVE_DIR"
   printf "%s/%s\n" "/sdcard/Download" "$AUTO_BACKUP_LIBRARY_RELATIVE_DIR"
-  printf "%s\n" "$STATE_DIR/backups/sd"
-  printf "%s\n" "$STATE_DIR/backups/zd"
 }
 
 emit_backup_library_dirs() {
@@ -1771,7 +1814,16 @@ cmd_backup() {
     return 69
   fi
 
-  BACKUP_DIR="$(backup_dir)"
+  if ! BACKUP_DIR="$(backup_dir)"; then
+    write_status "error" "Termux storage is not ready. Run termux-setup-storage before creating backups." false 73
+    cat "$STATUS_FILE"
+    printf "\n==== backup storage permission ====\n"
+    printf "error=termux-storage-permission\n"
+    printf "fix.command=termux-setup-storage\n"
+    printf "fix.steps=Open Termux, run termux-setup-storage, allow storage permission, then retry.\n"
+    printf "==== end backup storage permission ====\n"
+    return 73
+  fi
   if ! mkdir -p "$BACKUP_DIR"; then
     write_status "error" "failed to create backup directory: $BACKUP_DIR" false 73
     emit_status
@@ -1997,9 +2049,6 @@ cmd_backup() {
     fi
   fi
   [ -n "${size:-}" ] && printf "size=%s\n" "$size"
-  if [ "$BACKUP_DIR" = "$STATE_DIR/backups/sd" ] || [ "$BACKUP_DIR" = "$STATE_DIR/backups/zd" ] || [ "$BACKUP_DIR" = "$STATE_DIR/backups" ]; then
-    printf "notice=Termux storage is not available. Run termux-setup-storage if you want backups in Android Downloads.\n"
-  fi
   printf "\n==== verified important paths ====\n"
   if [ -s "$expected_file" ]; then
     cat "$expected_file"
@@ -2020,15 +2069,13 @@ cmd_backup() {
 
 cmd_backup_list() {
   write_command "backup-list"
-  MANUAL_BACKUP_DIR="$(backup_dir manual)"
-  AUTO_BACKUP_DIR="$(backup_dir auto)"
-  PRIVATE_BACKUP_DIR="$STATE_DIR/backups"
+  MANUAL_BACKUP_DIR="$(backup_dir manual || true)"
+  AUTO_BACKUP_DIR="$(backup_dir auto || true)"
   write_status "backup-list" "SillyTavern backup directories listed" "$(tavern_running_value)" 0
   cat "$STATUS_FILE"
   printf "\n==== SillyTavern backups ====\n"
   printf "manualDir=%s\n" "$MANUAL_BACKUP_DIR"
   printf "autoDir=%s\n" "$AUTO_BACKUP_DIR"
-  printf "privateDir=%s\n" "$PRIVATE_BACKUP_DIR"
   seen_dirs="|"
   for dir in $(backup_library_dirs); do
     dir_key="$(canonical_existing_path "$dir")"
@@ -2873,6 +2920,166 @@ cmd_restore() {
   printf "==== end SillyTavern restore ====\n"
 }
 
+cmd_migrate_dir() {
+  write_command "migrate-dir"
+  target="${1:-}"
+  if [ -z "$target" ]; then
+    write_status "error" "No target directory was provided for migration" false 64
+    emit_status
+    return 64
+  fi
+
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before migrating its directory" true 77
+    emit_status
+    return 77
+  fi
+
+  if [ ! -d "$TAVERN_DIR" ]; then
+    collect_tavern_dir_candidates
+    write_tavern_dir_error
+    cat "$STATUS_FILE"
+    emit_tavern_dir_candidates
+    return "$(missing_tavern_dir_exit_code)"
+  fi
+
+  target="$(expand_launcher_path "$target")"
+  source_canon="$(canonical_existing_path "$TAVERN_DIR")"
+  target_canon="$(canonical_existing_path "$target")"
+  if [ "$source_canon" = "$target_canon" ]; then
+    write_status "error" "Migration target matches the current SillyTavern directory" false 64
+    emit_status
+    return 64
+  fi
+  if path_is_inside "$target" "$TAVERN_DIR" || path_is_inside "$TAVERN_DIR" "$target"; then
+    write_status "error" "Migration target cannot contain the current SillyTavern directory, and the current directory cannot contain the target" false 73
+    emit_status
+    return 73
+  fi
+
+  target_parent="$(dirname "$target")"
+  if ! mkdir -p "$target_parent"; then
+    write_status "error" "Failed to create the migration target parent directory" false 73
+    emit_status
+    return 73
+  fi
+
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  error_file="$STATE_DIR/migrate-error.log"
+  rm -f "$error_file"
+  : > "$error_file"
+  replaced_dir="none"
+  if [ -e "$target" ]; then
+    replaced_dir="$target.lukoa-before-migrate-$stamp"
+    if ! mv "$target" "$replaced_dir" 2>>"$error_file"; then
+      write_status "error" "Failed to move the existing target directory aside before migration" false 74
+      cat "$STATUS_FILE"
+      printf "\n==== SillyTavern directory migration ====\n"
+      printf "migrated.from=%s\n" "$TAVERN_DIR"
+      printf "migrated.to=%s\n" "$target"
+      printf "replaced.previous=%s\n" "$target"
+      printf "==== migration error ====\n"
+      cat "$error_file" 2>/dev/null || true
+      printf "==== end SillyTavern directory migration ====\n"
+      return 74
+    fi
+  fi
+
+  if ! mv "$TAVERN_DIR" "$target" 2>>"$error_file"; then
+    [ "$replaced_dir" != "none" ] && [ -e "$replaced_dir" ] && mv "$replaced_dir" "$target" 2>/dev/null || true
+    write_status "error" "Failed to place SillyTavern at the migration target; the original target was restored if possible" false 74
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern directory migration ====\n"
+    printf "migrated.from=%s\n" "$TAVERN_DIR"
+    printf "migrated.to=%s\n" "$target"
+    printf "replaced.previous=%s\n" "$replaced_dir"
+    printf "==== migration error ====\n"
+    cat "$error_file" 2>/dev/null || true
+    printf "==== end SillyTavern directory migration ====\n"
+    return 74
+  fi
+
+  write_status "migrated" "SillyTavern directory migrated successfully" false 0
+  cat "$STATUS_FILE"
+  printf "\n==== SillyTavern directory migration ====\n"
+  printf "migrated.from=%s\n" "$TAVERN_DIR"
+  printf "migrated.to=%s\n" "$target"
+  printf "replaced.previous=%s\n" "$replaced_dir"
+  printf "notice=If the target had old files, they were moved aside before this migration.\n"
+  printf "==== end SillyTavern directory migration ====\n"
+}
+
+cmd_delete_managed_profile_dir() {
+  write_command "delete-managed-profile-dir"
+  if [ "${TAVERN_PROFILE_ID:-main}" = "main" ]; then
+    write_status "error" "Main profile directory cannot be deleted by this command" false 73
+    emit_status
+    return 73
+  fi
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before deleting this profile directory" true 77
+    emit_status
+    return 77
+  fi
+
+  expected_dir="$(launcher_managed_profile_dir "${TAVERN_PROFILE_ID:-main}")"
+  expected_dir="$(expand_launcher_path "$expected_dir")"
+  current_canon="$(canonical_existing_path "$TAVERN_DIR")"
+  expected_canon="$(canonical_existing_path "$expected_dir")"
+  if [ "$current_canon" != "$expected_canon" ]; then
+    write_status "error" "Only launcher-managed default profile directories can be deleted with the instance" false 73
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "current.profileDir=%s\n" "$TAVERN_DIR"
+    printf "expected.profileDir=%s\n" "$expected_dir"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 73
+  fi
+  if ! path_is_inside "$expected_dir" "$LAUNCHER_TAVERN_ROOT_DIR"; then
+    write_status "error" "Refusing to delete a directory outside the launcher-managed root" false 73
+    emit_status
+    return 73
+  fi
+
+  existed=0
+  if [ ! -e "$expected_dir" ]; then
+    write_status "deleted-profile-dir" "Launcher-managed profile directory was already missing" false 0
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "deleted.profileDir=%s\n" "$expected_dir"
+    printf "deleted.existed=%s\n" "$existed"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 0
+  fi
+
+  existed=1
+  parent="$(dirname "$expected_dir")"
+  base="$(basename "$expected_dir")"
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  staging_dir="$parent/$base.lukoa-delete-$stamp"
+  if ! mv "$expected_dir" "$staging_dir"; then
+    write_status "error" "Failed to move the launcher-managed profile directory aside before deletion" false 74
+    emit_status
+    return 74
+  fi
+  if ! rm -rf "$staging_dir"; then
+    write_status "error" "The profile directory was moved aside, but final deletion failed; remove it manually before trying again" false 74
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "deleted.profileDir=%s\n" "$expected_dir"
+    printf "deleted.staging=%s\n" "$staging_dir"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 74
+  fi
+
+  write_status "deleted-profile-dir" "Launcher-managed profile directory deleted successfully" false 0
+  cat "$STATUS_FILE"
+  printf "\n==== SillyTavern managed profile delete ====\n"
+  printf "deleted.profileDir=%s\n" "$expected_dir"
+  printf "deleted.existed=%s\n" "$existed"
+  printf "==== end SillyTavern managed profile delete ====\n"
+}
+
 cmd_restart() {
   old_quiet="${LUKOA_QUIET:-0}"
   LUKOA_QUIET=1
@@ -2969,6 +3176,13 @@ main() {
     restore|tavern-restore)
       shift
       cmd_restore "$@"
+      ;;
+    migrate-dir|tavern-migrate-dir)
+      shift
+      cmd_migrate_dir "$@"
+      ;;
+    delete-managed-profile-dir|tavern-delete-managed-profile-dir)
+      cmd_delete_managed_profile_dir
       ;;
     *)
       write_status "error" "unknown command: $command" false 64
