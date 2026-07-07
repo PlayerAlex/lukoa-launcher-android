@@ -32,6 +32,8 @@
 
 - `app/`
   Android 主工程
+- `docs/`
+  项目管理资料、AI 交接资料和仓库结构文档
 - `app/src/main/java/moe/lukoa/launcher/`
   启动器界面、状态管理、Termux 调用、备份和版本管理逻辑
 - `app/src/main/assets/lukoa-tavern.sh`
@@ -42,6 +44,15 @@
   自动构建、打 tag、推送并发布 GitHub Release
 - `generate-release-notes.ps1`
   生成 release 公告
+
+## 文档导航
+
+- `docs/README.md`
+  文档总入口
+- `docs/project-management/`
+  项目管理、版本记录、兼容性测试、AI 新对话交接
+- `docs/development/repository-map.md`
+  仓库结构与关键入口说明
 
 ## 项目管理资料
 
