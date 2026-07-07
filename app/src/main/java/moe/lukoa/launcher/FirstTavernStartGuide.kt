@@ -32,10 +32,18 @@ object FirstTavernStartGuideResolver {
         tavernRunning: Boolean,
         termuxLog: String,
         appLog: String,
+        guideKind: FirstTavernStartGuideKind? = null,
+        termuxBackgroundRunPermissionGranted: Boolean = false,
     ): Boolean {
         if (alreadyShown) return false
         if (tavernInstallDetected != true) return false
         if (tavernRunning) return false
+        if (
+            guideKind == FirstTavernStartGuideKind.IQooBackgroundPermission &&
+            termuxBackgroundRunPermissionGranted
+        ) {
+            return false
+        }
         return !hasSuccessfulStartHistory(termuxLog, appLog)
     }
 
@@ -51,8 +59,12 @@ object FirstTavernStartGuideResolver {
 
     private val successfulStartMarkers = listOf(
         "SillyTavern is listening on",
-        "SillyTavern HTTP endpoint is responding",
+        "HTTP endpoint is responding",
         "Go to: http://127.0.0.1:8000/",
         "Go to: http://localhost:8000/",
+        "检测到酒馆正在运行",
+        "酒馆正在运行",
+        "酒馆已经在运行",
+        "酒馆网页可访问",
     )
 }

@@ -79,7 +79,7 @@ fun LukoaLauncherScreen(
     onRefreshLogs: ((String, Boolean) -> Unit) -> Unit,
     onForegroundStart: (LauncherUpdate) -> Unit,
     onOpenTavern: (LauncherUpdate) -> Unit,
-    onWakeTermux: (Long) -> Boolean,
+    onWakeTermux: (Long) -> TermuxWakeResult,
     onOpenTermuxOnly: () -> Boolean,
     onCheckTermuxInstalled: () -> Boolean,
     onCheckRunCommandPermission: () -> Boolean,
@@ -374,6 +374,8 @@ fun LukoaLauncherScreen(
                 tavernRunning = tavernRunning,
                 termuxLog = termuxLog,
                 appLog = appLog,
+                guideKind = firstTavernStartGuide.kind,
+                termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
             )
         ) {
             return false
@@ -3075,15 +3077,15 @@ fun LukoaLauncherScreen(
                     }
 
                     FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> {
-                        val opened = onOpenTermuxOnly()
+                        val result = onWakeTermux(maxOf(termuxReturnDelayMs, 1_500L))
                         update(
-                            if (opened) {
-                                "已打开 Termux。请先把 Termux 挂到小窗或分屏，再回启动器继续启动酒馆。"
+                            if (result.ok) {
+                                "${result.message}\n回来后确认 Termux 没被系统关掉，再点“继续启动”。"
                             } else {
-                                "没找到 Termux。请先安装并打开一次 Termux。"
+                                result.message
                             },
                             "",
-                            opened,
+                            result.ok,
                             allowRunningInference = false,
                         )
                     }
@@ -3615,13 +3617,12 @@ fun LukoaLauncherScreen(
                                 },
                                 onWakeTermux = {
                                     if (beginBusy("唤醒 Termux", 6000L)) {
-                                        val woke = onWakeTermux(termuxReturnDelayMs)
+                                        val result = onWakeTermux(termuxReturnDelayMs)
                                         releaseBusy()
                                         update(
-                                            if (woke) "已唤醒 Termux。"
-                                            else "唤醒失败：没找到 Termux。",
+                                            result.message,
                                             "",
-                                            woke,
+                                            result.ok,
                                         )
                                     }
                                 },

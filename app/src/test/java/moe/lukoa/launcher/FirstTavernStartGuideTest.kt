@@ -42,6 +42,21 @@ class FirstTavernStartGuideTest {
     }
 
     @Test
+    fun `should skip iqoo background guide when termux background is already granted`() {
+        assertFalse(
+            FirstTavernStartGuideResolver.shouldShow(
+                alreadyShown = false,
+                tavernInstallDetected = true,
+                tavernRunning = false,
+                termuxLog = "",
+                appLog = "",
+                guideKind = FirstTavernStartGuideKind.IQooBackgroundPermission,
+                termuxBackgroundRunPermissionGranted = true,
+            ),
+        )
+    }
+
+    @Test
     fun `should not show after successful launch history exists`() {
         assertFalse(
             FirstTavernStartGuideResolver.shouldShow(
@@ -49,6 +64,32 @@ class FirstTavernStartGuideTest {
                 tavernInstallDetected = true,
                 tavernRunning = false,
                 termuxLog = "SillyTavern is listening on IPv4: 127.0.0.1:8000",
+                appLog = "",
+            ),
+        )
+    }
+
+    @Test
+    fun `should not show after app has summarized a successful launch`() {
+        assertFalse(
+            FirstTavernStartGuideResolver.shouldShow(
+                alreadyShown = false,
+                tavernInstallDetected = true,
+                tavernRunning = false,
+                termuxLog = "",
+                appLog = "检测到酒馆正在运行。",
+            ),
+        )
+    }
+
+    @Test
+    fun `should not show after already running endpoint status`() {
+        assertFalse(
+            FirstTavernStartGuideResolver.shouldShow(
+                alreadyShown = false,
+                tavernInstallDetected = true,
+                tavernRunning = false,
+                termuxLog = "SillyTavern is already running and HTTP endpoint is responding",
                 appLog = "",
             ),
         )

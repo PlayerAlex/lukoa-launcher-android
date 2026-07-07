@@ -147,7 +147,11 @@ object LauncherHealthCheck {
                 } else {
                     LauncherHealthItem(
                         title = "系统权限",
-                        detail = "还有这些权限没准备好：${extraPermissionWarnings.joinToString("、")}。",
+                        detail = buildString {
+                            append("还有这些权限没准备好：")
+                            append(extraPermissionWarnings.joinToString("、"))
+                            append("。首次启动酒馆、长任务、自动备份和前台日志同步切到后台后更容易被系统打断。")
+                        },
                         level = LauncherHealthLevel.Warning,
                     )
                 },

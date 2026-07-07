@@ -60,7 +60,7 @@ object PermissionStatusSummary {
             append(pendingItems.joinToString("、"))
             append("。")
             if (backgroundPending.isNotEmpty()) {
-                append(" 长任务、自动备份和前台日志同步切到后台后更容易被系统打断。")
+                append(" 首次启动酒馆、长任务、自动备份和前台日志同步切到后台后更容易被系统打断。")
             }
             append(" 点下方查看权限详情后，按顺序补齐即可。")
         }
@@ -90,9 +90,9 @@ object PermissionStatusSummary {
                 "后台常驻还没完全放行"
             }
             val detail = if (backgroundTargets.size == 1) {
-                "${backgroundTargets.first()} 还可能被系统省电限制。长任务、自动备份或前台日志同步切到后台后更容易中断。"
+                "${backgroundTargets.first()} 还可能被系统省电限制。首次启动酒馆、长任务、自动备份或前台日志同步切到后台后更容易中断。"
             } else {
-                "露科亚启动器和 Termux 都还可能被系统省电限制。长任务、自动备份或前台日志同步切到后台后更容易中断。"
+                "露科亚启动器和 Termux 都还可能被系统省电限制。首次启动酒馆、长任务、自动备份或前台日志同步切到后台后更容易中断。"
             }
             return PermissionStatusNotice(
                 title = title,

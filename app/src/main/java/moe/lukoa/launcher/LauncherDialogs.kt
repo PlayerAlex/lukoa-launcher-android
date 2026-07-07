@@ -776,11 +776,11 @@ fun FirstTavernStartGuideDialog(
             "不然系统更容易在后台把 Termux 停掉，安装、启动和日志同步都可能中断。点下面按钮可直接去给 Termux 授权。"
 
         FirstTavernStartGuideKind.KeepTermuxInSmallWindow ->
-            "看到 Termux 已经开始刷安装或启动日志后，再回启动器等待即可。这样首次启动更不容易突然断掉。"
+            "启动器会先打开 Termux，再自动回到启动器。如果系统没有保住 Termux，请手动把 Termux 挂到小窗或分屏后再继续启动。"
     }
     val primaryLabel = when (guide.kind) {
         FirstTavernStartGuideKind.IQooBackgroundPermission -> "给 Termux 开后台"
-        FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> "打开 Termux"
+        FirstTavernStartGuideKind.KeepTermuxInSmallWindow -> "唤醒 Termux 并返回"
     }
 
     AlertDialog(

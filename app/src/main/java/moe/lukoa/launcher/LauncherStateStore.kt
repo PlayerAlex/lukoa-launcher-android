@@ -137,6 +137,13 @@ class LauncherStateStore(private val context: Context) {
         )
     }
 
+    fun readTermuxReturnDelayMs(): Long {
+        val defaults = defaultLauncherState(isTermuxInstalled = true)
+        val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+        return prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
+            .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
+    }
+
     @SuppressLint("ApplySharedPref")
     fun saveAutoBackupConfig(enabled: Boolean, intervalMinutes: Int, keepCount: Int) {
         val safeIntervalMinutes = intervalMinutes.coerceIn(

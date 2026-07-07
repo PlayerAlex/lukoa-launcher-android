@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
     private var termuxWakeInProgress = false
     private var termuxWakeScheduled = false
     private var lastTermuxWakeAt = 0L
+    private var lastResumeTermuxWakeAt = 0L
+    private var hasCompletedInitialResume = false
     private var pendingBackupImportCallback: ((ExternalBackupImportResult) -> Unit)? = null
     private var pendingBackupExportRequest: PendingBackupExportRequest? = null
     private val backupFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -273,6 +275,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideStatusBar()
+        maybeWakeTermuxAfterForegroundResume()
+        hasCompletedInitialResume = true
     }
 
     override fun onDestroy() {
@@ -305,6 +309,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun maybeWakeTermuxAfterForegroundResume() {
+        if (!::runner.isInitialized || !::stateStore.isInitialized) return
+        val termuxInstalled = runner.isTermuxInstalled()
+        val now = System.currentTimeMillis()
+        val shouldWake = TermuxWakePolicy.shouldWakeOnForegroundResume(
+            hasCompletedInitialResume = hasCompletedInitialResume,
+            termuxInstalled = termuxInstalled,
+            runCommandPermissionGranted = termuxInstalled && runner.hasRunCommandPermission(),
+            termuxBackgroundRunPermissionGranted = termuxInstalled &&
+                BackgroundRunAccess.isTermuxGranted(applicationContext),
+            wakeInProgress = termuxWakeInProgress,
+            wakeScheduled = termuxWakeScheduled,
+            nowMillis = now,
+            lastWakeAtMillis = lastTermuxWakeAt,
+            lastResumeWakeAtMillis = lastResumeTermuxWakeAt,
+            wakeCooldownMs = TERMUX_WAKE_COOLDOWN_MS,
+            resumeWakeCooldownMs = TERMUX_RESUME_WAKE_COOLDOWN_MS,
+        )
+        if (!shouldWake) return
+
+        lastResumeTermuxWakeAt = now
+        scheduleAutoWakeTermux(stateStore.readTermuxReturnDelayMs())
+    }
+
     private fun scheduleAutoWakeTermux(returnDelayMs: Long) {
         if (!::controller.isInitialized || termuxWakeInProgress || termuxWakeScheduled) return
         val now = System.currentTimeMillis()
@@ -318,16 +346,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun wakeTermuxWithReturn(auto: Boolean, returnDelayMs: Long): Boolean {
-        if (!::controller.isInitialized) return false
-        if (!runner.isTermuxInstalled()) return false
+    private fun wakeTermuxWithReturn(auto: Boolean, returnDelayMs: Long): TermuxWakeResult {
+        if (!::controller.isInitialized) {
+            return TermuxWakeResult(
+                ok = false,
+                message = "启动器还在准备 Termux 控制器，请稍后再试。",
+            )
+        }
+        if (!runner.isTermuxInstalled()) {
+            return TermuxWakeResult(
+                ok = false,
+                message = "唤醒失败：没找到 Termux，请先安装并打开一次。",
+            )
+        }
         val now = System.currentTimeMillis()
         if (termuxWakeInProgress || termuxWakeScheduled || now - lastTermuxWakeAt < TERMUX_WAKE_COOLDOWN_MS) {
-            return true
+            return TermuxWakeResult(
+                ok = true,
+                message = "刚刚已经安排过一次 Termux 唤醒，避免重复跳转。",
+            )
         }
         if (!stateStore.claimTermuxWakeSlot(now)) {
             lastTermuxWakeAt = now
-            return true
+            return TermuxWakeResult(
+                ok = true,
+                message = "刚刚已经触发过 Termux 唤醒，稍等几秒再试。",
+            )
         }
 
         termuxWakeInProgress = true
@@ -340,7 +384,21 @@ class MainActivity : ComponentActivity() {
         if (!woke) {
             termuxWakeInProgress = false
         }
-        return woke
+        return if (woke) {
+            TermuxWakeResult(
+                ok = true,
+                message = if (auto) {
+                    "已自动唤醒 Termux，稍后会回到启动器。"
+                } else {
+                    "已唤醒 Termux，稍后会自动回到启动器。"
+                },
+            )
+        } else {
+            TermuxWakeResult(
+                ok = false,
+                message = "唤醒失败：系统没有成功打开 Termux，请手动打开 Termux。",
+            )
+        }
     }
 
     private fun pickExternalBackup(callback: (ExternalBackupImportResult) -> Unit) {
@@ -605,7 +663,8 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val REQUEST_RUN_COMMAND_PERMISSION = 4001
-        const val TERMUX_WAKE_COOLDOWN_MS = 12_000L
+        const val TERMUX_WAKE_COOLDOWN_MS = TermuxWakePolicy.DEFAULT_WAKE_COOLDOWN_MS
+        const val TERMUX_RESUME_WAKE_COOLDOWN_MS = TermuxWakePolicy.DEFAULT_RESUME_WAKE_COOLDOWN_MS
         const val TERMUX_WAKE_GUARD_MS = 4_000L
     }
 }
