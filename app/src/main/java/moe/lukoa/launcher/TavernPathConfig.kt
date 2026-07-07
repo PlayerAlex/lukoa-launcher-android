@@ -157,6 +157,7 @@ data class TavernPathSaveResult(
 object TavernPathDefaults {
     const val DEFAULT_TAVERN_DIR = "~/SillyTavern"
     const val DEFAULT_TAVERN_DIR_NORMALIZED = "\$HOME/SillyTavern"
+    const val TERMUX_HOME_DIR = "/data/data/com.termux/files/home"
 }
 
 object TavernPortDefaults {
@@ -242,7 +243,11 @@ object TavernPathNormalizer {
     }
 
     fun toDisplayPath(value: String): String {
-        return value.replace("\$HOME/", "~/").replace("\$HOME", "~")
+        return value
+            .replace("\$HOME/", "~/")
+            .replace("\$HOME", "~")
+            .replace("${TavernPathDefaults.TERMUX_HOME_DIR}/", "~/")
+            .replace(TavernPathDefaults.TERMUX_HOME_DIR, "~")
     }
 }
 

@@ -112,7 +112,19 @@ looks_like_tavern_dir() {
   [ -n "$dir" ] || return 1
   [ -d "$dir" ] || return 1
   [ -f "$dir/package.json" ] || return 1
-  if [ -f "$dir/start.sh" ] || [ -f "$dir/server.js" ]; then
+  if [ ! -f "$dir/start.sh" ] && [ ! -f "$dir/server.js" ]; then
+    return 1
+  fi
+  if grep -qi '"name"[[:space:]]*:[[:space:]]*"sillytavern"' "$dir/package.json" 2>/dev/null; then
+    return 0
+  fi
+  if grep -qi 'SillyTavern' "$dir/package.json" 2>/dev/null; then
+    return 0
+  fi
+  if [ -f "$dir/public/index.html" ] && [ -d "$dir/default" ]; then
+    return 0
+  fi
+  if [ -f "$dir/public/index.html" ] && [ -d "$dir/plugins" ]; then
     return 0
   fi
   return 1

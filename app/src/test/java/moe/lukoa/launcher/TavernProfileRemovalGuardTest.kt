@@ -59,7 +59,7 @@ class TavernProfileRemovalGuardTest {
         val confirmation = (decision as TavernProfileRemovalDecision.Confirm).confirmation
         assertEquals("profile-2", confirmation.profileId)
         assertEquals("分身实例", confirmation.profileName)
-        assertEquals("/data/data/com.termux/files/home/custom-clone", confirmation.profilePath)
+        assertEquals("~/custom-clone", confirmation.profilePath)
         assertEquals(9002, confirmation.profilePort)
         assertEquals("主实例", confirmation.nextProfileName)
         assertEquals(1, confirmation.remainingProfileCount)

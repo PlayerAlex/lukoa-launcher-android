@@ -3,8 +3,10 @@ package moe.lukoa.launcher
 import android.content.Context
 import android.content.Intent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class TermuxResultDisplay(
     val key: String,
@@ -213,13 +215,22 @@ class TavernController(
         }
     }
 
-    fun exportDiagnostic(snapshot: DiagnosticSnapshot, update: LauncherUpdate) {
-        try {
-            val file = DiagnosticLogExporter.export(context, snapshot)
-            SharedFileSender.shareTextFile(context, file, "导出诊断日志", "露科亚启动器诊断日志")
-            update("已生成诊断日志：${file.name}", "", true)
-        } catch (error: Exception) {
-            update("导出诊断日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+    fun exportDiagnostic(scope: CoroutineScope, snapshot: DiagnosticSnapshot, update: LauncherUpdate) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { DiagnosticLogExporter.export(context, snapshot) }
+            }
+            result.onSuccess { file ->
+                runCatching {
+                    SharedFileSender.shareTextFile(context, file, "导出诊断日志", "露科亚启动器诊断日志")
+                }.onSuccess {
+                    update("已生成诊断日志：${file.name}", "", true)
+                }.onFailure { error ->
+                    update("导出诊断日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+                }
+            }.onFailure { error ->
+                update("导出诊断日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+            }
         }
     }
 

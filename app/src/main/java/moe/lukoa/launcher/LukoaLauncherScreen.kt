@@ -279,7 +279,7 @@ fun LukoaLauncherScreen(
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showInstallRiskDialog by remember { mutableStateOf(false) }
     var showTavernDirectoryChoiceDialog by remember { mutableStateOf(false) }
-    var tavernDirectoryCandidates by remember { mutableStateOf<List<String>>(emptyList()) }
+    var tavernDirectoryCandidates by remember { mutableStateOf<List<TavernDirectoryCandidateOption>>(emptyList()) }
     var pendingFirstTavernStartGuide by remember { mutableStateOf<FirstTavernStartGuide?>(null) }
     var githubUpdateState by remember {
         mutableStateOf(
@@ -395,19 +395,21 @@ fun LukoaLauncherScreen(
             text.contains("SillyTavern 目录不存在")
     }
 
-    fun maybePromptTavernDirectoryChoice(text: String) {
-        if (text.isBlank() || !hasTavernDirectoryMissingSignal(text)) return
-        val candidates = TavernDirectoryCandidateParser.parse(text)
-            .filter { it.isNotBlank() }
-            .distinct()
-        if (candidates.isEmpty()) return
-        tavernDirectoryCandidates = candidates
+    fun openTavernDirectoryChoice(candidates: List<String>) {
+        val resolved = TavernDirectoryCandidateGuard.resolve(tavernPathConfig, candidates)
+        if (resolved.isEmpty()) return
+        tavernDirectoryCandidates = resolved
         showTavernDirectoryChoiceDialog = true
     }
 
     fun dismissTavernDirectoryChoiceDialog() {
         showTavernDirectoryChoiceDialog = false
         tavernDirectoryCandidates = emptyList()
+    }
+
+    fun maybePromptTavernDirectoryChoice(text: String) {
+        if (text.isBlank() || !hasTavernDirectoryMissingSignal(text)) return
+        openTavernDirectoryChoice(TavernDirectoryCandidateParser.parse(text))
     }
 
     fun inferTavernInstalledFromOutput(newStatus: String, termuxOutput: String): Boolean? {
@@ -1300,7 +1302,10 @@ fun LukoaLauncherScreen(
             healthCheckReport = healthCheckReport,
             issueAnalysis = issueAnalysis,
         )
-        onExportDiagnostic(snapshot, ::update)
+        update("正在生成诊断日志。日志较大时会稍等一会儿，但不该再把界面卡死。", "", true, allowRunningInference = false)
+        onExportDiagnostic(snapshot) { newStatus, termuxOutput, ok ->
+            update(newStatus, termuxOutput, ok, allowRunningInference = false)
+        }
     }
 
     fun replaceBackupHistory(paths: List<String>): List<String> {
@@ -2138,6 +2143,13 @@ fun LukoaLauncherScreen(
     }
 
     fun chooseDetectedTavernDirectory(path: String) {
+        tavernDirectoryCandidates
+            .firstOrNull { it.path == path }
+            ?.takeIf { !it.selectable }
+            ?.let { blocked ->
+                update(blocked.reason.ifBlank { "这个目录当前不能直接分配给这个实例。" }, "", false, allowRunningInference = false)
+                return
+            }
         dismissTavernDirectoryChoiceDialog()
         saveTavernPathConfig(path)
     }
@@ -2733,8 +2745,7 @@ fun LukoaLauncherScreen(
                     selectedTab = LauncherTab.Settings
                     update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
                 } else {
-                    tavernDirectoryCandidates = candidates
-                    showTavernDirectoryChoiceDialog = true
+                    openTavernDirectoryChoice(candidates)
                 }
             }
 
@@ -2935,8 +2946,7 @@ fun LukoaLauncherScreen(
                     selectedTab = LauncherTab.Settings
                     update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
                 } else {
-                    tavernDirectoryCandidates = candidates
-                    showTavernDirectoryChoiceDialog = true
+                    openTavernDirectoryChoice(candidates)
                 }
             }
 

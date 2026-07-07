@@ -1508,7 +1508,7 @@ fun TavernVersionActionConfirmDialog(
 @Composable
 fun TavernDirectoryChoiceDialog(
     currentPath: String,
-    candidates: List<String>,
+    candidates: List<TavernDirectoryCandidateOption>,
     onChoose: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1522,13 +1522,18 @@ fun TavernDirectoryChoiceDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val selectableCount = candidates.count { it.selectable }
                 Text(
-                    text = "检测到多个酒馆目录。点一个，启动器会自动切过去。",
+                    text = if (selectableCount > 0) {
+                        "检测到多个像酒馆的目录。点一个可用目录，启动器会把当前实例切过去。"
+                    } else {
+                        "检测到的目录里，没有可直接分配给当前实例的候选项。请先看下面的占用提示。"
+                    },
                     color = LukoaColors.Text,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    text = "当前路径：$currentPath",
+                    text = "当前实例路径：${TavernPathNormalizer.toDisplayPath(currentPath)}",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -1546,27 +1551,61 @@ fun TavernDirectoryChoiceDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         candidates.forEach { candidate ->
-                            OutlinedButton(
-                                onClick = { onChoose(candidate) },
-                                modifier = Modifier.fillMaxWidth(),
-                                border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.46f)),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = LukoaColors.Accent.copy(alpha = 0.08f),
-                                    contentColor = LukoaColors.Accent,
-                                ),
-                            ) {
-                                Text(
-                                    text = candidate,
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                OutlinedButton(
+                                    onClick = { onChoose(candidate.path) },
+                                    enabled = candidate.selectable,
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = LukoaColors.Text,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (candidate.selectable) {
+                                            LukoaColors.Accent.copy(alpha = 0.46f)
+                                        } else {
+                                            LukoaColors.Line.copy(alpha = 0.5f)
+                                        },
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (candidate.selectable) {
+                                            LukoaColors.Accent.copy(alpha = 0.08f)
+                                        } else {
+                                            LukoaColors.Surface.copy(alpha = 0.5f)
+                                        },
+                                        contentColor = if (candidate.selectable) {
+                                            LukoaColors.Accent
+                                        } else {
+                                            LukoaColors.Muted
+                                        },
+                                        disabledContentColor = LukoaColors.Muted,
+                                        disabledContainerColor = LukoaColors.Surface.copy(alpha = 0.5f),
+                                    ),
+                                ) {
+                                    Text(
+                                        text = candidate.displayPath,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = if (candidate.selectable) LukoaColors.Text else LukoaColors.Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (!candidate.selectable && candidate.reason.isNotBlank()) {
+                                    Text(
+                                        text = candidate.reason,
+                                        color = LukoaColors.Amber,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
                             }
                         }
                     }
+                }
+                if (selectableCount == 0) {
+                    Text(
+                        text = "如果你就是想给当前实例单独用一套环境，请先准备一个新的酒馆目录，再回到设置里手动改路径。",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         },

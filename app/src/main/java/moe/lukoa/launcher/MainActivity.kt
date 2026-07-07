@@ -207,7 +207,7 @@ class MainActivity : ComponentActivity() {
                         controller.exportLog(summary, status, termuxLog, appLog, mode, update)
                     },
                     onExportDiagnostic = { snapshot, update ->
-                        controller.exportDiagnostic(snapshot, update)
+                        controller.exportDiagnostic(lifecycleScope, snapshot, update)
                     },
                     onExportBackup = { state, update ->
                         controller.exportBackup(state, update)
