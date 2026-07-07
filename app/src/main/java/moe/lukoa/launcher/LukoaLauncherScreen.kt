@@ -2117,6 +2117,10 @@ fun LukoaLauncherScreen(
             update("当前至少要保留一个实例。", "", false, allowRunningInference = false)
             return
         }
+        if (tavernPathConfig.isActiveProfileMain) {
+            update("主实例暂时不能删除。先切换到要删的分身实例，再删除它。", "", false, allowRunningInference = false)
+            return
+        }
         val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(tavernPathConfig.activeProfile.id))
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir

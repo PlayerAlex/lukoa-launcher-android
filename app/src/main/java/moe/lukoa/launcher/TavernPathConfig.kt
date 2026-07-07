@@ -59,6 +59,12 @@ data class TavernPathConfig(
     val hasMultipleProfiles: Boolean
         get() = availableProfiles.size > 1
 
+    val isActiveProfileMain: Boolean
+        get() = activeProfile.id == TavernProfileDefaults.MAIN_PROFILE_ID
+
+    val canRemoveActiveProfile: Boolean
+        get() = hasMultipleProfiles && !isActiveProfileMain
+
     val isActiveProfileDefault: Boolean
         get() {
             val defaultProfile = TavernProfileDefaults.profileForId(activeProfile.id)
@@ -106,6 +112,9 @@ data class TavernPathConfig(
     }
 
     fun removeProfile(profileId: String): TavernPathConfig {
+        if (profileId == TavernProfileDefaults.MAIN_PROFILE_ID) {
+            return withProfiles(availableProfiles, activeProfile.id)
+        }
         val remaining = availableProfiles.filterNot { it.id == profileId }
         val nextActive = when {
             remaining.isEmpty() -> TavernProfileDefaults.MAIN_PROFILE_ID
@@ -262,7 +271,10 @@ private object TavernProfileCollection {
         profiles: List<TavernProfile>,
         fallbackProfile: TavernProfile,
     ): List<TavernProfile> {
-        val base = if (profiles.isEmpty()) listOf(fallbackProfile) else profiles
+        val base = normalizeMainProfileSlot(
+            if (profiles.isEmpty()) listOf(fallbackProfile) else profiles,
+            fallbackProfile = fallbackProfile,
+        )
         val usedIds = linkedSetOf<String>()
         return base.mapIndexed { index, profile ->
             val defaultProfile = when {
@@ -289,6 +301,43 @@ private object TavernProfileCollection {
                 port = TavernPortNormalizer.normalize(profile.port),
             )
         }
+    }
+
+    private fun normalizeMainProfileSlot(
+        profiles: List<TavernProfile>,
+        fallbackProfile: TavernProfile,
+    ): List<TavernProfile> {
+        if (profiles.isEmpty()) {
+            return listOf(fallbackProfile.asMainProfile(preserveName = false))
+        }
+
+        val existingMainIndex = profiles.indexOfFirst { it.id.trim() == TavernProfileDefaults.MAIN_PROFILE_ID }
+        if (existingMainIndex >= 0) {
+            return buildList {
+                add(profiles[existingMainIndex].asMainProfile(preserveName = true))
+                profiles.forEachIndexed { index, profile ->
+                    if (index != existingMainIndex) {
+                        add(profile)
+                    }
+                }
+            }
+        }
+
+        return buildList {
+            add(profiles.first().asMainProfile(preserveName = false))
+            addAll(profiles.drop(1))
+        }
+    }
+
+    private fun TavernProfile.asMainProfile(preserveName: Boolean): TavernProfile {
+        return copy(
+            id = TavernProfileDefaults.MAIN_PROFILE_ID,
+            name = if (preserveName) {
+                name.trim().ifBlank { TavernProfileDefaults.MAIN_PROFILE_NAME }
+            } else {
+                TavernProfileDefaults.MAIN_PROFILE_NAME
+            },
+        )
     }
 }
 

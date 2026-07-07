@@ -100,10 +100,17 @@ fun TavernPathSettingsDialog(
                     )
                     DialogActionButton(
                         text = "删除当前实例",
-                        enabled = !actionsLocked && tavernPathConfig.hasMultipleProfiles,
+                        enabled = !actionsLocked && tavernPathConfig.canRemoveActiveProfile,
                         tone = ActionTone.Warning,
                         modifier = Modifier.weight(1f),
                         onClick = onRemoveCurrentProfile,
+                    )
+                }
+                if (tavernPathConfig.hasMultipleProfiles && tavernPathConfig.isActiveProfileMain) {
+                    Text(
+                        text = "主实例默认保留，当前只能删除分身实例。要删除分身，请先切换到对应分身后再删。",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 OutlinedTextField(

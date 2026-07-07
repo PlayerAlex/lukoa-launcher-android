@@ -43,4 +43,36 @@ class TavernPathConfigTest {
         assertEquals("main", config.activeProfile.id)
         assertFalse(config.hasMultipleProfiles)
     }
+
+    @Test
+    fun `main profile is restored when legacy config no longer contains it`() {
+        val config = TavernPathConfig(
+            activeProfileId = "profile-2",
+            profiles = listOf(
+                TavernProfile(
+                    id = "profile-2",
+                    name = "分身实例",
+                    tavernDir = "/data/data/com.termux/files/home/clone-only",
+                    port = 9002,
+                ),
+            ),
+        )
+
+        assertEquals(1, config.availableProfiles.size)
+        assertEquals("main", config.activeProfile.id)
+        assertEquals("主实例", config.activeProfile.normalizedName)
+        assertEquals("/data/data/com.termux/files/home/clone-only", config.activeProfile.tavernDir)
+        assertEquals(9002, config.activeProfile.port)
+    }
+
+    @Test
+    fun `remove profile ignores attempts to delete main profile`() {
+        val config = TavernPathConfig()
+            .addSuggestedProfile(makeActive = false)
+            .removeProfile("main")
+
+        assertEquals(2, config.availableProfiles.size)
+        assertEquals("main", config.activeProfile.id)
+        assertTrue(config.availableProfiles.any { it.id == "profile-2" })
+    }
 }
