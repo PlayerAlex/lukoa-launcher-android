@@ -42,4 +42,13 @@ class LauncherInputGuardsTest {
             LauncherInputGuards.validateBackupRequiredName("..."),
         )
     }
+
+    @Test
+    fun `tavern port rejects non numeric or out of range value`() {
+        assertEquals("端口不能为空。", LauncherInputGuards.validateTavernPort(" "))
+        assertEquals("端口只能填写数字。", LauncherInputGuards.validateTavernPort("80a0"))
+        assertEquals("端口必须在 1 到 65535 之间。", LauncherInputGuards.validateTavernPort("0"))
+        assertEquals("端口必须在 1 到 65535 之间。", LauncherInputGuards.validateTavernPort("65536"))
+        assertNull(LauncherInputGuards.validateTavernPort("8001"))
+    }
 }

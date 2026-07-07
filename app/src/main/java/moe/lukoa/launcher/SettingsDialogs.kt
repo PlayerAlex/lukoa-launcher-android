@@ -26,11 +26,18 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun TavernPathSettingsDialog(
+    tavernPathConfig: TavernPathConfig,
     tavernPathInput: String,
+    tavernPortInput: String,
     tavernPathError: String?,
+    tavernPortError: String?,
     displayPathPreview: String,
     actionsLocked: Boolean,
-    onValueChange: (String) -> Unit,
+    onPathChange: (String) -> Unit,
+    onPortChange: (String) -> Unit,
+    onSelectProfile: (String) -> Unit,
+    onAddProfile: () -> Unit,
+    onRemoveCurrentProfile: () -> Unit,
     onSave: () -> Unit,
     onRestoreDefault: () -> Unit,
     onDismiss: () -> Unit,
@@ -47,28 +54,90 @@ fun TavernPathSettingsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 440.dp)
+                    .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "默认目录是 ~/SillyTavern。只有你自己改过文件夹名，或者酒馆不在默认目录时，才需要改这里。",
+                    text = "这里开始改成按实例管理。当前激活实例的路径和端口会直接影响启动、停止、体检、安装和打开网页。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                MiniInfoLine("当前实例", tavernPathConfig.activeProfileLabel)
+                MiniInfoLine("实例数量", "${tavernPathConfig.availableProfiles.size}")
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    tavernPathConfig.availableProfiles.forEach { profile ->
+                        DialogActionButton(
+                            text = buildString {
+                                append(profile.normalizedName)
+                                append(" · ")
+                                append(profile.displayTavernDir)
+                                append(" · ")
+                                append(profile.normalizedPort)
+                                if (profile.id == tavernPathConfig.activeProfile.id) {
+                                    append(" · 当前")
+                                }
+                            },
+                            enabled = !actionsLocked && profile.id != tavernPathConfig.activeProfile.id,
+                            tone = if (profile.id == tavernPathConfig.activeProfile.id) ActionTone.Safe else ActionTone.Neutral,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onSelectProfile(profile.id) },
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    DialogActionButton(
+                        text = "新建分身",
+                        enabled = !actionsLocked,
+                        modifier = Modifier.weight(1f),
+                        onClick = onAddProfile,
+                    )
+                    DialogActionButton(
+                        text = "删除当前实例",
+                        enabled = !actionsLocked && tavernPathConfig.hasMultipleProfiles,
+                        tone = ActionTone.Warning,
+                        modifier = Modifier.weight(1f),
+                        onClick = onRemoveCurrentProfile,
+                    )
+                }
                 OutlinedTextField(
                     value = tavernPathInput,
-                    onValueChange = onValueChange,
+                    onValueChange = onPathChange,
                     enabled = !actionsLocked,
                     singleLine = true,
                     label = { Text("酒馆目录路径") },
-                    placeholder = { Text("~/SillyTavern2") },
+                    placeholder = { Text("~/SillyTavern-2") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = lukoaTextFieldColors(),
+                )
+                OutlinedTextField(
+                    value = tavernPortInput,
+                    onValueChange = onPortChange,
+                    enabled = !actionsLocked,
+                    singleLine = true,
+                    label = { Text("酒馆端口") },
+                    placeholder = { Text("8001") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = lukoaTextFieldColors(),
                 )
                 MiniInfoLine("当前预览", displayPathPreview)
+                MiniInfoLine("当前端口", tavernPortInput.ifBlank { "未填写" })
                 tavernPathError?.let { error ->
+                    Text(
+                        text = error,
+                        color = LukoaColors.Danger,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                tavernPortError?.let { error ->
                     Text(
                         text = error,
                         color = LukoaColors.Danger,
@@ -80,13 +149,13 @@ fun TavernPathSettingsDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DialogActionButton(
-                        text = "保存路径",
-                        enabled = !actionsLocked && tavernPathError == null,
+                        text = "保存当前实例",
+                        enabled = !actionsLocked && tavernPathError == null && tavernPortError == null,
                         modifier = Modifier.weight(1f),
                         onClick = onSave,
                     )
                     DialogActionButton(
-                        text = "恢复默认",
+                        text = "恢复当前默认",
                         enabled = !actionsLocked,
                         tone = ActionTone.Neutral,
                         modifier = Modifier.weight(1f),

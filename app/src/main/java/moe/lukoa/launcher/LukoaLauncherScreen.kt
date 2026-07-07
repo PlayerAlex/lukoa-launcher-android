@@ -268,6 +268,7 @@ fun LukoaLauncherScreen(
     var tavernRepoInput by remember { mutableStateOf(initialTavernMirrorConfig.normalizedRepoUrl) }
     var npmRegistryInput by remember { mutableStateOf(initialTavernMirrorConfig.normalizedNpmRegistry) }
     var tavernPathInput by remember { mutableStateOf(initialTavernPathConfig.displayTavernDir) }
+    var tavernPortInput by remember { mutableStateOf(initialTavernPathConfig.normalizedPort.toString()) }
     var mirrorProbeStatus by remember { mutableStateOf(TavernMirrorProbeStatus.unknown(initialTavernMirrorConfig)) }
     var termuxRepoStatus by remember { mutableStateOf(TermuxRepoStatus()) }
     var customTermuxRepoInput by remember { mutableStateOf("") }
@@ -2052,11 +2053,19 @@ fun LukoaLauncherScreen(
         )
     }
 
-    fun saveTavernPathConfig(path: String = tavernPathInput) {
-        val nextConfig = TavernPathConfig(tavernDir = path.trim())
+    fun saveTavernPathConfig(
+        path: String = tavernPathInput,
+        portText: String = tavernPortInput,
+    ) {
+        val safePort = portText.trim().toIntOrNull() ?: tavernPathConfig.normalizedPort
+        val nextConfig = tavernPathConfig.withUpdatedActiveProfile(
+            tavernDir = path.trim(),
+            port = safePort,
+        )
         val result = onSaveTavernPathConfig(nextConfig)
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
         update(
             if (result.saved) {
                 "${result.message}\n后续启动、停止、版本读取和备份都会使用这个目录。"
@@ -2083,6 +2092,35 @@ fun LukoaLauncherScreen(
         val result = onRestoreDefaultTavernPath()
         tavernPathConfig = result.config
         tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
+        update(result.message, "", result.saved, allowRunningInference = false)
+    }
+
+    fun selectTavernProfile(profileId: String) {
+        val result = onSaveTavernPathConfig(tavernPathConfig.withActiveProfile(profileId))
+        tavernPathConfig = result.config
+        tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
+        update(result.message, "", result.saved, allowRunningInference = false)
+    }
+
+    fun addTavernProfile() {
+        val result = onSaveTavernPathConfig(tavernPathConfig.addSuggestedProfile())
+        tavernPathConfig = result.config
+        tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
+        update(result.message, "", result.saved, allowRunningInference = false)
+    }
+
+    fun removeCurrentTavernProfile() {
+        if (!tavernPathConfig.hasMultipleProfiles) {
+            update("当前至少要保留一个实例。", "", false, allowRunningInference = false)
+            return
+        }
+        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(tavernPathConfig.activeProfile.id))
+        tavernPathConfig = result.config
+        tavernPathInput = result.config.displayTavernDir
+        tavernPortInput = result.config.normalizedPort.toString()
         update(result.message, "", result.saved, allowRunningInference = false)
     }
 
@@ -3686,6 +3724,7 @@ fun LukoaLauncherScreen(
                             tavernRepoInput = tavernRepoInput,
                             npmRegistryInput = npmRegistryInput,
                             tavernPathInput = tavernPathInput,
+                            tavernPortInput = tavernPortInput,
                             mirrorProbeStatus = currentMirrorProbeStatus(),
                             termuxRepoStatus = termuxRepoStatus,
                             customTermuxRepoInput = customTermuxRepoInput,
@@ -3697,6 +3736,10 @@ fun LukoaLauncherScreen(
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
                             onTavernPathInputChange = { tavernPathInput = it },
+                            onTavernPortInputChange = { tavernPortInput = it },
+                            onSelectTavernProfile = ::selectTavernProfile,
+                            onAddTavernProfile = ::addTavernProfile,
+                            onRemoveCurrentTavernProfile = ::removeCurrentTavernProfile,
                             onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
                             onSaveTavernPath = { saveTavernPathConfig() },
                             onRestoreDefaultTavernPath = ::restoreDefaultTavernPath,

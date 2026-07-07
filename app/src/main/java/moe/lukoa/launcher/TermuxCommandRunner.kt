@@ -60,11 +60,22 @@ class TermuxCommandRunner(private val context: Context) {
     }
 
     fun runAction(action: String): CommandDispatch {
-        return runCommand(action, emptyList(), null)
+        return runBundledScriptCommand(
+            command = "${action}-direct",
+            scriptCommand = action,
+            scriptArgs = emptyList(),
+            displayCommand = action,
+        )
     }
 
     fun runForegroundAction(action: String): CommandDispatch {
-        return runCommand(action, emptyList(), null, background = false)
+        return runBundledScriptCommand(
+            command = "${action}-foreground-direct",
+            scriptCommand = action,
+            scriptArgs = emptyList(),
+            displayCommand = action,
+            background = false,
+        )
     }
 
     fun runForegroundTavernConsole(): CommandDispatch {
@@ -526,12 +537,13 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
-    fun openTavern(port: Int = 8000): CommandDispatch {
-        if (port !in 1..65535) {
+    fun openTavern(port: Int? = null): CommandDispatch {
+        val resolvedPort = port?.takeIf { it in 1..65535 } ?: tavernPathConfig().normalizedPort
+        if (resolvedPort !in 1..65535) {
             return CommandDispatch(sent = false, message = "打开网页失败：端口号不合法。")
         }
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$port"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$resolvedPort"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return try {
             context.startActivity(intent)
@@ -649,9 +661,7 @@ class TermuxCommandRunner(private val context: Context) {
             appendLine(normalized)
             appendLine(INSTALL_EOF_MARKER)
             appendLine("chmod 700 \"\$HOME/.local/bin/lukoa-tavern.sh\"")
-            appendLine("if [ ! -f \"\$HOME/.config/lukoa-launcher/config.env\" ]; then")
-            appendLine("  printf 'TAVERN_DIR=\"%s\"\\nTAVERN_PORT=8000\\n' ${shellSingleQuoted(tavernPathConfig().normalizedTavernDir)} > \"\$HOME/.config/lukoa-launcher/config.env\"")
-            appendLine("fi")
+            appendConfigFileWrite(this)
             appendMirrorExports(this)
             appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
             appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
@@ -712,9 +722,7 @@ class TermuxCommandRunner(private val context: Context) {
             appendLine(normalized)
             appendLine(INSTALL_EOF_MARKER)
             appendLine("chmod 700 \"\$HOME/.local/bin/lukoa-tavern.sh\"")
-            appendLine("if [ ! -f \"\$HOME/.config/lukoa-launcher/config.env\" ]; then")
-            appendLine("  printf 'TAVERN_DIR=\"%s\"\\nTAVERN_PORT=8000\\n' ${shellSingleQuoted(tavernPathConfig().normalizedTavernDir)} > \"\$HOME/.config/lukoa-launcher/config.env\"")
-            appendLine("fi")
+            appendConfigFileWrite(this)
             appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
             appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
             appendLine("fi")
@@ -750,10 +758,24 @@ class TermuxCommandRunner(private val context: Context) {
         return TavernPathStore(context).load()
     }
 
+    private fun appendConfigFileWrite(builder: StringBuilder) {
+        val pathConfig = tavernPathConfig()
+        val tavernDirArg = shellSingleQuoted(pathConfig.normalizedTavernDir)
+        val tavernPortArg = shellSingleQuoted(pathConfig.normalizedPort.toString())
+        val profileIdArg = shellSingleQuoted(pathConfig.activeProfile.id)
+        builder.appendLine(
+            "printf 'TAVERN_DIR=\"%s\"\\nTAVERN_PORT=%s\\nTAVERN_PROFILE_ID=\"%s\"\\n' " +
+                "$tavernDirArg $tavernPortArg $profileIdArg > " +
+                "\"\$HOME/.config/lukoa-launcher/config.env\"",
+        )
+    }
+
     private fun appendMirrorExports(builder: StringBuilder) {
         val mirrorConfig = mirrorConfig()
         val pathConfig = tavernPathConfig()
         builder.appendLine("export LUKOA_TAVERN_DIR=${shellSingleQuoted(pathConfig.normalizedTavernDir)}")
+        builder.appendLine("export LUKOA_TAVERN_PORT=${shellSingleQuoted(pathConfig.normalizedPort.toString())}")
+        builder.appendLine("export LUKOA_TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}")
         builder.appendLine("export LUKOA_OFFICIAL_REPO=${shellSingleQuoted(mirrorConfig.normalizedRepoUrl)}")
         builder.appendLine("export LUKOA_NPM_REGISTRY=${shellSingleQuoted(mirrorConfig.normalizedNpmRegistry)}")
         builder.appendLine("export npm_config_registry=\"\$LUKOA_NPM_REGISTRY\"")
@@ -764,6 +786,8 @@ class TermuxCommandRunner(private val context: Context) {
         val mirrorConfig = mirrorConfig()
         val pathConfig = tavernPathConfig()
         val appTavernDir = shellSingleQuoted(pathConfig.normalizedTavernDir)
+        val appTavernPort = pathConfig.normalizedPort
+        val appProfileId = shellSingleQuoted(pathConfig.activeProfile.id)
         val appRepo = shellSingleQuoted(mirrorConfig.normalizedRepoUrl)
         val appNpmRegistry = shellSingleQuoted(mirrorConfig.normalizedNpmRegistry)
         return """
@@ -773,22 +797,12 @@ class TermuxCommandRunner(private val context: Context) {
             CONFIG_FILE="${'$'}{LUKOA_CONFIG_FILE:-${'$'}HOME_DIR/.config/${'$'}APP_NAME/config.env}"
             DEFAULT_TAVERN_DIR="${'$'}HOME_DIR/SillyTavern"
             TAVERN_PORT="${'$'}{TAVERN_PORT:-8000}"
-            mkdir -p "${'$'}STATE_DIR" "${'$'}HOME_DIR/.config/${'$'}APP_NAME"
             if [ -f "${'$'}CONFIG_FILE" ]; then
               . "${'$'}CONFIG_FILE"
             fi
-            case "${'$'}TAVERN_PORT" in
-              ''|*[!0-9]*) TAVERN_PORT=8000 ;;
-            esac
-            if [ "${'$'}TAVERN_PORT" -lt 1 ] || [ "${'$'}TAVERN_PORT" -gt 65535 ]; then
-              TAVERN_PORT=8000
-            fi
-            LOG_FILE="${'$'}STATE_DIR/tavern.log"
-            LOG_SYNC_CURSOR_FILE="${'$'}STATE_DIR/app-log.cursor"
-            STATUS_FILE="${'$'}STATE_DIR/status.json"
-            PID_FILE="${'$'}STATE_DIR/pid"
-            ROLLBACK_FILE="${'$'}STATE_DIR/last-tavern-update-commit"
             APP_CONFIG_TAVERN_DIR=$appTavernDir
+            APP_CONFIG_TAVERN_PORT=$appTavernPort
+            APP_CONFIG_TAVERN_PROFILE_ID=$appProfileId
             APP_CONFIG_OFFICIAL_REPO=$appRepo
             APP_CONFIG_NPM_REGISTRY=$appNpmRegistry
             if [ -n "${'$'}{LUKOA_TAVERN_DIR:-}" ]; then
@@ -796,6 +810,49 @@ class TermuxCommandRunner(private val context: Context) {
             elif [ -z "${'$'}{TAVERN_DIR:-}" ]; then
               TAVERN_DIR="${'$'}APP_CONFIG_TAVERN_DIR"
             fi
+            if [ -n "${'$'}{LUKOA_TAVERN_PORT:-}" ]; then
+              TAVERN_PORT="${'$'}LUKOA_TAVERN_PORT"
+            elif [ -z "${'$'}{TAVERN_PORT:-}" ]; then
+              TAVERN_PORT="${'$'}APP_CONFIG_TAVERN_PORT"
+            fi
+            if [ -n "${'$'}{LUKOA_TAVERN_PROFILE_ID:-}" ]; then
+              TAVERN_PROFILE_ID="${'$'}LUKOA_TAVERN_PROFILE_ID"
+            elif [ -z "${'$'}{TAVERN_PROFILE_ID:-}" ]; then
+              TAVERN_PROFILE_ID="${'$'}APP_CONFIG_TAVERN_PROFILE_ID"
+            fi
+            sanitize_profile_state_key() {
+              raw="${'$'}{1:-main}"
+              sanitized="${'$'}(printf "%s" "${'$'}raw" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
+              if [ -z "${'$'}sanitized" ]; then
+                sanitized="main"
+              fi
+              printf "%s" "${'$'}sanitized"
+            }
+            PROFILE_STATE_KEY="${'$'}(sanitize_profile_state_key "${'$'}{TAVERN_PROFILE_ID:-main}")"
+            RUNTIME_STATE_DIR="${'$'}STATE_DIR/profiles/${'$'}PROFILE_STATE_KEY"
+            mkdir -p "${'$'}STATE_DIR" "${'$'}RUNTIME_STATE_DIR" "${'$'}HOME_DIR/.config/${'$'}APP_NAME"
+            migrate_legacy_runtime_state() {
+              [ "${'$'}PROFILE_STATE_KEY" = "main" ] || return 0
+              for relative in pid status.json last-command.json launcher-proof.txt tavern.log app-log.cursor last-tavern-update-commit; do
+                legacy_file="${'$'}STATE_DIR/${'$'}relative"
+                runtime_file="${'$'}RUNTIME_STATE_DIR/${'$'}relative"
+                [ -e "${'$'}legacy_file" ] || continue
+                [ -e "${'$'}runtime_file" ] && continue
+                mv "${'$'}legacy_file" "${'$'}runtime_file" 2>/dev/null || cp -f "${'$'}legacy_file" "${'$'}runtime_file" 2>/dev/null || true
+              done
+            }
+            migrate_legacy_runtime_state
+            case "${'$'}TAVERN_PORT" in
+              ''|*[!0-9]*) TAVERN_PORT=8000 ;;
+            esac
+            if [ "${'$'}TAVERN_PORT" -lt 1 ] || [ "${'$'}TAVERN_PORT" -gt 65535 ]; then
+              TAVERN_PORT=8000
+            fi
+            LOG_FILE="${'$'}RUNTIME_STATE_DIR/tavern.log"
+            LOG_SYNC_CURSOR_FILE="${'$'}RUNTIME_STATE_DIR/app-log.cursor"
+            STATUS_FILE="${'$'}RUNTIME_STATE_DIR/status.json"
+            PID_FILE="${'$'}RUNTIME_STATE_DIR/pid"
+            ROLLBACK_FILE="${'$'}RUNTIME_STATE_DIR/last-tavern-update-commit"
             if [ -z "${'$'}{TAVERN_DIR:-}" ]; then
               TAVERN_DIR="${'$'}DEFAULT_TAVERN_DIR"
             fi
@@ -892,6 +949,8 @@ class TermuxCommandRunner(private val context: Context) {
               now="${'$'}(timestamp)"
               safe_message="${'$'}(json_escape "${'$'}message")"
               safe_dir="${'$'}(json_escape "${'$'}TAVERN_DIR")"
+              safe_profile_id="${'$'}(json_escape "${'$'}{TAVERN_PROFILE_ID:-main}")"
+              safe_runtime_state_dir="${'$'}(json_escape "${'$'}RUNTIME_STATE_DIR")"
               cat <<EOF
             {
               "app": "${'$'}APP_NAME",
@@ -902,6 +961,9 @@ class TermuxCommandRunner(private val context: Context) {
               "message": "${'$'}safe_message",
               "tavernDir": "${'$'}safe_dir",
               "port": ${'$'}TAVERN_PORT,
+              "profileId": "${'$'}safe_profile_id",
+              "runtimeStateDir": "${'$'}safe_runtime_state_dir",
+              "pidFile": "${'$'}PID_FILE",
               "logFile": "${'$'}LOG_FILE"
             }
             EOF
@@ -1895,7 +1957,7 @@ class TermuxCommandRunner(private val context: Context) {
               esac
             }
             run_logged() {
-              rc_file="${'$'}STATE_DIR/run-exit-${'$'}${'$'}"
+              rc_file="${'$'}RUNTIME_STATE_DIR/run-exit-${'$'}${'$'}"
               rm -f "${'$'}rc_file" 2>/dev/null || true
               (
                 "${'$'}@"

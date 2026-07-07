@@ -75,6 +75,7 @@ fun SettingsSection(
     tavernRepoInput: String,
     npmRegistryInput: String,
     tavernPathInput: String,
+    tavernPortInput: String,
     mirrorProbeStatus: TavernMirrorProbeStatus,
     termuxRepoStatus: TermuxRepoStatus,
     customTermuxRepoInput: String,
@@ -86,6 +87,10 @@ fun SettingsSection(
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
     onTavernPathInputChange: (String) -> Unit,
+    onTavernPortInputChange: (String) -> Unit,
+    onSelectTavernProfile: (String) -> Unit,
+    onAddTavernProfile: () -> Unit,
+    onRemoveCurrentTavernProfile: () -> Unit,
     onCustomTermuxRepoInputChange: (String) -> Unit,
     onSaveTavernPath: () -> Unit,
     onRestoreDefaultTavernPath: () -> Unit,
@@ -135,7 +140,8 @@ fun SettingsSection(
     )
     val healthSummaryText = settingsHealthSummaryText(healthCheckReport)
     val healthSummaryColor = settingsHealthSummaryColor(healthCheckReport)
-    val pathIsDefault = tavernPathConfig.normalizedTavernDir == TavernPathDefaults.DEFAULT_TAVERN_DIR_NORMALIZED
+    val tavernPortError = LauncherInputGuards.validateTavernPort(tavernPortInput.trim())
+    val pathIsDefault = tavernPathConfig.isActiveProfileDefault
     var showPathSettingsDialog by remember { mutableStateOf(false) }
     var showPermissionCenterDialog by remember { mutableStateOf(false) }
     var showUpdateSettingsDialog by remember { mutableStateOf(false) }
@@ -193,16 +199,26 @@ fun SettingsSection(
 
     if (showPathSettingsDialog) {
         TavernPathSettingsDialog(
+            tavernPathConfig = tavernPathConfig,
             tavernPathInput = tavernPathInput,
+            tavernPortInput = tavernPortInput,
             tavernPathError = tavernPathError,
+            tavernPortError = tavernPortError,
             displayPathPreview = TavernPathNormalizer.toDisplayPath(
                 TavernPathNormalizer.normalize(tavernPathInput),
             ),
             actionsLocked = actionsLocked,
-            onValueChange = onTavernPathInputChange,
+            onPathChange = onTavernPathInputChange,
+            onPortChange = onTavernPortInputChange,
+            onSelectProfile = { profileId ->
+                onSelectTavernProfile(profileId)
+                showPathSettingsDialog = true
+            },
+            onAddProfile = onAddTavernProfile,
+            onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
             onSave = {
                 onSaveTavernPath()
-                if (tavernPathError == null) {
+                if (tavernPathError == null && tavernPortError == null) {
                     showPathSettingsDialog = false
                 }
             },
@@ -304,6 +320,25 @@ fun SettingsSection(
                         activeBackground = if (actionsLocked) LukoaColors.AmberSoft else LukoaColors.AccentSoft,
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StatusPill(
+                        text = tavernPathConfig.activeProfileLabel,
+                        active = true,
+                        modifier = Modifier.weight(1f),
+                        toneColor = LukoaColors.Accent,
+                        activeBackground = LukoaColors.AccentSoft,
+                    )
+                    StatusPill(
+                        text = "端口 ${tavernPathConfig.normalizedPort}",
+                        active = true,
+                        modifier = Modifier.weight(1f),
+                        toneColor = LukoaColors.Info,
+                        activeBackground = LukoaColors.InfoSoft,
+                    )
+                }
                 Text(
                     text = tavernPathConfig.displayTavernDir,
                     color = LukoaColors.Text,
@@ -320,6 +355,13 @@ fun SettingsSection(
                 if (tavernPathInput.isNotBlank() && tavernPathError != null) {
                     Text(
                         text = tavernPathError,
+                        color = LukoaColors.Danger,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (tavernPortInput.isNotBlank() && tavernPortError != null) {
+                    Text(
+                        text = tavernPortError,
                         color = LukoaColors.Danger,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -632,4 +674,3 @@ private fun settingsHealthSummaryColor(report: LauncherHealthReport?): Color {
         else -> LukoaColors.Accent
     }
 }
-

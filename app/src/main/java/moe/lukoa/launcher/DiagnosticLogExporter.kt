@@ -135,7 +135,12 @@ object DiagnosticLogExporter {
             appendLine("酒馆源地址=${snapshot.tavernMirrorConfig.normalizedRepoUrl}")
             appendLine("npm源=${snapshot.tavernMirrorConfig.npmLabel}")
             appendLine("npm源地址=${snapshot.tavernMirrorConfig.normalizedNpmRegistry}")
+            appendLine("当前实例=${snapshot.tavernPathConfig.activeProfileLabel}")
             appendLine("酒馆目录=${snapshot.tavernPathConfig.displayTavernDir}")
+            appendLine("酒馆端口=${snapshot.tavernPathConfig.normalizedPort}")
+            snapshot.tavernPathConfig.availableProfiles.forEachIndexed { index, profile ->
+                appendLine("实例${index + 1}=${profile.normalizedName} | ${profile.displayTavernDir} | ${profile.normalizedPort}")
+            }
             appendLine()
 
             appendLine("==== 备份 ====")

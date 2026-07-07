@@ -83,6 +83,19 @@ class FirstTavernStartGuideTest {
     }
 
     @Test
+    fun `should not show after custom port launch history exists`() {
+        assertFalse(
+            FirstTavernStartGuideResolver.shouldShow(
+                alreadyShown = false,
+                tavernInstallDetected = true,
+                tavernRunning = false,
+                termuxLog = "Go to: http://127.0.0.1:8001/",
+                appLog = "",
+            ),
+        )
+    }
+
+    @Test
     fun `should not show after already running endpoint status`() {
         assertFalse(
             FirstTavernStartGuideResolver.shouldShow(

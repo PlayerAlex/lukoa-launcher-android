@@ -5,6 +5,7 @@ private val TavernStatusFieldRegex = Regex(""""status"\s*:\s*"([^"]+)"""")
 private val TavernRunningFalseRegex = Regex(""""running"\s*:\s*false""")
 private val TavernStoppedStatusRegex = Regex(""""status"\s*:\s*"stopped"""")
 private val TavernErrorStatusRegex = Regex(""""status"\s*:\s*"error"""")
+private val TavernPortConflictRegex = Regex("""Address 127\.0\.0\.1:\d+ is already in use""")
 private val tavernStartingMarkers = listOf(
     "SillyTavern is starting",
     "SillyTavern launch command accepted",
@@ -54,7 +55,7 @@ fun inferTavernRunning(text: String): Boolean? {
         TavernErrorStatusRegex.containsMatchIn(tail) -> false
         tail.contains("SillyTavern is listening") -> true
         tail.contains("SillyTavern is already running") -> true
-        tail.contains("Address 127.0.0.1:8000 is already in use") -> true
+        TavernPortConflictRegex.containsMatchIn(tail) -> true
         else -> null
     }
 }

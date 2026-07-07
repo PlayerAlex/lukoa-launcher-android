@@ -10,6 +10,8 @@ data class FirstTavernStartGuide(
 )
 
 object FirstTavernStartGuideResolver {
+    private val localUrlSuccessRegex = Regex("""Go to:\s*http://(?:127\.0\.0\.1|localhost):\d+/""", RegexOption.IGNORE_CASE)
+
     fun resolve(
         brand: String,
         manufacturer: String,
@@ -52,6 +54,9 @@ object FirstTavernStartGuideResolver {
         appLog: String,
     ): Boolean {
         val merged = "$termuxLog\n$appLog"
+        if (localUrlSuccessRegex.containsMatchIn(merged)) {
+            return true
+        }
         return successfulStartMarkers.any { marker ->
             merged.contains(marker, ignoreCase = true)
         }
@@ -60,8 +65,6 @@ object FirstTavernStartGuideResolver {
     private val successfulStartMarkers = listOf(
         "SillyTavern is listening on",
         "HTTP endpoint is responding",
-        "Go to: http://127.0.0.1:8000/",
-        "Go to: http://localhost:8000/",
         "检测到酒馆正在运行",
         "酒馆正在运行",
         "酒馆已经在运行",

@@ -8,18 +8,9 @@ STATE_DIR="${LUKOA_STATE_DIR:-$HOME_DIR/.local/state/$APP_NAME}"
 CONFIG_FILE="${LUKOA_CONFIG_FILE:-$HOME_DIR/.config/$APP_NAME/config.env}"
 DEFAULT_TAVERN_DIR="$HOME_DIR/SillyTavern"
 TAVERN_PORT="${TAVERN_PORT:-8000}"
-PID_FILE="$STATE_DIR/pid"
-STATUS_FILE="$STATE_DIR/status.json"
-COMMAND_FILE="$STATE_DIR/last-command.json"
-PROOF_FILE="$STATE_DIR/launcher-proof.txt"
-LOG_FILE="$STATE_DIR/tavern.log"
-LOG_SYNC_CURSOR_FILE="$STATE_DIR/app-log.cursor"
-ROLLBACK_FILE="$STATE_DIR/last-tavern-update-commit"
 BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_BACKUP_LIBRARY_RELATIVE_DIR:-lukoa/backups}"
 MANUAL_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_MANUAL_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/sd}"
 AUTO_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_AUTO_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/zd}"
-
-mkdir -p "$STATE_DIR"
 
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC1090
@@ -29,6 +20,49 @@ fi
 if [ -n "${LUKOA_TAVERN_DIR:-}" ]; then
   TAVERN_DIR="$LUKOA_TAVERN_DIR"
 fi
+
+if [ -n "${LUKOA_TAVERN_PORT:-}" ]; then
+  TAVERN_PORT="$LUKOA_TAVERN_PORT"
+fi
+
+if [ -n "${LUKOA_TAVERN_PROFILE_ID:-}" ]; then
+  TAVERN_PROFILE_ID="$LUKOA_TAVERN_PROFILE_ID"
+fi
+
+sanitize_profile_state_key() {
+  raw="${1:-main}"
+  sanitized="$(printf "%s" "$raw" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
+  if [ -z "$sanitized" ]; then
+    sanitized="main"
+  fi
+  printf "%s" "$sanitized"
+}
+
+PROFILE_STATE_KEY="$(sanitize_profile_state_key "${TAVERN_PROFILE_ID:-main}")"
+RUNTIME_STATE_DIR="$STATE_DIR/profiles/$PROFILE_STATE_KEY"
+
+mkdir -p "$STATE_DIR" "$RUNTIME_STATE_DIR"
+
+migrate_legacy_runtime_state() {
+  [ "$PROFILE_STATE_KEY" = "main" ] || return 0
+  for relative in pid status.json last-command.json launcher-proof.txt tavern.log app-log.cursor last-tavern-update-commit; do
+    legacy_file="$STATE_DIR/$relative"
+    runtime_file="$RUNTIME_STATE_DIR/$relative"
+    [ -e "$legacy_file" ] || continue
+    [ -e "$runtime_file" ] && continue
+    mv "$legacy_file" "$runtime_file" 2>/dev/null || cp -f "$legacy_file" "$runtime_file" 2>/dev/null || true
+  done
+}
+
+migrate_legacy_runtime_state
+
+PID_FILE="$RUNTIME_STATE_DIR/pid"
+STATUS_FILE="$RUNTIME_STATE_DIR/status.json"
+COMMAND_FILE="$RUNTIME_STATE_DIR/last-command.json"
+PROOF_FILE="$RUNTIME_STATE_DIR/launcher-proof.txt"
+LOG_FILE="$RUNTIME_STATE_DIR/tavern.log"
+LOG_SYNC_CURSOR_FILE="$RUNTIME_STATE_DIR/app-log.cursor"
+ROLLBACK_FILE="$RUNTIME_STATE_DIR/last-tavern-update-commit"
 
 OFFICIAL_REPO="${LUKOA_OFFICIAL_REPO:-https://github.com/SillyTavern/SillyTavern.git}"
 NPM_REGISTRY="${LUKOA_NPM_REGISTRY:-${NPM_CONFIG_REGISTRY:-}}"
@@ -179,6 +213,8 @@ write_status() {
   now="$(timestamp)"
   safe_message="$(json_escape "$message")"
   safe_dir="$(json_escape "$TAVERN_DIR")"
+  safe_profile_id="$(json_escape "${TAVERN_PROFILE_ID:-main}")"
+  safe_runtime_state_dir="$(json_escape "$RUNTIME_STATE_DIR")"
   cat > "$STATUS_FILE" <<EOF
 {
   "app": "$APP_NAME",
@@ -189,6 +225,8 @@ write_status() {
   "message": "$safe_message",
   "tavernDir": "$safe_dir",
   "port": $TAVERN_PORT,
+  "profileId": "$safe_profile_id",
+  "runtimeStateDir": "$safe_runtime_state_dir",
   "pidFile": "$PID_FILE",
   "logFile": "$LOG_FILE"
 }
@@ -739,6 +777,8 @@ cmd_selftest() {
     printf "home=%s\n" "$HOME_DIR"
     printf "prefix=%s\n" "${PREFIX:-unknown}"
     printf "state_dir=%s\n" "$STATE_DIR"
+    printf "runtime_state_dir=%s\n" "$RUNTIME_STATE_DIR"
+    printf "profile_id=%s\n" "${TAVERN_PROFILE_ID:-main}"
   } > "$PROOF_FILE"
 
   write_command "selftest" "$nonce"
