@@ -43,6 +43,21 @@
 - `generate-release-notes.ps1`
   生成 release 公告
 
+## 项目管理资料
+
+如果你是继续开发这个项目，或者准备在新的 AI 对话里接着做，建议先看这里：
+
+- `docs/project-management/README.md`
+- `docs/project-management/AI新对话启动模板.md`
+- `docs/project-management/lukua-launcher-AI项目管理模板.xlsx`
+
+这几份资料主要用来记录：
+
+- 当前主线版本
+- 发版检查清单
+- 不同手机 / Android / Termux 组合下的兼容性测试
+- 每次 AI 协作改了什么
+
 ## 本地构建
 
 先准备 Android SDK，然后在项目根目录运行：
