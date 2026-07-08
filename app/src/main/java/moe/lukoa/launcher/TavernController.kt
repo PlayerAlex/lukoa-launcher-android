@@ -71,6 +71,7 @@ class TavernController(
             "log" -> runner.runLogSnapshot()
             "status" -> runner.runStatusSnapshot()
             "stop" -> runner.runStopTavern()
+            "tavern-force-cleanup" -> runner.runForceCleanupTavern()
             "tavern-version" -> runner.runTavernVersion()
             "tavern-version-startup" -> runner.runTavernVersion()
             "tavern-doctor" -> runner.runTavernDoctor()
@@ -298,6 +299,7 @@ class TavernController(
             "status" -> "正在查询酒馆状态。"
             "log" -> "正在读取 Termux 日志。"
             "stop" -> "停止命令已发送到 Termux。"
+            "tavern-force-cleanup" -> "强制清理命令已发送到 Termux。"
             "start" -> "启动命令已发送到 Termux。"
             "tavern-version" -> "正在读取酒馆版本。"
             "tavern-version-startup" -> "正在检测酒馆版本。"
@@ -334,6 +336,7 @@ class TavernController(
             "status" -> if (ok) "状态已刷新。" else "状态查询失败。"
             "log" -> if (ok) "日志已读取。" else "日志读取失败。"
             "stop" -> if (ok) "停止命令已返回。" else "停止酒馆失败。"
+            "tavern-force-cleanup" -> if (ok) "强制清理已返回。" else "强制清理残留进程失败。"
             "start" -> if (ok) "启动命令已返回。" else "启动酒馆失败。"
             "tavern-version" -> if (ok) "酒馆版本已读取。" else "读取酒馆版本失败。"
             "tavern-version-startup" -> if (ok) "酒馆版本已读取。" else "检测酒馆版本失败。"

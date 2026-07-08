@@ -39,4 +39,29 @@ class StatusSummarizerTest {
 
         assertEquals("酒馆端口已被别的进程占用", summary)
     }
+
+    @Test
+    fun `force cleanup dispatch is summarized separately from normal stop`() {
+        val summary = StatusSummarizer.summarize(
+            status = "命令已发送到 Termux：tavern-force-cleanup",
+            termuxOutput = "",
+            ok = true,
+        )
+
+        assertEquals("正在强制清理端口", summary)
+    }
+
+    @Test
+    fun `force cleanup completion is summarized as completed cleanup`() {
+        val summary = StatusSummarizer.summarize(
+            status = "强制清理已返回。",
+            termuxOutput = """
+                {"status": "stopped", "running": false, "exitCode": 0}
+                SillyTavern force cleanup completed
+            """.trimIndent(),
+            ok = true,
+        )
+
+        assertEquals("强制清理已完成", summary)
+    }
 }

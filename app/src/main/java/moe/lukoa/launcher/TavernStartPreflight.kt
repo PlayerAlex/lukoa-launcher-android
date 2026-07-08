@@ -7,7 +7,7 @@ enum class TavernStartPreflightActionType {
     PrepareTermuxEnvironment,
     ChooseDetectedDirectory,
     OpenPathSettings,
-    StopDetectedProcess,
+    ForceCleanupDetectedProcess,
     ReturnToTavern,
     Retry,
 }
@@ -192,8 +192,8 @@ object TavernStartPreflight {
                 },
                 details = listOf("端口 ${doctorReport.port} 当前疑似已有旧进程占着。"),
                 action = TavernStartPreflightAction(
-                    type = TavernStartPreflightActionType.StopDetectedProcess,
-                    label = "尝试停止现有进程",
+                    type = TavernStartPreflightActionType.ForceCleanupDetectedProcess,
+                    label = "强制清理残留进程",
                 ),
                 doctorReport = doctorReport,
             )

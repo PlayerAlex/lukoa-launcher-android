@@ -18,6 +18,7 @@ private val tavernStoppedMarkers = listOf(
     "SillyTavern was not running",
     "SillyTavern foreground session exited",
     "SillyTavern stopped",
+    "SillyTavern force cleanup completed",
     "SillyTavern process exited immediately",
 )
 private val tavernFatalStartMarkers = listOf(

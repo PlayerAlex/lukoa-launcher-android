@@ -453,20 +453,37 @@ candidate_pids() {
     done || true
 }
 
+wait_for_pid_exit() {
+  pid="$1"
+  attempts="${2:-5}"
+  while [ "$attempts" -gt 0 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+    attempts=$((attempts - 1))
+  done
+  ! kill -0 "$pid" 2>/dev/null
+}
+
+force_cleanup_pid() {
+  pid="$1"
+  kill "$pid" 2>/dev/null || true
+  if wait_for_pid_exit "$pid" 2; then
+    return 0
+  fi
+  kill -9 "$pid" 2>/dev/null || true
+  wait_for_pid_exit "$pid" 2
+}
+
 kill_candidate_pids() {
   pids="$(candidate_pids | tr '\n' ' ')"
   if [ -z "$pids" ]; then
     return 1
   fi
 
-  # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
-  sleep 1
-
   for pid in $pids; do
-    if kill -0 "$pid" 2>/dev/null; then
-      kill -9 "$pid" 2>/dev/null || true
-    fi
+    force_cleanup_pid "$pid"
   done
   return 0
 }
@@ -1194,29 +1211,18 @@ cmd_stop() {
   write_command "stop"
   if ! is_running; then
     rm -f "$PID_FILE"
-    if kill_candidate_pids; then
-      if http_ok; then
-        write_status "error" "SillyTavern HTTP endpoint is still responding after killing candidate processes" true 76
-        emit_status
-        return 76
-      fi
-      write_status "stopped" "SillyTavern stopped by killing candidate processes because pid file was missing" false 0
+    if [ -n "$(candidate_pids | head -n 1)" ]; then
+      write_status "error" "Detected matching SillyTavern process without a tracked pid. Use force cleanup if you need to clear the current port." true 76
       emit_status
-      return 0
+      return 76
     fi
-
     if http_ok; then
-      if kill_candidate_pids; then
-        if http_ok; then
-          write_status "error" "SillyTavern HTTP endpoint is still responding after killing candidate processes" true 76
-          emit_status
-          return 76
-        fi
-        write_status "stopped" "SillyTavern stopped by killing candidate processes because pid file was missing" false 0
-        emit_status
-        return 0
-      fi
-      write_status "error" "SillyTavern HTTP endpoint is still responding, but pid file is missing and no candidate process was found" true 76
+      write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
+      emit_status
+      return 76
+    fi
+    if port_listening; then
+      write_status "error" "Current port is still occupied after stop request. Use force cleanup if you need to clear the current port." true 76
       emit_status
       return 76
     fi
@@ -1227,19 +1233,62 @@ cmd_stop() {
 
   pid="$(cat "$PID_FILE")"
   kill "$pid" 2>/dev/null || true
-  sleep 1
-
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -9 "$pid" 2>/dev/null || true
+  if ! wait_for_pid_exit "$pid" 5; then
+    write_status "error" "SillyTavern process is still running after stop request. Use force cleanup if you need to clear the current port." true 76
+    emit_status
+    return 76
   fi
 
   rm -f "$PID_FILE"
   if http_ok; then
-    write_status "error" "SillyTavern process was killed, but HTTP endpoint is still responding" true 76
+    write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
+    emit_status
+    return 76
+  fi
+  if port_listening; then
+    write_status "error" "Current port is still occupied after stop request. Use force cleanup if you need to clear the current port." true 76
     emit_status
     return 76
   fi
   write_status "stopped" "SillyTavern stopped" false 0
+  emit_status
+}
+
+cmd_force_cleanup() {
+  write_command "force-cleanup"
+  cleaned_any=0
+
+  if is_running; then
+    pid="$(cat "$PID_FILE")"
+    force_cleanup_pid "$pid"
+    cleaned_any=1
+  fi
+
+  if kill_candidate_pids; then
+    cleaned_any=1
+  fi
+
+  rm -f "$PID_FILE"
+  if [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Matching SillyTavern process is still present after force cleanup." true 76
+    emit_status
+    return 76
+  fi
+  if http_ok; then
+    write_status "error" "SillyTavern HTTP endpoint is still responding after force cleanup." true 76
+    emit_status
+    return 76
+  fi
+  if port_listening; then
+    write_status "error" "Current port is still occupied after force cleanup (Address 127.0.0.1:$TAVERN_PORT is already in use)." false 76
+    emit_status
+    return 76
+  fi
+  if [ "$cleaned_any" = "1" ]; then
+    write_status "stopped" "SillyTavern force cleanup completed" false 0
+  else
+    write_status "stopped" "SillyTavern was not running" false 0
+  fi
   emit_status
 }
 
@@ -3144,6 +3193,9 @@ main() {
       ;;
     stop)
       cmd_stop
+      ;;
+    force-cleanup|tavern-force-cleanup)
+      cmd_force_cleanup
       ;;
     restart)
       cmd_restart

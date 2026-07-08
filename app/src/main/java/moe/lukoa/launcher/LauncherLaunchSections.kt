@@ -238,8 +238,10 @@ fun TavernControlSection(
     wakeEnabled: Boolean,
     primaryEnabled: Boolean,
     primaryDisabledReason: String?,
+    forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onWakeTermux: () -> Unit,
     onPrimaryAction: () -> Unit,
+    onForceCleanup: () -> Unit,
     onOpenTavern: () -> Unit,
     onExportLog: () -> Unit,
 ) {
@@ -248,6 +250,7 @@ fun TavernControlSection(
         onClick = onPrimaryAction,
         minIntervalMs = if (tavernRunning) 0L else 260L,
     )
+    val forceCleanupClick = rememberFeedbackClick(onForceCleanup)
     val openTavernClick = rememberFeedbackClick(onOpenTavern)
     val exportClick = rememberFeedbackClick(onExportLog)
     val statusText = when {
@@ -304,6 +307,20 @@ fun TavernControlSection(
                 primaryText,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleSmall,
+            )
+        }
+        forceCleanupSuggestion?.let { suggestion ->
+            SecondaryActionButton(
+                text = suggestion.buttonLabel,
+                enabled = !actionInProgress,
+                accentColor = LukoaColors.Danger,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = forceCleanupClick,
+            )
+            Text(
+                text = suggestion.buttonHint,
+                color = LukoaColors.Amber,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
         if (!primaryEnabled && primaryDisabledReason != null) {
@@ -409,4 +426,3 @@ private fun TavernToolButton(
         onClick = onClick,
     )
 }
-

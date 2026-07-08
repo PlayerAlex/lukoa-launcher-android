@@ -29,9 +29,16 @@ object StatusSummarizer {
             merged.contains("\"status\": \"stopped\"") ||
                 merged.contains("SillyTavern stopped") ||
                 merged.contains("SillyTavern was not running") ||
+                merged.contains("SillyTavern force cleanup completed") ||
                 merged.contains("SillyTavern foreground session exited") ||
                 merged.contains("process is not running", ignoreCase = true) -> {
                 if (
+                    merged.contains("命令已发送到 Termux：tavern-force-cleanup") ||
+                    merged.contains("强制清理已返回") ||
+                    merged.contains("SillyTavern force cleanup completed")
+                ) {
+                    "强制清理已完成"
+                } else if (
                     merged.contains("命令已发送到 Termux：stop") ||
                     merged.contains("SillyTavern stopped")
                 ) {
@@ -50,8 +57,14 @@ object StatusSummarizer {
                 merged.contains("\"status\": \"starting\"") ||
                 merged.contains("懒人启动：") -> "正在启动酒馆"
 
+            merged.contains("命令已发送到 Termux：tavern-force-cleanup") ||
+                merged.contains("强制清理命令已发送") -> "正在强制清理端口"
+
             merged.contains("命令已发送到 Termux：stop") ||
                 merged.contains("停止命令已发送") -> "正在停止酒馆"
+
+            merged.contains("Use force cleanup", ignoreCase = true) ||
+                merged.contains("普通停止后酒馆还没完全停下") -> "普通停止后酒馆还没完全停下"
 
             merged.contains("正在查询酒馆状态") -> "正在查询状态"
 

@@ -1341,7 +1341,7 @@ fun StartPreflightConfirmDialog(
                     text = action.label,
                     tone = when (action.type) {
                         TavernStartPreflightActionType.PrepareTermuxEnvironment,
-                        TavernStartPreflightActionType.StopDetectedProcess -> ActionTone.Warning
+                        TavernStartPreflightActionType.ForceCleanupDetectedProcess -> ActionTone.Warning
 
                         TavernStartPreflightActionType.DownloadTermux,
                         TavernStartPreflightActionType.RequestRunPermission,
@@ -1621,6 +1621,7 @@ fun CustomTavernPathMigrationDialog(
 
 @Composable
 fun StopTavernConfirmDialog(
+    profile: TavernProfile,
     actionsLocked: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
@@ -1635,15 +1636,112 @@ fun StopTavernConfirmDialog(
         onDismiss = onDismiss,
     ) {
         Text(
-            text = "停止后，当前酒馆网页会断开连接。确认没有重要操作在跑，再继续。",
+            text = "这一步只会尝试温和停止当前实例，不会顺手强制清理残留进程。",
             color = LukoaColors.Text,
             style = MaterialTheme.typography.bodyMedium,
+        )
+        TavernActionProfileCard(
+            profileName = profile.normalizedName,
+            profilePath = profile.displayTavernDir,
+            profilePort = profile.normalizedPort,
+        )
+        Text(
+            text = "如果普通停止后网页仍在响应，再改用“强制释放端口 / 强制清理残留进程”更稳。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
         )
         Text(
             text = "这一步不会删除聊天、角色、世界书或备份文件。",
             color = LukoaColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+}
+
+@Composable
+fun ForceCleanupTavernConfirmDialog(
+    confirmation: TavernForceCleanupConfirmation,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = confirmation.suggestion.kind.dialogTitle,
+        titleTone = ActionTone.Danger,
+        confirmText = "确认强制清理",
+        confirmTone = ActionTone.Danger,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = confirmation.suggestion.summary,
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        TavernActionProfileCard(
+            profileName = confirmation.profileName,
+            profilePath = confirmation.profilePath,
+            profilePort = confirmation.profilePort,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "为什么现在会建议这样做",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    text = confirmation.suggestion.reasonDetail,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Danger.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.24f)),
+        ) {
+            Text(
+                text = confirmation.suggestion.riskTip,
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TavernActionProfileCard(
+    profileName: String,
+    profilePath: String,
+    profilePort: Int,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            VersionInfoLine("当前实例", profileName)
+            VersionInfoLine("当前目录", profilePath)
+            VersionInfoLine("当前端口", profilePort.toString())
+        }
     }
 }
 

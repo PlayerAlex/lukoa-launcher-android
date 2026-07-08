@@ -161,6 +161,15 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runForceCleanupTavern(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "force-cleanup-direct",
+            scriptCommand = "force-cleanup",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-force-cleanup",
+        )
+    }
+
     fun runTavernVersion(): CommandDispatch {
         return runBundledScriptCommand(
             command = "tavern-version-direct",
@@ -1686,34 +1695,43 @@ class TermuxCommandRunner(private val context: Context) {
             set -u
             ${buildSharedShellPrelude()}
             adopt_detected_tavern_dir >/dev/null 2>&1 || true
-            stopped_any=0
-            if is_running; then
-              pid="${'$'}(cat "${'$'}PID_FILE" 2>/dev/null || true)"
-              kill "${'$'}pid" 2>/dev/null || true
-              sleep 1
-              if kill -0 "${'$'}pid" 2>/dev/null; then
-                kill -9 "${'$'}pid" 2>/dev/null || true
-              fi
+            wait_for_pid_exit() {
+              pid="${'$'}1"
+              attempts="${'$'}{2:-5}"
+              while [ "${'$'}attempts" -gt 0 ]; do
+                if ! kill -0 "${'$'}pid" 2>/dev/null; then
+                  return 0
+                fi
+                sleep 1
+                attempts="${'$'}((attempts - 1))"
+              done
+              ! kill -0 "${'$'}pid" 2>/dev/null
+            }
+            if ! is_running; then
               rm -f "${'$'}PID_FILE"
-              stopped_any=1
-            else
-              rm -f "${'$'}PID_FILE"
-            fi
-            if [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
-              if kill_candidate_pids; then
-                stopped_any=1
+              if [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
+                write_status "error" "Detected matching SillyTavern process without a tracked pid. Use force cleanup if you need to clear the current port." true 76
+                emit_status_snapshot
+                exit 76
               fi
+              write_status "stopped" "SillyTavern was not running" false 0
+              emit_status_snapshot
+              exit 0
             fi
-            if http_ok; then
-              write_status "error" "SillyTavern HTTP endpoint is still responding after stop request" true 76
+            pid="${'$'}(cat "${'$'}PID_FILE" 2>/dev/null || true)"
+            kill "${'$'}pid" 2>/dev/null || true
+            if ! wait_for_pid_exit "${'$'}pid" 5; then
+              write_status "error" "SillyTavern process is still running after stop request. Use force cleanup if you need to clear the current port." true 76
               emit_status_snapshot
               exit 76
             fi
-            if [ "${'$'}stopped_any" = "1" ]; then
-              write_status "stopped" "SillyTavern stopped" false 0
-            else
-              write_status "stopped" "SillyTavern was not running" false 0
+            rm -f "${'$'}PID_FILE"
+            if http_ok; then
+              write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
+              emit_status_snapshot
+              exit 76
             fi
+            write_status "stopped" "SillyTavern stopped" false 0
             emit_status_snapshot
         """.trimIndent()
     }

@@ -49,6 +49,7 @@ object TavernLogSignals {
         "SillyTavern foreground session exited",
         "SillyTavern process exited immediately",
         "SillyTavern stopped",
+        "SillyTavern force cleanup completed",
         "process is not running",
     )
 

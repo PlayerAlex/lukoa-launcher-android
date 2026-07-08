@@ -211,6 +211,9 @@ fun LukoaLauncherScreen(
     var pendingTavernProfileMigrationConfirmation by remember {
         mutableStateOf<TavernProfileMigrationConfirmation?>(null)
     }
+    var pendingTavernForceCleanupConfirmation by remember {
+        mutableStateOf<TavernForceCleanupConfirmation?>(null)
+    }
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearLogScopeDialog by remember { mutableStateOf(false) }
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
@@ -639,6 +642,7 @@ fun LukoaLauncherScreen(
         healthCheckReport = null
         showStopConfirmDialog = false
         pendingStartPreflight = null
+        pendingTavernForceCleanupConfirmation = null
         pendingTavernVersionActionConfirmation = null
         pendingTavernProfileRemovalConfirmation = null
         clearTransientTavernPathUiState()
@@ -3256,6 +3260,44 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun currentForceCleanupSuggestion(
+        doctorReport: TavernDoctorReport? = healthCheckReport?.doctorReport,
+        statusText: String = status,
+        summaryText: String = summary,
+    ): TavernForceCleanupSuggestion? {
+        return TavernForceCleanupSupport.detect(
+            doctorReport = doctorReport,
+            status = statusText,
+            summary = summaryText,
+        )
+    }
+
+    fun requestForceCleanup(
+        suggestionOverride: TavernForceCleanupSuggestion? = null,
+        doctorReportOverride: TavernDoctorReport? = null,
+        statusOverride: String = status,
+        summaryOverride: String = summary,
+    ) {
+        if (actionInProgress) {
+            update("正在处理，完成后再强制清理残留进程。", "", false, allowRunningInference = false)
+            return
+        }
+        val suggestion = suggestionOverride ?: currentForceCleanupSuggestion(
+            doctorReport = doctorReportOverride ?: healthCheckReport?.doctorReport,
+            statusText = statusOverride,
+            summaryText = summaryOverride,
+        )
+        if (suggestion == null) {
+            update("当前没有检测到需要强制清理的残留进程。", "", false, allowRunningInference = false)
+            return
+        }
+        showStopConfirmDialog = false
+        pendingTavernForceCleanupConfirmation = TavernForceCleanupSupport.buildConfirmation(
+            profile = tavernPathConfig.activeProfile,
+            suggestion = suggestion,
+        )
+    }
+
     fun confirmStartPreflightDialog() {
         val result = pendingStartPreflight ?: run {
             clearStartPreflightDialog()
@@ -3294,8 +3336,12 @@ fun LukoaLauncherScreen(
                 update("请到设置里的路径分区确认酒馆目录。", "", false, allowRunningInference = false)
             }
 
-            TavernStartPreflightActionType.StopDetectedProcess -> {
-                showStopConfirmDialog = true
+            TavernStartPreflightActionType.ForceCleanupDetectedProcess -> {
+                requestForceCleanup(
+                    doctorReportOverride = result.doctorReport,
+                    statusOverride = result.title,
+                    summaryOverride = result.summary,
+                )
             }
 
             TavernStartPreflightActionType.ReturnToTavern -> {
@@ -3323,6 +3369,10 @@ fun LukoaLauncherScreen(
         showStopConfirmDialog = true
     }
 
+    fun dismissForceCleanupDialog() {
+        pendingTavernForceCleanupConfirmation = null
+    }
+
     fun confirmStopTavern() {
         showStopConfirmDialog = false
         if (!beginBusy("停止酒馆", 20000L)) return
@@ -3332,6 +3382,25 @@ fun LukoaLauncherScreen(
             update(newStatus, termuxOutput, ok)
             val stopResult = "$newStatus\n$termuxOutput"
             if (ok && inferTavernRunning(stopResult) == false) {
+                tavernRunning = false
+                tavernStarting = false
+            }
+            if (!isTransientStatus(newStatus)) {
+                releaseBusy()
+            }
+        }
+    }
+
+    fun confirmForceCleanupDialog() {
+        val confirmation = pendingTavernForceCleanupConfirmation ?: return
+        dismissForceCleanupDialog()
+        if (!beginBusy(confirmation.suggestion.buttonLabel, 20000L)) return
+        tavernStarting = false
+        launchAttemptToken += 1
+        onCommand("tavern-force-cleanup") { newStatus, termuxOutput, ok ->
+            update(newStatus, termuxOutput, ok)
+            val cleanupResult = "$newStatus\n$termuxOutput"
+            if (ok && inferTavernRunning(cleanupResult) == false) {
                 tavernRunning = false
                 tavernStarting = false
             }
@@ -3606,9 +3675,19 @@ fun LukoaLauncherScreen(
 
     if (showStopConfirmDialog) {
         StopTavernConfirmDialog(
+            profile = tavernPathConfig.activeProfile,
             actionsLocked = actionInProgress,
             onConfirm = ::confirmStopTavern,
             onDismiss = { showStopConfirmDialog = false },
+        )
+    }
+
+    pendingTavernForceCleanupConfirmation?.let { confirmation ->
+        ForceCleanupTavernConfirmDialog(
+            confirmation = confirmation,
+            actionsLocked = actionInProgress,
+            onConfirm = ::confirmForceCleanupDialog,
+            onDismiss = ::dismissForceCleanupDialog,
         )
     }
 
@@ -4109,6 +4188,7 @@ fun LukoaLauncherScreen(
                                     onInstallTavern = ::installSelectedTavern,
                                 )
                             }
+                            val forceCleanupSuggestion = currentForceCleanupSuggestion()
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
@@ -4127,6 +4207,7 @@ fun LukoaLauncherScreen(
                                     !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
                                     else -> null
                                 },
+                                forceCleanupSuggestion = forceCleanupSuggestion,
                                 onWakeTermux = {
                                     if (beginBusy("唤醒 Termux", 6000L)) {
                                         val result = onWakeTermux(termuxReturnDelayMs)
@@ -4140,6 +4221,9 @@ fun LukoaLauncherScreen(
                                 },
                                 onPrimaryAction = {
                                     if (tavernRunning) requestStopTavern() else requestStartTavern()
+                                },
+                                onForceCleanup = {
+                                    requestForceCleanup(suggestionOverride = forceCleanupSuggestion)
                                 },
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },

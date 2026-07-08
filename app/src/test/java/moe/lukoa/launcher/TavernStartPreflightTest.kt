@@ -46,6 +46,24 @@ class TavernStartPreflightTest {
         assertEquals(TavernStartPreflightActionType.OpenPathSettings, result.action?.type)
     }
 
+    @Test
+    fun `detected stale process points to explicit force cleanup action`() {
+        val result = TavernStartPreflight.evaluate(
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            doctorReport = healthyDoctorReport().copy(
+                processDetected = true,
+                httpOk = false,
+                portListening = true,
+            ),
+        )
+
+        assertFalse(result.ok)
+        assertEquals(TavernStartPreflightActionType.ForceCleanupDetectedProcess, result.action?.type)
+        assertEquals("强制清理残留进程", result.action?.label)
+    }
+
     private fun healthyDoctorReport(): TavernDoctorReport {
         return TavernDoctorReport(
             tavernDir = "~/SillyTavern",
