@@ -125,7 +125,7 @@ private fun LaunchDocs() {
     )
     DocTopicCard(
         title = "Termux 前台日志很重要",
-        body = "安装、更新、准备环境这类长命令应该在 Termux 前台看得到。Termux 里有新增日志时，启动器也会同步新增。\n\n遇到报错，优先看 Termux 调用返回和诊断日志，不要只看按钮提示。",
+        body = "安装、更新、准备环境这类长命令应该在 Termux 前台看得到。Termux 里有新增日志时，启动器也会同步新增。\n\n遇到报错，优先看 Termux 前台回传和诊断日志，不要只看按钮提示。",
         accentColor = LukoaColors.Accent,
     )
     DocTopicCard(
@@ -195,7 +195,7 @@ private fun BackupDocs() {
 @Composable
 private fun TroubleshootingDocs() {
     DocTopicCard(
-        title = "先看 Termux 调用返回",
+        title = "先看 Termux 前台回传",
         body = "启动器按钮只是发命令，真正报错多数来自 Termux。看到 Error、failed、denied、not found，就优先看那段。\n\n找人答疑时，最好导出诊断日志，比截图一小块更有用。",
         accentColor = LukoaColors.Accent,
     )
@@ -206,7 +206,7 @@ private fun TroubleshootingDocs() {
     )
     DocTopicCard(
         title = "区分酒馆问题和模型问题",
-        body = "网页能打开但发消息报错，通常是 API、模型、额度、代理或预设问题。网页打不开，才优先怀疑酒馆没启动、端口占用或 Termux 没跑起来。\n\n简单判断：先看启动页状态，再看 Termux 调用返回。",
+        body = "网页能打开但发消息报错，通常是 API、模型、额度、代理或预设问题。网页打不开，才优先怀疑酒馆没启动、端口占用或 Termux 没跑起来。\n\n简单判断：先看启动页状态，再看 Termux 前台回传。",
         accentColor = LukoaColors.Accent,
     )
 }

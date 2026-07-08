@@ -44,4 +44,27 @@ class TavernLogSignalsTest {
         assertTrue(tail.contains("2026-07-03T08:03:07Z"))
         assertTrue(tail.contains("SillyTavern is listening"))
     }
+
+    @Test
+    fun `latest foreground session returns only the current foreground block`() {
+        val session = TavernLogSignals.latestForegroundSession(
+            """
+                old line
+                [2026-07-02T03:46:11Z] ===== Lukoa launcher foreground session =====
+                old session
+                [2026-07-03T08:03:07Z] ===== Lukoa launcher foreground session =====
+                Installing Node Modules...
+                SillyTavern is listening on IPv4: 127.0.0.1:8000
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+                [2026-07-03T08:03:07Z] ===== Lukoa launcher foreground session =====
+                Installing Node Modules...
+                SillyTavern is listening on IPv4: 127.0.0.1:8000
+            """.trimIndent(),
+            session,
+        )
+    }
 }

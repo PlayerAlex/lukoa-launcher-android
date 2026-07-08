@@ -63,6 +63,7 @@ class LauncherStateStore(private val context: Context) {
                 status = prefs.getString(KEY_STATUS, null) ?: defaults.status,
                 summary = prefs.getString(KEY_SUMMARY, null) ?: defaults.summary,
                 termuxLog = prefs.getString(KEY_TERMUX_LOG, null) ?: defaults.termuxLog,
+                tavernRuntimeLog = prefs.getString(KEY_TAVERN_RUNTIME_LOG, null) ?: defaults.tavernRuntimeLog,
                 appLog = prefs.getString(KEY_APP_LOG, null) ?: defaults.appLog,
                 verified = prefs.getBoolean(KEY_VERIFIED, defaults.verified),
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, null)
@@ -105,6 +106,7 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_STATUS, state.status)
             .putString(KEY_SUMMARY, state.summary)
             .putString(KEY_TERMUX_LOG, state.termuxLog)
+            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog)
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
@@ -218,6 +220,7 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_STATUS, state.status)
             .putString(KEY_SUMMARY, state.summary)
             .putString(KEY_TERMUX_LOG, state.termuxLog)
+            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog)
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
@@ -255,6 +258,7 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_STATUS = "status"
         const val KEY_SUMMARY = "summary"
         const val KEY_TERMUX_LOG = "termux_log"
+        const val KEY_TAVERN_RUNTIME_LOG = "tavern_runtime_log"
         const val KEY_APP_LOG = "app_log"
         const val KEY_VERIFIED = "verified"
         const val KEY_OFFICIAL_VERSIONS_CACHE = "official_versions_cache"

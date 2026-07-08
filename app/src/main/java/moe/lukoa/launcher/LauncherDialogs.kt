@@ -70,7 +70,7 @@ fun ExportLogDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
-                    text = "只导出 Termux 调用",
+                    text = "只导出 Termux 侧",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -84,7 +84,7 @@ fun ExportLogDialog(
                     onClick = onExportApp,
                 )
                 SecondaryActionButton(
-                    text = "两个都导出",
+                    text = "全部都导出",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -121,7 +121,7 @@ fun ClearLogScopeDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
-                    text = "只清除 Termux 调用",
+                    text = "只清除 Termux 侧",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -135,7 +135,7 @@ fun ClearLogScopeDialog(
                     onClick = onClearApp,
                 )
                 SecondaryActionButton(
-                    text = "两个都清除",
+                    text = "全部都清除",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -160,9 +160,9 @@ fun ClearLogDangerDialog(
     onDismiss: () -> Unit,
 ) {
     val target = when (mode) {
-        ExportLogMode.TermuxOnly -> "Termux 调用返回"
+        ExportLogMode.TermuxOnly -> "Termux 前台回传和酒馆运行日志"
         ExportLogMode.AppOnly -> "App 操作反馈"
-        ExportLogMode.Both -> "Termux 调用返回和 App 操作反馈"
+        ExportLogMode.Both -> "Termux 前台回传、酒馆运行日志和 App 操作反馈"
     }
     AlertDialog(
         onDismissRequest = onDismiss,

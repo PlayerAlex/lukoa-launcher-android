@@ -171,7 +171,7 @@ object StatusSummarizer {
             ok -> "操作完成"
 
             merged.contains("失败") ||
-                merged.contains("\"status\": \"error\"") -> "操作失败，请查看 Termux 调用返回"
+                merged.contains("\"status\": \"error\"") -> "操作失败，请查看 Termux 前台回传"
 
             else -> status.lineSequence().firstOrNull().orEmpty().ifBlank { "等待操作" }
         }

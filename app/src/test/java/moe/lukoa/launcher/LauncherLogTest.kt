@@ -7,7 +7,7 @@ class LauncherLogTest {
     @Test
     fun `append raw log keeps termux content unchanged`() {
         val appended = appendRawLog(
-            current = "暂无 Termux 回传。",
+            current = "暂无 Termux 前台回传。",
             text = """
                 line 1
                 line 2

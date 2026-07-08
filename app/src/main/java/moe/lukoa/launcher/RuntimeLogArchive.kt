@@ -5,11 +5,14 @@ import java.io.File
 
 object RuntimeLogArchive {
     private const val DIR_NAME = "runtime-logs"
-    private const val TERMUX_FILE = "termux.log"
+    private const val TERMUX_COMMAND_FILE = "termux-command.log"
+    private const val TAVERN_RUNTIME_FILE = "tavern-runtime.log"
     private const val APP_FILE = "app.log"
+    private const val LEGACY_TERMUX_FILE = "termux.log"
 
     fun ensureSeeded(context: Context, state: LauncherUiState) {
-        seedIfEmpty(termuxFile(context), state.termuxLog)
+        seedIfEmpty(termuxCommandFile(context), state.termuxLog)
+        seedIfEmpty(tavernRuntimeFile(context), state.tavernRuntimeLog)
         seedIfEmpty(appFile(context), state.appLog)
     }
 
@@ -17,12 +20,20 @@ object RuntimeLogArchive {
         appendStructured(context, APP_FILE, "App", text)
     }
 
-    fun appendTermux(context: Context, text: String) {
-        appendRaw(context, TERMUX_FILE, text)
+    fun appendTermuxCommand(context: Context, text: String) {
+        appendRaw(context, TERMUX_COMMAND_FILE, text)
     }
 
-    fun readTermux(context: Context, fallback: String = ""): String {
-        return read(termuxFile(context), fallback)
+    fun appendTavernRuntime(context: Context, text: String) {
+        appendRaw(context, TAVERN_RUNTIME_FILE, text)
+    }
+
+    fun readTermuxCommand(context: Context, fallback: String = ""): String {
+        return read(termuxCommandFile(context), fallback, legacyFallbackFile = legacyTermuxFile(context))
+    }
+
+    fun readTavernRuntime(context: Context, fallback: String = ""): String {
+        return read(tavernRuntimeFile(context), fallback)
     }
 
     fun readApp(context: Context, fallback: String = ""): String {
@@ -31,7 +42,9 @@ object RuntimeLogArchive {
 
     fun clear(context: Context, mode: ExportLogMode) {
         if (mode.includeTermux) {
-            termuxFile(context).writeText("", Charsets.UTF_8)
+            termuxCommandFile(context).writeText("", Charsets.UTF_8)
+            tavernRuntimeFile(context).writeText("", Charsets.UTF_8)
+            legacyTermuxFile(context).takeIf { it.exists() }?.writeText("", Charsets.UTF_8)
         }
         if (mode.includeApp) {
             appFile(context).writeText("", Charsets.UTF_8)
@@ -60,14 +73,26 @@ object RuntimeLogArchive {
         file.writeText(value, Charsets.UTF_8)
     }
 
-    private fun read(file: File, fallback: String): String {
-        if (!file.exists() || file.length() == 0L) return fallback
-        return runCatching { file.readText(Charsets.UTF_8) }.getOrDefault(fallback)
+    private fun read(
+        file: File,
+        fallback: String,
+        legacyFallbackFile: File? = null,
+    ): String {
+        val source = when {
+            file.exists() && file.length() > 0L -> file
+            legacyFallbackFile != null && legacyFallbackFile.exists() && legacyFallbackFile.length() > 0L -> legacyFallbackFile
+            else -> null
+        } ?: return fallback
+        return runCatching { source.readText(Charsets.UTF_8) }.getOrDefault(fallback)
     }
 
-    private fun termuxFile(context: Context): File = logDir(context).resolve(TERMUX_FILE)
+    private fun termuxCommandFile(context: Context): File = logDir(context).resolve(TERMUX_COMMAND_FILE)
+
+    private fun tavernRuntimeFile(context: Context): File = logDir(context).resolve(TAVERN_RUNTIME_FILE)
 
     private fun appFile(context: Context): File = logDir(context).resolve(APP_FILE)
+
+    private fun legacyTermuxFile(context: Context): File = logDir(context).resolve(LEGACY_TERMUX_FILE)
 
     private fun logDir(context: Context): File {
         return File(context.filesDir, DIR_NAME).apply { mkdirs() }

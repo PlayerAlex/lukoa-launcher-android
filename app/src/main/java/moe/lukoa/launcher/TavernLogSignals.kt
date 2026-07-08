@@ -81,6 +81,16 @@ object TavernLogSignals {
             .trim()
     }
 
+    fun latestForegroundSession(text: String): String {
+        val preparedLines = prepareForApp(text).lines()
+        if (preparedLines.isEmpty()) return ""
+        val sessionStart = preparedLines.indexOfLast { it.contains(SESSION_MARKER) }
+        if (sessionStart < 0) return ""
+        return preparedLines.subList(sessionStart, preparedLines.size)
+            .joinToString("\n")
+            .trim()
+    }
+
     fun prepareForApp(value: String): String {
         if (value.isBlank()) return ""
         val lines = stripAnsi(value).replace("\r\n", "\n").lines()

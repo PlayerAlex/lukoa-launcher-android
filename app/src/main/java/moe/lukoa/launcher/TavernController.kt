@@ -112,7 +112,11 @@ class TavernController(
             )
             if (result != null) {
                 val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
-                update(resultMessage(parsed.name, ok, result), formatResultForDisplay(result), ok)
+                update(
+                    resultMessage(parsed.name, ok, result),
+                    rawResultOutput(result).ifBlank { TermuxOutputDisplayFormatter.format(result) },
+                    ok,
+                )
                 if (ok && parsed.name == "start") {
                     delay(600)
                     val openResult = runner.openTavern()
@@ -144,7 +148,7 @@ class TavernController(
             )
             if (result != null) {
                 val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
-                updateTermuxLog(formatResultForDisplay(result), ok)
+                updateTermuxLog(rawResultOutput(result).ifBlank { TermuxOutputDisplayFormatter.format(result) }, ok)
             } else {
                 updateTermuxLog("日志同步暂未收到返回。", false)
             }
@@ -183,8 +187,9 @@ class TavernController(
     fun latestTermuxResultDisplay(): TermuxResultDisplay? {
         val result = TermuxResultStore.latest(context) ?: return null
         val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
-        val output = formatResultForDisplay(result)
-        val metadata = TavernTermuxResultMetadataParser.parse(output)
+        val rawOutput = rawResultOutput(result)
+        val output = rawOutput.ifBlank { TermuxOutputDisplayFormatter.format(result) }
+        val metadata = TavernTermuxResultMetadataParser.parse(rawOutput)
         return TermuxResultDisplay(
             key = result.stableKey,
             command = result.command.ifBlank { result.raw.lineSequence().firstOrNull().orEmpty().ifBlank { "Termux" } },
@@ -196,31 +201,37 @@ class TavernController(
     }
 
     fun exportLog(
-        summary: String,
-        status: String,
-        termuxLog: String,
-        appLog: String,
+        scope: CoroutineScope,
+        state: LauncherUiState,
         mode: ExportLogMode,
         update: LauncherUpdate,
     ) {
-        try {
-            val file = SessionLogExporter.export(
-                context = context,
-                summary = summary,
-                status = status,
-                termuxLog = termuxLog,
-                appLog = appLog,
-                mode = mode,
-            )
-            SharedFileSender.shareTextFile(context, file, "导出运行日志", "露科亚启动器运行日志")
-            val scopeText = when (mode) {
-                ExportLogMode.TermuxOnly -> "Termux 调用"
-                ExportLogMode.AppOnly -> "App 操作反馈"
-                ExportLogMode.Both -> "Termux 调用和 App 操作反馈"
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    SessionLogExporter.export(
+                        context = context,
+                        state = state,
+                        mode = mode,
+                    )
+                }
             }
-            update("已生成${scopeText}导出文件：${file.name}", "", true)
-        } catch (error: Exception) {
-            update("导出日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+            result.onSuccess { file ->
+                runCatching {
+                    SharedFileSender.shareTextFile(context, file, "导出运行日志", "露科亚启动器运行日志")
+                }.onSuccess {
+                    val scopeText = when (mode) {
+                        ExportLogMode.TermuxOnly -> "Termux 前台回传和酒馆运行日志"
+                        ExportLogMode.AppOnly -> "App 操作反馈"
+                        ExportLogMode.Both -> "Termux 前台回传、酒馆运行日志和 App 操作反馈"
+                    }
+                    update("已生成${scopeText}导出文件：${file.name}", "", true)
+                }.onFailure { error ->
+                    update("导出日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+                }
+            }.onFailure { error ->
+                update("导出日志失败：${error.message ?: error.javaClass.simpleName}", "", false)
+            }
         }
     }
 
@@ -284,9 +295,9 @@ class TavernController(
         scope.launch {
             val result = waitForResult(dispatch.executionId, startTime, nonce, dispatch.displayCommand)
             if (result != null && result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0) {
-                update(successMessage, result.stdout.ifBlank { result.raw }, true)
+                update(successMessage, rawResultOutput(result).ifBlank { result.raw }, true)
             } else if (result != null) {
-                update(failureMessage, formatResultForDisplay(result), false)
+                update(failureMessage, rawResultOutput(result).ifBlank { TermuxOutputDisplayFormatter.format(result) }, false)
             } else {
                 update("$timeoutMessage\n请检查 Termux 权限。", "", false)
             }
@@ -297,7 +308,7 @@ class TavernController(
         if (!dispatch.sent) return dispatch.message
         return when (command) {
             "status" -> "正在查询酒馆状态。"
-            "log" -> "正在读取 Termux 日志。"
+            "log" -> "正在读取酒馆运行日志。"
             "stop" -> "停止命令已发送到 Termux。"
             "tavern-force-cleanup" -> "强制清理命令已发送到 Termux。"
             "start" -> "启动命令已发送到 Termux。"
@@ -334,7 +345,7 @@ class TavernController(
         val stdout = result?.stdout.orEmpty()
         return when (command) {
             "status" -> if (ok) "状态已刷新。" else "状态查询失败。"
-            "log" -> if (ok) "日志已读取。" else "日志读取失败。"
+            "log" -> if (ok) "酒馆运行日志已同步。" else "同步酒馆运行日志失败。"
             "stop" -> if (ok) "停止命令已返回。" else "停止酒馆失败。"
             "tavern-force-cleanup" -> if (ok) "强制清理已返回。" else "强制清理残留进程失败。"
             "start" -> if (ok) "启动命令已返回。" else "启动酒馆失败。"
@@ -384,10 +395,10 @@ class TavernController(
                 TavernRestoreAftercareMessage.successMessage(stdout)
             } else if (
                 stdout.contains("termux-storage-permission", ignoreCase = true) ||
-                (
-                    stdout.contains("Permission denied", ignoreCase = true) &&
-                        stdout.contains("restore archive cannot be listed", ignoreCase = true)
-                )
+                    (
+                        stdout.contains("Permission denied", ignoreCase = true) &&
+                            stdout.contains("restore archive cannot be listed", ignoreCase = true)
+                        )
             ) {
                 "应用失败：Termux 没有存储权限。"
             } else {
@@ -486,8 +497,12 @@ class TavernController(
         return expectedCommand.isNotBlank() && result.command == expectedCommand
     }
 
-    private fun formatResultForDisplay(result: TermuxCommandResult): String {
-        return TermuxOutputDisplayFormatter.format(result)
+    private fun rawResultOutput(result: TermuxCommandResult): String {
+        return buildList {
+            result.stdout.trim().takeIf { it.isNotBlank() }?.let(::add)
+            result.stderr.trim().takeIf { it.isNotBlank() }?.let(::add)
+            result.raw.trim().takeIf { it.isNotBlank() }?.let(::add)
+        }.joinToString("\n").trim()
     }
 
     private fun returnToLauncher() {

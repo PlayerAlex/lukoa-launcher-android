@@ -98,7 +98,7 @@ fun LukoaLauncherScreen(
     onOpenUnknownAppSourcesSettings: () -> Boolean,
     onCopyText: (String, String) -> Boolean,
     onOpenExternalUrl: (String) -> Boolean,
-    onExportLog: (String, String, String, String, ExportLogMode, LauncherUpdate) -> Unit,
+    onExportLog: (LauncherUiState, ExportLogMode, LauncherUpdate) -> Unit,
     onExportDiagnostic: (DiagnosticSnapshot, LauncherUpdate) -> Unit,
     onExportBackup: (LauncherUiState, LauncherUpdate) -> Unit,
     onExportVersionReport: (LauncherUpdate) -> Unit,
@@ -120,11 +120,12 @@ fun LukoaLauncherScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val initialRuntimeText =
-        "${initialState.status}\n${initialState.summary}\n${initialState.termuxLog}\n${initialState.appLog}"
+        "${initialState.status}\n${initialState.summary}\n${initialState.termuxLog}\n${initialState.tavernRuntimeLog}\n${initialState.appLog}"
     val initialRunningSignal = inferTavernRunning(initialRuntimeText)
     var status by remember { mutableStateOf(initialState.status) }
     var summary by remember { mutableStateOf(initialState.summary) }
     var termuxLog by remember { mutableStateOf(initialState.termuxLog) }
+    var tavernRuntimeLog by remember { mutableStateOf(initialState.tavernRuntimeLog) }
     var appLog by remember { mutableStateOf(initialState.appLog) }
     var verified by remember { mutableStateOf(initialState.verified) }
     var tavernRunning by remember { mutableStateOf(initialRunningSignal == true) }
@@ -305,7 +306,9 @@ fun LukoaLauncherScreen(
     var pendingLauncherTask by remember { mutableStateOf(initialPendingLauncherTask) }
     var showPendingTaskDialog by remember { mutableStateOf(initialPendingLauncherTask != null) }
     val actionInProgress = busyLabel != null
-    val issueAnalysis = TavernIssueAnalyzer.analyze(termuxLog, status)
+    val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
+    val visibleTermuxPanelLog = TavernLogSignals.latestForegroundSession(tavernRuntimeLog)
+        .ifBlank { termuxLog }
     val scope = rememberCoroutineScope()
     val firstTavernStartGuide = remember {
         FirstTavernStartGuideResolver.resolve(
@@ -337,6 +340,7 @@ fun LukoaLauncherScreen(
             status = status,
             summary = summary,
             termuxLog = termuxLog,
+            tavernRuntimeLog = tavernRuntimeLog,
             appLog = appLog,
             verified = verified,
             officialVersionsCache = TavernOfficialVersionParser.encode(officialVersions),
@@ -402,7 +406,7 @@ fun LukoaLauncherScreen(
     }
 
     fun maybeShowFirstTavernStartGuideBeforeStart(): Boolean {
-        if (FirstTavernStartGuideResolver.hasSuccessfulStartHistory(termuxLog, appLog)) {
+        if (FirstTavernStartGuideResolver.hasSuccessfulStartHistory("$termuxLog\n\n$tavernRuntimeLog", appLog)) {
             markFirstTavernStartGuideSeen()
             return false
         }
@@ -410,7 +414,7 @@ fun LukoaLauncherScreen(
                 alreadyShown = firstTavernStartGuideSeen,
                 tavernInstallDetected = tavernInstallDetected,
                 tavernRunning = tavernRunning,
-                termuxLog = termuxLog,
+                termuxLog = "$termuxLog\n\n$tavernRuntimeLog",
                 appLog = appLog,
                 guideKind = firstTavernStartGuide.kind,
                 termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
@@ -620,14 +624,16 @@ fun LukoaLauncherScreen(
 
     fun resetVisibleStateForActiveProfile(statusText: String, summaryText: String) {
         val activeLabel = tavernPathConfig.activeProfileLabel
-        val waitingLog = "正在读取${activeLabel}的运行状态和版本信息。"
+        val waitingCommandLog = "正在读取${activeLabel}的运行状态和版本信息。"
+        val waitingRuntimeLog = "正在同步${activeLabel}的运行日志。"
         val clearedVersionInfo = TavernVersionInfo()
         val customSelection = selectedTavernVersion?.takeIf { it.kind == TavernVersionKind.Custom }
 
         status = statusText
         summary = summaryText
         verified = true
-        termuxLog = waitingLog
+        termuxLog = waitingCommandLog
+        tavernRuntimeLog = waitingRuntimeLog
         appLog = "App：$statusText"
         tavernRunning = false
         tavernStarting = false
@@ -650,28 +656,39 @@ fun LukoaLauncherScreen(
         onPersistState(currentState().copy(
             status = statusText,
             summary = summaryText,
-            termuxLog = waitingLog,
+            termuxLog = waitingCommandLog,
+            tavernRuntimeLog = waitingRuntimeLog,
             appLog = "App：$statusText",
             verified = true,
         ))
     }
 
-    fun normalizeTermuxOutputForDisplay(output: String): String {
-        return TermuxOutputDisplaySanitizer.sanitize(output)
+    fun extractTermuxDisplayContent(output: String): TermuxDisplayContent {
+        return TermuxDisplayContentExtractor.extract(output)
     }
 
     fun update(newStatus: String, termuxOutput: String, ok: Boolean, allowRunningInference: Boolean = true) {
-        val displayTermuxOutput = normalizeTermuxOutputForDisplay(termuxOutput)
+        val displayContent = extractTermuxDisplayContent(termuxOutput)
+        val displayTermuxOutput = displayContent.commandText
+        val runtimeLogOutput = displayContent.tavernRuntimeLogText
         val newSummary = StatusSummarizer.summarize(newStatus, termuxOutput, ok)
         RuntimeLogArchive.appendApp(context, newStatus)
         if (displayTermuxOutput.isNotBlank()) {
-            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
+            RuntimeLogArchive.appendTermuxCommand(context, displayTermuxOutput)
+        }
+        if (runtimeLogOutput.isNotBlank() && !tavernRuntimeLog.contains(runtimeLogOutput)) {
+            RuntimeLogArchive.appendTavernRuntime(context, runtimeLogOutput)
         }
         val newAppLog = appendLog(appLog, "App", newStatus)
         val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
             appendRawLog(termuxLog, displayTermuxOutput)
         } else {
             termuxLog
+        }
+        val newTavernRuntimeLog = if (runtimeLogOutput.isNotBlank() && !tavernRuntimeLog.contains(runtimeLogOutput)) {
+            appendRawLog(tavernRuntimeLog, runtimeLogOutput)
+        } else {
+            tavernRuntimeLog
         }
         val nextBackupHistory = BackupHistoryReducer.reduce(backupHistory, termuxOutput, ok)
 
@@ -680,6 +697,7 @@ fun LukoaLauncherScreen(
         verified = ok
         appLog = newAppLog
         termuxLog = newTermuxLog
+        tavernRuntimeLog = newTavernRuntimeLog
         backupHistory = nextBackupHistory
         rememberLaunchReadinessSnapshot(termuxOutput)
         applyTavernVersionInfoFromOutput(termuxOutput)
@@ -715,6 +733,7 @@ fun LukoaLauncherScreen(
             status = newStatus,
             summary = newSummary,
             termuxLog = newTermuxLog,
+            tavernRuntimeLog = newTavernRuntimeLog,
             appLog = newAppLog,
             verified = ok,
             backupHistory = nextBackupHistory,
@@ -737,18 +756,13 @@ fun LukoaLauncherScreen(
 
     fun syncTermuxResult(display: TermuxResultDisplay) {
         if (display.output.isBlank()) return
-        val displayTermuxOutput = normalizeTermuxOutputForDisplay(display.output)
+        val displayTermuxOutput = extractTermuxDisplayContent(display.output).commandText
+        if (displayTermuxOutput.isBlank()) return
         val newStatus = "已同步 Termux：${display.command}"
         val newSummary = StatusSummarizer.summarize(newStatus, display.output, display.ok)
         RuntimeLogArchive.appendApp(context, newStatus)
-        if (displayTermuxOutput.isNotBlank()) {
-            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
-        }
-        val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
-            appendRawLog(termuxLog, displayTermuxOutput)
-        } else {
-            termuxLog
-        }
+        RuntimeLogArchive.appendTermuxCommand(context, displayTermuxOutput)
+        val newTermuxLog = appendRawLog(termuxLog, displayTermuxOutput)
         val newAppLog = appendLog(appLog, "App", newStatus)
         val nextBackupHistory = BackupHistoryReducer.reduce(backupHistory, display.output, display.ok)
 
@@ -784,6 +798,7 @@ fun LukoaLauncherScreen(
             status = newStatus,
             summary = newSummary,
             termuxLog = newTermuxLog,
+            tavernRuntimeLog = tavernRuntimeLog,
             appLog = newAppLog,
             verified = display.ok,
             backupHistory = nextBackupHistory,
@@ -975,7 +990,7 @@ fun LukoaLauncherScreen(
             tavernInstallDetected = it
         }
 
-        fun applyDetectedTavernState(source: String, nextTermuxLog: String = termuxLog) {
+        fun applyDetectedTavernState(source: String, nextRuntimeLog: String = tavernRuntimeLog) {
             val inferredRunning = inferTavernRunning(source)
             val startingDetected = inferTavernStarting(source)
             val portConflictDetected = inferTavernPortConflict(source)
@@ -1024,7 +1039,7 @@ fun LukoaLauncherScreen(
                 newStatus == status &&
                 newSummary == summary &&
                 newVerified == verified &&
-                nextTermuxLog == termuxLog &&
+                nextRuntimeLog == tavernRuntimeLog &&
                 newTavernRunning == tavernRunning &&
                 newTavernStarting == tavernStarting
             ) {
@@ -1033,13 +1048,14 @@ fun LukoaLauncherScreen(
             status = newStatus
             summary = newSummary
             verified = newVerified
-            termuxLog = nextTermuxLog
+            tavernRuntimeLog = nextRuntimeLog
             tavernRunning = newTavernRunning
             tavernStarting = newTavernStarting
             onPersistState(currentState().copy(
                 status = newStatus,
                 summary = newSummary,
-                termuxLog = nextTermuxLog,
+                termuxLog = termuxLog,
+                tavernRuntimeLog = nextRuntimeLog,
                 verified = newVerified,
             ))
         }
@@ -1049,19 +1065,19 @@ fun LukoaLauncherScreen(
             return
         }
 
-        val displayTermuxOutput = normalizeTermuxOutputForDisplay(termuxOutput)
-        if (displayTermuxOutput.isBlank()) {
+        val runtimeLogOutput = extractTermuxDisplayContent(termuxOutput).tavernRuntimeLogText
+        if (runtimeLogOutput.isBlank()) {
             applyDetectedTavernState(termuxOutput)
             return
         }
 
-        val newTermuxLog = if (termuxLog.contains(displayTermuxOutput)) {
-            termuxLog
+        val newRuntimeLog = if (tavernRuntimeLog.contains(runtimeLogOutput)) {
+            tavernRuntimeLog
         } else {
-            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
-            appendRawLog(termuxLog, displayTermuxOutput)
+            RuntimeLogArchive.appendTavernRuntime(context, runtimeLogOutput)
+            appendRawLog(tavernRuntimeLog, runtimeLogOutput)
         }
-        applyDetectedTavernState(displayTermuxOutput, newTermuxLog)
+        applyDetectedTavernState(termuxOutput, newRuntimeLog)
     }
 
     fun requestClearLogs() {
@@ -1084,15 +1100,16 @@ fun LukoaLauncherScreen(
         showClearLogDangerDialog = false
         clearLogConfirmText = ""
         val targetText = when (mode) {
-            ExportLogMode.TermuxOnly -> "Termux 调用返回"
+            ExportLogMode.TermuxOnly -> "Termux 前台回传和酒馆运行日志"
             ExportLogMode.AppOnly -> "App 操作反馈"
-            ExportLogMode.Both -> "Termux 调用返回和 App 操作反馈"
+            ExportLogMode.Both -> "Termux 前台回传、酒馆运行日志和 App 操作反馈"
         }
         val newStatus = "已清除$targetText。"
         val newSummary = "日志显示已清理"
         RuntimeLogArchive.clear(context, mode)
         RuntimeLogArchive.appendApp(context, newStatus)
-        val newTermuxLog = if (mode.includeTermux) "暂无 Termux 回传。" else termuxLog
+        val newTermuxLog = if (mode.includeTermux) "暂无 Termux 前台回传。" else termuxLog
+        val newTavernRuntimeLog = if (mode.includeTermux) "暂无酒馆运行日志。" else tavernRuntimeLog
         val newAppLog = if (mode.includeApp) {
             "暂无 App 操作反馈。"
         } else {
@@ -1102,12 +1119,14 @@ fun LukoaLauncherScreen(
         summary = newSummary
         verified = true
         termuxLog = newTermuxLog
+        tavernRuntimeLog = newTavernRuntimeLog
         appLog = newAppLog
         onPersistState(
             LauncherUiState(
                 status = newStatus,
                 summary = newSummary,
                 termuxLog = newTermuxLog,
+                tavernRuntimeLog = newTavernRuntimeLog,
                 appLog = newAppLog,
                 verified = true,
                 officialVersionsCache = TavernOfficialVersionParser.encode(officialVersions),
@@ -1309,7 +1328,8 @@ fun LukoaLauncherScreen(
 
     fun exportWithMode(mode: ExportLogMode) {
         showExportDialog = false
-        onExportLog(summary, status, termuxLog, appLog, mode, ::update)
+        update("正在生成运行日志。日志较大时会稍等一会儿，但不该再把界面卡死。", "", true, allowRunningInference = false)
+        onExportLog(currentState(), mode, ::update)
     }
 
     fun exportDiagnosticLog() {
@@ -3467,7 +3487,7 @@ fun LukoaLauncherScreen(
                 if (latest.command == "log") {
                     lastSyncedTermuxResultKey = latest.key
                 } else if (busyLabel == null && !logRefreshInFlight) {
-                    val signature = latest.output.take(360)
+                    val signature = extractTermuxDisplayContent(latest.output).commandText.take(360)
                     if (signature.isBlank()) {
                         lastSyncedTermuxResultKey = latest.key
                     } else if (!termuxLog.contains(signature)) {
@@ -4171,9 +4191,14 @@ fun LukoaLauncherScreen(
                                 onQuickFixAction = ::runLauncherQuickFixAction,
                             )
                             LogPanel(
-                                title = "Termux 调用返回",
-                                content = termuxLog,
+                                title = "Termux 前台回传",
+                                content = visibleTermuxPanelLog,
                                 accentColor = LukoaColors.Accent,
+                            )
+                            LogPanel(
+                                title = "酒馆运行日志",
+                                content = tavernRuntimeLog,
+                                accentColor = LukoaColors.Info,
                             )
                             LogPanel(
                                 title = "App 操作反馈",

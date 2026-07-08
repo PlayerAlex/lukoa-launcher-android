@@ -203,8 +203,8 @@ class MainActivity : ComponentActivity() {
                     onOpenUnknownAppSourcesSettings = ::openUnknownAppSourcesSettings,
                     onCopyText = ::copyTextToClipboard,
                     onOpenExternalUrl = ::openExternalUrl,
-                    onExportLog = { summary, status, termuxLog, appLog, mode, update ->
-                        controller.exportLog(summary, status, termuxLog, appLog, mode, update)
+                    onExportLog = { state, mode, update ->
+                        controller.exportLog(lifecycleScope, state, mode, update)
                     },
                     onExportDiagnostic = { snapshot, update ->
                         controller.exportDiagnostic(lifecycleScope, snapshot, update)

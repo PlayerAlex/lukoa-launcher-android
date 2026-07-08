@@ -43,13 +43,17 @@ object DiagnosticLogExporter {
         val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())
         val file = ExportFileNamer.nextAvailableFile(exportsDir, "lukoa-diagnostic-$timestamp", "txt")
         val results = TermuxResultStore.recent(context)
-        val fullTermuxLog = RuntimeLogArchive.readTermux(context, snapshot.state.termuxLog)
+        val fullTermuxLog = RuntimeLogArchive.readTermuxCommand(context, snapshot.state.termuxLog)
+        val fullTavernRuntimeLog = RuntimeLogArchive.readTavernRuntime(context, snapshot.state.tavernRuntimeLog)
         val fullAppLog = RuntimeLogArchive.readApp(context, snapshot.state.appLog)
+        val foregroundConsoleLog = TavernLogSignals.latestForegroundSession(fullTavernRuntimeLog)
+            .ifBlank { fullTermuxLog }
         file.writeText(
             buildReport(
                 snapshot = snapshot,
                 results = results,
-                fullTermuxLog = fullTermuxLog,
+                foregroundConsoleLog = foregroundConsoleLog,
+                fullTavernRuntimeLog = fullTavernRuntimeLog,
                 fullAppLog = fullAppLog,
                 timestamp = timestamp,
                 nextAutoBackupAt = AutoBackupScheduler.nextTriggerAt(context),
@@ -62,7 +66,8 @@ object DiagnosticLogExporter {
     private fun buildReport(
         snapshot: DiagnosticSnapshot,
         results: List<TermuxCommandResult>,
-        fullTermuxLog: String,
+        foregroundConsoleLog: String,
+        fullTavernRuntimeLog: String,
         fullAppLog: String,
         timestamp: String,
         nextAutoBackupAt: Long,
@@ -202,8 +207,12 @@ object DiagnosticLogExporter {
             }
             appendLine()
 
-            appendLine("==== Termux 调用返回 ====")
-            appendLine(compactTermuxOutput(fullTermuxLog).trimForReport(MAX_LOG_CHARS))
+            appendLine("==== Termux 前台回传 ====")
+            appendLine(redact(foregroundConsoleLog).trimForReport(MAX_LOG_CHARS))
+            appendLine()
+
+            appendLine("==== 酒馆运行日志 ====")
+            appendLine(redact(fullTavernRuntimeLog).trimForReport(MAX_LOG_CHARS))
             appendLine()
 
             appendLine("==== App 操作反馈 ====")
