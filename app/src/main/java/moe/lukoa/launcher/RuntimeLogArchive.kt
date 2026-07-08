@@ -14,11 +14,11 @@ object RuntimeLogArchive {
     }
 
     fun appendApp(context: Context, text: String) {
-        append(context, APP_FILE, "App", text)
+        appendStructured(context, APP_FILE, "App", text)
     }
 
     fun appendTermux(context: Context, text: String) {
-        append(context, TERMUX_FILE, "Termux", text)
+        appendRaw(context, TERMUX_FILE, text)
     }
 
     fun readTermux(context: Context, fallback: String = ""): String {
@@ -38,10 +38,18 @@ object RuntimeLogArchive {
         }
     }
 
-    private fun append(context: Context, fileName: String, source: String, text: String) {
+    private fun appendStructured(context: Context, fileName: String, source: String, text: String) {
         if (text.isBlank()) return
         val file = logDir(context).resolve(fileName)
         val entry = logEntry(source, text)
+        val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
+        file.appendText(prefix + entry, Charsets.UTF_8)
+    }
+
+    private fun appendRaw(context: Context, fileName: String, text: String) {
+        val entry = text.trim()
+        if (entry.isBlank()) return
+        val file = logDir(context).resolve(fileName)
         val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
         file.appendText(prefix + entry, Charsets.UTF_8)
     }

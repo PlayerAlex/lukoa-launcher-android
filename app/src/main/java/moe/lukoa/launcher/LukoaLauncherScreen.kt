@@ -250,7 +250,6 @@ fun LukoaLauncherScreen(
     var busyStartedAtMillis by remember { mutableLongStateOf(0L) }
     var busyToken by remember { mutableIntStateOf(0) }
     var launchAttemptToken by remember { mutableIntStateOf(0) }
-    var lastTrackedLogBody by remember { mutableStateOf("") }
     var startupRefreshInFlight by remember { mutableStateOf(false) }
     var startupRefreshToken by remember { mutableIntStateOf(0) }
     var startupGithubCheckPending by remember { mutableStateOf(false) }
@@ -647,7 +646,6 @@ fun LukoaLauncherScreen(
         pendingTavernProfileRemovalConfirmation = null
         clearTransientTavernPathUiState()
         launchAttemptToken += 1
-        lastTrackedLogBody = ""
         lastSyncedTermuxResultKey = onLatestTermuxResult()?.key.orEmpty()
         onPersistState(currentState().copy(
             status = statusText,
@@ -658,19 +656,12 @@ fun LukoaLauncherScreen(
         ))
     }
 
-    fun reduceTermuxOutputForDisplay(output: String): String {
-        if (output.isBlank()) return ""
-        if (output.contains("No SillyTavern log file yet")) {
-            lastTrackedLogBody = ""
-            return output.trim()
-        }
-        val reduced = TermuxDisplayLogReducer.reduce(output, lastTrackedLogBody)
-        lastTrackedLogBody = reduced.trackedRecentLogBody
-        return reduced.displayChunk
+    fun normalizeTermuxOutputForDisplay(output: String): String {
+        return output.trim()
     }
 
     fun update(newStatus: String, termuxOutput: String, ok: Boolean, allowRunningInference: Boolean = true) {
-        val displayTermuxOutput = reduceTermuxOutputForDisplay(termuxOutput)
+        val displayTermuxOutput = normalizeTermuxOutputForDisplay(termuxOutput)
         val newSummary = StatusSummarizer.summarize(newStatus, termuxOutput, ok)
         RuntimeLogArchive.appendApp(context, newStatus)
         if (displayTermuxOutput.isNotBlank()) {
@@ -678,7 +669,7 @@ fun LukoaLauncherScreen(
         }
         val newAppLog = appendLog(appLog, "App", newStatus)
         val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
-            appendLog(termuxLog, "Termux", displayTermuxOutput)
+            appendRawLog(termuxLog, displayTermuxOutput)
         } else {
             termuxLog
         }
@@ -746,7 +737,7 @@ fun LukoaLauncherScreen(
 
     fun syncTermuxResult(display: TermuxResultDisplay) {
         if (display.output.isBlank()) return
-        val displayTermuxOutput = reduceTermuxOutputForDisplay(display.output)
+        val displayTermuxOutput = normalizeTermuxOutputForDisplay(display.output)
         val newStatus = "已同步 Termux：${display.command}"
         val newSummary = StatusSummarizer.summarize(newStatus, display.output, display.ok)
         RuntimeLogArchive.appendApp(context, newStatus)
@@ -754,7 +745,7 @@ fun LukoaLauncherScreen(
             RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
         }
         val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
-            appendLog(termuxLog, "Termux", displayTermuxOutput)
+            appendRawLog(termuxLog, displayTermuxOutput)
         } else {
             termuxLog
         }
@@ -1053,70 +1044,24 @@ fun LukoaLauncherScreen(
             ))
         }
 
-        val liveBody = TermuxLogDelta.extractLiveLogBody(termuxOutput)
-            ?.let(TavernLogSignals::prepareForApp)
-        if (liveBody != null) {
-            if (liveBody.isBlank()) {
-                applyDetectedTavernState(termuxOutput)
-                return
-            }
-            lastTrackedLogBody = TermuxLogDelta.appendLiveDelta(lastTrackedLogBody, liveBody)
-            RuntimeLogArchive.appendTermux(context, liveBody)
-            val newTermuxLog = appendLog(termuxLog, "Termux 实时新增", liveBody)
-            applyDetectedTavernState("$termuxOutput\n$liveBody", newTermuxLog)
-            return
-        }
-
-        val currentBody = TermuxLogDelta.extractRecentLogBody(termuxOutput)
-            ?.let(TavernLogSignals::prepareForApp)
-        if (currentBody != null) {
-            if (currentBody.isBlank()) {
-                applyDetectedTavernState(termuxOutput)
-                return
-            }
-            if (lastTrackedLogBody.isBlank()) {
-                lastTrackedLogBody = currentBody
-                val importantSnapshot = TermuxLogDelta.firstImportantSnapshot(currentBody)
-                if (importantSnapshot.isBlank()) {
-                    applyDetectedTavernState(termuxOutput)
-                    return
-                }
-
-                val signature = importantSnapshot.take(360)
-                val newTermuxLog = if (signature.isNotBlank() && !termuxLog.contains(signature)) {
-                    RuntimeLogArchive.appendTermux(context, importantSnapshot)
-                    appendLog(termuxLog, "Termux 最新重要日志", importantSnapshot)
-                } else {
-                    termuxLog
-                }
-                applyDetectedTavernState("$termuxOutput\n$importantSnapshot", newTermuxLog)
-                return
-            }
-
-            val delta = TermuxLogDelta.newSuffix(lastTrackedLogBody, currentBody)
-            lastTrackedLogBody = currentBody
-            if (delta.isBlank()) {
-                applyDetectedTavernState(termuxOutput)
-                return
-            }
-
-            val newTermuxLog = appendLog(termuxLog, "Termux 新增日志", delta)
-            RuntimeLogArchive.appendTermux(context, delta)
-            applyDetectedTavernState("$termuxOutput\n$delta", newTermuxLog)
-            return
-        }
-
         if (termuxOutput.contains("缺少 RUN_COMMAND 权限")) {
             runCommandPermissionGranted = false
             return
         }
 
-        if (termuxOutput.contains("No SillyTavern log file yet")) {
-            lastTrackedLogBody = ""
+        val displayTermuxOutput = normalizeTermuxOutputForDisplay(termuxOutput)
+        if (displayTermuxOutput.isBlank()) {
+            applyDetectedTavernState(termuxOutput)
             return
         }
 
-        applyDetectedTavernState(termuxOutput)
+        val newTermuxLog = if (termuxLog.contains(displayTermuxOutput)) {
+            termuxLog
+        } else {
+            RuntimeLogArchive.appendTermux(context, displayTermuxOutput)
+            appendRawLog(termuxLog, displayTermuxOutput)
+        }
+        applyDetectedTavernState(displayTermuxOutput, newTermuxLog)
     }
 
     fun requestClearLogs() {
@@ -1138,9 +1083,6 @@ fun LukoaLauncherScreen(
     fun clearLogs(mode: ExportLogMode) {
         showClearLogDangerDialog = false
         clearLogConfirmText = ""
-        if (mode.includeTermux) {
-            lastTrackedLogBody = ""
-        }
         val targetText = when (mode) {
             ExportLogMode.TermuxOnly -> "Termux 调用返回"
             ExportLogMode.AppOnly -> "App 操作反馈"

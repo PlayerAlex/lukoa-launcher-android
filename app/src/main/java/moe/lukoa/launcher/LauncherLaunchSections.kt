@@ -309,20 +309,18 @@ fun TavernControlSection(
                 style = MaterialTheme.typography.titleSmall,
             )
         }
-        forceCleanupSuggestion?.let { suggestion ->
-            SecondaryActionButton(
-                text = suggestion.buttonLabel,
-                enabled = !actionInProgress,
-                accentColor = LukoaColors.Danger,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = forceCleanupClick,
-            )
-            Text(
-                text = suggestion.buttonHint,
-                color = LukoaColors.Amber,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        SecondaryActionButton(
+            text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
+            enabled = !actionInProgress,
+            accentColor = LukoaColors.Danger,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = forceCleanupClick,
+        )
+        Text(
+            text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
+            color = LukoaColors.Amber,
+            style = MaterialTheme.typography.bodySmall,
+        )
         if (!primaryEnabled && primaryDisabledReason != null) {
             Text(
                 text = primaryDisabledReason,

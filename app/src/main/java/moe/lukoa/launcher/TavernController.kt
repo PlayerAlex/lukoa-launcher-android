@@ -487,26 +487,7 @@ class TavernController(
     }
 
     private fun formatResultForDisplay(result: TermuxCommandResult): String {
-        return cleanTerminalOutput(buildString {
-            if (!result.hasResultBundle) appendLine("未收到 Termux 返回包。")
-            if (result.hasInternalError) appendLine("Termux 内部错误：${result.errMessage.ifBlank { result.errCode.toString() }}")
-            if (result.errCode == 150 || result.errMessage.contains("executable regular file not found", ignoreCase = true)) {
-                appendLine("未找到 Termux 脚本，请重新打开启动器。")
-            }
-            if (TermuxPermissionSignals.externalAppsBlocked(result.errMessage + "\n" + result.raw)) {
-                appendLine("Termux 外部调用未开启。请在启动器权限引导里复制命令，到 Termux 粘贴执行。")
-            }
-            if (result.exitCode != null) appendLine("exitCode=${result.exitCode}") else appendLine("缺少 exitCode。")
-            if (result.stdout.isNotBlank()) appendLine(result.stdout.trim())
-            if (result.stderr.isNotBlank()) appendLine(result.stderr.trim())
-            if (isBlank() && result.raw.isNotBlank()) append(result.raw.trim())
-        }.trim())
-    }
-
-    private fun cleanTerminalOutput(text: String): String {
-        return text
-            .replace(Regex("\u001B\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)"), "")
-            .replace(Regex("\u001B\\[(?![0-9;]*m)[0-?]*[ -/]*[@-~]"), "")
+        return TermuxOutputDisplayFormatter.format(result)
     }
 
     private fun returnToLauncher() {
