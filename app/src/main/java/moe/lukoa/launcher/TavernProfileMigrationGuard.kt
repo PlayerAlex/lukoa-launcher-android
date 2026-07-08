@@ -54,8 +54,13 @@ object TavernProfileMigrationGuard {
         TavernPathValidator.validate(normalizedTargetPath)?.let { reason ->
             return TavernProfileMigrationDecision.Blocked(reason)
         }
-        if (normalizedTargetPath == profile.normalizedTavernDir) {
+        if (TavernComparablePath.same(normalizedTargetPath, profile.normalizedTavernDir)) {
             return TavernProfileMigrationDecision.Blocked("目标目录和当前目录一样，不需要迁移。")
+        }
+        TavernProfileReservedPathPolicy.reservedMessageForProfile(
+            profile.copy(tavernDir = normalizedTargetPath),
+        )?.let { reason ->
+            return TavernProfileMigrationDecision.Blocked(reason)
         }
         if (targetKind == TavernProfileMigrationTargetKind.TraditionalDefault &&
             profile.id != TavernProfileDefaults.MAIN_PROFILE_ID
@@ -68,7 +73,7 @@ object TavernProfileMigrationGuard {
         val occupiedProfile = config.availableProfiles
             .firstOrNull {
                 it.id != profile.id &&
-                    it.normalizedTavernDir == normalizedTargetPath
+                    TavernComparablePath.same(it.normalizedTavernDir, normalizedTargetPath)
             }
         if (occupiedProfile != null) {
             return TavernProfileMigrationDecision.Blocked(

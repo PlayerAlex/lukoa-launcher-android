@@ -16,14 +16,21 @@ object TavernDirectoryCandidateGuard {
     ): List<TavernDirectoryCandidateOption> {
         val occupiedProfiles = config.availableProfiles
             .filterNot { it.id == config.activeProfile.id }
-            .associateBy { normalizeComparablePath(it.normalizedTavernDir) }
+            .associateBy { TavernComparablePath.normalize(it.normalizedTavernDir) }
 
         return candidates
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .distinctBy(::normalizeComparablePath)
+            .distinctBy(TavernComparablePath::normalize)
             .map { candidate ->
-                val occupiedBy = occupiedProfiles[normalizeComparablePath(candidate)]
+                TavernProfileReservedPathPolicy.candidateBlockedReason(config.activeProfile, candidate)?.let { reason ->
+                    return@map TavernDirectoryCandidateOption(
+                        path = candidate,
+                        selectable = false,
+                        reason = reason,
+                    )
+                }
+                val occupiedBy = occupiedProfiles[TavernComparablePath.normalize(candidate)]
                 if (occupiedBy == null) {
                     TavernDirectoryCandidateOption(
                         path = candidate,
@@ -39,18 +46,4 @@ object TavernDirectoryCandidateGuard {
             }
     }
 
-    private fun normalizeComparablePath(value: String): String {
-        val normalized = value.trim().replace('\\', '/').trimEnd('/')
-        if (normalized.isBlank()) return ""
-        return when {
-            normalized == "~" || normalized == "\$HOME" -> TavernPathDefaults.TERMUX_HOME_DIR
-            normalized.startsWith("~/") ->
-                "${TavernPathDefaults.TERMUX_HOME_DIR}/${normalized.removePrefix("~/")}".trimEnd('/')
-
-            normalized.startsWith("\$HOME/") ->
-                "${TavernPathDefaults.TERMUX_HOME_DIR}/${normalized.removePrefix("\$HOME/")}".trimEnd('/')
-
-            else -> normalized
-        }
-    }
 }

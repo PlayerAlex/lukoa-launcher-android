@@ -970,6 +970,12 @@ class TermuxCommandRunner(private val context: Context) {
             append_tavern_candidate() {
               candidate="${'$'}1"
               [ -n "${'$'}candidate" ] || return 0
+              if [ "${'$'}{TAVERN_PROFILE_ID:-main}" != "main" ]; then
+                reserved_main_dir="${'$'}(expand_launcher_path "${'$'}(launcher_managed_profile_dir main)")"
+                if [ "${'$'}(expand_launcher_path "${'$'}candidate")" = "${'$'}reserved_main_dir" ]; then
+                  return 0
+                fi
+              fi
               if [ -z "${'$'}{TAVERN_CANDIDATE_LIST:-}" ]; then
                 TAVERN_CANDIDATE_LIST="${'$'}candidate"
               else

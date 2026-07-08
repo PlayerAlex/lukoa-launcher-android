@@ -32,6 +32,7 @@ object TavernStartPreflight {
         runCommandPermissionGranted: Boolean,
         termuxExternalAppsBlocked: Boolean,
         doctorReport: TavernDoctorReport?,
+        activeProfile: TavernProfile? = null,
     ): TavernStartPreflightResult {
         if (!termuxInstalled) {
             return blocked(
@@ -64,6 +65,24 @@ object TavernStartPreflight {
                     label = "复制权限命令",
                 ),
             )
+        }
+
+        if (activeProfile != null) {
+            TavernProfileReservedPathPolicy.startBlockedMessage(activeProfile)?.let { reason ->
+                return blocked(
+                    summary = "当前实例路径还没设置稳，先改对再启动。",
+                    details = listOf(
+                        "当前实例：${activeProfile.normalizedName}",
+                        "当前路径：${activeProfile.displayTavernDir}",
+                        reason,
+                    ),
+                    action = TavernStartPreflightAction(
+                        type = TavernStartPreflightActionType.OpenPathSettings,
+                        label = "去设置路径",
+                    ),
+                    doctorReport = doctorReport,
+                )
+            }
         }
 
         if (doctorReport == null) {

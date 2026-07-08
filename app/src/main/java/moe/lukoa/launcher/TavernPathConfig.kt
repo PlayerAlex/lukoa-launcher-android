@@ -68,7 +68,7 @@ data class TavernPathConfig(
     val isActiveProfileDefault: Boolean
         get() {
             val defaultProfile = TavernProfileDefaults.profileForId(activeProfile.id)
-            return normalizedTavernDir == defaultProfile.normalizedTavernDir &&
+            return TavernComparablePath.same(normalizedTavernDir, defaultProfile.normalizedTavernDir) &&
                 normalizedPort == defaultProfile.normalizedPort
         }
 
@@ -461,7 +461,7 @@ class TavernPathStore(private val context: Context) {
             return "至少要保留一个实例。"
         }
         val duplicatePath = config.availableProfiles
-            .groupBy { it.normalizedTavernDir }
+            .groupBy { TavernComparablePath.normalize(it.normalizedTavernDir) }
             .entries
             .firstOrNull { it.key.isNotBlank() && it.value.size > 1 }
         if (duplicatePath != null) {
@@ -476,6 +476,9 @@ class TavernPathStore(private val context: Context) {
         }
         config.availableProfiles.forEach { profile ->
             TavernPathValidator.validate(profile.tavernDir)?.let { reason ->
+                return "${profile.normalizedName}：$reason"
+            }
+            TavernProfileReservedPathPolicy.reservedMessageForProfile(profile)?.let { reason ->
                 return "${profile.normalizedName}：$reason"
             }
             if (profile.normalizedPort !in 1..65535) {

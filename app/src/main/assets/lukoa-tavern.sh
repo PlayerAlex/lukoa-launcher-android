@@ -164,6 +164,12 @@ looks_like_tavern_dir() {
 append_tavern_candidate() {
   candidate="$1"
   [ -n "$candidate" ] || return 0
+  if [ "${TAVERN_PROFILE_ID:-main}" != "main" ]; then
+    reserved_main_dir="$(expand_launcher_path "$(launcher_managed_profile_dir main)")"
+    if [ "$(expand_launcher_path "$candidate")" = "$reserved_main_dir" ]; then
+      return 0
+    fi
+  fi
   case "$candidate" in
     "$TAVERN_DIR"|"$DEFAULT_TAVERN_DIR") ;;
   esac
@@ -1931,6 +1937,20 @@ cmd_backup() {
   EXTERNAL_DATA_ROOT=""
   EXTERNAL_DATA_ENTRY=""
   if [ -d "$DATA_ROOT_CANON" ] && ! path_is_inside "$DATA_ROOT_CANON" "$TAVERN_CANON"; then
+    if path_is_inside "$TAVERN_CANON" "$DATA_ROOT_CANON"; then
+      safe_remove_backup_temp_dir "$manifest_dir"
+      write_status "error" "configured dataRoot points to a parent directory of SillyTavern; backup is blocked to avoid archiving unrelated files" false 73
+      cat "$STATUS_FILE"
+      printf "\n==== SillyTavern backup ====\n"
+      printf "kind=%s\n" "$BACKUP_KIND"
+      printf "archive=%s\n" "$archive"
+      printf "source=%s\n" "$TAVERN_CANON"
+      printf "dataRoot=%s\n" "$DATA_ROOT_CANON"
+      printf "error=configured dataRoot is broader than the current SillyTavern directory\n"
+      printf "notice=请先把 config.yaml 里的 dataRoot 改回当前酒馆目录里的 data 子目录，或改到一个独立目录后再备份。\n"
+      printf "==== end SillyTavern backup ====\n"
+      return 73
+    fi
     EXTERNAL_DATA_ROOT="$DATA_ROOT_CANON"
     EXTERNAL_DATA_ENTRY="$(basename "$DATA_ROOT_CANON")"
     record_expected "external-dataRoot" "$EXTERNAL_DATA_ROOT" "$EXTERNAL_DATA_ENTRY"

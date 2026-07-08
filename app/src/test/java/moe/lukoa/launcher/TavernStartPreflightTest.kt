@@ -28,6 +28,24 @@ class TavernStartPreflightTest {
         assertNull(result.action)
     }
 
+    @Test
+    fun `clone using main managed directory is blocked before start`() {
+        val result = TavernStartPreflight.evaluate(
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            doctorReport = healthyDoctorReport(),
+            activeProfile = TavernProfileDefaults.profileForId("profile-2").copy(
+                tavernDir = "~/LukoaLauncher/SillyTavern",
+            ),
+        )
+
+        assertFalse(result.ok)
+        assertTrue(result.summary.contains("路径"))
+        assertTrue(result.details.any { it.contains("会一直保留给主实例") })
+        assertEquals(TavernStartPreflightActionType.OpenPathSettings, result.action?.type)
+    }
+
     private fun healthyDoctorReport(): TavernDoctorReport {
         return TavernDoctorReport(
             tavernDir = "~/SillyTavern",

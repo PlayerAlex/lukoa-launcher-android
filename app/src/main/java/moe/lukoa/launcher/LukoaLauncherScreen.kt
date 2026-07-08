@@ -375,6 +375,19 @@ fun LukoaLauncherScreen(
         PendingLauncherTaskStore.clear(context)
     }
 
+    suspend fun recoverPendingManualBackup(task: PendingLauncherTask): PendingManualBackupRecoveryResult? {
+        if (task.kind != PendingLauncherTaskKind.ManualBackup) return null
+        return withContext(Dispatchers.IO) {
+            val archiveDetails = BackupLibraryFiles.listLibraryArchives(context)
+                .mapNotNull { path -> BackupLibraryFiles.describeLibraryArchive(context, path) }
+            PendingManualBackupRecovery.recover(
+                startedAtMillis = task.startedAtMillis,
+                expectedLabel = task.targetLabel,
+                archives = archiveDetails,
+            )
+        }
+    }
+
     fun hideFirstTavernStartGuideDialog() {
         showFirstTavernStartGuideDialog = false
         pendingFirstTavernStartGuide = null
@@ -807,9 +820,26 @@ fun LukoaLauncherScreen(
         scope.launch {
             delay(timeoutMs)
             if (busyToken == token && busyLabel != null) {
-                busyLabel = null
-                busyStartedAtMillis = 0L
-                OperationLockStore.release(context)
+                val timedOutTask = pendingLauncherTask
+                val recovered = timedOutTask?.let { recoverPendingManualBackup(it) }
+                if (busyToken != token || busyLabel == null) return@launch
+                if (recovered != null) {
+                    clearPendingLauncherTask()
+                    releaseBusy()
+                    val nextBackupHistory = BackupHistoryReducer.sanitize(
+                        listOf(recovered.archivePath) + backupHistory,
+                    )
+                    backupHistory = nextBackupHistory
+                    onPersistState(currentState().copy(backupHistory = nextBackupHistory))
+                    update(
+                        "已继续检查这次创建备份：备份已经生成，但 Termux 没把最终返回带回来。\n备份在：${recovered.archivePath}",
+                        "",
+                        true,
+                        allowRunningInference = false,
+                    )
+                    return@launch
+                }
+                releaseBusy()
                 update("没收到 Termux 返回，按钮已恢复。", "", false)
             }
         }
@@ -2759,6 +2789,7 @@ fun LukoaLauncherScreen(
             runCommandPermissionGranted = runCommandPermissionGranted,
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             doctorReport = doctorReport,
+            activeProfile = tavernPathConfig.activeProfile,
         )
     }
 
@@ -2937,6 +2968,33 @@ fun LukoaLauncherScreen(
                 resolved.ok,
                 allowRunningInference = false,
             )
+            return
+        }
+
+        if (task.kind == PendingLauncherTaskKind.ManualBackup) {
+            scope.launch {
+                val recovered = recoverPendingManualBackup(task)
+                if (recovered != null) {
+                    clearPendingLauncherTask()
+                    refreshBackupList()
+                    update(
+                        "已继续检查上次创建备份：备份已经生成，但 Termux 没把最终返回带回来。\n备份在：${recovered.archivePath}",
+                        "",
+                        true,
+                        allowRunningInference = false,
+                    )
+                    return@launch
+                }
+
+                val waitingRefreshTargets = PendingLauncherTaskSupport.waitingRefreshTargets(task)
+                runPendingTaskFollowUpRefresh(waitingRefreshTargets)
+                update(
+                    PendingLauncherTaskSupport.waitingMessage(task),
+                    "",
+                    false,
+                    allowRunningInference = false,
+                )
+            }
             return
         }
 
@@ -3136,6 +3194,7 @@ fun LukoaLauncherScreen(
                 runCommandPermissionGranted = runCommandPermissionGranted,
                 termuxExternalAppsBlocked = termuxExternalAppsBlocked,
                 doctorReport = doctorReport,
+                activeProfile = tavernPathConfig.activeProfile,
             )
             releaseBusy()
             if (!preflight.ok) {
@@ -3588,6 +3647,7 @@ fun LukoaLauncherScreen(
                             "备份名：$backupName"
                         },
                         startedAtMillis = System.currentTimeMillis(),
+                        targetLabel = backupName,
                     ),
                     label = "创建酒馆备份",
                     timeoutMs = 600000L,

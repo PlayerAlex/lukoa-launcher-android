@@ -34,6 +34,15 @@ class TavernPathConfigTest {
     }
 
     @Test
+    fun `absolute launcher managed path still counts as active profile default`() {
+        val config = TavernPathConfig().withUpdatedActiveProfile(
+            tavernDir = "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern",
+        )
+
+        assertTrue(config.isActiveProfileDefault)
+    }
+
+    @Test
     fun `remove active profile falls back to remaining profile`() {
         val config = TavernPathConfig()
             .addSuggestedProfile()

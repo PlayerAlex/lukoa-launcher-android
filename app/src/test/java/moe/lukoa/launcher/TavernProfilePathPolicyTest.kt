@@ -41,6 +41,18 @@ class TavernProfilePathPolicyTest {
     }
 
     @Test
+    fun `absolute launcher managed path is still recognized as launcher managed`() {
+        val profile = TavernProfileDefaults.profileForId("main").copy(
+            tavernDir = "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern",
+        )
+
+        val info = TavernProfilePathPolicy.describe(profile)
+
+        assertEquals(TavernProfilePathKind.LauncherManaged, info.kind)
+        assertTrue(TavernProfilePathPolicy.isLauncherManagedPath(profile.tavernDir))
+    }
+
+    @Test
     fun `custom path does not auto qualify for directory deletion`() {
         val profile = TavernProfileDefaults.profileForId("profile-2").copy(
             tavernDir = "~/LukoaLauncher/custom-silly",

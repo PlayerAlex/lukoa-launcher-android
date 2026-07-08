@@ -25,11 +25,11 @@ object TavernProfilePathPolicy {
         val managedDefaultPath = launcherManagedDefaultPathForProfileId(profile.id)
         val normalizedCurrentPath = profile.normalizedTavernDir
         val kind = when {
-            normalizedCurrentPath == TavernPathNormalizer.normalize(managedDefaultPath) -> {
+            TavernComparablePath.same(normalizedCurrentPath, managedDefaultPath) -> {
                 TavernProfilePathKind.LauncherManaged
             }
 
-            normalizedCurrentPath == TavernPathDefaults.LEGACY_DEFAULT_TAVERN_DIR_NORMALIZED -> {
+            TavernComparablePath.same(normalizedCurrentPath, TavernPathDefaults.LEGACY_DEFAULT_TAVERN_DIR_NORMALIZED) -> {
                 TavernProfilePathKind.TraditionalDefault
             }
 
@@ -63,8 +63,8 @@ object TavernProfilePathPolicy {
     }
 
     fun isLauncherManagedPath(path: String): Boolean {
-        val normalized = TavernPathNormalizer.normalize(path)
-        val root = TavernPathDefaults.LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED
+        val normalized = TavernComparablePath.normalize(path)
+        val root = TavernComparablePath.normalize(TavernPathDefaults.LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED)
         return normalized == root || normalized.startsWith("$root/")
     }
 

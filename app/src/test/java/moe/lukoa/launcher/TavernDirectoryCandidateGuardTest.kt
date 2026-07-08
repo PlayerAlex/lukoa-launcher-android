@@ -20,7 +20,7 @@ class TavernDirectoryCandidateGuardTest {
 
         assertEquals(2, options.size)
         assertFalse(options[0].selectable)
-        assertEquals("这个目录已经被主实例使用。", options[0].reason)
+        assertEquals("这个目录会一直保留给主实例，分身实例不能直接使用。", options[0].reason)
         assertTrue(options[1].selectable)
     }
 

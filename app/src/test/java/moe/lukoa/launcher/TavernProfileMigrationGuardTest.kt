@@ -71,7 +71,26 @@ class TavernProfileMigrationGuardTest {
         )
 
         assertTrue(decision is TavernProfileMigrationDecision.Blocked)
-        assertEquals("这个目录已经被主实例使用了，不能直接迁过去。", (decision as TavernProfileMigrationDecision.Blocked).message)
+        assertTrue((decision as TavernProfileMigrationDecision.Blocked).message.contains("会一直保留给主实例"))
+    }
+
+    @Test
+    fun `clone cannot migrate into main launcher managed directory even when main moved away`() {
+        val config = TavernPathConfig()
+            .withUpdatedActiveProfile(tavernDir = "~/SillyTavern")
+            .addSuggestedProfile()
+
+        val decision = TavernProfileMigrationGuard.evaluate(
+            config = config,
+            targetPath = "~/LukoaLauncher/SillyTavern",
+            targetKind = TavernProfileMigrationTargetKind.LauncherManaged,
+            tavernRunning = false,
+            tavernStarting = false,
+            actionsLocked = false,
+        )
+
+        assertTrue(decision is TavernProfileMigrationDecision.Blocked)
+        assertTrue((decision as TavernProfileMigrationDecision.Blocked).message.contains("会一直保留给主实例"))
     }
 
     @Test
