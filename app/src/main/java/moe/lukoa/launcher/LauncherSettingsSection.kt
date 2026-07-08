@@ -85,6 +85,7 @@ fun SettingsSection(
     healthCheckReport: LauncherHealthReport?,
     healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
+    forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
     onTavernPathInputChange: (String) -> Unit,
@@ -123,6 +124,7 @@ fun SettingsSection(
     onOpenRelease: () -> Unit,
     onRunHealthCheck: () -> Unit,
     onRunHealthCheckPrimaryAction: () -> Unit,
+    onForceCleanup: () -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -526,6 +528,18 @@ fun SettingsSection(
                 Text(
                     text = "诊断日志适合发给我查 bug。清除日志只会清启动器里的显示，不会去删你酒馆目录里的文件。",
                     color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                SecondaryActionButton(
+                    text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
+                    enabled = !actionsLocked,
+                    accentColor = LukoaColors.Danger,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onForceCleanup,
+                )
+                Text(
+                    text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
+                    color = LukoaColors.Amber,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(

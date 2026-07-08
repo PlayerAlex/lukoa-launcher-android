@@ -7,11 +7,11 @@ object TermuxOutputDisplayFormatter {
             result.stderr.trim().takeIf { it.isNotBlank() }?.let(::add)
         }.joinToString("\n")
         if (directOutput.isNotBlank()) {
-            return cleanTerminalOutput(directOutput)
+            return TermuxOutputDisplaySanitizer.sanitize(directOutput)
         }
 
         if (result.raw.isNotBlank()) {
-            return cleanTerminalOutput(result.raw.trim())
+            return TermuxOutputDisplaySanitizer.sanitize(result.raw.trim())
         }
 
         val fallback = buildList {
@@ -29,13 +29,6 @@ object TermuxOutputDisplayFormatter {
             }
             add(if (result.exitCode != null) "exitCode=${result.exitCode}" else "缺少 exitCode。")
         }.joinToString("\n")
-        return cleanTerminalOutput(fallback)
-    }
-
-    private fun cleanTerminalOutput(text: String): String {
-        return text
-            .replace(Regex("\u001B\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)"), "")
-            .replace(Regex("\u001B\\[(?![0-9;]*m)[0-?]*[ -/]*[@-~]"), "")
-            .trim()
+        return TermuxOutputDisplaySanitizer.sanitize(fallback)
     }
 }

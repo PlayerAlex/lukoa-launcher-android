@@ -657,7 +657,7 @@ fun LukoaLauncherScreen(
     }
 
     fun normalizeTermuxOutputForDisplay(output: String): String {
-        return output.trim()
+        return TermuxOutputDisplaySanitizer.sanitize(output)
     }
 
     fun update(newStatus: String, termuxOutput: String, ok: Boolean, allowRunningInference: Boolean = true) {
@@ -3230,7 +3230,7 @@ fun LukoaLauncherScreen(
             summaryText = summaryOverride,
         )
         if (suggestion == null) {
-            update("当前没有检测到需要强制清理的残留进程。", "", false, allowRunningInference = false)
+            update("当前没有检测到需要强制清理的残留进程。可以先做一次体检，或先普通停止酒馆后再回来处理。", "", false, allowRunningInference = false)
             return
         }
         showStopConfirmDialog = false
@@ -4130,7 +4130,6 @@ fun LukoaLauncherScreen(
                                     onInstallTavern = ::installSelectedTavern,
                                 )
                             }
-                            val forceCleanupSuggestion = currentForceCleanupSuggestion()
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
@@ -4149,7 +4148,6 @@ fun LukoaLauncherScreen(
                                     !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
                                     else -> null
                                 },
-                                forceCleanupSuggestion = forceCleanupSuggestion,
                                 onWakeTermux = {
                                     if (beginBusy("唤醒 Termux", 6000L)) {
                                         val result = onWakeTermux(termuxReturnDelayMs)
@@ -4163,9 +4161,6 @@ fun LukoaLauncherScreen(
                                 },
                                 onPrimaryAction = {
                                     if (tavernRunning) requestStopTavern() else requestStartTavern()
-                                },
-                                onForceCleanup = {
-                                    requestForceCleanup(suggestionOverride = forceCleanupSuggestion)
                                 },
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
@@ -4233,6 +4228,7 @@ fun LukoaLauncherScreen(
                             healthCheckReport = healthCheckReport,
                             healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
+                            forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
                             onTavernPathInputChange = { tavernPathInput = it },
@@ -4333,6 +4329,7 @@ fun LukoaLauncherScreen(
                             },
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
+                            onForceCleanup = ::requestForceCleanup,
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {
