@@ -3551,6 +3551,7 @@ fun LukoaLauncherScreen(
     pendingStartPreflight?.let { result ->
         StartPreflightConfirmDialog(
             result = result,
+            activeProfile = tavernPathConfig.activeProfile,
             onConfirm = ::confirmStartPreflightDialog,
             onDismiss = ::clearStartPreflightDialog,
         )

@@ -1287,6 +1287,7 @@ fun InstallRiskConfirmDialog(
 @Composable
 fun StartPreflightConfirmDialog(
     result: TavernStartPreflightResult,
+    activeProfile: TavernProfile? = null,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1300,6 +1301,9 @@ fun StartPreflightConfirmDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                activeProfile?.let { profile ->
+                    StartPreflightProfileInfoCard(profile = profile)
+                }
                 Text(
                     text = result.summary,
                     color = LukoaColors.Text,
@@ -1359,6 +1363,42 @@ fun StartPreflightConfirmDialog(
             )
         },
     )
+}
+
+@Composable
+private fun StartPreflightProfileInfoCard(profile: TavernProfile) {
+    Surface(
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "这次准备启动的是下面这个实例：",
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            VersionInfoLine("当前实例", profile.normalizedName)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "当前目录",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = profile.displayTavernDir,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            VersionInfoLine("当前端口", profile.normalizedPort.toString())
+        }
+    }
 }
 
 @Composable
