@@ -6,6 +6,7 @@ private val TavernRunningFalseRegex = Regex(""""running"\s*:\s*false""")
 private val TavernStoppedStatusRegex = Regex(""""status"\s*:\s*"stopped"""")
 private val TavernErrorStatusRegex = Regex(""""status"\s*:\s*"error"""")
 private val TavernPortConflictRegex = Regex("""Address 127\.0\.0\.1:\d+ is already in use""")
+private val TavernPortConflictFieldRegex = Regex("""doctor\.process\.portConflict=(1|true|ok)""", RegexOption.IGNORE_CASE)
 private val tavernStartingMarkers = listOf(
     "SillyTavern is starting",
     "SillyTavern launch command accepted",
@@ -42,6 +43,14 @@ fun inferTavernStarting(text: String): Boolean {
         tavernStartingMarkers.any { tail.contains(it, ignoreCase = true) }
 }
 
+fun inferTavernPortConflict(text: String): Boolean {
+    val tail = TavernLogSignals.stripAnsi(text.takeLast(4000))
+    return TavernPortConflictRegex.containsMatchIn(tail) ||
+        TavernPortConflictFieldRegex.containsMatchIn(tail) ||
+        tail.contains("酒馆端口已经被别的进程占用") ||
+        tail.contains("端口已被别的进程占用")
+}
+
 fun inferTavernRunning(text: String): Boolean? {
     inferExplicitTavernRunning(text)?.let { return it }
     val tail = TavernLogSignals.stripAnsi(text.takeLast(4000))
@@ -50,12 +59,12 @@ fun inferTavernRunning(text: String): Boolean? {
         TavernStoppedStatusRegex.containsMatchIn(tail) -> false
         tavernStoppedMarkers.any { tail.contains(it, ignoreCase = true) } -> false
         tavernFatalStartMarkers.any { tail.contains(it, ignoreCase = true) } -> false
+        inferTavernPortConflict(tail) -> false
         inferTavernStarting(text) -> null
         TavernLogSignals.hasRecentLiveSignal(tail) -> true
         TavernErrorStatusRegex.containsMatchIn(tail) -> false
         tail.contains("SillyTavern is listening") -> true
         tail.contains("SillyTavern is already running") -> true
-        TavernPortConflictRegex.containsMatchIn(tail) -> true
         else -> null
     }
 }

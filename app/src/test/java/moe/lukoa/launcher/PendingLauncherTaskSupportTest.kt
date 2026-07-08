@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -103,5 +104,45 @@ class PendingLauncherTaskSupportTest {
         assertTrue(result.message.contains("自动安全备份已保留"))
         assertTrue(result.refreshTargets.backupList)
         assertTrue(result.refreshTargets.startupState)
+    }
+
+    @Test
+    fun `latest result ignores same command from another profile`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 1L,
+            profileId = "profile-2",
+        )
+        val latest = TermuxResultDisplay(
+            key = "k3",
+            command = "tavern-restore",
+            ok = true,
+            output = """{"profileId":"main"}""",
+            profileId = "main",
+        )
+
+        assertNull(PendingLauncherTaskSupport.latestResult(task, latest))
+    }
+
+    @Test
+    fun `latest result accepts matching runtime state dir for pending profile`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 1L,
+            profileId = "profile-2",
+        )
+        val latest = TermuxResultDisplay(
+            key = "k4",
+            command = "tavern-restore",
+            ok = true,
+            output = "runtime_state_dir=/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
+            runtimeStateDir = "/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
+        )
+
+        assertEquals(latest, PendingLauncherTaskSupport.latestResult(task, latest))
     }
 }

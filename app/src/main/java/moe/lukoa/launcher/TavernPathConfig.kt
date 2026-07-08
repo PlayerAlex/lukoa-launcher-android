@@ -94,6 +94,15 @@ data class TavernPathConfig(
         )
     }
 
+    fun withUpdatedActiveProfilePathOnly(
+        tavernDir: String,
+    ): TavernPathConfig {
+        return withUpdatedActiveProfile(
+            tavernDir = tavernDir,
+            port = activeProfile.port,
+        )
+    }
+
     fun withUpdatedProfile(
         profileId: String,
         tavernDir: String? = null,

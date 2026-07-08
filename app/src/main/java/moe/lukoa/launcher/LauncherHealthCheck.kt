@@ -458,11 +458,6 @@ object LauncherHealthCheck {
                 label = "去设置改路径",
             )
 
-            doctorReport?.portConflict == true && tavernRunning -> LauncherHealthAction(
-                type = LauncherHealthActionType.StopTavern,
-                label = "停止酒馆",
-            )
-
             doctorReport?.portConflict == true -> null
 
             !backgroundRunPermissionGranted -> LauncherHealthAction(

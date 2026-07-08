@@ -141,6 +141,8 @@ object StatusSummarizer {
 
             merged.contains("\"status\": \"unreachable\"") -> "酒馆进程存在，但网页暂时打不开"
 
+            inferTavernPortConflict(merged) -> "酒馆端口已被别的进程占用"
+
             merged.contains("SillyTavern directory not found") -> "没有找到酒馆目录"
 
             merged.contains("node command not found") -> "启动失败：Termux 里没有找到 node"

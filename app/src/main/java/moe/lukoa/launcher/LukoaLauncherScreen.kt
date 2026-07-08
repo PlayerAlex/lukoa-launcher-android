@@ -590,10 +590,16 @@ fun LukoaLauncherScreen(
 
     fun applyTavernRunningSignal(source: String, allowHeuristic: Boolean = true) {
         if (source.isBlank()) return
+        val portConflictDetected = inferTavernPortConflict(source)
         val inferredRunning = if (allowHeuristic) {
             inferTavernRunning(source)
         } else {
             inferExplicitTavernRunning(source)
+        }
+        if (portConflictDetected && inferredRunning != true) {
+            tavernRunning = false
+            tavernStarting = false
+            showStopConfirmDialog = false
         }
         if (inferTavernStarting(source) && inferredRunning == null && allowHeuristic) {
             tavernStarting = true
@@ -977,10 +983,15 @@ fun LukoaLauncherScreen(
         fun applyDetectedTavernState(source: String, nextTermuxLog: String = termuxLog) {
             val inferredRunning = inferTavernRunning(source)
             val startingDetected = inferTavernStarting(source)
+            val portConflictDetected = inferTavernPortConflict(source)
             val newStatus = when (inferredRunning) {
                 true -> "检测到酒馆正在运行。"
                 false -> "检测到酒馆已停止。"
-                null -> if (startingDetected) "检测到酒馆正在启动。" else status
+                null -> when {
+                    portConflictDetected -> "检测到酒馆端口被别的进程占用。"
+                    startingDetected -> "检测到酒馆正在启动。"
+                    else -> status
+                }
             }
             val newSummary = when (inferredRunning) {
                 true -> if (source.contains("HTTP endpoint is not responding")) {
@@ -988,12 +999,25 @@ fun LukoaLauncherScreen(
                 } else {
                     "酒馆正在运行"
                 }
-                false -> "酒馆当前未运行"
-                null -> if (startingDetected) "正在启动酒馆" else summary
+                false -> if (portConflictDetected) {
+                    "酒馆端口已被别的进程占用"
+                } else {
+                    "酒馆当前未运行"
+                }
+                null -> when {
+                    portConflictDetected -> "酒馆端口已被别的进程占用"
+                    startingDetected -> "正在启动酒馆"
+                    else -> summary
+                }
             }
-            val newVerified = if (inferredRunning != null) ok else verified
-            val newTavernRunning = inferredRunning ?: tavernRunning
+            val newVerified = if (inferredRunning != null || portConflictDetected) ok else verified
+            val newTavernRunning = if (portConflictDetected && inferredRunning != true) {
+                false
+            } else {
+                inferredRunning ?: tavernRunning
+            }
             val newTavernStarting = when {
+                portConflictDetected && inferredRunning != true -> false
                 inferredRunning != null -> false
                 startingDetected -> true
                 else -> tavernStarting
@@ -1212,6 +1236,7 @@ fun LukoaLauncherScreen(
                 detail = "正在自动创建安全备份",
                 startedAtMillis = startedAtMillis,
                 targetLabel = targetLabel,
+                profileId = tavernPathConfig.activeProfile.id,
             ),
         )
         update("正在自动创建安全备份，完成后才会继续${taskTitle}。", "", false, allowRunningInference = false)
@@ -1249,6 +1274,7 @@ fun LukoaLauncherScreen(
                     startedAtMillis = startedAtMillis,
                     targetLabel = targetLabel,
                     safetyBackupPath = safetyBackupPath,
+                    profileId = tavernPathConfig.activeProfile.id,
                 ),
             )
             onCommand(command) { newStatus, termuxOutput, ok ->
@@ -1841,6 +1867,7 @@ fun LukoaLauncherScreen(
                 detail = "正在安装酒馆",
                 startedAtMillis = System.currentTimeMillis(),
                 targetLabel = target,
+                profileId = tavernPathConfig.activeProfile.id,
             ),
             label = "安装酒馆",
             timeoutMs = 900000L,
@@ -1932,6 +1959,7 @@ fun LukoaLauncherScreen(
                 detail = "正在应用酒馆备份",
                 startedAtMillis = System.currentTimeMillis(),
                 archivePath = archivePath,
+                profileId = tavernPathConfig.activeProfile.id,
             ),
             label = "应用酒馆备份",
             timeoutMs = 600000L,
@@ -2345,7 +2373,17 @@ fun LukoaLauncherScreen(
                 return
             }
         dismissTavernDirectoryChoiceDialog()
-        saveTavernPathConfig(path)
+        val result = onSaveTavernPathConfig(
+            tavernPathConfig.withUpdatedActiveProfilePathOnly(path),
+        )
+        applyTavernPathSaveResult(result)
+        if (result.saved) {
+            refreshActiveProfileState(
+                "${result.config.activeProfileLabel}已切换到检测到的目录，端口保持 ${result.config.normalizedPort} 不变。",
+            )
+        } else {
+            update(result.message, "", false, allowRunningInference = false)
+        }
     }
 
     fun restoreDefaultTavernPath() {
@@ -3649,6 +3687,7 @@ fun LukoaLauncherScreen(
                         },
                         startedAtMillis = System.currentTimeMillis(),
                         targetLabel = backupName,
+                        profileId = tavernPathConfig.activeProfile.id,
                     ),
                     label = "创建酒馆备份",
                     timeoutMs = 600000L,

@@ -43,6 +43,23 @@ class TavernPathConfigTest {
     }
 
     @Test
+    fun `updating active profile path only keeps saved port`() {
+        val config = TavernPathConfig()
+            .addSuggestedProfile()
+            .withUpdatedActiveProfile(
+                tavernDir = "~/custom-before-detect",
+                port = 9005,
+            )
+
+        val updated = config.withUpdatedActiveProfilePathOnly(
+            tavernDir = "~/detected-dir",
+        )
+
+        assertEquals("~/detected-dir", updated.activeProfile.tavernDir)
+        assertEquals(9005, updated.activeProfile.port)
+    }
+
+    @Test
     fun `remove active profile falls back to remaining profile`() {
         val config = TavernPathConfig()
             .addSuggestedProfile()

@@ -41,11 +41,12 @@ class TavernStateInferenceTest {
     }
 
     @Test
-    fun `custom port conflict still counts as running`() {
+    fun `custom port conflict clears running state and reports conflict`() {
         val output = """
             Error: Address 127.0.0.1:8001 is already in use
         """.trimIndent()
 
-        assertTrue(inferTavernRunning(output) == true)
+        assertTrue(inferTavernPortConflict(output))
+        assertTrue(inferTavernRunning(output) == false)
     }
 }

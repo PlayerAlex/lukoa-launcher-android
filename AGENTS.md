@@ -79,6 +79,8 @@
 .\gradlew.bat --no-daemon :app:compileDebugKotlin testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
 ```
 
+本地跑 Gradle 前，先检查根目录 `local.properties` 里的 `sdk.dir`；如果已经有本机 Android SDK 路径，就直接使用，不要先问用户 SDK 在哪。
+
 本地构建 debug APK：
 
 ```powershell

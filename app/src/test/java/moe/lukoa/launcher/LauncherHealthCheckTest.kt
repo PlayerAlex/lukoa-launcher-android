@@ -62,6 +62,31 @@ class LauncherHealthCheckTest {
         assertTrue(portItem.detail.contains("重启 Termux/手机"))
     }
 
+    @Test
+    fun `health check still avoids stop action when stale running flag meets port conflict`() {
+        val report = LauncherHealthCheck.build(
+            checkedAtMillis = 1L,
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            backgroundRunPermissionGranted = true,
+            termuxBackgroundRunPermissionGranted = true,
+            allFilesAccessGranted = true,
+            installUnknownAppsGranted = true,
+            termuxStoragePermissionBlocked = false,
+            tavernRunning = true,
+            mirrorProbeStatus = TavernMirrorProbeStatus(),
+            doctorReport = healthyDoctorReport().copy(
+                portConflict = true,
+                portListening = true,
+                processDetected = false,
+                httpOk = false,
+            ),
+        )
+
+        assertNull(report.primaryAction)
+    }
+
     private fun healthyDoctorReport(): TavernDoctorReport {
         return TavernDoctorReport(
             tavernDir = "~/SillyTavern",

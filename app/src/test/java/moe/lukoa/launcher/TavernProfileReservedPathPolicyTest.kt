@@ -36,4 +36,14 @@ class TavernProfileReservedPathPolicyTest {
 
         assertEquals("这个目录会一直保留给主实例，分身实例不能直接使用。", reason)
     }
+
+    @Test
+    fun `clone candidate also blocks disguised main launcher managed path`() {
+        val reason = TavernProfileReservedPathPolicy.candidateBlockedReason(
+            activeProfile = TavernPathConfig().addSuggestedProfile().activeProfile,
+            candidatePath = "~/LukoaLauncher/../LukoaLauncher//SillyTavern/",
+        )
+
+        assertEquals("这个目录会一直保留给主实例，分身实例不能直接使用。", reason)
+    }
 }

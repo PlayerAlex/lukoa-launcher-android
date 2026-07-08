@@ -28,4 +28,15 @@ class StatusSummarizerTest {
 
         assertEquals("酒馆进程存在，但网页暂时打不开", summary)
     }
+
+    @Test
+    fun `port conflict is summarized separately from running state`() {
+        val summary = StatusSummarizer.summarize(
+            status = "启动酒馆失败。",
+            termuxOutput = "Error: Address 127.0.0.1:8001 is already in use",
+            ok = false,
+        )
+
+        assertEquals("酒馆端口已被别的进程占用", summary)
+    }
 }

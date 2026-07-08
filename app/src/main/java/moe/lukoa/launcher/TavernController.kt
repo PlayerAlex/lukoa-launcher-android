@@ -13,6 +13,8 @@ data class TermuxResultDisplay(
     val command: String,
     val output: String,
     val ok: Boolean,
+    val profileId: String = "",
+    val runtimeStateDir: String = "",
 )
 
 class TavernController(
@@ -180,11 +182,15 @@ class TavernController(
     fun latestTermuxResultDisplay(): TermuxResultDisplay? {
         val result = TermuxResultStore.latest(context) ?: return null
         val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
+        val output = formatResultForDisplay(result)
+        val metadata = TavernTermuxResultMetadataParser.parse(output)
         return TermuxResultDisplay(
             key = result.stableKey,
             command = result.command.ifBlank { result.raw.lineSequence().firstOrNull().orEmpty().ifBlank { "Termux" } },
-            output = formatResultForDisplay(result),
+            output = output,
             ok = ok,
+            profileId = metadata.profileId,
+            runtimeStateDir = metadata.runtimeStateDir,
         )
     }
 

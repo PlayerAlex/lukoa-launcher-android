@@ -28,7 +28,10 @@ object PendingLauncherTaskSupport {
         task: PendingLauncherTask,
         latestResult: TermuxResultDisplay?,
     ): TermuxResultDisplay? {
-        return latestResult?.takeIf { it.command == task.commandName }
+        return latestResult?.takeIf {
+            it.command == task.commandName &&
+                matchesPendingTaskProfile(task, it)
+        }
     }
 
     fun defaultTab(task: PendingLauncherTask): LauncherTab {
@@ -114,6 +117,25 @@ object PendingLauncherTaskSupport {
                 task.kind == PendingLauncherTaskKind.UpdateTavern ||
                     task.kind == PendingLauncherTaskKind.RollbackTavern
                 )
+    }
+
+    private fun matchesPendingTaskProfile(
+        task: PendingLauncherTask,
+        latest: TermuxResultDisplay,
+    ): Boolean {
+        if (task.profileId.isBlank()) return true
+        val hasMetadata = latest.profileId.isNotBlank() || latest.runtimeStateDir.isNotBlank()
+        if (!hasMetadata) return false
+        if (latest.profileId.isNotBlank() && latest.profileId != task.profileId) {
+            return false
+        }
+        if (
+            latest.runtimeStateDir.isNotBlank() &&
+            !TavernRuntimeStateProfileKey.matchesRuntimeStateDir(task.profileId, latest.runtimeStateDir)
+        ) {
+            return false
+        }
+        return true
     }
 
     private fun refreshTargetsForKind(kind: PendingLauncherTaskKind): PendingTaskRefreshTargets {
