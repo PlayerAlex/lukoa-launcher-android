@@ -4,6 +4,7 @@ data class TavernVersionActionState(
     val updateDisabledReason: String?,
     val rollbackDisabledReason: String?,
     val relation: TavernTargetRelation,
+    val instanceActive: Boolean,
 ) {
     val updateAvailable: Boolean
         get() = updateDisabledReason == null
@@ -13,17 +14,37 @@ data class TavernVersionActionState(
 }
 
 object TavernVersionActionGuards {
+    const val ACTIVE_INSTANCE_DISABLED_REASON = "先停止当前实例，再更新或回退。"
+
     fun evaluate(
         current: TavernVersionInfo,
         target: TavernVersionChoice?,
         officialVersions: TavernOfficialVersions,
         currentRepoUrl: String,
+        tavernRunning: Boolean = false,
+        tavernStarting: Boolean = false,
     ): TavernVersionActionState {
         val relation = TavernVersionComparator.relation(current, target)
+        val instanceActive = tavernRunning || tavernStarting
         return TavernVersionActionState(
-            updateDisabledReason = updateDisabledReason(current, target, relation, officialVersions, currentRepoUrl),
-            rollbackDisabledReason = rollbackDisabledReason(current, target, relation, officialVersions, currentRepoUrl),
+            updateDisabledReason = updateDisabledReason(
+                current,
+                target,
+                relation,
+                officialVersions,
+                currentRepoUrl,
+                instanceActive,
+            ),
+            rollbackDisabledReason = rollbackDisabledReason(
+                current,
+                target,
+                relation,
+                officialVersions,
+                currentRepoUrl,
+                instanceActive,
+            ),
             relation = relation,
+            instanceActive = instanceActive,
         )
     }
 
@@ -43,8 +64,10 @@ object TavernVersionActionGuards {
         relation: TavernTargetRelation,
         officialVersions: TavernOfficialVersions,
         currentRepoUrl: String,
+        instanceActive: Boolean,
     ): String? {
         return when {
+            instanceActive -> ACTIVE_INSTANCE_DISABLED_REASON
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
             current.hasLocalChanges -> "源码有本地改动，先处理。"
@@ -63,8 +86,10 @@ object TavernVersionActionGuards {
         relation: TavernTargetRelation,
         officialVersions: TavernOfficialVersions,
         currentRepoUrl: String,
+        instanceActive: Boolean,
     ): String? {
         return when {
+            instanceActive -> ACTIVE_INSTANCE_DISABLED_REASON
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
             current.hasLocalChanges -> "源码有本地改动，先处理。"

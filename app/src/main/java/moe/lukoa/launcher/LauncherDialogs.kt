@@ -540,6 +540,38 @@ fun ApplyBackupPathDialog(
 }
 
 @Composable
+fun ApplyBackupPreviewLoadingDialog(
+    archivePath: String,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        titleContentColor = LukoaColors.Text,
+        textContentColor = LukoaColors.Text,
+        title = { Text("正在读取备份信息") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "正在后台读取备份名称、时间和大小，请稍候。",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = archivePath,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            DialogActionButton("取消读取", tone = ActionTone.Danger, onClick = onDismiss)
+        },
+    )
+}
+
+@Composable
 fun ApplyBackupPreviewDialog(
     preview: BackupRestorePreview,
     onConfirm: () -> Unit,

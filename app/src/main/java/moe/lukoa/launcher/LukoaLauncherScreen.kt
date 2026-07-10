@@ -44,7 +44,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -236,6 +238,9 @@ fun LukoaLauncherScreen(
     var clearLogConfirmText by remember { mutableStateOf("") }
     var applyBackupPath by remember { mutableStateOf("") }
     var applyBackupPreview by remember { mutableStateOf<BackupRestorePreview?>(null) }
+    val applyBackupPreviewRequestCoordinator = remember { BackupRestorePreviewRequestCoordinator() }
+    var applyBackupPreviewRequest by remember { mutableStateOf<BackupRestorePreviewRequest?>(null) }
+    var applyBackupPreviewJob by remember { mutableStateOf<Job?>(null) }
     var storagePermissionRetryArchivePath by remember { mutableStateOf("") }
     var termuxStoragePermissionBlocked by remember {
         mutableStateOf(hasTermuxStoragePermissionProblem(initialRuntimeText))
@@ -1863,19 +1868,56 @@ fun LukoaLauncherScreen(
         applyBackupPreview = null
     }
 
+    fun cancelApplyBackupPreviewLoading() {
+        applyBackupPreviewRequestCoordinator.cancel()
+        applyBackupPreviewJob?.cancel()
+        applyBackupPreviewJob = null
+        applyBackupPreviewRequest = null
+    }
+
     fun openApplyBackupPreview(path: String): Boolean {
         val normalized = path.trim()
         LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
             update("备份路径无效：$reason", "", false, allowRunningInference = false)
             return false
         }
+
+        applyBackupPreviewJob?.cancel()
+        val request = applyBackupPreviewRequestCoordinator.begin(normalized)
         applyBackupPath = normalized
-        applyBackupPreview = BackupRestorePreviewResolver.resolve(
-            context = context,
-            archivePath = normalized,
-            restoreTargetDir = tavernPathConfig.displayTavernDir,
-        )
-        showApplyBackupPreviewDialog = true
+        applyBackupPreview = null
+        showApplyBackupPreviewDialog = false
+        applyBackupPreviewRequest = request
+        applyBackupPreviewJob = scope.launch {
+            try {
+                val preview = withContext(Dispatchers.IO) {
+                    BackupRestorePreviewResolver.resolve(
+                        context = context,
+                        archivePath = normalized,
+                        restoreTargetDir = tavernPathConfig.displayTavernDir,
+                    )
+                }
+                if (!applyBackupPreviewRequestCoordinator.accepts(request, applyBackupPath)) return@launch
+                applyBackupPreviewRequestCoordinator.finish(request)
+                applyBackupPreviewRequest = null
+                applyBackupPreviewJob = null
+                applyBackupPreview = preview
+                showApplyBackupPreviewDialog = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (!applyBackupPreviewRequestCoordinator.accepts(request, applyBackupPath)) return@launch
+                applyBackupPreviewRequestCoordinator.finish(request)
+                applyBackupPreviewRequest = null
+                applyBackupPreviewJob = null
+                update(
+                    "读取备份信息失败：${error.message ?: "请刷新备份库后重试。"}",
+                    "",
+                    false,
+                    allowRunningInference = false,
+                )
+            }
+        }
         return true
     }
 
@@ -3402,6 +3444,8 @@ fun LukoaLauncherScreen(
             target = selectedTavernVersion,
             officialVersions = officialVersions,
             currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+            tavernRunning = tavernRunning,
+            tavernStarting = tavernStarting,
         )
         val disabledReason = when (kind) {
             TavernVersionActionKind.Update -> actionState.updateDisabledReason
@@ -3837,6 +3881,13 @@ fun LukoaLauncherScreen(
         )
     }
 
+    applyBackupPreviewRequest?.let { request ->
+        ApplyBackupPreviewLoadingDialog(
+            archivePath = request.archivePath,
+            onDismiss = ::cancelApplyBackupPreviewLoading,
+        )
+    }
+
     val activeApplyBackupPreview = applyBackupPreview
     if (showApplyBackupPreviewDialog && activeApplyBackupPreview != null) {
         ApplyBackupPreviewDialog(
@@ -4061,6 +4112,8 @@ fun LukoaLauncherScreen(
                         )
                         LauncherTab.Version -> VersionManagementSection(
                             actionsLocked = actionInProgress,
+                            tavernRunning = tavernRunning,
+                            tavernStarting = tavernStarting,
                             tavernVersionInfo = tavernVersionInfo,
                             officialVersions = officialVersions,
                             currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
@@ -4200,7 +4253,7 @@ fun LukoaLauncherScreen(
                             )
                         }
                         LauncherTab.Backup -> BackupSection(
-                            actionsLocked = actionInProgress,
+                            actionsLocked = actionInProgress || applyBackupPreviewRequest != null,
                             backupListRefreshing = backupListRefreshing,
                             autoBackupEnabled = autoBackupEnabled,
                             autoBackupIntervalMinutes = autoBackupIntervalMinutes,

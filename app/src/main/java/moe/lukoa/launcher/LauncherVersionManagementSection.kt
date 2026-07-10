@@ -57,6 +57,8 @@ private enum class VersionPageView {
 @Composable
 fun VersionManagementSection(
     actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    tavernStarting: Boolean,
     tavernVersionInfo: TavernVersionInfo,
     officialVersions: TavernOfficialVersions,
     currentRepoUrl: String,
@@ -73,6 +75,8 @@ fun VersionManagementSection(
         target = selectedVersion,
         officialVersions = officialVersions,
         currentRepoUrl = currentRepoUrl,
+        tavernRunning = tavernRunning,
+        tavernStarting = tavernStarting,
     )
     val versionManagementChoices = TavernVersionSelection.versionManagementChoices(
         officialVersions = officialVersions,
@@ -366,6 +370,10 @@ private fun VersionOperationStatusCard(
     val statusText: String
     val statusColor: Color
     when {
+        actionState.instanceActive -> {
+            statusText = "先停止当前实例"
+            statusColor = LukoaColors.Danger
+        }
         currentVersionInfo.notInstalled -> {
             statusText = "先安装酒馆"
             statusColor = LukoaColors.Amber
