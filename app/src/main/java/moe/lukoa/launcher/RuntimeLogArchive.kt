@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 
 object RuntimeLogArchive {
+    private const val MAX_EXPORT_LOG_CHARS = 120_000
     private const val DIR_NAME = "runtime-logs"
     private const val TERMUX_COMMAND_FILE = "termux-command.log"
     private const val TAVERN_RUNTIME_FILE = "tavern-runtime.log"
@@ -83,7 +84,9 @@ object RuntimeLogArchive {
             legacyFallbackFile != null && legacyFallbackFile.exists() && legacyFallbackFile.length() > 0L -> legacyFallbackFile
             else -> null
         } ?: return fallback
-        return runCatching { source.readText(Charsets.UTF_8) }.getOrDefault(fallback)
+        return runCatching {
+            BoundedLogFile.readTail(source, MAX_EXPORT_LOG_CHARS).ifBlank { fallback }
+        }.getOrDefault(fallback)
     }
 
     private fun termuxCommandFile(context: Context): File = logDir(context).resolve(TERMUX_COMMAND_FILE)
