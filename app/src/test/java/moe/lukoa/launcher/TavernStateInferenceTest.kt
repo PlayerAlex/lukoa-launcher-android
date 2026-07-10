@@ -69,12 +69,13 @@ class TavernStateInferenceTest {
     }
 
     @Test
-    fun `healthy log snapshot does not masquerade as starting`() {
+    fun `healthy log snapshot promotes externally started tavern to running`() {
         val output = """
             {"status": "log", "running": true, "exitCode": 0}
             SillyTavern live log synced
         """.trimIndent()
 
+        assertTrue(inferTavernRunningFromLogSnapshot(output) == true)
         assertFalse(inferTavernStartingFromLogSnapshot(output))
     }
 

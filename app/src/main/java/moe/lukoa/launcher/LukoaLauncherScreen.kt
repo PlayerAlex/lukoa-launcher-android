@@ -239,6 +239,8 @@ fun LukoaLauncherScreen(
     var startupRefreshInFlight by remember { mutableStateOf(false) }
     var startupRefreshToken by remember { mutableIntStateOf(0) }
     var startupGithubCheckPending by remember { mutableStateOf(false) }
+    var foregroundResumeRefreshSignal by remember { mutableIntStateOf(0) }
+    var hasObservedInitialResume by remember { mutableStateOf(false) }
     var healthCheckInFlight by remember { mutableStateOf(false) }
     var healthCheckToken by remember { mutableIntStateOf(0) }
     var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
@@ -559,6 +561,11 @@ fun LukoaLauncherScreen(
                 termuxBackgroundRunPermissionGranted = installed && onCheckTermuxBackgroundRunPermission()
                 allFilesAccessGranted = onCheckAllFilesAccessPermission()
                 installUnknownAppsGranted = onCheckInstallUnknownAppsPermission()
+                if (hasObservedInitialResume) {
+                    foregroundResumeRefreshSignal += 1
+                } else {
+                    hasObservedInitialResume = true
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -915,16 +922,16 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun runStartupRefresh() {
+    fun runStartupRefresh(includeVersion: Boolean = true): Boolean {
         if (
             startupRefreshInFlight ||
             busyLabel != null ||
             !termuxInstalled ||
             !runCommandPermissionGranted ||
             termuxExternalAppsBlocked
-        ) return
+        ) return false
         startupRefreshInFlight = true
-        tavernVersionCheckInFlight = true
+        tavernVersionCheckInFlight = includeVersion
         startupRefreshToken += 1
         val refreshToken = startupRefreshToken
         scope.launch {
@@ -933,7 +940,9 @@ fun LukoaLauncherScreen(
                 startupRefreshToken += 1
                 startupRefreshInFlight = false
                 tavernVersionCheckInFlight = false
-                startupGithubCheckPending = true
+                if (includeVersion) {
+                    startupGithubCheckPending = true
+                }
                 update("自动检测没收到返回。可以手动检测。", "", false, allowRunningInference = false)
             }
         }
@@ -942,7 +951,9 @@ fun LukoaLauncherScreen(
             if (startupRefreshToken != token) return
             startupRefreshInFlight = false
             tavernVersionCheckInFlight = false
-            startupGithubCheckPending = true
+            if (includeVersion) {
+                startupGithubCheckPending = true
+            }
         }
 
         fun runStep(command: String, token: Int) {
@@ -954,7 +965,7 @@ fun LukoaLauncherScreen(
                     return@onCommand
                 }
                 update(newStatus, termuxOutput, ok, allowRunningInference = true)
-                val nextCommand = if (command == "status") {
+                val nextCommand = if (includeVersion && command == "status") {
                     "tavern-version-startup"
                 } else {
                     null
@@ -975,6 +986,7 @@ fun LukoaLauncherScreen(
 
         update("正在检测酒馆是否运行。", "", false, allowRunningInference = false)
         runStep("status", refreshToken)
+        return true
     }
 
     fun refreshActiveProfileState(statusText: String) {
@@ -2947,8 +2959,15 @@ fun LukoaLauncherScreen(
 
     LaunchedEffect(startupRefreshSignal) {
         if (startupRefreshSignal > 0) {
-            delay(900)
+            delay(300)
             runStartupRefresh()
+        }
+    }
+
+    LaunchedEffect(foregroundResumeRefreshSignal) {
+        if (foregroundResumeRefreshSignal > 0) {
+            delay(150)
+            runStartupRefresh(includeVersion = false)
         }
     }
 

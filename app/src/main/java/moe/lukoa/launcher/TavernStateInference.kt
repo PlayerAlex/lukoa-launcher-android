@@ -55,9 +55,11 @@ fun isTavernLogStatusReport(text: String): Boolean {
 
 fun inferTavernRunningFromLogSnapshot(text: String): Boolean? {
     if (!isTavernLogStatusReport(text)) return inferTavernRunning(text)
-    return when (inferExplicitTavernRunning(tavernStatusEnvelope(text))) {
+    val envelope = tavernStatusEnvelope(text)
+    return when (inferExplicitTavernRunning(envelope)) {
         false -> false
-        true, null -> null
+        true -> if (envelope.contains("HTTP endpoint is not responding", ignoreCase = true)) null else true
+        null -> null
     }
 }
 
