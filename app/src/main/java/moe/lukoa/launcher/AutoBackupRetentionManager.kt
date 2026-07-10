@@ -16,6 +16,9 @@ object AutoBackupRetentionManager {
         if (!config.enabled) {
             return BackupLibraryFiles.listLibraryArchives(appContext)
         }
+        if (AutoBackupOperationLockPolicy.shouldDeferRetention(OperationLockStore.active(appContext))) {
+            return BackupLibraryFiles.listLibraryArchives(appContext)
+        }
 
         val result = BackupLibraryFiles.pruneAutoLibraryArchives(appContext, config.keepCount)
         if (result.deletedPaths.isNotEmpty()) {

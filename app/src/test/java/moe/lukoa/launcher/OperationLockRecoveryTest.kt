@@ -1,7 +1,9 @@
 package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OperationLockRecoveryTest {
@@ -51,5 +53,30 @@ class OperationLockRecoveryTest {
 
         assertEquals(0L, restored?.busyStartedAtElapsedMillis)
         assertEquals(5_000L, restored?.remainingMillis)
+    }
+
+    @Test
+    fun `owned lock can only be released by matching non blank token`() {
+        val snapshot = OperationLockSnapshot(
+            label = "自动备份",
+            startedAtMillis = 10_000L,
+            expiresAtMillis = 20_000L,
+            ownerToken = "owner-a",
+        )
+
+        assertTrue(OperationLockOwnership.canRelease(snapshot, "owner-a"))
+        assertFalse(OperationLockOwnership.canRelease(snapshot, "owner-b"))
+        assertFalse(OperationLockOwnership.canRelease(snapshot, ""))
+        assertFalse(OperationLockOwnership.canRelease(null, "owner-a"))
+    }
+
+    @Test
+    fun `unowned release never clears an owned lock`() {
+        val unowned = OperationLockSnapshot("前台操作", 10_000L, 20_000L)
+        val owned = unowned.copy(ownerToken = "background-owner")
+
+        assertTrue(OperationLockOwnership.canReleaseUnowned(unowned))
+        assertFalse(OperationLockOwnership.canReleaseUnowned(owned))
+        assertFalse(OperationLockOwnership.canReleaseUnowned(null))
     }
 }

@@ -267,6 +267,7 @@ fun LukoaLauncherScreen(
     }
     var restoredOperationLockActive by remember { mutableStateOf(initialRestoredOperationLock != null) }
     var busyToken by remember { mutableIntStateOf(0) }
+    var observedOperationLockToken by remember { mutableIntStateOf(0) }
     var launchAttemptToken by remember { mutableIntStateOf(0) }
     var startupRefreshInFlight by remember { mutableStateOf(false) }
     var startupRefreshToken by remember { mutableIntStateOf(0) }
@@ -340,6 +341,41 @@ fun LukoaLauncherScreen(
 
     LaunchedEffect(Unit) {
         RuntimeLogArchive.ensureSeeded(context, initialState)
+    }
+
+    DisposableEffect(context) {
+        val stopObserving = OperationLockStore.observe(context) { snapshot ->
+            scope.launch {
+                if (snapshot == null) {
+                    if (restoredOperationLockActive) {
+                        observedOperationLockToken += 1
+                        busyLabel = null
+                        busyStartedAtMillis = 0L
+                        restoredOperationLockActive = false
+                    }
+                    return@launch
+                }
+                if (busyLabel != null) return@launch
+                val nowMillis = System.currentTimeMillis()
+                val restored = OperationLockRecovery.restore(
+                    snapshot = snapshot,
+                    nowMillis = nowMillis,
+                    elapsedRealtimeMillis = SystemClock.elapsedRealtime(),
+                ) ?: return@launch
+                busyLabel = restored.label
+                busyStartedAtMillis = restored.busyStartedAtElapsedMillis
+                restoredOperationLockActive = true
+                observedOperationLockToken += 1
+                val token = observedOperationLockToken
+                scope.launch {
+                    delay(restored.remainingMillis)
+                    if (observedOperationLockToken == token && restoredOperationLockActive) {
+                        OperationLockStore.active(context)
+                    }
+                }
+            }
+        }
+        onDispose(stopObserving)
     }
 
     LaunchedEffect(autoBackupEnabled, backgroundRunPermissionGranted) {
@@ -834,20 +870,42 @@ fun LukoaLauncherScreen(
         busyLabel = null
         busyStartedAtMillis = 0L
         restoredOperationLockActive = false
-        OperationLockStore.release(context)
+        if (OperationLockStore.release(context)) return
+
+        val nowMillis = System.currentTimeMillis()
+        val restored = OperationLockRecovery.restore(
+            snapshot = OperationLockStore.active(context, nowMillis),
+            nowMillis = nowMillis,
+            elapsedRealtimeMillis = SystemClock.elapsedRealtime(),
+        ) ?: return
+        busyLabel = restored.label
+        busyStartedAtMillis = restored.busyStartedAtElapsedMillis
+        restoredOperationLockActive = true
+        observedOperationLockToken += 1
+        val token = observedOperationLockToken
+        scope.launch {
+            delay(restored.remainingMillis)
+            if (observedOperationLockToken == token && restoredOperationLockActive) {
+                OperationLockStore.active(context)
+            }
+        }
     }
 
     fun beginBusy(label: String, timeoutMs: Long = 18000L): Boolean {
-        val current = busyLabel
-        if (current != null) {
-            update("正在处理：$current。请等一下。", "", false)
+        val currentLabel = busyLabel
+        if (currentLabel != null) {
+            update("正在处理：$currentLabel。请等一下。", "", false)
             return false
         }
 
+        if (!OperationLockStore.acquire(context, label, timeoutMs)) {
+            val activeLabel = OperationLockStore.activeLabel(context) ?: "其他操作"
+            update("正在处理：$activeLabel。请等一下。", "", false)
+            return false
+        }
         busyLabel = label
         busyStartedAtMillis = SystemClock.elapsedRealtime()
         restoredOperationLockActive = false
-        OperationLockStore.acquire(context, label, timeoutMs)
         busyToken += 1
         val token = busyToken
         scope.launch {
@@ -1435,13 +1493,7 @@ fun LukoaLauncherScreen(
         label: String,
         operation: () -> Pair<List<String>, String>,
     ) {
-        if (busyLabel != null) {
-            update("正在处理：${busyLabel.orEmpty()}。请稍等。", "", false, allowRunningInference = false)
-            return
-        }
-        busyLabel = label
-        busyStartedAtMillis = SystemClock.elapsedRealtime()
-        busyToken += 1
+        if (!beginBusy(label, timeoutMs = 30 * 60 * 1000L)) return
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching { operation() }
@@ -1458,8 +1510,9 @@ fun LukoaLauncherScreen(
 
     fun refreshBackupList() {
         if (backupListRefreshing) return
-        if (busyLabel != null) {
-            update("正在处理：${busyLabel.orEmpty()}。请稍等。", "", false, allowRunningInference = false)
+        val activeLabel = busyLabel ?: OperationLockStore.activeLabel(context)
+        if (activeLabel != null) {
+            update("正在处理：$activeLabel。请稍等。", "", false, allowRunningInference = false)
             return
         }
         backupListRefreshing = true

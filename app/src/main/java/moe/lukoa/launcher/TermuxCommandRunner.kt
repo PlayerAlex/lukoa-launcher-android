@@ -349,7 +349,12 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
-    fun runTavernBackup(kind: String, keepCount: Int?, label: String? = null): CommandDispatch {
+    fun runTavernBackup(
+        kind: String,
+        keepCount: Int?,
+        label: String? = null,
+        nonce: String? = null,
+    ): CommandDispatch {
         val safeKind = if (kind == "auto") "auto" else "manual"
         val scriptArgs = if (safeKind == "auto") {
             listOf("auto", (keepCount ?: 5).coerceIn(1, 50).toString())
@@ -374,6 +379,7 @@ class TermuxCommandRunner(private val context: Context) {
             scriptArgs = scriptArgs,
             displayCommand = "tavern-backup",
             background = safeKind == "auto",
+            nonce = nonce,
         )
     }
 
@@ -719,6 +725,7 @@ class TermuxCommandRunner(private val context: Context) {
         scriptArgs: List<String>,
         displayCommand: String,
         background: Boolean = true,
+        nonce: String? = null,
     ): CommandDispatch {
         val scriptText = try {
             context.assets.open("lukoa-tavern.sh").bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
@@ -741,7 +748,7 @@ class TermuxCommandRunner(private val context: Context) {
         return runCommand(
             command = command,
             args = listOf("-c", installAndRunCommand),
-            nonce = null,
+            nonce = nonce,
             executablePath = TERMUX_SH_PATH,
             displayCommand = displayCommand,
             background = background,

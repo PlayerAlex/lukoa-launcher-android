@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object AutoBackupScheduler {
@@ -96,6 +97,26 @@ object AutoBackupScheduler {
             return
         }
 
+        val lockToken = UUID.randomUUID().toString().replace("-", "")
+        val acquired = OperationLockStore.acquire(
+            context = appContext,
+            label = AutoBackupOperationLockPolicy.LABEL,
+            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-backup-auto"),
+            ownerToken = lockToken,
+        )
+        if (!acquired) {
+            val currentLabel = OperationLockStore.activeLabel(appContext) ?: "其他操作"
+            val message = "自动备份到点了，但当前正在处理：$currentLabel。已顺延 2 分钟。"
+            RuntimeLogArchive.appendApp(appContext, message)
+            LauncherStateStore(appContext).appendAppLogMessage(message)
+            scheduleAt(
+                context = appContext,
+                triggerAtMillis = now + BUSY_RETRY_DELAY_MS,
+                cancelPrevious = false,
+            )
+            return
+        }
+
         scheduleAt(
             context = appContext,
             triggerAtMillis = now + config.intervalMinutes.coerceIn(
@@ -107,7 +128,14 @@ object AutoBackupScheduler {
         prefs.edit().putLong(KEY_LAST_DISPATCH_AT, now).apply()
 
         val runner = TermuxCommandRunner(appContext)
-        val dispatch = runner.runTavernBackup("auto", config.keepCount)
+        val dispatch = runner.runTavernBackup(
+            kind = "auto",
+            keepCount = config.keepCount,
+            nonce = lockToken,
+        )
+        if (!dispatch.sent) {
+            OperationLockStore.releaseOwned(appContext, lockToken)
+        }
         val message = if (dispatch.sent) {
             "自动备份到点了，已在后台发送命令。来源=$source"
         } else {
@@ -147,4 +175,9 @@ object AutoBackupScheduler {
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun releaseOperationLockAfterResult(context: Context, result: TermuxCommandResult): Boolean {
+        val ownerToken = result.nonce?.trim().orEmpty()
+        return OperationLockStore.releaseOwned(context.applicationContext, ownerToken)
+    }
 }

@@ -122,6 +122,7 @@ object TermuxResultIngress {
             try {
                 val result = TermuxResultParser.parse(intent)
                 TermuxResultRepositoryProvider.get(appContext).receive(result)
+                AutoBackupScheduler.releaseOperationLockAfterResult(appContext, result)
                 AutoBackupRetentionManager.enqueueAfterTermuxResult(appContext, result)
             } finally {
                 onComplete()
