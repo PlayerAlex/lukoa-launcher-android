@@ -1012,7 +1012,11 @@ fun LukoaLauncherScreen(
 
         fun applyDetectedTavernState(source: String, nextRuntimeLog: String = tavernRuntimeLog) {
             val inferredRunning = inferTavernRunningFromLogSnapshot(source)
-            val startingDetected = !isTavernLogStatusReport(source) && inferTavernStarting(source)
+            val startingDetected = if (isTavernLogStatusReport(source)) {
+                inferTavernStartingFromLogSnapshot(source)
+            } else {
+                inferTavernStarting(source)
+            }
             val portConflictDetected = inferTavernPortConflict(source)
             val newStatus = when (inferredRunning) {
                 true -> "检测到酒馆正在运行。"
@@ -2542,7 +2546,7 @@ fun LukoaLauncherScreen(
             LauncherHealthActionType.StopTavern -> {
                 when {
                     actionInProgress -> update("正在处理，完成后再停止酒馆。", "", false, allowRunningInference = false)
-                    !tavernRunning -> update("酒馆当前未运行。", "", false, allowRunningInference = false)
+                    !shouldOfferStopTavern(tavernRunning, tavernStarting) -> update("酒馆当前未运行。", "", false, allowRunningInference = false)
                     else -> showStopConfirmDialog = true
                 }
             }
@@ -2768,7 +2772,7 @@ fun LukoaLauncherScreen(
             return
         }
 
-        if (!tavernRunning) {
+        if (!shouldOfferStopTavern(tavernRunning, tavernStarting)) {
             update("酒馆当前未运行。", "", false, allowRunningInference = false)
             return
         }
@@ -3376,14 +3380,12 @@ fun LukoaLauncherScreen(
                                 actionInProgress = actionInProgress,
                                 busyLabel = busyLabel,
                                 wakeEnabled = termuxInstalled,
-                                primaryEnabled = !tavernStarting &&
-                                    !termuxKnownMissing() &&
+                                primaryEnabled = !termuxKnownMissing() &&
                                     !termuxPermissionBlocked() &&
-                                    (tavernRunning || tavernInstallDetected == true),
+                                    (shouldOfferStopTavern(tavernRunning, tavernStarting) || tavernInstallDetected == true),
                                 primaryDisabledReason = when {
                                     termuxKnownMissing() -> "请先安装并打开 Termux。"
                                     termuxPermissionBlocked() -> "请先打开 Termux 调用权限。"
-                                    tavernStarting -> "酒馆正在启动，请稍等。"
                                     tavernInstallDetected == null -> "请先检测酒馆或安装。"
                                     !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
                                     else -> null
@@ -3400,7 +3402,7 @@ fun LukoaLauncherScreen(
                                     }
                                 },
                                 onPrimaryAction = {
-                                    if (tavernRunning) requestStopTavern() else requestStartTavern()
+                                    if (shouldOfferStopTavern(tavernRunning, tavernStarting)) requestStopTavern() else requestStartTavern()
                                 },
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },

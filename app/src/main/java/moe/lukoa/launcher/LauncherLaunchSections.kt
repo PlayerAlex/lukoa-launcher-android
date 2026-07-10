@@ -41,7 +41,7 @@ fun TavernControlSection(
     val wakeClick = rememberFeedbackClick(onWakeTermux)
     val primaryClick = rememberFeedbackClick(
         onClick = onPrimaryAction,
-        minIntervalMs = if (tavernRunning) 0L else 260L,
+        minIntervalMs = if (shouldOfferStopTavern(tavernRunning, tavernStarting)) 0L else 260L,
     )
     val openTavernClick = rememberFeedbackClick(onOpenTavern)
     val exportClick = rememberFeedbackClick(onExportLog)
@@ -61,7 +61,7 @@ fun TavernControlSection(
     }
     val primaryText = when {
         actionInProgress -> "${busyLabel ?: "处理中"}..."
-        tavernStarting -> "启动中..."
+        tavernStarting -> "停止酒馆"
         !primaryEnabled && primaryDisabledReason?.contains("权限") == true -> "先修权限"
         !primaryEnabled && primaryDisabledReason?.contains("Termux") == true -> "先安装 Termux"
         !primaryEnabled -> "先安装酒馆"
@@ -69,7 +69,7 @@ fun TavernControlSection(
         else -> "启动酒馆"
     }
     val primaryColor = when {
-        tavernRunning -> LukoaColors.Danger
+        shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Danger
         else -> LukoaColors.Accent
     }
     SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Accent) {

@@ -44,13 +44,28 @@ fun inferTavernStarting(text: String): Boolean {
         tavernStartingMarkers.any { tail.contains(it, ignoreCase = true) }
 }
 
+private fun tavernStatusEnvelope(text: String): String {
+    return text.substringBefore("\n====").trim()
+}
+
 fun isTavernLogStatusReport(text: String): Boolean {
-    return TavernStatusFieldRegex.findAll(text).lastOrNull()?.groupValues?.getOrNull(1) == "log"
+    val envelope = tavernStatusEnvelope(text)
+    return TavernStatusFieldRegex.findAll(envelope).lastOrNull()?.groupValues?.getOrNull(1) == "log"
 }
 
 fun inferTavernRunningFromLogSnapshot(text: String): Boolean? {
-    val inferred = inferTavernRunning(text)
-    return if (isTavernLogStatusReport(text) && inferred == true) null else inferred
+    if (!isTavernLogStatusReport(text)) return inferTavernRunning(text)
+    return when (inferExplicitTavernRunning(tavernStatusEnvelope(text))) {
+        false -> false
+        true, null -> null
+    }
+}
+
+fun inferTavernStartingFromLogSnapshot(text: String): Boolean {
+    if (!isTavernLogStatusReport(text)) return false
+    val envelope = tavernStatusEnvelope(text)
+    return inferExplicitTavernRunning(envelope) == true &&
+        envelope.contains("HTTP endpoint is not responding", ignoreCase = true)
 }
 
 fun inferTavernPortConflict(text: String): Boolean {

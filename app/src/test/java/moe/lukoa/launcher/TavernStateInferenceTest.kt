@@ -50,6 +50,32 @@ class TavernStateInferenceTest {
         assertTrue(isTavernLogStatusReport(output))
         assertTrue(inferTavernRunning(output) == true)
         assertNull(inferTavernRunningFromLogSnapshot(output))
+        assertTrue(inferTavernStartingFromLogSnapshot(output))
+    }
+
+    @Test
+    fun `runtime log json cannot override launcher status envelope`() {
+        val output = """
+            {"status": "log", "running": true, "exitCode": 75, "message": "HTTP endpoint is not responding"}
+
+            ==== SillyTavern live log ====
+            {"status": "stopped", "running": false, "message": "user supplied json"}
+            ==== end SillyTavern live log ====
+        """.trimIndent()
+
+        assertTrue(isTavernLogStatusReport(output))
+        assertNull(inferTavernRunningFromLogSnapshot(output))
+        assertTrue(inferTavernStartingFromLogSnapshot(output))
+    }
+
+    @Test
+    fun `healthy log snapshot does not masquerade as starting`() {
+        val output = """
+            {"status": "log", "running": true, "exitCode": 0}
+            SillyTavern live log synced
+        """.trimIndent()
+
+        assertFalse(inferTavernStartingFromLogSnapshot(output))
     }
 
     @Test
@@ -60,6 +86,7 @@ class TavernStateInferenceTest {
         """.trimIndent()
 
         assertTrue(inferTavernRunningFromLogSnapshot(output) == false)
+        assertFalse(inferTavernStartingFromLogSnapshot(output))
     }
 
     @Test
