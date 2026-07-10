@@ -307,8 +307,6 @@ fun LukoaLauncherScreen(
     var showPendingTaskDialog by remember { mutableStateOf(initialPendingLauncherTask != null) }
     val actionInProgress = busyLabel != null
     val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
-    val visibleTermuxPanelLog = TavernLogSignals.latestForegroundSession(tavernRuntimeLog)
-        .ifBlank { termuxLog }
     val scope = rememberCoroutineScope()
     val firstTavernStartGuide = remember {
         FirstTavernStartGuideResolver.resolve(
@@ -4189,11 +4187,6 @@ fun LukoaLauncherScreen(
                                 issues = issueAnalysis,
                                 actionsLocked = actionInProgress,
                                 onQuickFixAction = ::runLauncherQuickFixAction,
-                            )
-                            LogPanel(
-                                title = "Termux 前台回传",
-                                content = visibleTermuxPanelLog,
-                                accentColor = LukoaColors.Accent,
                             )
                             LogPanel(
                                 title = "酒馆运行日志",
