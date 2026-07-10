@@ -60,6 +60,29 @@ class TermuxDisplayContentExtractorTest {
     }
 
     @Test
+    fun `extract preserves ansi colors in tavern runtime log`() {
+        val esc = '\u001B'
+        val content = TermuxDisplayContentExtractor.extract(
+            """
+                ==== SillyTavern live log: /tmp/tavern.log ====
+                ${esc}[32mAvailable models: [${esc}[0m
+                  'gpt-5.5'
+                ]
+                ==== end SillyTavern live log ====
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+                ${esc}[32mAvailable models: [${esc}[0m
+                  'gpt-5.5'
+                ]
+            """.trimIndent(),
+            content.tavernRuntimeLogText,
+        )
+    }
+
+    @Test
     fun `extract keeps human readable version section after stripping json envelope`() {
         val content = TermuxDisplayContentExtractor.extract(
             """

@@ -40,6 +40,20 @@ class SessionLogContentBuilderTest {
     }
 
     @Test
+    fun `tavern runtime export preserves ansi colors`() {
+        val esc = '\u001B'
+        val content = SessionLogContentBuilder.build(
+            state = state,
+            mode = ExportLogMode.TermuxOnly,
+            tavernRuntimeLog = "${esc}[32mgreen${esc}[0m",
+            appLog = "",
+            exportTime = "12:00:00",
+        )
+
+        assertTrue(content.contains("${esc}[32mgreen${esc}[0m"))
+    }
+
+    @Test
     fun `combined export includes tavern runtime and app feedback`() {
         val content = SessionLogContentBuilder.build(
             state = state,

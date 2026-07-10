@@ -1186,7 +1186,7 @@ fun LukoaLauncherScreen(
             repoUrl = repoUrl,
             commit = selectedVersion.commit,
         )
-        return "$baseCommand::$encoded"
+        return LauncherCommandCodec.encode(baseCommand, encoded)
     }
 
     fun runSelectedVersionCommand(
@@ -1222,8 +1222,15 @@ fun LukoaLauncherScreen(
         val startedAtMillis = System.currentTimeMillis()
         val targetLabel = PendingLauncherTaskSupport.selectedVersionTargetLabel(selectedTavernVersion)
         val taskTitle = taskKind.title
-        val safetyBackupCommand = "tavern-backup-manual::${PendingLauncherTaskSupport.buildSafetyBackupLabel(safetyBackupPrefix)}"
-        if (!beginBusy(busyText, 1_200_000L)) return
+        val safetyBackupCommand = LauncherCommandCodec.encode(
+            "tavern-backup-manual",
+            PendingLauncherTaskSupport.buildSafetyBackupLabel(safetyBackupPrefix),
+        )
+        if (!beginBusy(
+                busyText,
+                TermuxCommandTimeoutPolicy.chainedOperationLockMillis("tavern-backup-manual", baseCommand),
+            )
+        ) return
         rememberPendingLauncherTask(
             PendingLauncherTask(
                 kind = taskKind,
@@ -1610,7 +1617,11 @@ fun LukoaLauncherScreen(
             update("请先准备好 Termux。", "", false, allowRunningInference = false)
             return
         }
-        if (!beginBusy("检测酒馆安装", 18000L)) return
+        if (!beginBusy(
+                "检测酒馆安装",
+                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-version"),
+            )
+        ) return
         tavernVersionCheckInFlight = true
         val token = busyToken
         scope.launch {
@@ -1629,7 +1640,11 @@ fun LukoaLauncherScreen(
     }
 
     fun refreshOfficialVersions() {
-        if (!beginBusy("读取官方版本", 30000L)) return
+        if (!beginBusy(
+                "读取官方版本",
+                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-official-versions"),
+            )
+        ) return
         val requestToken = busyToken
         update("正在读取官方版本列表。", "", false, allowRunningInference = false)
         onFetchOfficialTavernVersions(tavernMirrorConfig) { result ->
@@ -1866,9 +1881,9 @@ fun LukoaLauncherScreen(
                 profileId = tavernPathConfig.activeProfile.id,
             ),
             label = "安装酒馆",
-            timeoutMs = 900000L,
+            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-install"),
         ) { guardedUpdate ->
-            onCommand("tavern-install::$commandArgument", guardedUpdate)
+            onCommand(LauncherCommandCodec.encode("tavern-install", commandArgument), guardedUpdate)
         }
     }
 
@@ -1995,9 +2010,9 @@ fun LukoaLauncherScreen(
                 profileId = tavernPathConfig.activeProfile.id,
             ),
             label = "应用酒馆备份",
-            timeoutMs = 600000L,
+            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-restore"),
         ) { guardedUpdate ->
-            onCommand("tavern-restore::$archivePath", guardedUpdate)
+            onCommand(LauncherCommandCodec.encode("tavern-restore", archivePath), guardedUpdate)
         }
     }
 
@@ -2007,7 +2022,11 @@ fun LukoaLauncherScreen(
             return
         }
         showTermuxStoragePermissionDialog = false
-        runGuarded("请求 Termux 存储权限", 90000L, allowRunningInference = false) { guardedUpdate ->
+        runGuarded(
+            "请求 Termux 存储权限",
+            TermuxCommandTimeoutPolicy.operationLockMillis("termux-storage-permission").coerceAtLeast(90_000L),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
             onCommand("termux-storage-permission", guardedUpdate)
         }
     }
@@ -2538,8 +2557,8 @@ fun LukoaLauncherScreen(
                 targetPath = confirmation.targetPath,
             ),
             label = "迁移酒馆目录",
-            timeoutMs = 900000L,
-            command = "tavern-migrate-dir::$encodedTargetPath",
+            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-migrate-dir"),
+            command = LauncherCommandCodec.encode("tavern-migrate-dir", encodedTargetPath),
         )
     }
 
@@ -2561,7 +2580,7 @@ fun LukoaLauncherScreen(
                     targetPath = confirmation.deletedDirectoryPath,
                 ),
                 label = "删除分身实例托管目录",
-                timeoutMs = 900000L,
+                timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-delete-managed-profile-dir"),
                 command = "tavern-delete-managed-profile-dir",
             )
             return
@@ -2611,7 +2630,11 @@ fun LukoaLauncherScreen(
             update("先打开 Termux 调用权限。", "", false, allowRunningInference = false)
             return
         }
-        if (!beginBusy("读取 Termux 包源", 20000L)) return
+        if (!beginBusy(
+                "读取 Termux 包源",
+                TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-status"),
+            )
+        ) return
         update("正在读取当前 Termux 包源。", "", false, allowRunningInference = false)
         onCommand("termux-repo-status") { newStatus, termuxOutput, ok ->
             update(newStatus, termuxOutput, ok, allowRunningInference = false)
@@ -2639,7 +2662,11 @@ fun LukoaLauncherScreen(
             update("先打开 Termux 调用权限。", "", false, allowRunningInference = false)
             return
         }
-        if (!beginBusy("切换自定义 Termux 包源", 90000L)) return
+        if (!beginBusy(
+                "切换自定义 Termux 包源",
+                TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-custom"),
+            )
+        ) return
         customTermuxRepoInput = url
         update("正在切换自定义 Termux 包源。", "", false, allowRunningInference = false)
         onCommand("termux-repo-custom::$url") { newStatus, termuxOutput, ok ->
@@ -2893,7 +2920,11 @@ fun LukoaLauncherScreen(
     }
 
     fun executePrepareTermuxEnvironment(configPolicy: AptConfigPolicy) {
-        if (!beginBusy("准备 Termux 环境", 1_200_000L)) return
+        if (!beginBusy(
+                "准备 Termux 环境",
+                TermuxCommandTimeoutPolicy.operationLockMillis("termux-bootstrap"),
+            )
+        ) return
         update(
             "正在准备 Termux 环境。",
             """
@@ -3252,7 +3283,11 @@ fun LukoaLauncherScreen(
             continueStartAfterFirstGuideIfNeeded()
             return
         }
-        if (!beginBusy("启动前预检", 20000L)) return
+        if (!beginBusy(
+                "启动前预检",
+                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-doctor"),
+            )
+        ) return
 
         onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
             if (isTransientStatus(newStatus) && termuxOutput.isBlank()) {
@@ -3406,7 +3441,11 @@ fun LukoaLauncherScreen(
 
     fun confirmStopTavern() {
         showStopConfirmDialog = false
-        if (!beginBusy("停止酒馆", 20000L)) return
+        if (!beginBusy(
+                "停止酒馆",
+                TermuxCommandTimeoutPolicy.operationLockMillis("stop"),
+            )
+        ) return
         tavernStarting = false
         launchAttemptToken += 1
         onCommand("stop") { newStatus, termuxOutput, ok ->
@@ -3425,7 +3464,11 @@ fun LukoaLauncherScreen(
     fun confirmForceCleanupDialog() {
         val confirmation = pendingTavernForceCleanupConfirmation ?: return
         dismissForceCleanupDialog()
-        if (!beginBusy(confirmation.suggestion.buttonLabel, 20000L)) return
+        if (!beginBusy(
+                confirmation.suggestion.buttonLabel,
+                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-force-cleanup"),
+            )
+        ) return
         tavernStarting = false
         launchAttemptToken += 1
         onCommand("tavern-force-cleanup") { newStatus, termuxOutput, ok ->
@@ -3802,12 +3845,12 @@ fun LukoaLauncherScreen(
                         profileId = tavernPathConfig.activeProfile.id,
                     ),
                     label = "创建酒馆备份",
-                    timeoutMs = 600000L,
+                    timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-backup-manual"),
                 ) { guardedUpdate ->
                     if (backupName.isBlank()) {
                         onCommand("tavern-backup-manual", guardedUpdate)
                     } else {
-                        onCommand("tavern-backup-manual::$backupName", guardedUpdate)
+                        onCommand(LauncherCommandCodec.encode("tavern-backup-manual", backupName), guardedUpdate)
                     }
                 }
             },
@@ -4274,6 +4317,7 @@ fun LukoaLauncherScreen(
                                 title = "酒馆运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Info,
+                                maxVisibleLines = null,
                             )
                             LogPanel(
                                 title = "App 操作反馈",

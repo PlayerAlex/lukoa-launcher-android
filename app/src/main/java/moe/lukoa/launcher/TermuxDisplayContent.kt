@@ -15,7 +15,7 @@ object TermuxDisplayContentExtractor {
 
     fun extract(output: String): TermuxDisplayContent {
         if (output.isBlank()) return TermuxDisplayContent()
-        val normalized = TavernLogSignals.stripAnsi(output).replace("\r\n", "\n")
+        val normalized = output.replace("\r\n", "\n")
         return TermuxDisplayContent(
             commandText = extractCommandText(normalized),
             tavernRuntimeLogText = extractRuntimeLogText(normalized),

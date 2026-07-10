@@ -67,7 +67,7 @@ class TavernController(
     }
 
     fun handleCommand(scope: CoroutineScope, command: String, update: LauncherUpdate) {
-        val parsed = parseCommand(command)
+        val parsed = LauncherCommandCodec.decode(command)
         val startTime = System.currentTimeMillis()
         val dispatch = when (parsed.name) {
             "log" -> runner.runLogSnapshot()
@@ -410,11 +410,6 @@ class TavernController(
         }
     }
 
-    private data class ParsedCommand(
-        val name: String,
-        val argument: String?,
-    )
-
     private fun String.lineValue(key: String): String? {
         return lineSequence()
             .map { it.trim() }
@@ -422,14 +417,6 @@ class TavernController(
             ?.substringAfter("=")
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-    }
-
-    private fun parseCommand(command: String): ParsedCommand {
-        val parts = command.split("::", limit = 2)
-        return ParsedCommand(
-            name = parts.firstOrNull().orEmpty(),
-            argument = parts.getOrNull(1)?.takeIf { it.isNotBlank() },
-        )
     }
 
     private suspend fun waitForResult(

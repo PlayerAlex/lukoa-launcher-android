@@ -379,8 +379,11 @@ fun LogPanel(
     subtitle: String? = null,
     followLatestByDefault: Boolean = true,
     showFollowControls: Boolean = true,
+    maxVisibleLines: Int? = 900,
 ) {
-    val displayContent = remember(content) { content.keepLatestLines(maxLines = 900) }
+    val displayContent = remember(content, maxVisibleLines) {
+        maxVisibleLines?.let(content::keepLatestLines) ?: content
+    }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var followLatest by remember(followLatestByDefault) { mutableStateOf(followLatestByDefault) }

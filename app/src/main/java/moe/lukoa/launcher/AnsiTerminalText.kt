@@ -169,7 +169,8 @@ object AnsiTerminalText {
     }
 
     private fun indexedColor(index: Int): Color {
-        return when (index.coerceIn(0, 255)) {
+        val normalized = index.coerceIn(0, 255)
+        return when (normalized) {
             0 -> LukoaColors.Dim
             1 -> LukoaColors.Danger
             2 -> LukoaColors.Accent
@@ -178,8 +179,19 @@ object AnsiTerminalText {
             5 -> Color(0xFFD38CFF)
             6 -> Color(0xFF67E8F9)
             7 -> LukoaColors.Text
-            in 8..15 -> ansiColor(90 + (index - 8))
-            else -> LukoaColors.Text
+            in 8..15 -> ansiColor(90 + (normalized - 8))
+            in 16..231 -> {
+                val colorIndex = normalized - 16
+                val levels = intArrayOf(0, 95, 135, 175, 215, 255)
+                val red = levels[colorIndex / 36]
+                val green = levels[(colorIndex % 36) / 6]
+                val blue = levels[colorIndex % 6]
+                Color(red, green, blue)
+            }
+            else -> {
+                val gray = 8 + (normalized - 232) * 10
+                Color(gray, gray, gray)
+            }
         }
     }
 

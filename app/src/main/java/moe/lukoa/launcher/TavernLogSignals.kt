@@ -54,7 +54,7 @@ object TavernLogSignals {
     )
 
     fun hasRecentLiveSignal(text: String): Boolean {
-        val lines = prepareForApp(text).lineSequence().takeLastCompat(160)
+        val lines = prepareForAnalysis(text).lineSequence().takeLastCompat(160)
         val lastLive = lines.indexOfLastMatching(liveMarkers, ignoreCase = false)
         if (lastLive < 0) return false
         val lastStop = lines.indexOfLastMatching(stopMarkers, ignoreCase = false)
@@ -84,7 +84,8 @@ object TavernLogSignals {
     fun latestForegroundSession(text: String): String {
         val preparedLines = prepareForApp(text).lines()
         if (preparedLines.isEmpty()) return ""
-        val sessionStart = preparedLines.indexOfLast { it.contains(SESSION_MARKER) }
+        val plainLines = preparedLines.map(::stripAnsi)
+        val sessionStart = plainLines.indexOfLast { it.contains(SESSION_MARKER) }
         if (sessionStart < 0) return ""
         return preparedLines.subList(sessionStart, preparedLines.size)
             .joinToString("\n")
@@ -93,7 +94,7 @@ object TavernLogSignals {
 
     fun prepareForApp(value: String): String {
         if (value.isBlank()) return ""
-        return stripAnsi(value)
+        return value
             .replace("\r\n", "\n")
             .trimEnd()
     }
@@ -104,8 +105,12 @@ object TavernLogSignals {
             .replace(Regex("\u001B\\[[0-?]*[ -/]*[@-~]"), "")
     }
 
+    private fun prepareForAnalysis(value: String): String {
+        return stripAnsi(prepareForApp(value))
+    }
+
     private fun latestSessionLines(text: String): List<String> {
-        val preparedLines = prepareForApp(text).lines()
+        val preparedLines = prepareForAnalysis(text).lines()
         if (preparedLines.isEmpty()) return emptyList()
         val sessionStart = preparedLines.indexOfLast { it.contains(SESSION_MARKER) }
         return if (sessionStart >= 0) {
