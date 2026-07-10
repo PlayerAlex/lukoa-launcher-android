@@ -201,12 +201,6 @@ fun LukoaLauncherScreen(
     var pendingTavernVersionActionConfirmation by remember {
         mutableStateOf<TavernVersionActionConfirmation?>(null)
     }
-    var pendingTavernProfileRemovalConfirmation by remember {
-        mutableStateOf<TavernProfileRemovalConfirmation?>(null)
-    }
-    var pendingTavernProfileMigrationConfirmation by remember {
-        mutableStateOf<TavernProfileMigrationConfirmation?>(null)
-    }
     var pendingTavernForceCleanupConfirmation by remember {
         mutableStateOf<TavernForceCleanupConfirmation?>(null)
     }
@@ -263,22 +257,20 @@ fun LukoaLauncherScreen(
     var githubRepository by remember { mutableStateOf(initialGithubRepository) }
     var githubUpdateChannel by remember { mutableStateOf(initialGithubUpdateChannel) }
     var githubRepositoryInput by remember { mutableStateOf(initialGithubRepository) }
-    var tavernMirrorConfig by remember { mutableStateOf(initialTavernMirrorConfig) }
-    var tavernPathConfig by remember { mutableStateOf(initialTavernPathConfig) }
-    var tavernRepoInput by remember { mutableStateOf(initialTavernMirrorConfig.normalizedRepoUrl) }
-    var npmRegistryInput by remember { mutableStateOf(initialTavernMirrorConfig.normalizedNpmRegistry) }
-    var tavernPathInput by remember { mutableStateOf(initialTavernPathConfig.displayTavernDir) }
-    var tavernPortInput by remember { mutableStateOf(initialTavernPathConfig.normalizedPort.toString()) }
-    var mirrorProbeStatus by remember { mutableStateOf(TavernMirrorProbeStatus.unknown(initialTavernMirrorConfig)) }
-    var termuxRepoStatus by remember { mutableStateOf(TermuxRepoStatus()) }
-    var customTermuxRepoInput by remember { mutableStateOf("") }
+    val pathSettingsState = remember { LauncherPathSettingsState(initialTavernPathConfig) }
+    val mirrorSettingsState = remember { LauncherMirrorSettingsState(initialTavernMirrorConfig) }
+    var tavernMirrorConfig by mirrorSettingsState::config
+    var tavernPathConfig by pathSettingsState::config
+    var tavernRepoInput by mirrorSettingsState::tavernRepoInput
+    var npmRegistryInput by mirrorSettingsState::npmRegistryInput
+    var tavernPathInput by pathSettingsState::pathInput
+    var tavernPortInput by pathSettingsState::portInput
+    var mirrorProbeStatus by mirrorSettingsState::probeStatus
+    var termuxRepoStatus by mirrorSettingsState::termuxRepoStatus
+    var customTermuxRepoInput by mirrorSettingsState::customTermuxRepoInput
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showInstallRiskDialog by remember { mutableStateOf(false) }
-    var showTavernDirectoryChoiceDialog by remember { mutableStateOf(false) }
-    var showCustomTavernPathMigrationDialog by remember { mutableStateOf(false) }
-    var tavernDirectoryCandidates by remember { mutableStateOf<List<TavernDirectoryCandidateOption>>(emptyList()) }
-    var customMigrationPathInput by remember { mutableStateOf("") }
     var pendingFirstTavernStartGuide by remember { mutableStateOf<FirstTavernStartGuide?>(null) }
     var githubUpdateState by remember {
         mutableStateOf(
@@ -377,17 +369,7 @@ fun LukoaLauncherScreen(
     }
 
     fun applyTavernPathSaveResult(result: TavernPathSaveResult) {
-        tavernPathConfig = result.config
-        tavernPathInput = result.config.displayTavernDir
-        tavernPortInput = result.config.normalizedPort.toString()
-    }
-
-    fun customMigrationPathInputError(): String? {
-        val trimmed = customMigrationPathInput.trim()
-        if (trimmed.isBlank()) {
-            return "请先填写要迁移到的目录。"
-        }
-        return TavernPathValidator.validate(trimmed)
+        pathSettingsState.applySaveResult(result)
     }
 
     fun rememberPendingLauncherTask(
@@ -458,26 +440,11 @@ fun LukoaLauncherScreen(
     }
 
     fun openTavernDirectoryChoice(candidates: List<String>) {
-        val resolved = TavernDirectoryCandidateGuard.resolve(tavernPathConfig, candidates)
-        if (resolved.isEmpty()) return
-        tavernDirectoryCandidates = resolved
-        showTavernDirectoryChoiceDialog = true
-    }
-
-    fun clearTavernDirectoryChoiceState() {
-        showTavernDirectoryChoiceDialog = false
-        tavernDirectoryCandidates = emptyList()
+        pathSettingsState.openDirectoryChoice(candidates)
     }
 
     fun clearTransientTavernPathUiState() {
-        clearTavernDirectoryChoiceState()
-        pendingTavernProfileMigrationConfirmation = null
-        showCustomTavernPathMigrationDialog = false
-        customMigrationPathInput = ""
-    }
-
-    fun dismissTavernDirectoryChoiceDialog() {
-        clearTavernDirectoryChoiceState()
+        pathSettingsState.clearTransientPathUi()
     }
 
     fun maybePromptTavernDirectoryChoice(text: String) {
@@ -549,8 +516,7 @@ fun LukoaLauncherScreen(
     }
 
     fun currentMirrorProbeStatus(): TavernMirrorProbeStatus {
-        return mirrorProbeStatus.takeIf { it.matches(tavernMirrorConfig) }
-            ?: TavernMirrorProbeStatus.unknown(tavernMirrorConfig)
+        return mirrorSettingsState.currentProbeStatus()
     }
 
     fun buildHealthCheckReport(
@@ -673,7 +639,7 @@ fun LukoaLauncherScreen(
         pendingStartPreflight = null
         pendingTavernForceCleanupConfirmation = null
         pendingTavernVersionActionConfirmation = null
-        pendingTavernProfileRemovalConfirmation = null
+        pathSettingsState.pendingRemovalConfirmation = null
         clearTransientTavernPathUiState()
         launchAttemptToken += 1
         lastSyncedTermuxResultKey = onLatestTermuxResult()?.key.orEmpty()
@@ -729,12 +695,7 @@ fun LukoaLauncherScreen(
             tavernInstallDetected = it
         }
         TavernOfficialVersionParser.parse(termuxOutput).takeIf { it.hasData }?.let(::applyOfficialVersions)
-        TermuxRepoStatusParser.parse(termuxOutput)?.let { parsed ->
-            termuxRepoStatus = parsed
-            if (customTermuxRepoInput.isBlank() || parsed.label == "自定义") {
-                customTermuxRepoInput = parsed.uri
-            }
-        }
+        TermuxRepoStatusParser.parse(termuxOutput)?.let(mirrorSettingsState::applyTermuxRepoStatus)
         val permissionText = "$newStatus\n$termuxOutput"
         maybePromptTavernDirectoryChoice(permissionText)
         if (TermuxPermissionSignals.externalAppsBlocked(permissionText)) {
@@ -804,12 +765,7 @@ fun LukoaLauncherScreen(
             tavernInstallDetected = it
         }
         TavernOfficialVersionParser.parse(display.output).takeIf { it.hasData }?.let(::applyOfficialVersions)
-        TermuxRepoStatusParser.parse(display.output)?.let { parsed ->
-            termuxRepoStatus = parsed
-            if (customTermuxRepoInput.isBlank() || parsed.label == "自定义") {
-                customTermuxRepoInput = parsed.uri
-            }
-        }
+        TermuxRepoStatusParser.parse(display.output)?.let(mirrorSettingsState::applyTermuxRepoStatus)
         if (TermuxPermissionSignals.externalAppsBlocked(display.output)) {
             termuxExternalAppsBlocked = true
         }
@@ -1568,6 +1524,39 @@ fun LukoaLauncherScreen(
         }
     }
 
+    val profileCoordinator = remember(pathSettingsState, mirrorSettingsState) {
+        LauncherProfileCoordinator(
+            pathState = pathSettingsState,
+            mirrorState = mirrorSettingsState,
+            statusUpdate = { message, output, ok ->
+                update(message, output, ok, allowRunningInference = false)
+            },
+            refreshActiveProfileState = ::refreshActiveProfileState,
+            blockIfPendingTaskExists = ::blockIfPendingTaskExists,
+            runProfileMutationPendingCommand = ::runProfileMutationPendingCommand,
+            beginBusy = ::beginBusy,
+            releaseBusy = ::releaseBusy,
+            isTransientStatus = ::isTransientStatus,
+            isActionInProgress = { busyLabel != null },
+            isTavernRunning = { tavernRunning },
+            isTavernStarting = { tavernStarting },
+            isTermuxInstalled = { termuxInstalled },
+            isRunCommandPermissionGranted = { runCommandPermissionGranted },
+            onCommand = onCommand,
+            onSaveTavernMirrorConfig = onSaveTavernMirrorConfig,
+            onSaveTavernPathConfig = onSaveTavernPathConfig,
+            onRestoreDefaultTavernPath = onRestoreDefaultTavernPath,
+            onCheckTavernMirror = onCheckTavernMirror,
+            onTavernRepoChanged = { repoUrl ->
+                officialVersions = TavernOfficialVersions()
+                selectedTavernVersion = selectedTavernVersion
+                    ?.takeIf { it.kind == TavernVersionKind.Custom }
+                    ?.copy(repoUrl = repoUrl)
+                pendingTavernVersionActionConfirmation = null
+            },
+        )
+    }
+
     fun checkTavernInstall() {
         if (!termuxInstalled || !runCommandPermissionGranted) {
             update("请先准备好 Termux。", "", false, allowRunningInference = false)
@@ -1993,324 +1982,41 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun saveTavernMirrorConfig(repoUrl: String = tavernRepoInput, npmRegistry: String = npmRegistryInput) {
-        val previousRepoUrl = tavernMirrorConfig.normalizedRepoUrl
-        val nextConfig = TavernMirrorConfig(
-            repoUrl = repoUrl.trim(),
-            npmRegistry = npmRegistry.trim(),
-        )
-        val result = onSaveTavernMirrorConfig(nextConfig)
-        val repoChanged = result.saved && !sameRepoUrl(previousRepoUrl, result.config.normalizedRepoUrl)
-        tavernMirrorConfig = result.config
-        tavernRepoInput = result.config.normalizedRepoUrl
-        npmRegistryInput = result.config.normalizedNpmRegistry
-        mirrorProbeStatus = TavernMirrorProbeStatus.unknown(result.config)
-        if (repoChanged) {
-            officialVersions = TavernOfficialVersions()
-            selectedTavernVersion = selectedTavernVersion
-                ?.takeIf { it.kind == TavernVersionKind.Custom }
-                ?.copy(repoUrl = result.config.normalizedRepoUrl)
-            pendingTavernVersionActionConfirmation = null
-        }
-        update(
-            if (result.saved) {
-                buildString {
-                    append(result.message)
-                    append("\n后续安装、读取官方版本、更新和回退会使用这个源。")
-                    if (repoChanged) {
-                        append("\n旧版本列表已清空，请按新源重新读取官方版本。")
-                    }
-                }
-            } else {
-                result.message
-            },
-            "",
-            result.saved,
-            allowRunningInference = false,
-        )
-    }
+    fun saveTavernMirrorConfig() = profileCoordinator.saveTavernMirrorConfig()
 
-    fun saveTavernPathConfig(
-        path: String = tavernPathInput,
-        portText: String = tavernPortInput,
-    ) {
-        val safePort = portText.trim().toIntOrNull() ?: tavernPathConfig.normalizedPort
-        val nextConfig = tavernPathConfig.withUpdatedActiveProfile(
-            tavernDir = path.trim(),
-            port = safePort,
-        )
-        val result = onSaveTavernPathConfig(nextConfig)
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState(
-                "${result.config.activeProfileLabel}已保存，后续启动、停止、版本读取和备份都会使用这个目录和端口。",
-            )
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun saveTavernPathConfig() = profileCoordinator.saveTavernPathConfig()
 
-    fun chooseDetectedTavernDirectory(path: String) {
-        tavernDirectoryCandidates
-            .firstOrNull { it.path == path }
-            ?.takeIf { !it.selectable }
-            ?.let { blocked ->
-                update(blocked.reason.ifBlank { "这个目录当前不能直接分配给这个实例。" }, "", false, allowRunningInference = false)
-                return
-            }
-        dismissTavernDirectoryChoiceDialog()
-        val result = onSaveTavernPathConfig(
-            tavernPathConfig.withUpdatedActiveProfilePathOnly(path),
-        )
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState(
-                "${result.config.activeProfileLabel}已切换到检测到的目录，端口保持 ${result.config.normalizedPort} 不变。",
-            )
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun chooseDetectedTavernDirectory(path: String) = profileCoordinator.chooseDetectedTavernDirectory(path)
 
-    fun restoreDefaultTavernPath() {
-        val result = onRestoreDefaultTavernPath()
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState("已恢复${result.config.activeProfileLabel}的默认路径和默认端口。")
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun restoreDefaultTavernPath() = profileCoordinator.restoreDefaultTavernPath()
 
-    fun selectTavernProfile(profileId: String) {
-        val result = onSaveTavernPathConfig(tavernPathConfig.withActiveProfile(profileId))
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState("已切换到${result.config.activeProfileLabel}。")
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun selectTavernProfile(profileId: String) = profileCoordinator.selectTavernProfile(profileId)
 
-    fun addTavernProfile() {
-        val result = onSaveTavernPathConfig(tavernPathConfig.addSuggestedProfile())
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState("已新建并切换到${result.config.activeProfileLabel}。")
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun addTavernProfile() = profileCoordinator.addTavernProfile()
 
-    fun requestRemoveCurrentTavernProfile() {
-        when (
-            val decision = TavernProfileRemovalGuard.evaluate(
-                config = tavernPathConfig,
-                tavernRunning = tavernRunning,
-                tavernStarting = tavernStarting,
-                actionsLocked = actionInProgress,
-            )
-        ) {
-            is TavernProfileRemovalDecision.Blocked -> {
-                update(decision.message, "", false, allowRunningInference = false)
-            }
+    fun requestRemoveCurrentTavernProfile() = profileCoordinator.requestRemoveCurrentTavernProfile()
 
-            is TavernProfileRemovalDecision.Confirm -> {
-                pendingTavernProfileRemovalConfirmation = decision.confirmation
-            }
-        }
-    }
+    fun requestMigrateToManagedTavernPath() = profileCoordinator.requestMigrateToManagedTavernPath()
 
-    fun requestTavernPathMigration(
-        targetPath: String,
-        targetKind: TavernProfileMigrationTargetKind,
-    ): Boolean {
-        return when (
-            val decision = TavernProfileMigrationGuard.evaluate(
-                config = tavernPathConfig,
-                targetPath = targetPath,
-                targetKind = targetKind,
-                tavernRunning = tavernRunning,
-                tavernStarting = tavernStarting,
-                actionsLocked = actionInProgress,
-            )
-        ) {
-            is TavernProfileMigrationDecision.Blocked -> {
-                update(decision.message, "", false, allowRunningInference = false)
-                false
-            }
+    fun requestMigrateToTraditionalTavernPath() = profileCoordinator.requestMigrateToTraditionalTavernPath()
 
-            is TavernProfileMigrationDecision.Confirm -> {
-                pendingTavernProfileMigrationConfirmation = decision.confirmation
-                true
-            }
-        }
-    }
+    fun openCustomTavernPathMigrationDialog() = profileCoordinator.openCustomTavernPathMigrationDialog()
 
-    fun requestMigrateToManagedTavernPath() {
-        val pathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
-        requestTavernPathMigration(
-            targetPath = pathInfo.launcherManagedDefaultPath,
-            targetKind = TavernProfileMigrationTargetKind.LauncherManaged,
-        )
-    }
+    fun confirmCustomTavernPathMigrationDialog() = profileCoordinator.confirmCustomTavernPathMigrationDialog()
 
-    fun requestMigrateToTraditionalTavernPath() {
-        val pathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
-        requestTavernPathMigration(
-            targetPath = pathInfo.traditionalDefaultPath,
-            targetKind = TavernProfileMigrationTargetKind.TraditionalDefault,
-        )
-    }
+    fun confirmMigrateCurrentTavernPath() = profileCoordinator.confirmMigrateCurrentTavernPath()
 
-    fun openCustomTavernPathMigrationDialog() {
-        customMigrationPathInput = ""
-        showCustomTavernPathMigrationDialog = true
-    }
+    fun confirmRemoveCurrentTavernProfile() = profileCoordinator.confirmRemoveCurrentTavernProfile()
 
-    fun confirmCustomTavernPathMigrationDialog() {
-        if (requestTavernPathMigration(customMigrationPathInput, TavernProfileMigrationTargetKind.Custom)) {
-            showCustomTavernPathMigrationDialog = false
-        }
-    }
+    fun useOfficialTavernMirror() = profileCoordinator.useOfficialTavernMirror()
 
-    fun confirmMigrateCurrentTavernPath() {
-        val confirmation = pendingTavernProfileMigrationConfirmation ?: return
-        if (blockIfPendingTaskExists("迁移酒馆目录")) {
-            return
-        }
-        pendingTavernProfileMigrationConfirmation = null
-        val encodedTargetPath = TavernProfileMigrationCommandCodec.encode(confirmation.targetPath)
-        runProfileMutationPendingCommand(
-            task = PendingLauncherTask(
-                kind = PendingLauncherTaskKind.MigrateTavernDirectory,
-                commandName = "tavern-migrate-dir",
-                detail = "把${confirmation.profileName}迁移到${confirmation.targetPath}",
-                startedAtMillis = System.currentTimeMillis(),
-                profileId = confirmation.profileId,
-                targetPath = confirmation.targetPath,
-            ),
-            label = "迁移酒馆目录",
-            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-migrate-dir"),
-            command = LauncherCommandCodec.encode("tavern-migrate-dir", encodedTargetPath),
-        )
-    }
+    fun useGithubProxyTavernMirror() = profileCoordinator.useGithubProxyTavernMirror()
 
-    fun confirmRemoveCurrentTavernProfile() {
-        val confirmation = pendingTavernProfileRemovalConfirmation ?: return
-        pendingTavernProfileRemovalConfirmation = null
-        if (confirmation.deletesProfileDirectory) {
-            if (blockIfPendingTaskExists("删除实例")) {
-                pendingTavernProfileRemovalConfirmation = confirmation
-                return
-            }
-            runProfileMutationPendingCommand(
-                task = PendingLauncherTask(
-                    kind = PendingLauncherTaskKind.RemoveManagedProfileDirectory,
-                    commandName = "tavern-delete-managed-profile-dir",
-                    detail = "删除${confirmation.profileName}的托管目录",
-                    startedAtMillis = System.currentTimeMillis(),
-                    profileId = confirmation.profileId,
-                    targetPath = confirmation.deletedDirectoryPath,
-                ),
-                label = "删除分身实例托管目录",
-                timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-delete-managed-profile-dir"),
-                command = "tavern-delete-managed-profile-dir",
-            )
-            return
-        }
-        val result = onSaveTavernPathConfig(tavernPathConfig.removeProfile(confirmation.profileId))
-        applyTavernPathSaveResult(result)
-        if (result.saved) {
-            refreshActiveProfileState(
-                "已移除${confirmation.profileName}，现在切换到${result.config.activeProfileLabel}继续管理。原目录和备份都还保留着。",
-            )
-        } else {
-            update(result.message, "", false, allowRunningInference = false)
-        }
-    }
+    fun useNpmMirrorOnly() = profileCoordinator.useNpmMirrorOnly()
 
-    fun useOfficialTavernMirror() {
-        saveTavernMirrorConfig(
-            repoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
-            npmRegistry = TavernMirrorDefaults.OFFICIAL_NPM_REGISTRY,
-        )
-    }
+    fun readTermuxPackageMirrorStatus() = profileCoordinator.readTermuxPackageMirrorStatus()
 
-    fun useGithubProxyTavernMirror() {
-        saveTavernMirrorConfig(
-            repoUrl = TavernMirrorDefaults.GITHUB_PROXY_REPO,
-            npmRegistry = TavernMirrorDefaults.NPMMIRROR_REGISTRY,
-        )
-    }
-
-    fun useNpmMirrorOnly() {
-        saveTavernMirrorConfig(
-            repoUrl = tavernRepoInput,
-            npmRegistry = TavernMirrorDefaults.NPMMIRROR_REGISTRY,
-        )
-    }
-
-    fun readTermuxPackageMirrorStatus() {
-        if (actionInProgress) {
-            update("正在处理，完成后再读取 Termux 包源。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!termuxInstalled) {
-            update("先安装 Termux。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!runCommandPermissionGranted) {
-            update("先打开 Termux 调用权限。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!beginBusy(
-                "读取 Termux 包源",
-                TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-status"),
-            )
-        ) return
-        update("正在读取当前 Termux 包源。", "", false, allowRunningInference = false)
-        onCommand("termux-repo-status") { newStatus, termuxOutput, ok ->
-            update(newStatus, termuxOutput, ok, allowRunningInference = false)
-            if (!isTransientStatus(newStatus)) {
-                releaseBusy()
-            }
-        }
-    }
-
-    fun applyCustomTermuxPackageMirror() {
-        val url = customTermuxRepoInput.trim().trimEnd('/')
-        TavernMirrorValidator.validateTermuxAptUrl(url)?.let { reason ->
-            update("自定义 Termux 包源无效：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        if (actionInProgress) {
-            update("正在处理，完成后再切换 Termux 包源。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!termuxInstalled) {
-            update("先安装 Termux。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!runCommandPermissionGranted) {
-            update("先打开 Termux 调用权限。", "", false, allowRunningInference = false)
-            return
-        }
-        if (!beginBusy(
-                "切换自定义 Termux 包源",
-                TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-custom"),
-            )
-        ) return
-        customTermuxRepoInput = url
-        update("正在切换自定义 Termux 包源。", "", false, allowRunningInference = false)
-        onCommand("termux-repo-custom::$url") { newStatus, termuxOutput, ok ->
-            update(newStatus, termuxOutput, ok, allowRunningInference = false)
-            if (!isTransientStatus(newStatus)) {
-                releaseBusy()
-            }
-        }
-    }
-
+    fun applyCustomTermuxPackageMirror() = profileCoordinator.applyCustomTermuxPackageMirror()
     fun restoreDefaultGithubRepository() {
         if (githubUpdateState.checking || githubUpdateState.downloading) {
             update("GitHub 更新处理中，结束后再恢复。", "", false, allowRunningInference = false)
@@ -3359,14 +3065,10 @@ fun LukoaLauncherScreen(
         )
     }
 
-    if (showTavernDirectoryChoiceDialog && tavernDirectoryCandidates.isNotEmpty()) {
-        TavernDirectoryChoiceDialog(
-            currentPath = tavernPathConfig.displayTavernDir,
-            candidates = tavernDirectoryCandidates,
-            onChoose = ::chooseDetectedTavernDirectory,
-            onDismiss = ::dismissTavernDirectoryChoiceDialog,
-        )
-    }
+    LauncherDirectoryChoiceDialogHost(
+        state = pathSettingsState,
+        onChoose = ::chooseDetectedTavernDirectory,
+    )
 
     if (showStopConfirmDialog) {
         StopTavernConfirmDialog(
@@ -3465,38 +3167,13 @@ fun LukoaLauncherScreen(
         actionsLocked = actionInProgress,
     )
 
-    pendingTavernProfileRemovalConfirmation?.let { confirmation ->
-        DeleteTavernProfileConfirmDialog(
-            confirmation = confirmation,
-            actionsLocked = actionInProgress,
-            onConfirm = ::confirmRemoveCurrentTavernProfile,
-            onDismiss = { pendingTavernProfileRemovalConfirmation = null },
-        )
-    }
-
-    pendingTavernProfileMigrationConfirmation?.let { confirmation ->
-        TavernProfileMigrationConfirmDialog(
-            confirmation = confirmation,
-            actionsLocked = actionInProgress,
-            onConfirm = ::confirmMigrateCurrentTavernPath,
-            onDismiss = { pendingTavernProfileMigrationConfirmation = null },
-        )
-    }
-
-    if (showCustomTavernPathMigrationDialog) {
-        CustomTavernPathMigrationDialog(
-            currentPath = tavernPathConfig.displayTavernDir,
-            pathInput = customMigrationPathInput,
-            pathError = customMigrationPathInputError(),
-            actionsLocked = actionInProgress,
-            onPathChange = { customMigrationPathInput = it },
-            onConfirm = ::confirmCustomTavernPathMigrationDialog,
-            onDismiss = {
-                showCustomTavernPathMigrationDialog = false
-                customMigrationPathInput = ""
-            },
-        )
-    }
+    LauncherProfileMutationDialogHost(
+        state = pathSettingsState,
+        actionsLocked = actionInProgress,
+        onConfirmRemoval = ::confirmRemoveCurrentTavernProfile,
+        onConfirmMigration = ::confirmMigrateCurrentTavernPath,
+        onConfirmCustomMigration = ::confirmCustomTavernPathMigrationDialog,
+    )
 
     if (showUpdateDialog) {
         githubUpdateState.latest?.let { latest ->
@@ -3807,24 +3484,7 @@ fun LukoaLauncherScreen(
                             onUseOfficialMirror = ::useOfficialTavernMirror,
                             onUseGithubProxyMirror = ::useGithubProxyTavernMirror,
                             onUseNpmMirror = ::useNpmMirrorOnly,
-                            onCheckTavernMirror = {
-                                if (actionInProgress) {
-                                    update("正在处理，完成后再检测镜像源。", "", false, allowRunningInference = false)
-                                } else {
-                                    mirrorProbeStatus = TavernMirrorProbeStatus.checking(tavernMirrorConfig)
-                                    onCheckTavernMirror(tavernMirrorConfig) { result ->
-                                        mirrorProbeStatus = result
-                                        val ok = result.overallLevel != MirrorProbeLevel.Failed
-                                        val message = when (result.overallLevel) {
-                                            MirrorProbeLevel.Healthy -> "镜像源检测完成，当前源可用。"
-                                            MirrorProbeLevel.Warning -> "镜像源检测完成，有提醒项，安装前建议看一眼。"
-                                            MirrorProbeLevel.Failed -> "镜像源检测失败，请先换源或检查网络。"
-                                            MirrorProbeLevel.Unknown -> "镜像源还没检测完成。"
-                                        }
-                                        update(message, "", ok, allowRunningInference = false)
-                                    }
-                                }
-                            },
+                            onCheckTavernMirror = profileCoordinator::checkTavernMirror,
                             onReadTermuxRepoStatus = ::readTermuxPackageMirrorStatus,
                             onApplyCustomTermuxMirror = ::applyCustomTermuxPackageMirror,
                             onRequestBackgroundRunPermission = {
