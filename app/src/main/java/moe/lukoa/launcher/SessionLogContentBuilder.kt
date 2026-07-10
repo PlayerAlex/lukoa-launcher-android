@@ -13,7 +13,7 @@ object SessionLogContentBuilder {
         return buildString {
             appendLine("露科亚启动器运行日志")
             appendLine("导出时间：$exportTime")
-            appendLine("范围：从上次清除对应日志后开始累计")
+            appendLine("范围：后台诊断归档中的最近记录（页面清空不影响归档）")
             appendLine("状态摘要：${state.summary}")
             appendLine("当前状态：${state.status}")
             if (mode.includeTermux) {

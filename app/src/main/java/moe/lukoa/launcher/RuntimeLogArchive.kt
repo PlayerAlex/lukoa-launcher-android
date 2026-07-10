@@ -41,17 +41,6 @@ object RuntimeLogArchive {
         return read(appFile(context), fallback)
     }
 
-    fun clear(context: Context, mode: ExportLogMode) {
-        if (mode.includeTermux) {
-            termuxCommandFile(context).writeText("", Charsets.UTF_8)
-            tavernRuntimeFile(context).writeText("", Charsets.UTF_8)
-            legacyTermuxFile(context).takeIf { it.exists() }?.writeText("", Charsets.UTF_8)
-        }
-        if (mode.includeApp) {
-            appFile(context).writeText("", Charsets.UTF_8)
-        }
-    }
-
     private fun appendStructured(context: Context, fileName: String, source: String, text: String) {
         if (text.isBlank()) return
         val file = logDir(context).resolve(fileName)

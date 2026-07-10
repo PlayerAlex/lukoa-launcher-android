@@ -171,12 +171,12 @@ fun ClearLogDangerDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "将清除：$target。",
+                    text = "将清空页面显示：$target。",
                     color = LukoaColors.Text,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "清除后这里看不到旧记录，但不删酒馆文件。",
+                    text = "只清空页面显示；后台诊断归档会继续记录，导出日志和诊断仍保留完整内容。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

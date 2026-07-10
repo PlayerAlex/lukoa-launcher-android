@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 data class LauncherLoadResult(
     val state: LauncherUiState,
     val startupRefreshRequested: Boolean,
+    val displayLogsCleared: Boolean = false,
 )
 
 data class AutoBackupConfigSnapshot(
@@ -41,6 +42,7 @@ class LauncherStateStore(private val context: Context) {
             return LauncherLoadResult(
                 state = clearedState,
                 startupRefreshRequested = true,
+                displayLogsCleared = true,
             )
         }
 

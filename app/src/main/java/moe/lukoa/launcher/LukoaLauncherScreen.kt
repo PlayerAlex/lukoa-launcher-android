@@ -72,6 +72,7 @@ fun LukoaLauncherScreen(
     initialAllFilesAccessGranted: Boolean,
     initialInstallUnknownAppsGranted: Boolean,
     startupRefreshSignal: Int,
+    discardInitialRuntimeLogSnapshot: Boolean,
     onPersistState: (LauncherUiState) -> Unit,
     onCommand: (String, LauncherUpdate) -> Unit,
     onLatestTermuxResult: () -> TermuxResultDisplay?,
@@ -293,6 +294,9 @@ fun LukoaLauncherScreen(
     val actionInProgress = busyLabel != null
     val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
     val scope = rememberCoroutineScope()
+    val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
+        RuntimeLogSessionGate(discardFirstSnapshot = discardInitialRuntimeLogSnapshot)
+    }
     val firstTavernStartGuide = remember {
         FirstTavernStartGuideResolver.resolve(
             brand = Build.BRAND.orEmpty(),
@@ -1107,6 +1111,12 @@ fun LukoaLauncherScreen(
             return
         }
 
+        if (!runtimeLogSessionGate.shouldAppendSnapshot()) {
+            RuntimeLogArchive.appendTavernRuntime(context, runtimeLogOutput)
+            applyDetectedTavernState(termuxOutput)
+            return
+        }
+
         val newRuntimeLog = if (tavernRuntimeLog.contains(runtimeLogOutput)) {
             tavernRuntimeLog
         } else {
@@ -1140,16 +1150,18 @@ fun LukoaLauncherScreen(
             ExportLogMode.AppOnly -> "App 操作反馈"
             ExportLogMode.Both -> "Termux 前台回传、酒馆运行日志和 App 操作反馈"
         }
-        val newStatus = "已清除$targetText。"
-        val newSummary = "日志显示已清理"
-        RuntimeLogArchive.clear(context, mode)
+        val newStatus = "已清空页面上的$targetText。"
+        val newSummary = "页面日志已清空"
+        if (mode.includeTermux) {
+            runtimeLogSessionGate.discardNextSnapshot()
+        }
         RuntimeLogArchive.appendApp(context, newStatus)
         val newTermuxLog = if (mode.includeTermux) "暂无 Termux 前台回传。" else termuxLog
         val newTavernRuntimeLog = if (mode.includeTermux) "暂无酒馆运行日志。" else tavernRuntimeLog
         val newAppLog = if (mode.includeApp) {
             "暂无 App 操作反馈。"
         } else {
-            appendLog(appLog, "App", "已清除$targetText，酒馆文件未删。")
+            appendLog(appLog, "App", "已清空页面上的$targetText，后台诊断归档继续保留。")
         }
         status = newStatus
         summary = newSummary

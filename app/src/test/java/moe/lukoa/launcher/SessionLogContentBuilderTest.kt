@@ -32,6 +32,7 @@ class SessionLogContentBuilderTest {
         )
 
         assertTrue(content.contains("==== 酒馆运行日志 ===="))
+        assertTrue(content.contains("页面清空不影响归档"))
         assertTrue(content.contains("{ name: 'World' }"))
         assertTrue(content.contains("'gpt-5.5'"))
         assertFalse(content.contains("Termux 前台回传"))

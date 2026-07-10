@@ -526,7 +526,7 @@ fun SettingsSection(
 
             SettingsPageView.Diagnostic -> SectionPanel(title = "诊断与日志", accentColor = LukoaColors.Accent) {
                 Text(
-                    text = "诊断日志适合发给我查 bug。清除日志只会清启动器里的显示，不会去删你酒馆目录里的文件。",
+                    text = "诊断日志适合用来排查问题。清除日志只会清空页面显示，后台归档会继续记录，不影响后续导出日志和诊断。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

@@ -99,13 +99,14 @@ class MainActivity : ComponentActivity() {
         if (isTermuxInstalled) {
             requestRunCommandPermissionIfNeeded()
         }
-        val isProcessColdStart = !LauncherProcessState.started
+        val isFreshTaskLaunch = LauncherLaunchSessionPolicy.isFreshTaskLaunch(
+            hasSavedInstanceState = savedInstanceState != null,
+        )
         val loadResult = stateStore.load(
             isTermuxInstalled = isTermuxInstalled,
-            allowColdStartFallback = isProcessColdStart,
+            allowColdStartFallback = isFreshTaskLaunch,
         )
         val initialState = loadResult.state
-        LauncherProcessState.started = true
         stateStore.armColdStartClearFallback()
         val versionInfo = VersionBackupManager.versionInfo(applicationContext)
         val githubRepository = githubUpdateStore.loadRepository()
@@ -145,6 +146,7 @@ class MainActivity : ComponentActivity() {
                     initialAllFilesAccessGranted = allFilesAccessGranted,
                     initialInstallUnknownAppsGranted = installUnknownAppsGranted,
                     startupRefreshSignal = startupRefreshSignal,
+                    discardInitialRuntimeLogSnapshot = loadResult.displayLogsCleared,
                     onPersistState = stateStore::save,
                     onCommand = { command, update ->
                         controller.handleCommand(lifecycleScope, command, update)
@@ -674,9 +676,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private object LauncherProcessState {
-    var started: Boolean = false
-}
 
 private data class PendingBackupExportRequest(
     val sourcePath: String,
