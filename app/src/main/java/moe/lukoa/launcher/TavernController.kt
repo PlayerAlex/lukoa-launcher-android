@@ -13,6 +13,9 @@ data class TermuxResultDisplay(
     val command: String,
     val output: String,
     val ok: Boolean,
+    val executionId: Int = 0,
+    val nonce: String? = null,
+    val timeMillis: Long = 0L,
     val profileId: String = "",
     val runtimeStateDir: String = "",
 )
@@ -108,7 +111,7 @@ class TavernController(
             val result = waitForResult(
                 executionId = dispatch.executionId,
                 startTime = startTime,
-                nonce = null,
+                nonce = dispatch.nonce,
                 expectedCommand = dispatch.displayCommand,
                 timeoutMillis = TermuxCommandTimeoutPolicy.timeoutMillis(parsed.name),
             )
@@ -144,7 +147,7 @@ class TavernController(
             val result = waitForResult(
                 executionId = dispatch.executionId,
                 startTime = startTime,
-                nonce = null,
+                nonce = dispatch.nonce,
                 expectedCommand = dispatch.displayCommand,
                 timeoutMillis = TermuxCommandTimeoutPolicy.LOG_REFRESH_TIMEOUT_MS,
             )
@@ -187,16 +190,26 @@ class TavernController(
     }
 
     fun latestTermuxResultDisplay(): TermuxResultDisplay? {
-        val result = TermuxResultStore.latest(context) ?: return null
-        val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
-        val rawOutput = rawResultOutput(result)
-        val output = rawOutput.ifBlank { TermuxOutputDisplayFormatter.format(result) }
+        return TermuxResultStore.latest(context)?.toDisplay()
+    }
+
+    fun recentTermuxResultDisplays(): List<TermuxResultDisplay> {
+        return TermuxResultStore.recent(context).map { it.toDisplay() }
+    }
+
+    private fun TermuxCommandResult.toDisplay(): TermuxResultDisplay {
+        val ok = isStructurallyValid && !hasInternalError && exitCode == 0
+        val rawOutput = rawResultOutput(this)
+        val output = rawOutput.ifBlank { TermuxOutputDisplayFormatter.format(this) }
         val metadata = TavernTermuxResultMetadataParser.parse(rawOutput)
         return TermuxResultDisplay(
-            key = result.stableKey,
-            command = result.command.ifBlank { result.raw.lineSequence().firstOrNull().orEmpty().ifBlank { "Termux" } },
+            key = stableKey,
+            command = command.ifBlank { raw.lineSequence().firstOrNull().orEmpty().ifBlank { "Termux" } },
             output = output,
             ok = ok,
+            executionId = executionId,
+            nonce = nonce,
+            timeMillis = timeMillis,
             profileId = metadata.profileId,
             runtimeStateDir = metadata.runtimeStateDir,
         )

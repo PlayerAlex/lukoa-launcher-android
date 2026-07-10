@@ -26,10 +26,11 @@ object PendingLauncherTaskSupport {
 
     fun latestResult(
         task: PendingLauncherTask,
-        latestResult: TermuxResultDisplay?,
+        recentResults: List<TermuxResultDisplay>,
     ): TermuxResultDisplay? {
-        return latestResult?.takeIf {
+        return recentResults.firstOrNull {
             it.command == task.commandName &&
+                (task.startedAtMillis <= 0L || it.timeMillis >= task.startedAtMillis) &&
                 matchesPendingTaskProfile(task, it)
         }
     }

@@ -120,10 +120,11 @@ class PendingLauncherTaskSupportTest {
             command = "tavern-restore",
             ok = true,
             output = """{"profileId":"main"}""",
+            timeMillis = 2L,
             profileId = "main",
         )
 
-        assertNull(PendingLauncherTaskSupport.latestResult(task, latest))
+        assertNull(PendingLauncherTaskSupport.latestResult(task, listOf(latest)))
     }
 
     @Test
@@ -140,9 +141,58 @@ class PendingLauncherTaskSupportTest {
             command = "tavern-restore",
             ok = true,
             output = "runtime_state_dir=/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
+            timeMillis = 2L,
             runtimeStateDir = "/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
         )
 
-        assertEquals(latest, PendingLauncherTaskSupport.latestResult(task, latest))
+        assertEquals(latest, PendingLauncherTaskSupport.latestResult(task, listOf(latest)))
+    }
+
+    @Test
+    fun `latest result ignores matching command received before task started`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.ManualBackup,
+            commandName = "tavern-backup",
+            detail = "正在创建酒馆备份",
+            startedAtMillis = 100L,
+        )
+        val stale = TermuxResultDisplay(
+            key = "stale",
+            command = "tavern-backup",
+            output = "archive=/old.tar.gz",
+            ok = true,
+            timeMillis = 99L,
+        )
+
+        assertNull(PendingLauncherTaskSupport.latestResult(task, listOf(stale)))
+    }
+
+    @Test
+    fun `latest result searches history past unrelated newest result`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 100L,
+        )
+        val unrelated = TermuxResultDisplay(
+            key = "newest",
+            command = "status",
+            output = "running=false",
+            ok = true,
+            timeMillis = 120L,
+        )
+        val matching = TermuxResultDisplay(
+            key = "matching",
+            command = "tavern-restore",
+            output = "restore.completed=1",
+            ok = true,
+            timeMillis = 110L,
+        )
+
+        assertEquals(
+            matching,
+            PendingLauncherTaskSupport.latestResult(task, listOf(unrelated, matching)),
+        )
     }
 }

@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
 
 data class CommandDispatch(
@@ -643,11 +642,12 @@ class TermuxCommandRunner(private val context: Context) {
             )
         }
 
-        val executionId = nextExecutionId()
+        val dispatchNonce = nonce ?: UUID.randomUUID().toString().replace("-", "")
+        val executionId = nextExecutionId(dispatchNonce)
         val resultIntent = Intent(context, TermuxResultReceiver::class.java)
             .putExtra(EXTRA_EXECUTION_ID, executionId)
             .putExtra(EXTRA_LUKOA_COMMAND, displayCommand)
-            .putExtra(EXTRA_LUKOA_NONCE, nonce)
+            .putExtra(EXTRA_LUKOA_NONCE, dispatchNonce)
         val requestCode = executionId
         val flags = PendingIntent.FLAG_ONE_SHOT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
@@ -672,7 +672,7 @@ class TermuxCommandRunner(private val context: Context) {
                 sent = true,
                 message = "命令已发送到 Termux：$displayCommand",
                 executionId = executionId,
-                nonce = nonce,
+                nonce = dispatchNonce,
                 displayCommand = displayCommand,
             )
         } catch (security: SecurityException) {
@@ -2410,9 +2410,26 @@ class TermuxCommandRunner(private val context: Context) {
         const val EXTRA_LUKOA_COMMAND = "lukoa_command"
         const val EXTRA_LUKOA_NONCE = "lukoa_nonce"
 
-        private val executionCounter = AtomicInteger(1000)
+        private const val EXECUTION_PREFS = "lukoa_termux_execution"
+        private const val KEY_LAST_EXECUTION_ID = "last_execution_id"
+        private val executionIdLock = Any()
         private const val INSTALL_EOF_MARKER = "LUKOA_LAUNCHER_SCRIPT_EOF"
+    }
 
-        fun nextExecutionId(): Int = executionCounter.incrementAndGet()
+    @SuppressLint("ApplySharedPref")
+    private fun nextExecutionId(nonce: String): Int {
+        return synchronized(executionIdLock) {
+            val prefs = context.getSharedPreferences(EXECUTION_PREFS, Context.MODE_PRIVATE)
+            val previous = prefs.getInt(
+                KEY_LAST_EXECUTION_ID,
+                TermuxExecutionIdentity.FIRST_EXECUTION_ID - 1,
+            )
+            val next = TermuxExecutionIdentity.nextExecutionId(previous)
+            if (prefs.edit().putInt(KEY_LAST_EXECUTION_ID, next).commit()) {
+                next
+            } else {
+                TermuxExecutionIdentity.fallbackExecutionId(nonce)
+            }
+        }
     }
 }

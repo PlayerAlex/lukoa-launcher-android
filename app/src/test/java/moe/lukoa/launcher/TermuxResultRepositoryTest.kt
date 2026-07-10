@@ -31,12 +31,18 @@ class TermuxResultRepositoryTest {
     }
 
     @Test
-    fun `execution id has priority over command text`() {
+    fun `matching execution id still rejects conflicting command text`() {
         val request = request(executionId = 9, command = "tavern-backup")
 
-        assertTrue(
+        assertFalse(
             TermuxResultMatcher.matches(
                 result(executionId = 9, command = "legacy-display-command"),
+                request,
+            ),
+        )
+        assertTrue(
+            TermuxResultMatcher.matches(
+                result(executionId = 9, command = "tavern-backup"),
                 request,
             ),
         )
@@ -91,6 +97,26 @@ class TermuxResultRepositoryTest {
         assertFalse(
             TermuxResultMatcher.matches(
                 result(executionId = 3, command = "selftest", nonce = "old-nonce"),
+                request,
+            ),
+        )
+    }
+
+    @Test
+    fun `reused execution id cannot accept an older nonce`() {
+        val request = request(
+            executionId = 3,
+            command = "tavern-update",
+            nonce = "new-nonce",
+        )
+
+        assertFalse(
+            TermuxResultMatcher.matches(
+                result(
+                    executionId = 3,
+                    command = "tavern-update",
+                    nonce = "old-nonce",
+                ),
                 request,
             ),
         )

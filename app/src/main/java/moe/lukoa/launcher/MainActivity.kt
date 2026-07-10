@@ -152,6 +152,9 @@ class MainActivity : ComponentActivity() {
                     onLatestTermuxResult = {
                         controller.latestTermuxResultDisplay()
                     },
+                    onRecentTermuxResults = {
+                        controller.recentTermuxResultDisplays()
+                    },
                     onRefreshLogs = { updateTermuxLog ->
                         controller.refreshLogSnapshot(lifecycleScope, updateTermuxLog)
                     },

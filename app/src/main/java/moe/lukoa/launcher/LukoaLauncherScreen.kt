@@ -78,6 +78,7 @@ fun LukoaLauncherScreen(
     onPersistState: (LauncherUiState) -> Unit,
     onCommand: (String, LauncherUpdate) -> Unit,
     onLatestTermuxResult: () -> TermuxResultDisplay?,
+    onRecentTermuxResults: () -> List<TermuxResultDisplay>,
     onRefreshLogs: ((String, Boolean) -> Unit) -> Unit,
     onForegroundStart: (LauncherUpdate) -> Unit,
     onOpenTavern: (LauncherUpdate) -> Unit,
@@ -3054,7 +3055,7 @@ fun LukoaLauncherScreen(
         val task = pendingLauncherTask ?: return
         showPendingTaskDialog = false
         selectedTab = PendingLauncherTaskSupport.defaultTab(task)
-        val latest = PendingLauncherTaskSupport.latestResult(task, onLatestTermuxResult())
+        val latest = PendingLauncherTaskSupport.latestResult(task, onRecentTermuxResults())
         if (latest != null) {
             if (latest.key != lastSyncedTermuxResultKey) {
                 syncTermuxResult(latest)

@@ -27,6 +27,13 @@ object TermuxResultMatcher {
     fun matches(result: TermuxCommandResult, request: TermuxResultRequest): Boolean {
         if (result.timeMillis < request.startTimeMillis) return false
         if (result.executionId == request.executionId) {
+            if (
+                request.expectedCommand.isNotBlank() &&
+                result.command.isNotBlank() &&
+                result.command != request.expectedCommand
+            ) {
+                return false
+            }
             return matchesNonce(result, request.nonce)
         }
         if (result.executionId != 0) return false
