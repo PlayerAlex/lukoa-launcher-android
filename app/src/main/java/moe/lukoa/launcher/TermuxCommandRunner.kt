@@ -1184,7 +1184,15 @@ class TermuxCommandRunner(private val context: Context) {
               case "${'$'}pid" in
                 ''|*[!0-9]*) return 1 ;;
               esac
-              kill -0 "${'$'}pid" 2>/dev/null
+              if ! kill -0 "${'$'}pid" 2>/dev/null; then
+                rm -f "${'$'}PID_FILE"
+                return 1
+              fi
+              if process_matches_tavern "${'$'}pid"; then
+                return 0
+              fi
+              rm -f "${'$'}PID_FILE"
+              return 1
             }
             process_cwd_matches() {
               pid="${'$'}1"
@@ -1197,22 +1205,36 @@ class TermuxCommandRunner(private val context: Context) {
             }
             process_matches_tavern() {
               pid="${'$'}1"
-              args=""
-              if [ -r "/proc/${'$'}pid/cmdline" ]; then
-                args="${'$'}(tr '\000' ' ' 2>/dev/null < "/proc/${'$'}pid/cmdline" || true)"
-              fi
-              case "${'$'}args" in
-                *"server.js"*|*"start.sh"*)
-                  case "${'$'}args" in
-                    *"${'$'}TAVERN_DIR"*) return 0 ;;
+              process_cwd_matches "${'$'}pid" || return 1
+              [ -r "/proc/${'$'}pid/cmdline" ] || return 1
+              exe="${'$'}(basename "${'$'}(readlink "/proc/${'$'}pid/exe" 2>/dev/null || true)")"
+              args_lines="${'$'}(tr '\000' '\n' 2>/dev/null < "/proc/${'$'}pid/cmdline" || true)"
+              has_exact_arg() {
+                expected="${'$'}1"
+                printf "%s\n" "${'$'}args_lines" | grep -Fx -- "${'$'}expected" >/dev/null 2>&1
+              }
+              has_script_arg() {
+                script_name="${'$'}1"
+                printf "%s\n" "${'$'}args_lines" | grep -Fx \
+                  -e "${'$'}script_name" \
+                  -e "./${'$'}script_name" \
+                  -e "${'$'}TAVERN_DIR/${'$'}script_name" >/dev/null 2>&1
+              }
+              case "${'$'}exe" in
+                node|nodejs)
+                  has_script_arg "server.js" && return 0
+                  ;;
+                sh|bash|dash)
+                  has_script_arg "start.sh" && return 0
+                  if printf "%s\n" "${'$'}args_lines" | grep -E '/lukoa-tavern\.sh${'$'}' >/dev/null 2>&1 &&
+                    { has_exact_arg "console" || has_exact_arg "foreground"; }; then
+                    return 0
+                  fi
+                  case "${'$'}(printf "%s\n" "${'$'}args_lines" | tr '\n' ' ')" in
+                    *"Lukoa launcher foreground session"*) return 0 ;;
                   esac
                   ;;
               esac
-              if process_cwd_matches "${'$'}pid"; then
-                case "${'$'}args" in
-                  *"server.js"*|*"start.sh"*) return 0 ;;
-                esac
-              fi
               return 1
             }
             candidate_pids() {

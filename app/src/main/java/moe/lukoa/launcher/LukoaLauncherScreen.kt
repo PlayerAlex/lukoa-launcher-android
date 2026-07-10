@@ -1011,8 +1011,8 @@ fun LukoaLauncherScreen(
         }
 
         fun applyDetectedTavernState(source: String, nextRuntimeLog: String = tavernRuntimeLog) {
-            val inferredRunning = inferTavernRunning(source)
-            val startingDetected = inferTavernStarting(source)
+            val inferredRunning = inferTavernRunningFromLogSnapshot(source)
+            val startingDetected = !isTavernLogStatusReport(source) && inferTavernStarting(source)
             val portConflictDetected = inferTavernPortConflict(source)
             val newStatus = when (inferredRunning) {
                 true -> "检测到酒馆正在运行。"

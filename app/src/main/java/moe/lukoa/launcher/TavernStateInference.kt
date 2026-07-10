@@ -44,6 +44,15 @@ fun inferTavernStarting(text: String): Boolean {
         tavernStartingMarkers.any { tail.contains(it, ignoreCase = true) }
 }
 
+fun isTavernLogStatusReport(text: String): Boolean {
+    return TavernStatusFieldRegex.findAll(text).lastOrNull()?.groupValues?.getOrNull(1) == "log"
+}
+
+fun inferTavernRunningFromLogSnapshot(text: String): Boolean? {
+    val inferred = inferTavernRunning(text)
+    return if (isTavernLogStatusReport(text) && inferred == true) null else inferred
+}
+
 fun inferTavernPortConflict(text: String): Boolean {
     val tail = TavernLogSignals.stripAnsi(text.takeLast(4000))
     return TavernPortConflictRegex.containsMatchIn(tail) ||

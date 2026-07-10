@@ -41,6 +41,28 @@ class TavernStateInferenceTest {
     }
 
     @Test
+    fun `log snapshot candidate process cannot promote stopped state to running`() {
+        val output = """
+            {"status": "log", "running": true, "exitCode": 75}
+            SillyTavern live log synced; process exists but HTTP endpoint is not responding
+        """.trimIndent()
+
+        assertTrue(isTavernLogStatusReport(output))
+        assertTrue(inferTavernRunning(output) == true)
+        assertNull(inferTavernRunningFromLogSnapshot(output))
+    }
+
+    @Test
+    fun `log snapshot can still confirm stopped state`() {
+        val output = """
+            {"status": "log", "running": false, "exitCode": 0}
+            SillyTavern live log synced; process is not running
+        """.trimIndent()
+
+        assertTrue(inferTavernRunningFromLogSnapshot(output) == false)
+    }
+
+    @Test
     fun `custom port conflict clears running state and reports conflict`() {
         val output = """
             Error: Address 127.0.0.1:8001 is already in use
