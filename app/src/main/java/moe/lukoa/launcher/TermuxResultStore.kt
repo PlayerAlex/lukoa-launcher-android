@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONArray
@@ -43,7 +44,6 @@ data class TermuxCommandResult(
 
 object TermuxResultStore {
     private const val PREFS = "termux_results"
-    private const val MAX_HISTORY = 24
     private const val KEY_EXECUTION_ID = "execution_id"
     private const val KEY_COMMAND = "command"
     private const val KEY_NONCE = "nonce"
@@ -61,14 +61,16 @@ object TermuxResultStore {
     private const val KEY_RAW = "raw"
     private const val KEY_HISTORY = "history"
 
+    @SuppressLint("ApplySharedPref")
     fun save(context: Context, result: TermuxCommandResult) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val history = if (result.command == "log") {
-            readHistory(prefs)
+            readHistory(prefs).map(TermuxResultHistoryPolicy::forHistory)
         } else {
-            (listOf(result) + readHistory(prefs))
+            (listOf(TermuxResultHistoryPolicy.forHistory(result)) + readHistory(prefs))
+                .map(TermuxResultHistoryPolicy::forHistory)
                 .distinctBy { it.stableKey }
-                .take(MAX_HISTORY)
+                .take(TermuxResultHistoryPolicy.MAX_HISTORY_RESULTS)
         }
         prefs
             .edit()
@@ -88,7 +90,7 @@ object TermuxResultStore {
             .putString(KEY_STDERR_ORIGINAL_LENGTH, result.stderrOriginalLength)
             .putString(KEY_RAW, result.raw)
             .putString(KEY_HISTORY, encodeHistory(history))
-            .apply()
+            .commit()
     }
 
     fun latest(context: Context): TermuxCommandResult? {
@@ -125,7 +127,7 @@ object TermuxResultStore {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return (listOfNotNull(latest(context)) + readHistory(prefs))
             .distinctBy { it.stableKey }
-            .take(MAX_HISTORY + 1)
+            .take(TermuxResultHistoryPolicy.MAX_HISTORY_RESULTS + 1)
     }
 
     private fun readHistory(prefs: SharedPreferences): List<TermuxCommandResult> {

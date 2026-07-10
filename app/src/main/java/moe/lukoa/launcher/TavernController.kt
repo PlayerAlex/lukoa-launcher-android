@@ -21,6 +21,8 @@ class TavernController(
     private val context: Context,
     private val runner: TermuxCommandRunner,
 ) {
+    private val resultRepository by lazy { TermuxResultRepositoryProvider.get(context) }
+
     fun wakeTermuxThenReturn(scope: CoroutineScope, returnDelayMs: Long): Boolean {
         val woke = runner.wakeTermux()
         if (woke) {
@@ -108,7 +110,7 @@ class TavernController(
                 startTime = startTime,
                 nonce = null,
                 expectedCommand = dispatch.displayCommand,
-                attempts = attemptsForCommand(parsed.name),
+                timeoutMillis = TermuxCommandTimeoutPolicy.timeoutMillis(parsed.name),
             )
             if (result != null) {
                 val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
@@ -144,7 +146,7 @@ class TavernController(
                 startTime = startTime,
                 nonce = null,
                 expectedCommand = dispatch.displayCommand,
-                attempts = 6,
+                timeoutMillis = TermuxCommandTimeoutPolicy.LOG_REFRESH_TIMEOUT_MS,
             )
             if (result != null) {
                 val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
@@ -408,40 +410,6 @@ class TavernController(
         }
     }
 
-    private fun attemptsForCommand(command: String): Int {
-        return when (command) {
-            "tavern-install" -> 1800
-            "tavern-update",
-            "tavern-rollback",
-            "tavern-backup-manual",
-            "tavern-backup-auto",
-            "tavern-backup-delete",
-            "tavern-backup-export",
-            "tavern-backup-export-to",
-            "tavern-backup-copy",
-            "tavern-backup-import",
-            "tavern-backup-rename",
-            "tavern-restore",
-            "tavern-migrate-dir",
-            "tavern-delete-managed-profile-dir",
-            "tavern-backup" -> 1200
-            "start" -> 120
-            "status",
-            "log",
-            "tavern-version",
-            "tavern-doctor",
-            "tavern-backup-list" -> 48
-            "tavern-version-startup" -> 8
-            "tavern-official-versions" -> 120
-            "termux-storage-permission" -> 120
-            "termux-repo-status" -> 48
-            "termux-repo" -> 240
-            "termux-repo-custom" -> 240
-            "termux-bootstrap" -> 2400
-            else -> 24
-        }
-    }
-
     private data class ParsedCommand(
         val name: String,
         val argument: String?,
@@ -469,32 +437,17 @@ class TavernController(
         startTime: Long,
         nonce: String?,
         expectedCommand: String,
-        attempts: Int = 24,
+        timeoutMillis: Long = TermuxCommandTimeoutPolicy.DEFAULT_TIMEOUT_MS,
     ): TermuxCommandResult? {
-        repeat(attempts) {
-            delay(500)
-            val result = TermuxResultStore.recent(context)
-                .firstOrNull { matchesCurrentCommand(it, executionId, startTime, expectedCommand) }
-            if (result != null && matchesCurrentCommand(result, executionId, startTime, expectedCommand)) {
-                val combined = result.stdout + "\n" + result.stderr + "\n" + result.raw
-                if (nonce == null || combined.contains(nonce)) {
-                    return result
-                }
-            }
-        }
-        return null
-    }
-
-    private fun matchesCurrentCommand(
-        result: TermuxCommandResult,
-        executionId: Int,
-        startTime: Long,
-        expectedCommand: String,
-    ): Boolean {
-        if (result.timeMillis < startTime) return false
-        if (result.executionId == executionId) return true
-        if (result.executionId != 0) return false
-        return expectedCommand.isNotBlank() && result.command == expectedCommand
+        return resultRepository.awaitResult(
+            request = TermuxResultRequest(
+                executionId = executionId,
+                startTimeMillis = startTime,
+                expectedCommand = expectedCommand,
+                nonce = nonce,
+            ),
+            timeoutMillis = timeoutMillis,
+        )
     }
 
     private fun rawResultOutput(result: TermuxCommandResult): String {

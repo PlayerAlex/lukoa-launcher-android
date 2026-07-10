@@ -31,7 +31,7 @@ object TermuxResultParser {
             errMessage = source?.getAnyString(KEY_ERRMSG_KEYS).orEmpty(),
             stdoutOriginalLength = source?.getAnyString(KEY_STDOUT_ORIGINAL_LENGTH_KEYS).orEmpty(),
             stderrOriginalLength = source?.getAnyString(KEY_STDERR_ORIGINAL_LENGTH_KEYS).orEmpty(),
-            raw = buildRawDump(extras),
+            raw = TermuxRawMetadata.build(extras?.toValueMap().orEmpty()),
         )
     }
 
@@ -66,17 +66,11 @@ object TermuxResultParser {
         }
     }
 
-    private fun buildRawDump(extras: Bundle?): String {
-        if (extras == null) return ""
-        return extras.keySet().joinToString(separator = "\n") { key ->
-            val value = extras.get(key)
-            if (value is Bundle) {
-                val bundleDump = value.keySet().joinToString(prefix = "{", postfix = "}") { innerKey ->
-                    "$innerKey=${value.get(innerKey)}"
-                }
-                "$key=$bundleDump"
-            } else {
-                "$key=$value"
+    private fun Bundle.toValueMap(): Map<String, Any?> {
+        return keySet().associateWith { key ->
+            when (val value = get(key)) {
+                is Bundle -> value.toValueMap()
+                else -> value
             }
         }
     }

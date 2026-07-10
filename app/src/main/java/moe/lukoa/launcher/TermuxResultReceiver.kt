@@ -6,8 +6,11 @@ import android.content.Intent
 
 class TermuxResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        val result = TermuxResultParser.parse(intent)
-        TermuxResultStore.save(context, result)
-        AutoBackupRetentionManager.maybePruneAfterTermuxResult(context, result)
+        val pendingResult = goAsync()
+        TermuxResultIngress.enqueue(
+            context = context,
+            intent = intent,
+            onComplete = pendingResult::finish,
+        )
     }
 }
