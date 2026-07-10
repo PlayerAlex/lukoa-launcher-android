@@ -1,6 +1,5 @@
 package moe.lukoa.launcher
 
-import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,30 +8,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,10 +32,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 
 private enum class VersionPageView {
@@ -576,109 +562,6 @@ internal fun VersionStatusValueCard(
     }
 }
 
-@Composable
-private fun VersionSelectionNotice(
-    selectedVersion: TavernVersionChoice?,
-    relationHint: String?,
-) {
-    if (selectedVersion == null && relationHint.isNullOrBlank()) return
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            selectedVersion?.let { choice ->
-                Text(
-                    text = "已选：${choice.label}",
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = when (choice.kind) {
-                        TavernVersionKind.Stable -> "稳定版，适合大多数人。"
-                        TavernVersionKind.Test -> "测试版，可能有新功能，也可能不稳定。"
-                        TavernVersionKind.Custom -> "自定义目标，请确认版本名、分支名或 commit 没填错。"
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = "源：${repoLabelFor(choice.repoUrl.ifBlank { TavernMirrorDefaults.OFFICIAL_REPO })}",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            relationHint?.takeIf { it.isNotBlank() }?.let { hint ->
-                Text(
-                    text = hint,
-                    color = LukoaColors.Accent,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun InstallTavernSection(
-    actionsLocked: Boolean,
-    officialVersions: TavernOfficialVersions,
-    selectedVersion: TavernVersionChoice?,
-    onRefreshOfficialVersions: () -> Unit,
-    onSelectVersion: (TavernVersionChoice) -> Unit,
-    onInstallTavern: () -> Unit,
-) {
-    SectionPanel(title = "安装酒馆", accentColor = LukoaColors.Amber) {
-        Text(
-            text = "第一次用直接安装 release 分支。想换版本再打开下面的选择。",
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        SetupStepLine("1", "自动补 git、nodejs")
-        SetupStepLine("2", "克隆 release 分支")
-        SetupStepLine("3", "执行 npm install")
-        Text(
-            text = "release 是当前的最新稳定版。",
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "安装通常会持续 5-10 分钟，这是正常的，等待即可。",
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        OfficialVersionChooser(
-            title = "安装版本",
-            officialVersions = officialVersions,
-            selectedVersion = selectedVersion,
-            actionsLocked = actionsLocked,
-            onRefreshOfficialVersions = onRefreshOfficialVersions,
-            onSelectVersion = onSelectVersion,
-        )
-
-        VersionSelectionNotice(
-            selectedVersion = selectedVersion ?: TavernInstallDefaults.Release,
-            relationHint = null,
-        )
-
-        SecondaryActionButton(
-            text = "安装 ${selectedVersion?.label ?: TavernInstallDefaults.Release.label}",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Amber,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onInstallTavern,
-        )
-    }
-}
 
 @Composable
 private fun OfficialVersionChooser(
@@ -950,45 +833,3 @@ internal fun VersionInfoLine(label: String, value: String) {
         )
     }
 }
-
-@Composable
-fun InstallationCheckSection(
-    actionsLocked: Boolean,
-    checking: Boolean,
-    onCheckTavern: () -> Unit,
-    onShowInstall: () -> Unit,
-) {
-    SectionPanel(title = "酒馆安装检测", accentColor = LukoaColors.Amber) {
-        Text(
-            text = if (checking) "正在检测酒馆。" else "还不知道手机里有没有酒馆。",
-            color = LukoaColors.Text,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "老用户先点检测；第一次用就点安装。",
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SecondaryActionButton(
-                text = if (checking) "检测中..." else "检测酒馆",
-                enabled = !actionsLocked && !checking,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.weight(1f),
-                onClick = onCheckTavern,
-            )
-            SecondaryActionButton(
-                text = "安装酒馆",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Amber,
-                modifier = Modifier.weight(1f),
-                onClick = onShowInstall,
-            )
-        }
-    }
-}
-

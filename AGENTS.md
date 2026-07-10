@@ -18,7 +18,13 @@
 - `app/src/main/java/moe/lukoa/launcher/LauncherLaunchSections.kt`
 - `app/src/main/java/moe/lukoa/launcher/LauncherVersionManagementSection.kt`
 - `app/src/main/java/moe/lukoa/launcher/LauncherSettingsSection.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherDialogs.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherLaunchDialogs.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherBackupDialogs.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherProfileDialogs.kt`
+- `app/src/main/java/moe/lukoa/launcher/SettingsDialogs.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherProfileCoordinator.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherPathSettingsState.kt`
+- `app/src/main/java/moe/lukoa/launcher/LauncherMirrorSettingsState.kt`
 - `app/src/main/java/moe/lukoa/launcher/LauncherHealthCheck.kt`
 - `app/src/main/java/moe/lukoa/launcher/LauncherInputGuards.kt`
 - `app/src/main/java/moe/lukoa/launcher/PendingLauncherTaskSupport.kt`

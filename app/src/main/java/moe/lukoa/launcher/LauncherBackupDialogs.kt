@@ -1,51 +1,26 @@
 package moe.lukoa.launcher
 
-import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun ManualBackupConfirmDialog(
@@ -504,74 +479,6 @@ fun DeleteBackupConfirmDialog(
         },
         dismissButton = {
             DialogActionButton("取消", tone = ActionTone.Danger, onClick = onDismiss)
-        },
-    )
-}
-
-@Composable
-fun ImportBackupDialog(
-    path: String,
-    onPathChange: (String) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val normalized = path.trim()
-    val validationMessage = LauncherInputGuards.validateBackupArchivePath(normalized)
-    val valid = validationMessage == null
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
-        title = { Text("导入备份") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "填写 .tar.gz 备份路径。导入前会先检查。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                OutlinedTextField(
-                    value = path,
-                    onValueChange = onPathChange,
-                    label = { Text("备份文件完整路径") },
-                    placeholder = { Text("\$HOME/storage/downloads/xxx.tar.gz") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
-                        disabledTextColor = LukoaColors.Dim,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
-                        disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Amber,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Amber,
-                        unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Amber,
-                    ),
-                )
-                if (!valid && path.isNotBlank()) {
-                    Text(
-                        text = validationMessage ?: "路径格式无效。",
-                        color = LukoaColors.Danger,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            DialogActionButton(
-                text = "导入",
-                enabled = valid,
-                tone = ActionTone.Warning,
-                onClick = onConfirm,
-            )
-        },
-        dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Warning, onClick = onDismiss)
         },
     )
 }
