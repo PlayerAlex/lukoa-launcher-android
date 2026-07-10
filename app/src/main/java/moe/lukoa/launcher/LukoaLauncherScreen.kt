@@ -1,7 +1,6 @@
 package moe.lukoa.launcher
 
 import android.os.Build
-import android.os.Environment
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.compose.foundation.background
@@ -44,9 +43,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -193,16 +190,11 @@ fun LukoaLauncherScreen(
     var selectedTavernVersion by remember {
         mutableStateOf(cachedSelectedTavernVersion)
     }
-    var autoBackupEnabled by remember { mutableStateOf(initialState.autoBackupEnabled) }
-    var autoBackupIntervalMinutes by remember {
-        mutableIntStateOf(initialState.autoBackupIntervalMinutes.coerceIn(
-            MIN_AUTO_BACKUP_INTERVAL_MINUTES,
-            MAX_AUTO_BACKUP_INTERVAL_MINUTES,
-        ))
-    }
-    var autoBackupKeepCount by remember { mutableIntStateOf(initialState.autoBackupKeepCount.coerceIn(1, 50)) }
-    var backupHistory by remember { mutableStateOf(initialState.backupHistory) }
-    var backupListRefreshing by remember { mutableStateOf(false) }
+    val backupUiState = remember { LauncherBackupUiState(initialState) }
+    var autoBackupEnabled by backupUiState::autoBackupEnabled
+    var autoBackupIntervalMinutes by backupUiState::autoBackupIntervalMinutes
+    var autoBackupKeepCount by backupUiState::autoBackupKeepCount
+    var backupHistory by backupUiState::backupHistory
     var termuxReturnDelayMs by remember { mutableLongStateOf(initialState.termuxReturnDelayMs.coerceIn(300L, 2_000L)) }
     var logRefreshInFlight by remember { mutableStateOf(false) }
     var termuxBootstrapCompleted by remember { mutableStateOf(false) }
@@ -221,34 +213,15 @@ fun LukoaLauncherScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearLogScopeDialog by remember { mutableStateOf(false) }
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
-    var showManualBackupDialog by remember { mutableStateOf(false) }
-    var showAutoBackupSettingsDialog by remember { mutableStateOf(false) }
     var showStopConfirmDialog by remember { mutableStateOf(false) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
     var showFirstTavernStartGuideDialog by remember { mutableStateOf(false) }
     var backgroundPermissionPromptShown by remember { mutableStateOf(false) }
-    var showApplyBackupPathDialog by remember { mutableStateOf(false) }
-    var showApplyBackupPreviewDialog by remember { mutableStateOf(false) }
-    var showTermuxStoragePermissionDialog by remember { mutableStateOf(false) }
-    var showCopyBackupDialog by remember { mutableStateOf(false) }
-    var showRenameBackupDialog by remember { mutableStateOf(false) }
-    var showDeleteBackupDialog by remember { mutableStateOf(false) }
-    var showImportBackupDialog by remember { mutableStateOf(false) }
-    var manualBackupName by remember { mutableStateOf("") }
     var selectedClearLogMode by remember { mutableStateOf(ExportLogMode.Both) }
     var clearLogConfirmText by remember { mutableStateOf("") }
-    var applyBackupPath by remember { mutableStateOf("") }
-    var applyBackupPreview by remember { mutableStateOf<BackupRestorePreview?>(null) }
-    val applyBackupPreviewRequestCoordinator = remember { BackupRestorePreviewRequestCoordinator() }
-    var applyBackupPreviewRequest by remember { mutableStateOf<BackupRestorePreviewRequest?>(null) }
-    var applyBackupPreviewJob by remember { mutableStateOf<Job?>(null) }
-    var storagePermissionRetryArchivePath by remember { mutableStateOf("") }
     var termuxStoragePermissionBlocked by remember {
         mutableStateOf(hasTermuxStoragePermissionProblem(initialRuntimeText))
     }
-    var selectedBackupPath by remember { mutableStateOf("") }
-    var renameBackupName by remember { mutableStateOf("") }
-    var importBackupPath by remember { mutableStateOf("") }
     var pendingAptConfigTask by remember { mutableStateOf<PendingAptConfigTask?>(null) }
     var pendingInstallRiskRequest by remember { mutableStateOf<PendingTavernInstallRequest?>(null) }
     var installRiskConfirmation by remember { mutableStateOf<TavernInstallConfirmation?>(null) }
@@ -769,8 +742,10 @@ fun LukoaLauncherScreen(
         }
         if (hasTermuxStoragePermissionProblem(permissionText)) {
             termuxStoragePermissionBlocked = true
-            storagePermissionRetryArchivePath = applyBackupPath.ifBlank { storagePermissionRetryArchivePath }
-            showTermuxStoragePermissionDialog = true
+            backupUiState.storagePermissionRetryArchivePath = backupUiState.applyBackupPath.ifBlank {
+                backupUiState.storagePermissionRetryArchivePath
+            }
+            backupUiState.showTermuxStoragePermissionDialog = true
         } else if (termuxOutput.contains("storage.permission.ok=true", ignoreCase = true)) {
             termuxStoragePermissionBlocked = false
         }
@@ -1364,53 +1339,6 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun updateBackupSettings(
-        enabled: Boolean = autoBackupEnabled,
-        intervalMinutes: Int = autoBackupIntervalMinutes,
-        keepCount: Int = autoBackupKeepCount,
-        resetCountdown: Boolean = false,
-        message: String? = null,
-    ) {
-        val safeIntervalMinutes = intervalMinutes.coerceIn(
-            MIN_AUTO_BACKUP_INTERVAL_MINUTES,
-            MAX_AUTO_BACKUP_INTERVAL_MINUTES,
-        )
-        autoBackupEnabled = enabled
-        autoBackupIntervalMinutes = safeIntervalMinutes
-        autoBackupKeepCount = keepCount.coerceIn(1, 50)
-        onPersistAutoBackupConfig(
-            enabled,
-            safeIntervalMinutes,
-            keepCount.coerceIn(1, 50),
-        )
-        onConfigureAutoBackupSchedule(enabled, safeIntervalMinutes, resetCountdown)
-        if (message != null) {
-            update(message, "", true, allowRunningInference = false)
-        } else {
-            onPersistState(currentState().copy(
-                autoBackupEnabled = enabled,
-                autoBackupIntervalMinutes = safeIntervalMinutes,
-                autoBackupKeepCount = keepCount.coerceIn(1, 50),
-            ))
-        }
-    }
-
-    fun toggleAutoBackup() {
-        val enabled = !autoBackupEnabled
-        updateBackupSettings(
-            enabled = enabled,
-            resetCountdown = enabled,
-            message = if (enabled) {
-                "自动备份已开启：每 ${formatBackupInterval(autoBackupIntervalMinutes)} 一次，保留 ${autoBackupKeepCount} 个。"
-            } else {
-                "自动备份已关闭。已有备份不会被删除。"
-            },
-        )
-        if (enabled && !backgroundRunPermissionGranted) {
-            showBackgroundRunPermissionDialog = true
-        }
-    }
-
     fun updateTermuxReturnDelay(nextDelayMs: Long) {
         val coerced = nextDelayMs.coerceIn(300L, 2_000L)
         termuxReturnDelayMs = coerced
@@ -1472,71 +1400,45 @@ fun LukoaLauncherScreen(
         return nextBackupHistory
     }
 
-    fun localBackupListMessage(paths: List<String>): String {
-        return if (paths.isEmpty()) {
-            "没有读到备份。请先生成或导入。"
-        } else {
-            "备份库已刷新，共 ${paths.size} 个。"
-        }
-    }
-
-    fun readLocalBackupLibrary(): List<String> {
-        return BackupHistoryReducer.sanitize(
-            AutoBackupRetentionManager.enforceConfiguredLimit(
-                context = context,
-                reason = "backup-library-refresh",
-            ),
-        )
-    }
-
-    fun runLocalBackupLibraryOperation(
-        label: String,
-        operation: () -> Pair<List<String>, String>,
-    ) {
-        if (!beginBusy(label, timeoutMs = 30 * 60 * 1000L)) return
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { operation() }
-            }
-            releaseBusy()
-            result.onSuccess { (paths, message) ->
-                replaceBackupHistory(paths)
-                update(message, "", true, allowRunningInference = false)
-            }.onFailure { error ->
-                update("$label 失败：${error.message ?: error.javaClass.simpleName}", "", false, allowRunningInference = false)
-            }
-        }
-    }
-
-    fun refreshBackupList() {
-        if (backupListRefreshing) return
-        val activeLabel = busyLabel ?: OperationLockStore.activeLabel(context)
-        if (activeLabel != null) {
-            update("正在处理：$activeLabel。请稍等。", "", false, allowRunningInference = false)
-            return
-        }
-        backupListRefreshing = true
-        scope.launch {
-            val startedAt = SystemClock.elapsedRealtime()
-            val result = withContext(Dispatchers.IO) {
-                runCatching { readLocalBackupLibrary() }
-            }
-            val elapsed = SystemClock.elapsedRealtime() - startedAt
-            if (elapsed < 450L) {
-                delay(450L - elapsed)
-            }
-            result.onSuccess { paths ->
-                replaceBackupHistory(paths)
-            }.onFailure { error ->
-                update(
-                    "刷新备份库失败：${error.message ?: error.javaClass.simpleName}",
-                    "",
-                    false,
-                    allowRunningInference = false,
+    val backupCoordinator = remember(context, scope, backupUiState) {
+        LauncherBackupCoordinator(
+            context = context,
+            scope = scope,
+            state = backupUiState,
+            statusUpdate = { status, output, ok ->
+                update(status, output, ok, allowRunningInference = false)
+            },
+            persistCurrentState = { onPersistState(currentState()) },
+            persistBackupHistory = ::replaceBackupHistory,
+            persistAutoBackupConfig = onPersistAutoBackupConfig,
+            configureAutoBackupSchedule = onConfigureAutoBackupSchedule,
+            isBackgroundRunPermissionGranted = { backgroundRunPermissionGranted },
+            showBackgroundRunPermissionDialog = { showBackgroundRunPermissionDialog = true },
+            activeOperationLabel = { busyLabel ?: OperationLockStore.activeLabel(context) },
+            beginBusy = ::beginBusy,
+            releaseBusy = ::releaseBusy,
+            isActionInProgress = { busyLabel != null },
+            blockIfPendingTaskExists = ::blockIfPendingTaskExists,
+            runGuardedCommand = { label, timeoutMs, allowRunningInference, command ->
+                runGuarded(label, timeoutMs, allowRunningInference, command)
+            },
+            runPendingCommand = { task, label, timeoutMs, command ->
+                runPendingGuardedCommand(
+                    task = task,
+                    label = label,
+                    timeoutMs = timeoutMs,
+                    action = command,
                 )
-            }
-            backupListRefreshing = false
-        }
+            },
+            onCommand = onCommand,
+            activeProfileId = { tavernPathConfig.activeProfile.id },
+            restoreTargetDirectory = { tavernPathConfig.displayTavernDir },
+            isTermuxStoragePermissionBlocked = { termuxStoragePermissionBlocked },
+            setTermuxStoragePermissionBlocked = { termuxStoragePermissionBlocked = it },
+            onCopyText = onCopyText,
+            onPickExternalBackup = onPickExternalBackup,
+            onPickBackupExportDestination = onPickBackupExportDestination,
+        )
     }
 
     fun runPendingTaskFollowUpRefresh(
@@ -1544,7 +1446,7 @@ fun LukoaLauncherScreen(
         startupDelayMs: Long = 0L,
     ) {
         if (refreshTargets.backupList) {
-            refreshBackupList()
+            backupCoordinator.refreshBackupList()
         }
         if (refreshTargets.startupState) {
             if (startupDelayMs <= 0L) {
@@ -1957,328 +1859,6 @@ fun LukoaLauncherScreen(
             woke,
             allowRunningInference = false,
         )
-    }
-
-    fun dismissApplyBackupPreview() {
-        showApplyBackupPreviewDialog = false
-        applyBackupPreview = null
-    }
-
-    fun cancelApplyBackupPreviewLoading() {
-        applyBackupPreviewRequestCoordinator.cancel()
-        applyBackupPreviewJob?.cancel()
-        applyBackupPreviewJob = null
-        applyBackupPreviewRequest = null
-    }
-
-    fun openApplyBackupPreview(path: String): Boolean {
-        val normalized = path.trim()
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效：$reason", "", false, allowRunningInference = false)
-            return false
-        }
-
-        applyBackupPreviewJob?.cancel()
-        val request = applyBackupPreviewRequestCoordinator.begin(normalized)
-        applyBackupPath = normalized
-        applyBackupPreview = null
-        showApplyBackupPreviewDialog = false
-        applyBackupPreviewRequest = request
-        applyBackupPreviewJob = scope.launch {
-            try {
-                val preview = withContext(Dispatchers.IO) {
-                    BackupRestorePreviewResolver.resolve(
-                        context = context,
-                        archivePath = normalized,
-                        restoreTargetDir = tavernPathConfig.displayTavernDir,
-                    )
-                }
-                if (!applyBackupPreviewRequestCoordinator.accepts(request, applyBackupPath)) return@launch
-                applyBackupPreviewRequestCoordinator.finish(request)
-                applyBackupPreviewRequest = null
-                applyBackupPreviewJob = null
-                applyBackupPreview = preview
-                showApplyBackupPreviewDialog = true
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                if (!applyBackupPreviewRequestCoordinator.accepts(request, applyBackupPath)) return@launch
-                applyBackupPreviewRequestCoordinator.finish(request)
-                applyBackupPreviewRequest = null
-                applyBackupPreviewJob = null
-                update(
-                    "读取备份信息失败：${error.message ?: "请刷新备份库后重试。"}",
-                    "",
-                    false,
-                    allowRunningInference = false,
-                )
-            }
-        }
-        return true
-    }
-
-    fun requestApplyBackup(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            applyBackupPath = ""
-            showApplyBackupPathDialog = true
-            return
-        }
-        openApplyBackupPreview(normalized)
-    }
-
-    fun applySelectedBackup() {
-        if (blockIfPendingTaskExists("应用备份")) {
-            dismissApplyBackupPreview()
-            return
-        }
-        val archivePath = applyBackupPath.trim()
-        LauncherInputGuards.validateBackupArchivePath(archivePath)?.let { reason ->
-            update("备份路径无效，不能应用：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        if (!BackupLibraryFiles.canReadLibrarySource(context, archivePath)) {
-            update(
-                "应用备份失败：启动器读不到这个备份。请先刷新备份库，或重新导入。",
-                "",
-                false,
-                allowRunningInference = false,
-            )
-            return
-        }
-        if (termuxStoragePermissionBlocked && isSharedStorageBackupPath(archivePath)) {
-            storagePermissionRetryArchivePath = archivePath
-            dismissApplyBackupPreview()
-            showTermuxStoragePermissionDialog = true
-            update("应用备份前需要先给 Termux 存储权限。", "", false, allowRunningInference = false)
-            return
-        }
-        dismissApplyBackupPreview()
-        runPendingGuardedCommand(
-            task = PendingLauncherTask(
-                kind = PendingLauncherTaskKind.RestoreBackup,
-                commandName = "tavern-restore",
-                detail = "正在应用酒馆备份",
-                startedAtMillis = System.currentTimeMillis(),
-                archivePath = archivePath,
-                profileId = tavernPathConfig.activeProfile.id,
-            ),
-            label = "应用酒馆备份",
-            timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-restore"),
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-restore", archivePath), guardedUpdate)
-        }
-    }
-
-    fun requestTermuxStoragePermission() {
-        if (actionInProgress) {
-            update("正在处理，完成后再授权。", "", false, allowRunningInference = false)
-            return
-        }
-        showTermuxStoragePermissionDialog = false
-        runGuarded(
-            "请求 Termux 存储权限",
-            TermuxCommandTimeoutPolicy.operationLockMillis("termux-storage-permission").coerceAtLeast(90_000L),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand("termux-storage-permission", guardedUpdate)
-        }
-    }
-
-    fun retryApplyAfterTermuxStoragePermission() {
-        val retryPath = storagePermissionRetryArchivePath.ifBlank { applyBackupPath }.trim()
-        if (retryPath.isBlank()) {
-            showTermuxStoragePermissionDialog = false
-            update("没有找到要继续应用的备份。", "", false, allowRunningInference = false)
-            return
-        }
-        termuxStoragePermissionBlocked = false
-        showTermuxStoragePermissionDialog = false
-        applyBackupPath = retryPath
-        applySelectedBackup()
-    }
-
-    fun requestDeleteBackup(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            update("没有选中要删除的备份。", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能删除：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        selectedBackupPath = normalized
-        showDeleteBackupDialog = true
-    }
-
-    fun exportBackupArchive(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            update("没有选中要导出的备份。", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能导出：$reason", "", false, allowRunningInference = false)
-            return
-        }
-
-        if (actionInProgress) {
-            update("正在处理，完成后再导出备份。", "", false, allowRunningInference = false)
-            return
-        }
-        update("请选择导出位置，文件名会自动整理为 .tar.gz。", "", true, allowRunningInference = false)
-        onPickBackupExportDestination(normalized, normalized.substringAfterLast('/')) { result ->
-            if (!result.ok) {
-                update(result.message, "", false, allowRunningInference = false)
-                return@onPickBackupExportDestination
-            }
-            update(result.message, "", true, allowRunningInference = false)
-        }
-    }
-
-    fun copyBackupLibraryPath(target: BackupLibraryPathTarget) {
-        val path = when (target) {
-            BackupLibraryPathTarget.Manual -> "/storage/emulated/0/Download/${BackupLibraryFiles.MANUAL_RELATIVE_DIR}"
-            BackupLibraryPathTarget.Auto -> "/storage/emulated/0/Download/${BackupLibraryFiles.AUTO_RELATIVE_DIR}"
-        }
-        val copied = onCopyText("露科亚备份库地址", path)
-        update(
-            if (copied) "已复制文件地址。" else "复制失败，请手动记下 $path。",
-            "",
-            copied,
-            allowRunningInference = false,
-        )
-    }
-
-    fun requestCopyBackup(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            update("没有选中要复制的备份。", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能复制：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        selectedBackupPath = normalized
-        showCopyBackupDialog = true
-    }
-
-    fun requestRenameBackup(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            update("没有选中要重命名的备份。", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能重命名：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        selectedBackupPath = normalized
-        renameBackupName = normalized
-            .substringAfterLast('/')
-            .removeSuffix(".tar.gz")
-            .take(48)
-        showRenameBackupDialog = true
-    }
-
-    fun copyBackupArchive(path: String) {
-        val normalized = path.trim()
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能复制：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        showCopyBackupDialog = false
-        selectedBackupPath = ""
-        runLocalBackupLibraryOperation("复制酒馆备份") {
-            val copied = BackupLibraryFiles.copyLibraryArchive(context, normalized)
-            val paths = readLocalBackupLibrary()
-            paths to "已复制备份：${copied.fileName}。"
-        }
-    }
-
-    fun renameBackupArchive(path: String, newName: String) {
-        val normalized = path.trim()
-        val normalizedName = newName.trim()
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能重命名：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupRequiredName(normalizedName)?.let { reason ->
-            update("备份新名称无效：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        val targetFileName = LauncherInputGuards.backupFileNameForLabel(normalizedName)
-        val duplicatePath = targetFileName?.let { fileName ->
-            backupHistory.firstOrNull { existingPath ->
-                existingPath.trim() != normalized &&
-                    existingPath.substringAfterLast('/') == fileName
-            }
-        }
-        if (duplicatePath != null) {
-            update(
-                "已有同名备份：$targetFileName。请换个名字。",
-                "",
-                false,
-                allowRunningInference = false,
-            )
-            return
-        }
-        showRenameBackupDialog = false
-        selectedBackupPath = ""
-        renameBackupName = ""
-        runLocalBackupLibraryOperation("重命名酒馆备份") {
-            val renamed = BackupLibraryFiles.renameLibraryArchive(context, normalized, normalizedName)
-            val paths = readLocalBackupLibrary()
-            paths to "已重命名为：${renamed.fileName}。"
-        }
-    }
-
-    fun importBackupArchive(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) {
-            update("请先填写要导入的 .tar.gz 备份路径。", "", false, allowRunningInference = false)
-            return
-        }
-        LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
-            update("备份路径无效，不能导入：$reason", "", false, allowRunningInference = false)
-            return
-        }
-        showImportBackupDialog = false
-        importBackupPath = ""
-        update("请点“导入到备份库”，用文件管理器选择外部备份。", "", false, allowRunningInference = false)
-    }
-
-    fun addImportedBackupToLibrary(path: String) {
-        val normalized = path.trim()
-        if (normalized.isBlank()) return
-        replaceBackupHistory(listOf(normalized) + backupHistory)
-    }
-
-    fun pickAndImportExternalBackup() {
-        if (actionInProgress) {
-            update("正在处理，完成后再导入备份。", "", false, allowRunningInference = false)
-            return
-        }
-        onPickExternalBackup { result ->
-            val importedPath = result.termuxReadablePath.trim()
-            if (result.ok && importedPath.isNotBlank()) {
-                addImportedBackupToLibrary(importedPath)
-                runLocalBackupLibraryOperation("刷新酒馆备份列表") {
-                    val paths = readLocalBackupLibrary()
-                    val importedFileName = importedPath.replace('\\', '/').substringAfterLast('/')
-                    val mergedPaths = if (paths.any { it.replace('\\', '/').substringAfterLast('/') == importedFileName }) {
-                        paths
-                    } else {
-                        BackupHistoryReducer.sanitize(listOf(importedPath) + paths)
-                    }
-                    mergedPaths to "${result.message}，备份库已刷新。"
-                }
-            } else {
-                update(result.message, "", result.ok, allowRunningInference = false)
-            }
-        }
     }
 
     fun checkGithubUpdate(repositoryOverride: String? = null, manual: Boolean = true) {
@@ -3099,7 +2679,7 @@ fun LukoaLauncherScreen(
             }
 
             LauncherQuickFixActionType.RequestTermuxStoragePermission -> {
-                requestTermuxStoragePermission()
+                backupCoordinator.requestTermuxStoragePermission()
             }
         }
     }
@@ -3134,7 +2714,7 @@ fun LukoaLauncherScreen(
                 if (recovered != null) {
                     clearPendingLauncherTask()
                     releaseBusy()
-                    refreshBackupList()
+                    backupCoordinator.refreshBackupList()
                     update(
                         "已继续检查上次创建备份：备份已经生成，但 Termux 没把最终返回带回来。\n备份在：${recovered.archivePath}",
                         "",
@@ -3609,22 +3189,7 @@ fun LukoaLauncherScreen(
             )
         }
         if (selectedTab == LauncherTab.Backup) {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { readLocalBackupLibrary() }
-            }
-            result.onSuccess { paths ->
-                val nextBackupHistory = BackupHistoryReducer.sanitize(paths)
-                if (nextBackupHistory != backupHistory) {
-                    replaceBackupHistory(nextBackupHistory)
-                }
-            }.onFailure { error ->
-                update(
-                    "备份库刷新失败：${error.message ?: error.javaClass.simpleName}",
-                    "",
-                    false,
-                    allowRunningInference = false,
-                )
-            }
+            backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
         }
     }
 
@@ -3869,109 +3434,10 @@ fun LukoaLauncherScreen(
         )
     }
 
-    if (showManualBackupDialog) {
-        ManualBackupConfirmDialog(
-            backupName = manualBackupName,
-            onBackupNameChange = { manualBackupName = it },
-            onConfirm = {
-                val backupName = manualBackupName.trim()
-                LauncherInputGuards.validateManualBackupName(backupName)?.let { reason ->
-                    update("备份名称无效：$reason", "", false, allowRunningInference = false)
-                    return@ManualBackupConfirmDialog
-                }
-                if (blockIfPendingTaskExists("创建备份")) {
-                    showManualBackupDialog = false
-                    return@ManualBackupConfirmDialog
-                }
-                showManualBackupDialog = false
-                manualBackupName = ""
-                runPendingGuardedCommand(
-                    task = PendingLauncherTask(
-                        kind = PendingLauncherTaskKind.ManualBackup,
-                        commandName = "tavern-backup",
-                        detail = if (backupName.isBlank()) {
-                            "正在创建酒馆备份"
-                        } else {
-                            "备份名：$backupName"
-                        },
-                        startedAtMillis = System.currentTimeMillis(),
-                        targetLabel = backupName,
-                        profileId = tavernPathConfig.activeProfile.id,
-                    ),
-                    label = "创建酒馆备份",
-                    timeoutMs = TermuxCommandTimeoutPolicy.operationLockMillis("tavern-backup-manual"),
-                ) { guardedUpdate ->
-                    if (backupName.isBlank()) {
-                        onCommand("tavern-backup-manual", guardedUpdate)
-                    } else {
-                        onCommand(LauncherCommandCodec.encode("tavern-backup-manual", backupName), guardedUpdate)
-                    }
-                }
-            },
-            onDismiss = {
-                showManualBackupDialog = false
-                manualBackupName = ""
-            },
-        )
-    }
-
-    if (showAutoBackupSettingsDialog) {
-        AutoBackupSettingsDialog(
-            enabled = autoBackupEnabled,
-            intervalMinutes = autoBackupIntervalMinutes,
-            keepCount = autoBackupKeepCount,
-            actionsLocked = actionInProgress,
-            onDecreaseInterval = {
-                val next = (autoBackupIntervalMinutes - AUTO_BACKUP_INTERVAL_STEP_MINUTES)
-                    .coerceAtLeast(MIN_AUTO_BACKUP_INTERVAL_MINUTES)
-                updateBackupSettings(
-                    intervalMinutes = next,
-                    resetCountdown = autoBackupEnabled,
-                    message = "自动备份间隔已设为 ${formatBackupInterval(next)}。",
-                )
-            },
-            onIncreaseInterval = {
-                val next = (autoBackupIntervalMinutes + AUTO_BACKUP_INTERVAL_STEP_MINUTES)
-                    .coerceAtMost(MAX_AUTO_BACKUP_INTERVAL_MINUTES)
-                updateBackupSettings(
-                    intervalMinutes = next,
-                    resetCountdown = autoBackupEnabled,
-                    message = "自动备份间隔已设为 ${formatBackupInterval(next)}。",
-                )
-            },
-            onDecreaseIntervalLarge = {
-                val next = (autoBackupIntervalMinutes - 60)
-                    .coerceAtLeast(MIN_AUTO_BACKUP_INTERVAL_MINUTES)
-                updateBackupSettings(
-                    intervalMinutes = next,
-                    resetCountdown = autoBackupEnabled,
-                    message = "自动备份间隔已设为 ${formatBackupInterval(next)}。",
-                )
-            },
-            onIncreaseIntervalLarge = {
-                val next = (autoBackupIntervalMinutes + 60)
-                    .coerceAtMost(MAX_AUTO_BACKUP_INTERVAL_MINUTES)
-                updateBackupSettings(
-                    intervalMinutes = next,
-                    resetCountdown = autoBackupEnabled,
-                    message = "自动备份间隔已设为 ${formatBackupInterval(next)}。",
-                )
-            },
-            onDecreaseKeep = {
-                updateBackupSettings(
-                    keepCount = (autoBackupKeepCount - 1).coerceAtLeast(1),
-                    message = "自动备份保留数量已设为 ${(autoBackupKeepCount - 1).coerceAtLeast(1)} 个。",
-                )
-            },
-            onIncreaseKeep = {
-                updateBackupSettings(
-                    keepCount = (autoBackupKeepCount + 1).coerceAtMost(50),
-                    message = "自动备份保留数量已设为 ${(autoBackupKeepCount + 1).coerceAtMost(50)} 个。",
-                )
-            },
-            onDismiss = { showAutoBackupSettingsDialog = false },
-        )
-    }
+    LauncherBackupSettingsDialogHost(
+        coordinator = backupCoordinator,
+        actionsLocked = actionInProgress,
+    )
 
     if (showBackgroundRunPermissionDialog) {
         BackgroundRunPermissionDialog(
@@ -3994,98 +3460,10 @@ fun LukoaLauncherScreen(
         )
     }
 
-    if (showApplyBackupPathDialog) {
-        ApplyBackupPathDialog(
-            path = applyBackupPath,
-            onPathChange = { applyBackupPath = it },
-            onNext = {
-                if (openApplyBackupPreview(applyBackupPath)) {
-                    showApplyBackupPathDialog = false
-                }
-            },
-            onDismiss = { showApplyBackupPathDialog = false },
-        )
-    }
-
-    applyBackupPreviewRequest?.let { request ->
-        ApplyBackupPreviewLoadingDialog(
-            archivePath = request.archivePath,
-            onDismiss = ::cancelApplyBackupPreviewLoading,
-        )
-    }
-
-    val activeApplyBackupPreview = applyBackupPreview
-    if (showApplyBackupPreviewDialog && activeApplyBackupPreview != null) {
-        ApplyBackupPreviewDialog(
-            preview = activeApplyBackupPreview,
-            onConfirm = ::applySelectedBackup,
-            onDismiss = ::dismissApplyBackupPreview,
-        )
-    }
-
-    if (showTermuxStoragePermissionDialog) {
-        TermuxStoragePermissionDialog(
-            archivePath = storagePermissionRetryArchivePath.ifBlank { applyBackupPath }.trim(),
-            actionsLocked = actionInProgress,
-            onGrantPermission = ::requestTermuxStoragePermission,
-            onRetryApply = ::retryApplyAfterTermuxStoragePermission,
-            onDismiss = { showTermuxStoragePermissionDialog = false },
-        )
-    }
-
-    if (showCopyBackupDialog) {
-        CopyBackupConfirmDialog(
-            archivePath = selectedBackupPath,
-            onConfirm = {
-                copyBackupArchive(selectedBackupPath)
-            },
-            onDismiss = {
-                showCopyBackupDialog = false
-                selectedBackupPath = ""
-            },
-        )
-    }
-
-    if (showRenameBackupDialog) {
-        RenameBackupDialog(
-            archivePath = selectedBackupPath,
-            newName = renameBackupName,
-            backupHistory = backupHistory,
-            onNameChange = { renameBackupName = it },
-            onConfirm = {
-                renameBackupArchive(selectedBackupPath, renameBackupName)
-            },
-            onDismiss = {
-                showRenameBackupDialog = false
-                selectedBackupPath = ""
-                renameBackupName = ""
-            },
-        )
-    }
-
-    if (showDeleteBackupDialog) {
-        DeleteBackupConfirmDialog(
-            archivePath = selectedBackupPath,
-            onConfirm = {
-                val path = selectedBackupPath.trim()
-                LauncherInputGuards.validateBackupArchivePath(path)?.let { reason ->
-                    update("备份路径无效，不能删除：$reason", "", false, allowRunningInference = false)
-                    return@DeleteBackupConfirmDialog
-                }
-                showDeleteBackupDialog = false
-                selectedBackupPath = ""
-                runLocalBackupLibraryOperation("删除酒馆备份") {
-                    val deleted = BackupLibraryFiles.deleteLibraryArchive(context, path)
-                    val paths = readLocalBackupLibrary()
-                    paths to "已删除备份：${deleted.fileName}。"
-                }
-            },
-            onDismiss = {
-                showDeleteBackupDialog = false
-                selectedBackupPath = ""
-            },
-        )
-    }
+    LauncherBackupOperationDialogHost(
+        coordinator = backupCoordinator,
+        actionsLocked = actionInProgress,
+    )
 
     pendingTavernProfileRemovalConfirmation?.let { confirmation ->
         DeleteTavernProfileConfirmDialog(
@@ -4116,18 +3494,6 @@ fun LukoaLauncherScreen(
             onDismiss = {
                 showCustomTavernPathMigrationDialog = false
                 customMigrationPathInput = ""
-            },
-        )
-    }
-
-    if (showImportBackupDialog) {
-        ImportBackupDialog(
-            path = importBackupPath,
-            onPathChange = { importBackupPath = it },
-            onConfirm = { importBackupArchive(importBackupPath) },
-            onDismiss = {
-                showImportBackupDialog = false
-                importBackupPath = ""
             },
         )
     }
@@ -4380,26 +3746,23 @@ fun LukoaLauncherScreen(
                             )
                         }
                         LauncherTab.Backup -> BackupSection(
-                            actionsLocked = actionInProgress || applyBackupPreviewRequest != null,
-                            backupListRefreshing = backupListRefreshing,
+                            actionsLocked = actionInProgress || backupUiState.applyBackupPreviewRequest != null,
+                            backupListRefreshing = backupUiState.backupListRefreshing,
                             autoBackupEnabled = autoBackupEnabled,
                             autoBackupIntervalMinutes = autoBackupIntervalMinutes,
                             autoBackupKeepCount = autoBackupKeepCount,
                             backupHistory = backupHistory,
-                            onCreateManualBackup = {
-                                manualBackupName = ""
-                                showManualBackupDialog = true
-                            },
-                            onToggleAutoBackup = ::toggleAutoBackup,
-                            onRefreshBackups = ::refreshBackupList,
-                            onOpenAutoBackupSettings = { showAutoBackupSettingsDialog = true },
-                            onApplyBackup = ::requestApplyBackup,
-                            onCopyBackup = ::requestCopyBackup,
-                            onRenameBackup = ::requestRenameBackup,
-                            onDeleteBackup = ::requestDeleteBackup,
-                            onExportBackup = ::exportBackupArchive,
-                            onImportBackup = ::pickAndImportExternalBackup,
-                            onCopyBackupLibraryPath = ::copyBackupLibraryPath,
+                            onCreateManualBackup = backupCoordinator::openManualBackupDialog,
+                            onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
+                            onRefreshBackups = { backupCoordinator.refreshBackupList() },
+                            onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
+                            onApplyBackup = backupCoordinator::requestApplyBackup,
+                            onCopyBackup = backupCoordinator::requestCopyBackup,
+                            onRenameBackup = backupCoordinator::requestRenameBackup,
+                            onDeleteBackup = backupCoordinator::requestDeleteBackup,
+                            onExportBackup = backupCoordinator::exportBackupArchive,
+                            onImportBackup = backupCoordinator::pickAndImportExternalBackup,
+                            onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Settings -> SettingsSection(
@@ -4505,7 +3868,7 @@ fun LukoaLauncherScreen(
                             onOpenAllFilesAccessSettings = ::openAllFilesAccessSettings,
                             onOpenUnknownAppSourcesSettings = ::openUnknownAppSourcesSettings,
                             onShowTermuxStoragePermissionGuide = {
-                                showTermuxStoragePermissionDialog = true
+                                backupUiState.showTermuxStoragePermissionDialog = true
                             },
                             onRepositoryInputChange = { githubRepositoryInput = it },
                             onSaveRepository = ::saveGithubRepository,
@@ -4614,19 +3977,4 @@ private fun hasTermuxStoragePermissionProblem(text: String): Boolean {
                         lower.contains("storage/downloads")
                     )
             )
-}
-
-private fun isSharedStorageBackupPath(path: String): Boolean {
-    val normalized = path.trim().replace('\\', '/').lowercase()
-    val sharedStorageRoots = listOf(
-        Environment.getExternalStorageDirectory().path,
-        System.getenv("EXTERNAL_STORAGE").orEmpty(),
-        "/storage/emulated/0",
-    ).map { it.trim().replace('\\', '/').trimEnd('/').lowercase() }
-        .filter { it.isNotBlank() }
-        .distinct()
-
-    return sharedStorageRoots.any { normalized == it || normalized.startsWith("$it/") } ||
-        normalized.contains("/storage/downloads/") ||
-        normalized.contains("/storage/shared/")
 }
