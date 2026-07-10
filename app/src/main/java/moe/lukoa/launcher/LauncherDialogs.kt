@@ -70,7 +70,7 @@ fun ExportLogDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
-                    text = "只导出 Termux 侧",
+                    text = "只导出酒馆运行日志",
                     enabled = true,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),

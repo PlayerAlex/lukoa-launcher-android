@@ -6,7 +6,7 @@ import org.junit.Test
 
 class TavernLogSignalsTest {
     @Test
-    fun `prepare for app strips ansi and compacts noisy list blocks`() {
+    fun `prepare for app strips ansi but preserves model and extension lists`() {
         val prepared = TavernLogSignals.prepareForApp(
             """
                 webpack compiled [1m[32msuccessfully[39m[22m
@@ -21,9 +21,20 @@ class TavernLogSignalsTest {
             """.trimIndent(),
         )
 
-        assertTrue(prepared.contains("webpack compiled successfully"))
-        assertTrue(prepared.contains("Extensions available for default-user [已省略 2 项扩展]"))
-        assertTrue(prepared.contains("Available models: [已省略 2 项模型]"))
+        assertEquals(
+            """
+                webpack compiled successfully
+                Extensions available for default-user [
+                  { type: 'system', name: 'assets' },
+                  { type: 'global', name: 'third-party/World' }
+                ]
+                Available models: [
+                  'gpt-5.5',
+                  'gpt-image-2'
+                ]
+            """.trimIndent(),
+            prepared,
+        )
     }
 
     @Test

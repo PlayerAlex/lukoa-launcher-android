@@ -223,9 +223,9 @@ class TavernController(
                     SharedFileSender.shareTextFile(context, file, "导出运行日志", "露科亚启动器运行日志")
                 }.onSuccess {
                     val scopeText = when (mode) {
-                        ExportLogMode.TermuxOnly -> "Termux 前台回传和酒馆运行日志"
+                        ExportLogMode.TermuxOnly -> "酒馆运行日志"
                         ExportLogMode.AppOnly -> "App 操作反馈"
-                        ExportLogMode.Both -> "Termux 前台回传、酒馆运行日志和 App 操作反馈"
+                        ExportLogMode.Both -> "酒馆运行日志和 App 操作反馈"
                     }
                     update("已生成${scopeText}导出文件：${file.name}", "", true)
                 }.onFailure { error ->

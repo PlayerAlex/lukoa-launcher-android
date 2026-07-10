@@ -252,8 +252,19 @@ fun LukoaLauncherScreen(
     var pendingInstallRiskRequest by remember { mutableStateOf<PendingTavernInstallRequest?>(null) }
     var installRiskConfirmation by remember { mutableStateOf<TavernInstallConfirmation?>(null) }
     var pendingStartPreflight by remember { mutableStateOf<TavernStartPreflightResult?>(null) }
-    var busyLabel by remember { mutableStateOf<String?>(null) }
-    var busyStartedAtMillis by remember { mutableLongStateOf(0L) }
+    val initialRestoredOperationLock = remember {
+        val nowMillis = System.currentTimeMillis()
+        OperationLockRecovery.restore(
+            snapshot = OperationLockStore.active(context, nowMillis),
+            nowMillis = nowMillis,
+            elapsedRealtimeMillis = SystemClock.elapsedRealtime(),
+        )
+    }
+    var busyLabel by remember { mutableStateOf(initialRestoredOperationLock?.label) }
+    var busyStartedAtMillis by remember {
+        mutableLongStateOf(initialRestoredOperationLock?.busyStartedAtElapsedMillis ?: 0L)
+    }
+    var restoredOperationLockActive by remember { mutableStateOf(initialRestoredOperationLock != null) }
     var busyToken by remember { mutableIntStateOf(0) }
     var launchAttemptToken by remember { mutableIntStateOf(0) }
     var startupRefreshInFlight by remember { mutableStateOf(false) }
@@ -821,6 +832,7 @@ fun LukoaLauncherScreen(
     fun releaseBusy() {
         busyLabel = null
         busyStartedAtMillis = 0L
+        restoredOperationLockActive = false
         OperationLockStore.release(context)
     }
 
@@ -833,6 +845,7 @@ fun LukoaLauncherScreen(
 
         busyLabel = label
         busyStartedAtMillis = SystemClock.elapsedRealtime()
+        restoredOperationLockActive = false
         OperationLockStore.acquire(context, label, timeoutMs)
         busyToken += 1
         val token = busyToken
@@ -863,6 +876,20 @@ fun LukoaLauncherScreen(
             }
         }
         return true
+    }
+
+    LaunchedEffect(initialRestoredOperationLock) {
+        val restoredLock = initialRestoredOperationLock ?: return@LaunchedEffect
+        delay(restoredLock.remainingMillis)
+        if (restoredOperationLockActive && busyLabel == restoredLock.label) {
+            releaseBusy()
+            update(
+                "上次操作的等待时间已结束，可以继续操作。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+        }
     }
 
     fun runGuarded(
@@ -3006,6 +3033,7 @@ fun LukoaLauncherScreen(
                 ?: PendingLauncherTaskSupport.resolveLatestResult(task, latest)
             runPendingTaskFollowUpRefresh(resolved.refreshTargets)
             clearPendingLauncherTask()
+            releaseBusy()
             update(
                 resolved.message,
                 "",
@@ -3020,6 +3048,7 @@ fun LukoaLauncherScreen(
                 val recovered = recoverPendingManualBackup(task)
                 if (recovered != null) {
                     clearPendingLauncherTask()
+                    releaseBusy()
                     refreshBackupList()
                     update(
                         "已继续检查上次创建备份：备份已经生成，但 Termux 没把最终返回带回来。\n备份在：${recovered.archivePath}",
@@ -3055,7 +3084,7 @@ fun LukoaLauncherScreen(
     fun abandonPendingLauncherTask() {
         showPendingTaskDialog = false
         clearPendingLauncherTask()
-        OperationLockStore.release(context)
+        releaseBusy()
         update(
             "已放弃记录这次未完成任务。不会删除已经生成的备份和现有文件。",
             "",
@@ -4100,7 +4129,7 @@ fun LukoaLauncherScreen(
                         PendingTaskNoticePanel(
                             task = task,
                             activeLockLabel = OperationLockStore.activeLabel(context),
-                            actionsLocked = actionInProgress,
+                            actionsLocked = actionInProgress && !restoredOperationLockActive,
                             onContinueCheck = ::continuePendingLauncherTask,
                             onAbandon = ::abandonPendingLauncherTask,
                         )

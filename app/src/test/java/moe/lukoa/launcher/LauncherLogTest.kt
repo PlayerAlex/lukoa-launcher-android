@@ -32,4 +32,15 @@ class LauncherLogTest {
 
         assertEquals("line 1\n\nline 2", appended)
     }
+
+    @Test
+    fun `append raw log keeps model lists beyond old display limit`() {
+        val prefix = "x".repeat(15_000)
+        val models = "Available models: [\n  'gpt-5.5'\n]"
+
+        val appended = appendRawLog(prefix, models)
+
+        assertEquals(true, appended.startsWith(prefix))
+        assertEquals(true, appended.contains(models))
+    }
 }

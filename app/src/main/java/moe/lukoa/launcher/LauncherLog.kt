@@ -16,5 +16,5 @@ fun appendRawLog(current: String, text: String): String {
     val entry = text.trim()
     if (entry.isBlank()) return current
     val next = if (current.startsWith("暂无 ")) entry else "$current\n\n$entry"
-    return next.takeLast(12000)
+    return next.takeLast(120_000)
 }
