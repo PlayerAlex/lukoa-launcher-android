@@ -31,6 +31,8 @@ object TermuxCommandTimeoutPolicy {
         "tavern-repair-dependencies" to 15 * 60_000L,
         "tavern-reset-theme" to 60_000L,
         "tavern-node-memory" to 60_000L,
+        "tavern-upload-limit-status" to 60_000L,
+        "tavern-upload-limit-set" to 60_000L,
         "tavern-backup-list" to 24_000L,
         "tavern-version-startup" to 4_000L,
         "tavern-official-versions" to 60_000L,

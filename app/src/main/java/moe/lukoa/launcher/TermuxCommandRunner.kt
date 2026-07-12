@@ -217,6 +217,27 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernUploadLimitStatus(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-upload-limit-status-direct",
+        scriptCommand = "upload-limit-status",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-upload-limit-status",
+    )
+
+    fun runTavernUploadLimitSet(value: String?): CommandDispatch {
+        val megabytes = value?.toIntOrNull()
+        if (!TavernUploadLimitPolicy.isAllowed(megabytes)) {
+            return CommandDispatch(false, "上传限制无效。", displayCommand = "tavern-upload-limit-set")
+        }
+        return runBundledScriptCommand(
+            command = "tavern-upload-limit-set-direct",
+            scriptCommand = "upload-limit-set",
+            scriptArgs = listOf(megabytes.toString()),
+            displayCommand = "tavern-upload-limit-set",
+            background = false,
+        )
+    }
+
     fun runTavernOfficialVersions(): CommandDispatch {
         return runBundledScriptCommand(
             command = "tavern-official-versions-direct",

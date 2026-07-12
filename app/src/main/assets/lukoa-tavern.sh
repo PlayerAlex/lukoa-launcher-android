@@ -95,6 +95,7 @@ LOG_FILE="$RUNTIME_STATE_DIR/tavern.log"
 LOG_SYNC_CURSOR_FILE="$RUNTIME_STATE_DIR/app-log.cursor"
 ROLLBACK_FILE="$RUNTIME_STATE_DIR/last-tavern-update-commit"
 NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
+UPLOAD_LIMIT_STATE_FILE="$RUNTIME_STATE_DIR/upload-limit.tsv"
 
 if [ -f "$NODE_MEMORY_FILE" ]; then
   # shellcheck disable=SC1090
@@ -1492,6 +1493,7 @@ cmd_update() {
 
   if [ "$git_code" -eq 0 ] && [ "$npm_code" -eq 0 ]; then
     write_status "updated" "SillyTavern source updated successfully" false 0
+    emit_upload_limit_status "after-update" 2>/dev/null || true
     code=0
   elif [ "$git_code" -eq 80 ]; then
     write_status "error" "Could not find a remote branch to update" false 80
@@ -3309,6 +3311,113 @@ cmd_node_memory_set() {
   printf "node.memory.mb=%s\nnode.memory.file=%s\n" "$memory" "$NODE_MEMORY_FILE"
 }
 
+emit_upload_limit_status() {
+  reason="${1:-manual}"
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || return 66
+  result="$(UPLOAD_LIMIT_FILE="$target" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+let source;
+try { source = fs.readFileSync(file, 'utf8'); } catch (_) { process.exit(66); }
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+process.stdout.write(matches[0][1]);
+NODE
+)"
+  code="$?"
+  [ "$code" -eq 0 ] || return "$code"
+  printf "\n==== SillyTavern upload limit ====\n"
+  printf "uploadLimit.status=compatible\n"
+  printf "uploadLimit.reason=%s\n" "$reason"
+  printf "uploadLimit.file=%s\n" "$target"
+  printf "uploadLimit.currentMb=%s\n" "$result"
+  if [ -f "$UPLOAD_LIMIT_STATE_FILE" ]; then
+    IFS='|' read -r recorded_file previous_mb applied_mb backup_file recorded_commit < "$UPLOAD_LIMIT_STATE_FILE" || true
+    printf "uploadLimit.recordedPreviousMb=%s\n" "${previous_mb:-unknown}"
+    printf "uploadLimit.recordedAppliedMb=%s\n" "${applied_mb:-unknown}"
+    printf "uploadLimit.backupFile=%s\n" "${backup_file:-unknown}"
+    printf "uploadLimit.recordedCommit=%s\n" "${recorded_commit:-unknown}"
+    if [ "${applied_mb:-}" = "$result" ]; then
+      printf "uploadLimit.patchState=active\n"
+    else
+      printf "uploadLimit.patchState=changed-or-overwritten\n"
+    fi
+  else
+    printf "uploadLimit.patchState=not-managed\n"
+  fi
+  printf "==== end SillyTavern upload limit ====\n"
+}
+
+cmd_upload_limit_status() {
+  write_command "upload-limit-status"
+  if emit_upload_limit_status "manual-check" >/dev/null; then
+    write_status "upload-limit-status" "SillyTavern upload limit was identified" "$(tavern_running_value)" 0
+    cat "$STATUS_FILE"
+    emit_upload_limit_status "manual-check"
+    return 0
+  fi
+  code="$?"
+  write_status "error" "This SillyTavern version does not contain exactly one compatible upload limit target" "$(tavern_running_value)" "$code"
+  emit_status
+  return "$code"
+}
+
+cmd_upload_limit_set() {
+  write_command "upload-limit-set"
+  repair_require_stopped || return "$?"
+  limit="${1:-}"
+  case "$limit" in 500|1024|2048) ;; *)
+    write_status "error" "Unsupported upload limit" false 64
+    emit_status
+    return 64
+  esac
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || {
+    write_status "error" "SillyTavern upload middleware file was not found" false 66
+    emit_status
+    return 66
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$target.lukoa-before-upload-limit-$stamp"
+  cp "$target" "$backup_file" || {
+    write_status "error" "Failed to back up the upload middleware file" false 74
+    emit_status
+    return 74
+  }
+  result="$(UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_MB="$limit" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+const limit = Number(process.env.UPLOAD_LIMIT_MB);
+const source = fs.readFileSync(file, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+const previous = Number(matches[0][1]);
+const replacement = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${limit}`);
+const updated = source.slice(0, matches[0].index) + replacement + source.slice(matches[0].index + matches[0][0].length);
+const temp = `${file}.lukoa-upload-limit-${process.pid}.tmp`;
+fs.writeFileSync(temp, updated);
+fs.renameSync(temp, file);
+process.stdout.write(String(previous));
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    cp "$backup_file" "$target" 2>/dev/null || true
+    rm -f "$backup_file"
+    write_status "error" "Upload limit target was not uniquely recognized; no changes were kept" false "$code"
+    emit_status
+    return "$code"
+  fi
+  commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  printf "%s|%s|%s|%s|%s\n" "$target" "$result" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
+  write_status "upload-limit-set" "SillyTavern upload limit was updated" false 0
+  cat "$STATUS_FILE"
+  emit_upload_limit_status "after-set"
+}
+
 main() {
   command="${1:-status}"
   case "$command" in
@@ -3331,6 +3440,13 @@ main() {
     node-memory-set|tavern-node-memory-set)
       shift
       cmd_node_memory_set "$@"
+      ;;
+    upload-limit-status|tavern-upload-limit-status)
+      cmd_upload_limit_status
+      ;;
+    upload-limit-set|tavern-upload-limit-set)
+      shift
+      cmd_upload_limit_set "$@"
       ;;
     log|logs|tail)
       cmd_log

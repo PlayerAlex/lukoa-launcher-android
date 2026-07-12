@@ -3589,6 +3589,10 @@ fun LukoaLauncherScreen(
                             onSetNodeMemory = { memory ->
                                 onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), ::update)
                             },
+                            onCheckUploadLimit = { onCommand("tavern-upload-limit-status", ::update) },
+                            onSetUploadLimit = { megabytes ->
+                                onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), ::update)
+                            },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {

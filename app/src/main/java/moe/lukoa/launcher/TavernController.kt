@@ -83,6 +83,8 @@ class TavernController(
             "tavern-repair-dependencies" -> runner.runTavernRepairDependencies()
             "tavern-reset-theme" -> runner.runTavernResetTheme()
             "tavern-node-memory" -> runner.runTavernNodeMemory(parsed.argument)
+            "tavern-upload-limit-status" -> runner.runTavernUploadLimitStatus()
+            "tavern-upload-limit-set" -> runner.runTavernUploadLimitSet(parsed.argument)
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
             "termux-repo-status" -> runner.runTermuxPackageMirrorStatus()
@@ -336,6 +338,8 @@ class TavernController(
             "tavern-repair-dependencies" -> "正在安全重装酒馆依赖，Termux 前台会显示进度。"
             "tavern-reset-theme" -> "正在查找并重置当前用户的网页主题。"
             "tavern-node-memory" -> "正在设置 Node.js 内存上限。"
+            "tavern-upload-limit-status" -> "正在识别当前聊天记录上传限制。"
+            "tavern-upload-limit-set" -> "正在修改聊天记录上传限制。"
             "tavern-official-versions" -> "正在读取官方版本列表。"
             "termux-storage-permission" -> "正在请求 Termux 存储权限。"
             "termux-repo-status" -> "正在读取当前 Termux 包源。"
@@ -376,6 +380,8 @@ class TavernController(
             "tavern-repair-dependencies" -> if (ok) "酒馆依赖已修复。" else "修复酒馆依赖失败，旧依赖已尽量恢复。"
             "tavern-reset-theme" -> if (ok) "网页主题已重置。" else "没有找到可安全修改的主题设置。"
             "tavern-node-memory" -> if (ok) "Node.js 内存上限已保存。" else "设置 Node.js 内存上限失败。"
+            "tavern-upload-limit-status" -> if (ok) "上传限制已检查，请查看操作反馈中的当前值。" else "无法识别当前版本的上传限制。"
+            "tavern-upload-limit-set" -> if (ok) "上传限制已修改，重启酒馆后生效。" else "修改上传限制失败，源文件未被强行改动。"
             "tavern-official-versions" -> if (ok) "官方版本列表已读取。" else "读取官方版本失败。"
             "termux-storage-permission" -> if (ok) "Termux 存储权限已可用。" else "Termux 存储权限还没打开。"
             "termux-repo-status" -> if (ok) "当前 Termux 包源已读取。" else "读取 Termux 包源失败。"

@@ -25,6 +25,8 @@ fun RepairToolsSection(
     onRepairDependencies: () -> Unit,
     onResetTheme: () -> Unit,
     onSetNodeMemory: (Int) -> Unit,
+    onCheckUploadLimit: () -> Unit,
+    onSetUploadLimit: (Int) -> Unit,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
     confirmation?.let { request ->
@@ -78,6 +80,28 @@ fun RepairToolsSection(
                         ) { onSetNodeMemory(memory) }
                     },
                 ) { Text("${memory / 1024}GB") }
+            }
+        }
+        Text("聊天记录上传限制")
+        Text("大文件会明显增加 Termux 内存和处理时间。1GB 以上更容易触发系统杀后台，修改后建议重启酒馆。")
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !actionsLocked,
+            onClick = onCheckUploadLimit,
+        ) { Text("检查当前上传限制") }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = !actionsLocked && !tavernRunning,
+                    onClick = {
+                        val label = TavernUploadLimitPolicy.label(limit)
+                        confirmation = RepairConfirmation(
+                            "设置上传限制为 $label",
+                            "只会修改当前实例中已识别的 SillyTavern 上传中间件。修改前会备份源文件并记录原值；如果版本结构不匹配，将拒绝修改。设置较大限制可能导致内存占用显著增加。",
+                        ) { onSetUploadLimit(limit) }
+                    },
+                ) { Text(TavernUploadLimitPolicy.label(limit)) }
             }
         }
     }

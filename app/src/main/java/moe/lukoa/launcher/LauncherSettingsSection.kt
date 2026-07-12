@@ -129,6 +129,8 @@ fun SettingsSection(
     onRepairDependencies: () -> Unit,
     onResetTavernTheme: () -> Unit,
     onSetNodeMemory: (Int) -> Unit,
+    onCheckUploadLimit: () -> Unit,
+    onSetUploadLimit: (Int) -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -332,6 +334,8 @@ fun SettingsSection(
                 onRepairDependencies = onRepairDependencies,
                 onResetTheme = onResetTavernTheme,
                 onSetNodeMemory = onSetNodeMemory,
+                onCheckUploadLimit = onCheckUploadLimit,
+                onSetUploadLimit = onSetUploadLimit,
             )
 
             SettingsPageView.Path -> SectionPanel(title = "酒馆路径", accentColor = LukoaColors.Accent) {
