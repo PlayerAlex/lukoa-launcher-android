@@ -22,6 +22,7 @@ private data class RepairConfirmation(val title: String, val detail: String, val
 fun RepairToolsSection(
     actionsLocked: Boolean,
     tavernRunning: Boolean,
+    uploadLimitStatus: TavernUploadLimitStatus,
     onRepairDependencies: () -> Unit,
     onResetTheme: () -> Unit,
     onSetNodeMemory: (Int) -> Unit,
@@ -84,9 +85,19 @@ fun RepairToolsSection(
         }
         Text("聊天记录上传限制")
         Text("大文件会明显增加 Termux 内存和处理时间。1GB 以上更容易触发系统杀后台，修改后建议重启酒馆。")
+        Text(
+            uploadLimitStatus.currentMegabytes?.let {
+                "当前限制：${TavernUploadLimitPolicy.label(it)}"
+            } ?: if (uploadLimitStatus.checking) {
+                "当前限制：检查中…"
+            } else {
+                "当前限制：尚未读取"
+            },
+        )
+        Text(uploadLimitStatus.message)
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !actionsLocked,
+            enabled = !actionsLocked && !uploadLimitStatus.checking,
             onClick = onCheckUploadLimit,
         ) { Text("检查当前上传限制") }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -245,6 +245,7 @@ fun LukoaLauncherScreen(
     var healthCheckInFlight by remember { mutableStateOf(false) }
     var healthCheckToken by remember { mutableIntStateOf(0) }
     var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
+    var uploadLimitStatus by remember { mutableStateOf(TavernUploadLimitStatus()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
@@ -271,6 +272,9 @@ fun LukoaLauncherScreen(
     var mirrorProbeStatus by mirrorSettingsState::probeStatus
     var termuxRepoStatus by mirrorSettingsState::termuxRepoStatus
     var customTermuxRepoInput by mirrorSettingsState::customTermuxRepoInput
+    LaunchedEffect(tavernPathConfig.activeProfile.id) {
+        uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
+    }
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showInstallRiskDialog by remember { mutableStateOf(false) }
@@ -707,6 +711,7 @@ fun LukoaLauncherScreen(
         }
         TavernOfficialVersionParser.parse(termuxOutput).takeIf { it.hasData }?.let(::applyOfficialVersions)
         TermuxRepoStatusParser.parse(termuxOutput)?.let(mirrorSettingsState::applyTermuxRepoStatus)
+        TavernUploadLimitStatusParser.parse(termuxOutput)?.let { uploadLimitStatus = it }
         val permissionText = "$newStatus\n$termuxOutput"
         maybePromptTavernDirectoryChoice(permissionText)
         if (TermuxPermissionSignals.externalAppsBlocked(permissionText)) {
@@ -3499,6 +3504,7 @@ fun LukoaLauncherScreen(
                             healthCheckReport = healthCheckReport,
                             healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
+                            uploadLimitStatus = uploadLimitStatus,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
@@ -3584,14 +3590,55 @@ fun LukoaLauncherScreen(
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
                             onForceCleanup = ::requestForceCleanup,
-                            onRepairDependencies = { onCommand("tavern-repair-dependencies", ::update) },
-                            onResetTavernTheme = { onCommand("tavern-reset-theme", ::update) },
-                            onSetNodeMemory = { memory ->
-                                onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), ::update)
+                            onRepairDependencies = {
+                                runGuarded(
+                                    "修复 npm 依赖",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-repair-dependencies"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate -> onCommand("tavern-repair-dependencies", guardedUpdate) }
                             },
-                            onCheckUploadLimit = { onCommand("tavern-upload-limit-status", ::update) },
+                            onResetTavernTheme = {
+                                runGuarded(
+                                    "重置网页主题",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-reset-theme"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate -> onCommand("tavern-reset-theme", guardedUpdate) }
+                            },
+                            onSetNodeMemory = { memory ->
+                                runGuarded(
+                                    "设置 Node.js 内存",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-node-memory"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), guardedUpdate)
+                                }
+                            },
+                            onCheckUploadLimit = {
+                                runGuarded(
+                                    "检查上传限制",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
+                                    onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
+                                        guardedUpdate(newStatus, termuxOutput, ok)
+                                        if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
+                                            uploadLimitStatus = uploadLimitStatus.copy(
+                                                checking = false,
+                                                message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
+                                            )
+                                        }
+                                    }
+                                }
+                            },
                             onSetUploadLimit = { megabytes ->
-                                onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), ::update)
+                                runGuarded(
+                                    "修改上传限制",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-set"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
+                                }
                             },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,

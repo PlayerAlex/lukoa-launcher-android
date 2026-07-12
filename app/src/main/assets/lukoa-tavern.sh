@@ -1461,12 +1461,21 @@ cmd_update() {
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  upload_limit_reapply=""
+  upload_limit_prepare_update
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "Managed upload limit could not be safely removed before update; source files were left unchanged" false "$code"
+    emit_status
+    return "$code"
+  fi
   printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
+    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
     write_status "error" "git fetch failed; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== SillyTavern update ====\n"
@@ -1492,6 +1501,14 @@ cmd_update() {
   fi
 
   if [ "$git_code" -eq 0 ] && [ "$npm_code" -eq 0 ]; then
+    if [ -n "$upload_limit_reapply" ]; then
+      if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+        printf "uploadLimit.updateAction=reapplied\n"
+      else
+        printf "uploadLimit.updateAction=not-reapplied\n"
+        printf "uploadLimit.updateNotice=The new SillyTavern version no longer has exactly one compatible upload limit target.\n"
+      fi
+    fi
     write_status "updated" "SillyTavern source updated successfully" false 0
     emit_upload_limit_status "after-update" 2>/dev/null || true
     code=0
@@ -1507,6 +1524,14 @@ cmd_update() {
   else
     write_status "error" "npm install failed; check tavern.log" false "$npm_code"
     code="$npm_code"
+  fi
+
+  if [ "$code" -ne 0 ] && [ -n "$upload_limit_reapply" ]; then
+    if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+      printf "uploadLimit.updateAction=restored-after-failure\n"
+    else
+      printf "uploadLimit.updateAction=restore-failed-after-update-error\n"
+    fi
   fi
 
   cat "$STATUS_FILE"
@@ -1551,12 +1576,21 @@ cmd_rollback() {
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  upload_limit_reapply=""
+  upload_limit_prepare_update
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "Managed upload limit could not be safely removed before rollback; source files were left unchanged" false "$code"
+    emit_status
+    return "$code"
+  fi
   printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
+    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
     write_status "error" "git fetch failed before rollback; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== Recent rollback log ====\n"
@@ -1575,6 +1609,13 @@ cmd_rollback() {
   fi
 
   if [ "$git_code" -eq 0 ] && [ "$npm_code" -eq 0 ]; then
+    if [ -n "$upload_limit_reapply" ]; then
+      if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+        printf "uploadLimit.rollbackAction=reapplied\n"
+      else
+        printf "uploadLimit.rollbackAction=not-reapplied\n"
+      fi
+    fi
     write_status "rolled-back" "SillyTavern source rolled back successfully" false 0
     code=0
   elif [ "$git_code" -ne 0 ]; then
@@ -1586,6 +1627,10 @@ cmd_rollback() {
   else
     write_status "error" "npm install after rollback failed; check tavern.log" false "$npm_code"
     code="$npm_code"
+  fi
+
+  if [ "$code" -ne 0 ] && [ -n "$upload_limit_reapply" ]; then
+    upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
   fi
 
   cat "$STATUS_FILE"
@@ -3313,6 +3358,7 @@ cmd_node_memory_set() {
 
 emit_upload_limit_status() {
   reason="${1:-manual}"
+  command -v node >/dev/null 2>&1 || return 69
   target="$TAVERN_DIR/src/server-main.js"
   [ -f "$target" ] || return 66
   result="$(UPLOAD_LIMIT_FILE="$target" node <<'NODE'
@@ -3348,6 +3394,64 @@ NODE
     printf "uploadLimit.patchState=not-managed\n"
   fi
   printf "==== end SillyTavern upload limit ====\n"
+}
+
+upload_limit_prepare_update() {
+  upload_limit_reapply=""
+  [ -f "$UPLOAD_LIMIT_STATE_FILE" ] || return 0
+  command -v node >/dev/null 2>&1 || return 69
+  IFS='|' read -r recorded_file previous_mb applied_mb backup_file recorded_commit < "$UPLOAD_LIMIT_STATE_FILE" || return 73
+  target="$TAVERN_DIR/src/server-main.js"
+  [ "$recorded_file" = "$target" ] || return 73
+  [ -f "$target" ] && [ -f "$backup_file" ] || return 73
+  if ! UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_BACKUP="$backup_file" UPLOAD_LIMIT_PREVIOUS="$previous_mb" UPLOAD_LIMIT_APPLIED="$applied_mb" node <<'NODE'
+const fs = require('fs');
+const current = fs.readFileSync(process.env.UPLOAD_LIMIT_FILE, 'utf8');
+const backup = fs.readFileSync(process.env.UPLOAD_LIMIT_BACKUP, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...current.matchAll(pattern)];
+if (matches.length !== 1 || matches[0][1] !== process.env.UPLOAD_LIMIT_APPLIED) process.exit(73);
+const restoredExpression = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${process.env.UPLOAD_LIMIT_PREVIOUS}`);
+const restored = current.slice(0, matches[0].index) + restoredExpression + current.slice(matches[0].index + matches[0][0].length);
+if (restored !== backup) process.exit(73);
+NODE
+  then
+    return 73
+  fi
+  cp "$backup_file" "$target" || return 74
+  upload_limit_reapply="$applied_mb"
+  return 0
+}
+
+upload_limit_reapply_after_update() {
+  limit="${1:-}"
+  command -v node >/dev/null 2>&1 || return 69
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || return 66
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$target.lukoa-before-upload-limit-$stamp"
+  cp "$target" "$backup_file" || return 74
+  previous="$(UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_MB="$limit" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+const source = fs.readFileSync(file, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+const replacement = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${process.env.UPLOAD_LIMIT_MB}`);
+const updated = source.slice(0, matches[0].index) + replacement + source.slice(matches[0].index + matches[0][0].length);
+fs.writeFileSync(file, updated);
+process.stdout.write(matches[0][1]);
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    cp "$backup_file" "$target" 2>/dev/null || true
+    rm -f "$backup_file"
+    return "$code"
+  fi
+  commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  printf "%s|%s|%s|%s|%s\n" "$target" "$previous" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
 }
 
 cmd_upload_limit_status() {

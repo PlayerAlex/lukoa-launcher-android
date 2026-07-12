@@ -86,6 +86,7 @@ fun SettingsSection(
     healthCheckReport: LauncherHealthReport?,
     healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
+    uploadLimitStatus: TavernUploadLimitStatus,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
@@ -331,6 +332,7 @@ fun SettingsSection(
             SettingsPageView.Repair -> RepairToolsSection(
                 actionsLocked = actionsLocked,
                 tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
+                uploadLimitStatus = uploadLimitStatus,
                 onRepairDependencies = onRepairDependencies,
                 onResetTheme = onResetTavernTheme,
                 onSetNodeMemory = onSetNodeMemory,
