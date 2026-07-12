@@ -98,12 +98,14 @@ NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
 UPLOAD_LIMIT_STATE_FILE="$RUNTIME_STATE_DIR/upload-limit.tsv"
 
 if [ -f "$NODE_MEMORY_FILE" ]; then
-  # shellcheck disable=SC1090
-  . "$NODE_MEMORY_FILE"
+  LUKOA_NODE_MEMORY_MB="$(sed -n "s/^LUKOA_NODE_MEMORY_MB='\([0-9][0-9]*\)'$/\1/p" "$NODE_MEMORY_FILE" | head -n 1)"
 fi
-if [ -n "${LUKOA_NODE_MEMORY_MB:-}" ]; then
-  export NODE_OPTIONS="--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
-fi
+case "${LUKOA_NODE_MEMORY_MB:-}" in
+  2048|4096|6144)
+    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
+    ;;
+  *) LUKOA_NODE_MEMORY_MB="" ;;
+esac
 
 OFFICIAL_REPO="${LUKOA_OFFICIAL_REPO:-https://github.com/SillyTavern/SillyTavern.git}"
 NPM_REGISTRY="${LUKOA_NPM_REGISTRY:-${NPM_CONFIG_REGISTRY:-}}"
@@ -3281,16 +3283,24 @@ cmd_repair_dependencies() {
   fi
   cd "$TAVERN_DIR" || return 74
   if npm install; then
-    [ "$moved" = true ] && rm -rf "$recovery_modules"
+    [ "$moved" = true ] && rm -rf "$recovery_modules" 2>/dev/null || true
     write_status "repaired-dependencies" "SillyTavern dependencies were reinstalled" false 0
     emit_status
     printf "repair.dependencies.registry=%s\n" "${NPM_REGISTRY:-default}"
     return 0
   fi
-  rm -rf "$old_modules"
-  [ "$moved" = true ] && mv "$recovery_modules" "$old_modules" 2>/dev/null || true
+  failed_modules="$TAVERN_DIR/node_modules.lukoa-failed-repair-$stamp"
+  if [ -e "$old_modules" ]; then
+    mv "$old_modules" "$failed_modules" 2>/dev/null || rm -rf "$old_modules" 2>/dev/null || true
+  fi
+  restored=false
+  if [ "$moved" = true ] && mv "$recovery_modules" "$old_modules" 2>/dev/null; then
+    restored=true
+  fi
   write_status "error" "npm install failed; previous dependencies were restored when possible" false 74
   emit_status
+  printf "repair.dependencies.restored=%s\n" "$restored"
+  [ -e "$failed_modules" ] && printf "repair.dependencies.failedDirectory=%s\n" "$failed_modules"
   return 74
 }
 
@@ -3302,12 +3312,16 @@ cmd_reset_theme() {
     emit_status
     return 69
   }
-  settings_file="$(find "$TAVERN_DIR/data" "$TAVERN_DIR/public" -type f \( -name settings.json -o -name settings.jsonl \) 2>/dev/null | head -n 1)"
-  [ -n "$settings_file" ] && [ -f "$settings_file" ] || {
-    write_status "error" "No compatible SillyTavern settings file was found" false 66
+  settings_candidates="$(find "$TAVERN_DIR/data" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
+  settings_count="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | wc -l | tr -d ' ')"
+  [ "$settings_count" = "1" ] || {
+    write_status "error" "Theme reset requires exactly one SillyTavern user settings file" false 73
     emit_status
-    return 66
+    printf "repair.theme.candidateCount=%s\n" "${settings_count:-0}"
+    printf "%s\n" "$settings_candidates" | sed '/^$/d;s/^/repair.theme.candidate=/'
+    return 73
   }
+  settings_file="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | head -n 1)"
   stamp="$(date +"%Y%m%d-%H%M%S")"
   backup_file="$settings_file.lukoa-before-theme-reset-$stamp"
   cp "$settings_file" "$backup_file" || return 74
@@ -3452,6 +3466,16 @@ NODE
   fi
   commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
   printf "%s|%s|%s|%s|%s\n" "$target" "$previous" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
+  prune_upload_limit_backups "$backup_file"
+}
+
+prune_upload_limit_backups() {
+  keep_file="${1:-}"
+  for candidate in "$TAVERN_DIR"/src/server-main.js.lukoa-before-upload-limit-*; do
+    [ -f "$candidate" ] || continue
+    [ "$candidate" = "$keep_file" ] && continue
+    rm -f "$candidate" 2>/dev/null || true
+  done
 }
 
 cmd_upload_limit_status() {
@@ -3517,6 +3541,7 @@ NODE
   fi
   commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
   printf "%s|%s|%s|%s|%s\n" "$target" "$result" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
+  prune_upload_limit_backups "$backup_file"
   write_status "upload-limit-set" "SillyTavern upload limit was updated" false 0
   cat "$STATUS_FILE"
   emit_upload_limit_status "after-set"
