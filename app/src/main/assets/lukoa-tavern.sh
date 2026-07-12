@@ -3562,7 +3562,7 @@ run_tavern_user_action() {
     return 65
   }
   data_root="$(resolve_tavern_data_root)"
-  output="$(cd "$TAVERN_DIR" && LUKOA_USER_ACTION="$action" LUKOA_USER_PAYLOAD="$payload" LUKOA_USER_DATA_ROOT="$data_root" node --input-type=module <<'NODE'
+  output="$(cd "$TAVERN_DIR" && LUKOA_USER_ACTION="$action" LUKOA_USER_PAYLOAD="$payload" LUKOA_USER_DATA_ROOT="$data_root" LUKOA_USER_CONFIG_FILE="$TAVERN_DIR/config.yaml" node --input-type=module <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 import storage from 'node-persist';
@@ -3570,10 +3570,13 @@ import { pathToFileURL } from 'node:url';
 
 const action = process.env.LUKOA_USER_ACTION || 'list';
 const dataRoot = path.resolve(process.env.LUKOA_USER_DATA_ROOT || 'data');
+const configFile = path.resolve(process.env.LUKOA_USER_CONFIG_FILE || 'config.yaml');
 const decode = value => Buffer.from(value, 'base64url').toString('utf8');
 const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
 const parts = (process.env.LUKOA_USER_PAYLOAD || '').split('.').filter(Boolean).map(decode);
 globalThis.DATA_ROOT = dataRoot;
+const util = await import(pathToFileURL(path.resolve('src/util.js')).href);
+util.setConfigFilePath(configFile);
 const users = await import(pathToFileURL(path.resolve('src/users.js')).href);
 await users.initUserStorage(dataRoot);
 

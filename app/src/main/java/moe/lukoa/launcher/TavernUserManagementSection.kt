@@ -77,7 +77,7 @@ private fun UserInputDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("登录标识会成为用户数据目录名。SillyTavern 官方没有提供修改登录标识的接口，创建后不能在启动器里重命名，请确认无误。")
+                Text("登录标识是登录 SillyTavern 时使用的英文短名，例如 xiaoming；它也会成为 data/登录标识 数据目录名。它不是页面显示昵称。SillyTavern 官方没有提供修改登录标识的接口，创建后不能在启动器里重命名，请确认无误。")
                 OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(handleLabel) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } })
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(nameLabel) }, isError = nameError != null, supportingText = { nameError?.let { e -> Text(e) } })
             }
