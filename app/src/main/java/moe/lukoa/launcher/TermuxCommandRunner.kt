@@ -187,6 +187,36 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernRepairDependencies(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-repair-dependencies-direct",
+        scriptCommand = "repair-dependencies",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-repair-dependencies",
+        background = false,
+    )
+
+    fun runTavernResetTheme(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-reset-theme-direct",
+        scriptCommand = "reset-theme",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-reset-theme",
+        background = false,
+    )
+
+    fun runTavernNodeMemory(value: String?): CommandDispatch {
+        val memory = value?.toIntOrNull()
+        if (memory !in setOf(2048, 4096, 6144)) {
+            return CommandDispatch(false, "内存上限无效。", displayCommand = "tavern-node-memory")
+        }
+        return runBundledScriptCommand(
+            command = "tavern-node-memory-direct",
+            scriptCommand = "node-memory-set",
+            scriptArgs = listOf(memory.toString()),
+            displayCommand = "tavern-node-memory",
+            background = false,
+        )
+    }
+
     fun runTavernOfficialVersions(): CommandDispatch {
         return runBundledScriptCommand(
             command = "tavern-official-versions-direct",

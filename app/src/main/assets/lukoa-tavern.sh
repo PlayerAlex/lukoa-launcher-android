@@ -94,6 +94,15 @@ PROOF_FILE="$RUNTIME_STATE_DIR/launcher-proof.txt"
 LOG_FILE="$RUNTIME_STATE_DIR/tavern.log"
 LOG_SYNC_CURSOR_FILE="$RUNTIME_STATE_DIR/app-log.cursor"
 ROLLBACK_FILE="$RUNTIME_STATE_DIR/last-tavern-update-commit"
+NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
+
+if [ -f "$NODE_MEMORY_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$NODE_MEMORY_FILE"
+fi
+if [ -n "${LUKOA_NODE_MEMORY_MB:-}" ]; then
+  export NODE_OPTIONS="--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
+fi
 
 OFFICIAL_REPO="${LUKOA_OFFICIAL_REPO:-https://github.com/SillyTavern/SillyTavern.git}"
 NPM_REGISTRY="${LUKOA_NPM_REGISTRY:-${NPM_CONFIG_REGISTRY:-}}"
@@ -3189,6 +3198,117 @@ cmd_restart() {
   cmd_start
 }
 
+repair_require_stopped() {
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before running this repair" true 77
+    emit_status
+    return 77
+  fi
+  return 0
+}
+
+cmd_repair_dependencies() {
+  write_command "repair-dependencies"
+  repair_require_stopped || return "$?"
+  [ -f "$TAVERN_DIR/package.json" ] || {
+    write_status "error" "SillyTavern package.json was not found" false 66
+    emit_status
+    return 66
+  }
+  command -v npm >/dev/null 2>&1 || {
+    write_status "error" "npm command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  old_modules="$TAVERN_DIR/node_modules"
+  recovery_modules="$TAVERN_DIR/node_modules.lukoa-before-repair-$stamp"
+  moved=false
+  if [ -d "$old_modules" ]; then
+    mv "$old_modules" "$recovery_modules" || {
+      write_status "error" "Failed to preserve the current node_modules directory" false 74
+      emit_status
+      return 74
+    }
+    moved=true
+  fi
+  cd "$TAVERN_DIR" || return 74
+  if npm install; then
+    [ "$moved" = true ] && rm -rf "$recovery_modules"
+    write_status "repaired-dependencies" "SillyTavern dependencies were reinstalled" false 0
+    emit_status
+    printf "repair.dependencies.registry=%s\n" "${NPM_REGISTRY:-default}"
+    return 0
+  fi
+  rm -rf "$old_modules"
+  [ "$moved" = true ] && mv "$recovery_modules" "$old_modules" 2>/dev/null || true
+  write_status "error" "npm install failed; previous dependencies were restored when possible" false 74
+  emit_status
+  return 74
+}
+
+cmd_reset_theme() {
+  write_command "reset-theme"
+  repair_require_stopped || return "$?"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  settings_file="$(find "$TAVERN_DIR/data" "$TAVERN_DIR/public" -type f \( -name settings.json -o -name settings.jsonl \) 2>/dev/null | head -n 1)"
+  [ -n "$settings_file" ] && [ -f "$settings_file" ] || {
+    write_status "error" "No compatible SillyTavern settings file was found" false 66
+    emit_status
+    return 66
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$settings_file.lukoa-before-theme-reset-$stamp"
+  cp "$settings_file" "$backup_file" || return 74
+  if SETTINGS_FILE="$settings_file" node <<'NODE'
+const fs = require('fs');
+const path = process.env.SETTINGS_FILE;
+let value;
+try { value = JSON.parse(fs.readFileSync(path, 'utf8')); } catch (_) { process.exit(2); }
+let changed = false;
+function visit(node) {
+  if (!node || typeof node !== 'object') return;
+  for (const key of Object.keys(node)) {
+    if (/^(theme|theme_name|themeName)$/i.test(key) && typeof node[key] === 'string') {
+      node[key] = 'Dark Lite'; changed = true;
+    } else visit(node[key]);
+  }
+}
+visit(value);
+if (!changed) process.exit(3);
+fs.writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
+NODE
+  then
+    write_status "reset-theme" "SillyTavern theme was reset to Dark Lite" false 0
+    emit_status
+    printf "repair.theme.file=%s\nrepair.theme.backup=%s\n" "$settings_file" "$backup_file"
+    return 0
+  fi
+  cp "$backup_file" "$settings_file" 2>/dev/null || true
+  write_status "error" "The settings file did not contain a compatible theme field; no changes were kept" false 65
+  emit_status
+  return 65
+}
+
+cmd_node_memory_set() {
+  write_command "node-memory-set"
+  repair_require_stopped || return "$?"
+  memory="${1:-}"
+  case "$memory" in 2048|4096|6144) ;; *)
+    write_status "error" "Unsupported Node.js memory limit" false 64
+    emit_status
+    return 64
+  esac
+  printf "LUKOA_NODE_MEMORY_MB='%s'\n" "$memory" > "$NODE_MEMORY_FILE" || return 74
+  write_status "node-memory" "Node.js memory limit was saved" false 0
+  emit_status
+  printf "node.memory.mb=%s\nnode.memory.file=%s\n" "$memory" "$NODE_MEMORY_FILE"
+}
+
 main() {
   command="${1:-status}"
   case "$command" in
@@ -3201,6 +3321,16 @@ main() {
       ;;
     doctor|tavern-doctor)
       cmd_doctor
+      ;;
+    repair-dependencies|tavern-repair-dependencies)
+      cmd_repair_dependencies
+      ;;
+    reset-theme|tavern-reset-theme)
+      cmd_reset_theme
+      ;;
+    node-memory-set|tavern-node-memory-set)
+      shift
+      cmd_node_memory_set "$@"
       ;;
     log|logs|tail)
       cmd_log

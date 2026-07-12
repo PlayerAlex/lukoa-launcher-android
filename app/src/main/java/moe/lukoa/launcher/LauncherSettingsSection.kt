@@ -51,6 +51,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class SettingsPageView {
     Health,
+    Repair,
     Path,
     Mirror,
     Permissions,
@@ -125,6 +126,9 @@ fun SettingsSection(
     onRunHealthCheck: () -> Unit,
     onRunHealthCheckPrimaryAction: () -> Unit,
     onForceCleanup: () -> Unit,
+    onRepairDependencies: () -> Unit,
+    onResetTavernTheme: () -> Unit,
+    onSetNodeMemory: (Int) -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -167,6 +171,11 @@ fun SettingsSection(
         )
     }
     val sectionOptions = listOf(
+        SectionSwitchOption(
+            value = SettingsPageView.Repair,
+            label = "修复",
+            description = "修复依赖、重置网页主题，或调整 Node.js 内存上限。所有修改都会先保留可恢复副本。",
+        ),
         SectionSwitchOption(
             value = SettingsPageView.Health,
             label = "体检",
@@ -315,6 +324,14 @@ fun SettingsSection(
                 actionsLocked = actionsLocked,
                 onRunHealthCheck = onRunHealthCheck,
                 onPrimaryAction = onRunHealthCheckPrimaryAction,
+            )
+
+            SettingsPageView.Repair -> RepairToolsSection(
+                actionsLocked = actionsLocked,
+                tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
+                onRepairDependencies = onRepairDependencies,
+                onResetTheme = onResetTavernTheme,
+                onSetNodeMemory = onSetNodeMemory,
             )
 
             SettingsPageView.Path -> SectionPanel(title = "酒馆路径", accentColor = LukoaColors.Accent) {

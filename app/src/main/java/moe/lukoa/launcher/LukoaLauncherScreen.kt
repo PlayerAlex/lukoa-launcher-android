@@ -3584,6 +3584,11 @@ fun LukoaLauncherScreen(
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
                             onForceCleanup = ::requestForceCleanup,
+                            onRepairDependencies = { onCommand("tavern-repair-dependencies", ::update) },
+                            onResetTavernTheme = { onCommand("tavern-reset-theme", ::update) },
+                            onSetNodeMemory = { memory ->
+                                onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), ::update)
+                            },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {
