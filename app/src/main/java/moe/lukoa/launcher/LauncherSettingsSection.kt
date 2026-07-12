@@ -52,6 +52,7 @@ import java.time.format.DateTimeFormatter
 private enum class SettingsPageView {
     Health,
     Repair,
+    Users,
     Path,
     Mirror,
     Permissions,
@@ -87,6 +88,7 @@ fun SettingsSection(
     healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
     uploadLimitStatus: TavernUploadLimitStatus,
+    tavernUserState: TavernUserManagementState,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
@@ -132,6 +134,10 @@ fun SettingsSection(
     onSetNodeMemory: (Int) -> Unit,
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
+    onRefreshTavernUsers: () -> Unit,
+    onCreateTavernUser: (String, String) -> Unit,
+    onRenameTavernUser: (String, String) -> Unit,
+    onDeleteTavernUser: (String) -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -178,6 +184,11 @@ fun SettingsSection(
             value = SettingsPageView.Repair,
             label = "修复",
             description = "修复依赖、重置网页主题，或调整 Node.js 内存上限。所有修改都会先保留可恢复副本。",
+        ),
+        SectionSwitchOption(
+            value = SettingsPageView.Users,
+            label = "用户",
+            description = "管理当前酒馆内部的用户账户和数据目录，不是启动器的多实例。",
         ),
         SectionSwitchOption(
             value = SettingsPageView.Health,
@@ -338,6 +349,16 @@ fun SettingsSection(
                 onSetNodeMemory = onSetNodeMemory,
                 onCheckUploadLimit = onCheckUploadLimit,
                 onSetUploadLimit = onSetUploadLimit,
+            )
+
+            SettingsPageView.Users -> TavernUserManagementSection(
+                state = tavernUserState,
+                actionsLocked = actionsLocked,
+                tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
+                onRefresh = onRefreshTavernUsers,
+                onCreate = onCreateTavernUser,
+                onRename = onRenameTavernUser,
+                onDelete = onDeleteTavernUser,
             )
 
             SettingsPageView.Path -> SectionPanel(title = "酒馆路径", accentColor = LukoaColors.Accent) {

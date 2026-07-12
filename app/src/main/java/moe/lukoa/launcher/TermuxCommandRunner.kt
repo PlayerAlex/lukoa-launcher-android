@@ -238,6 +238,34 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernUsersList(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-users-list-direct",
+        scriptCommand = "users-list",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-users-list",
+        background = false,
+    )
+
+    fun runTavernUserCreate(value: String?): CommandDispatch = runTavernUserMutation("create", value)
+
+    fun runTavernUserRename(value: String?): CommandDispatch = runTavernUserMutation("rename", value)
+
+    fun runTavernUserDelete(value: String?): CommandDispatch = runTavernUserMutation("delete", value)
+
+    private fun runTavernUserMutation(action: String, value: String?): CommandDispatch {
+        val argument = value.orEmpty().trim()
+        if (argument.isBlank() || argument.length > 512) {
+            return CommandDispatch(false, "用户操作参数无效。", displayCommand = "tavern-user-$action")
+        }
+        return runBundledScriptCommand(
+            command = "tavern-user-$action-direct",
+            scriptCommand = "user-$action",
+            scriptArgs = listOf(argument),
+            displayCommand = "tavern-user-$action",
+            background = false,
+        )
+    }
+
     fun runTavernOfficialVersions(): CommandDispatch {
         return runBundledScriptCommand(
             command = "tavern-official-versions-direct",

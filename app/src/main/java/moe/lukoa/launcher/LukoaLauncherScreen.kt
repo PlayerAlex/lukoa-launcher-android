@@ -246,6 +246,7 @@ fun LukoaLauncherScreen(
     var healthCheckToken by remember { mutableIntStateOf(0) }
     var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
     var uploadLimitStatus by remember { mutableStateOf(TavernUploadLimitStatus()) }
+    var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
@@ -274,6 +275,7 @@ fun LukoaLauncherScreen(
     var customTermuxRepoInput by mirrorSettingsState::customTermuxRepoInput
     LaunchedEffect(tavernPathConfig.activeProfile.id) {
         uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
+        tavernUserState = TavernUserManagementState(message = "已切换酒馆实例，请重新读取用户。")
     }
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -712,6 +714,9 @@ fun LukoaLauncherScreen(
         TavernOfficialVersionParser.parse(termuxOutput).takeIf { it.hasData }?.let(::applyOfficialVersions)
         TermuxRepoStatusParser.parse(termuxOutput)?.let(mirrorSettingsState::applyTermuxRepoStatus)
         TavernUploadLimitStatusParser.parse(termuxOutput)?.let { uploadLimitStatus = it }
+        TavernUserOutputParser.parse(termuxOutput)?.let { users ->
+            tavernUserState = TavernUserManagementState(users = users, message = "已读取 ${users.size} 个用户。")
+        }
         val permissionText = "$newStatus\n$termuxOutput"
         maybePromptTavernDirectoryChoice(permissionText)
         if (TermuxPermissionSignals.externalAppsBlocked(permissionText)) {
@@ -3505,6 +3510,7 @@ fun LukoaLauncherScreen(
                             healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
                             uploadLimitStatus = uploadLimitStatus,
+                            tavernUserState = tavernUserState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
@@ -3638,6 +3644,35 @@ fun LukoaLauncherScreen(
                                     allowRunningInference = false,
                                 ) { guardedUpdate ->
                                     onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
+                                }
+                            },
+                            onRefreshTavernUsers = {
+                                runGuarded("读取酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-users-list"), allowRunningInference = false) { guardedUpdate ->
+                                    tavernUserState = tavernUserState.copy(loading = true, message = "正在读取用户…")
+                                    onCommand("tavern-users-list") { newStatus, output, ok ->
+                                        guardedUpdate(newStatus, output, ok)
+                                        if (!isTransientStatus(newStatus) && TavernUserOutputParser.parse(output) == null) {
+                                            tavernUserState = tavernUserState.copy(loading = false, message = "读取失败，请确认酒馆已停止且当前版本支持用户管理。")
+                                        }
+                                    }
+                                }
+                            },
+                            onCreateTavernUser = { handle, name ->
+                                val payload = TavernUserCommandCodec.encode(handle, name)
+                                runGuarded("新增酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-create"), allowRunningInference = false) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-user-create", payload), guardedUpdate)
+                                }
+                            },
+                            onRenameTavernUser = { handle, name ->
+                                val payload = TavernUserCommandCodec.encode(handle, name)
+                                runGuarded("修改用户显示名称", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-rename"), allowRunningInference = false) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-user-rename", payload), guardedUpdate)
+                                }
+                            },
+                            onDeleteTavernUser = { handle ->
+                                val payload = TavernUserCommandCodec.encode(handle)
+                                runGuarded("删除酒馆用户账户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-delete"), allowRunningInference = false) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
                                 }
                             },
                             onClearLogs = ::requestClearLogs,

@@ -28,4 +28,12 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("Managed upload limit could not be safely removed before rollback"))
         assertTrue(script.contains("upload_limit_reapply_after_update"))
     }
+
+    @Test
+    fun `user management uses SillyTavern storage module and protects data`() {
+        assertTrue(script.contains("await users.initUserStorage(dataRoot)"))
+        assertTrue(script.contains("handle === 'default-user'"))
+        assertTrue(script.contains("await storage.removeItem(users.toKey(handle))"))
+        assertFalse(script.contains("fs.rmSync(users.getUserDirectories(handle).root"))
+    }
 }

@@ -3547,6 +3547,112 @@ NODE
   emit_upload_limit_status "after-set"
 }
 
+run_tavern_user_action() {
+  action="${1:-list}"
+  payload="${2:-}"
+  repair_require_stopped || return "$?"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  [ -f "$TAVERN_DIR/src/users.js" ] || {
+    write_status "error" "This SillyTavern version does not provide the compatible user module" false 65
+    emit_status
+    return 65
+  }
+  data_root="$(resolve_tavern_data_root)"
+  output="$(cd "$TAVERN_DIR" && LUKOA_USER_ACTION="$action" LUKOA_USER_PAYLOAD="$payload" LUKOA_USER_DATA_ROOT="$data_root" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+import storage from 'node-persist';
+import { pathToFileURL } from 'node:url';
+
+const action = process.env.LUKOA_USER_ACTION || 'list';
+const dataRoot = path.resolve(process.env.LUKOA_USER_DATA_ROOT || 'data');
+const decode = value => Buffer.from(value, 'base64url').toString('utf8');
+const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
+const parts = (process.env.LUKOA_USER_PAYLOAD || '').split('.').filter(Boolean).map(decode);
+globalThis.DATA_ROOT = dataRoot;
+const users = await import(pathToFileURL(path.resolve('src/users.js')).href);
+await users.initUserStorage(dataRoot);
+
+async function records() {
+  let handles = await users.getAllUserHandles();
+  if (!handles.includes('default-user')) handles.unshift('default-user');
+  const values = await Promise.all(handles.map(async handle => {
+    const stored = await storage.getItem(users.toKey(handle));
+    const profile = stored || { handle, name: handle === 'default-user' ? 'User' : handle, admin: handle === 'default-user', enabled: true };
+    const root = users.getUserDirectories(handle).root;
+    let size = 0;
+    if (fs.existsSync(root)) {
+      const stack = [root];
+      while (stack.length) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+          const child = path.join(current, entry.name);
+          if (entry.isSymbolicLink()) continue;
+          if (entry.isDirectory()) stack.push(child);
+          else if (entry.isFile()) size += fs.statSync(child).size;
+        }
+      }
+    }
+    return { ...profile, root, exists: fs.existsSync(root), kb: Math.ceil(size / 1024) };
+  }));
+  return values.sort((a, b) => Number(a.created || 0) - Number(b.created || 0));
+}
+
+if (action === 'create') {
+  const [handle, name] = parts;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(handle || '') || !name || name.length > 80) process.exit(64);
+  const handles = await users.getAllUserHandles();
+  if (handles.includes(handle)) process.exit(73);
+  const salt = users.getPasswordSalt();
+  await storage.setItem(users.toKey(handle), { handle, name, created: Date.now(), password: '', salt, admin: false, enabled: true });
+  try {
+    await users.ensurePublicDirectoriesExist();
+    const content = await import(pathToFileURL(path.resolve('src/endpoints/content-manager.js')).href);
+    await content.checkForNewContent([users.getUserDirectories(handle)], [content.CONTENT_TYPES.SETTINGS]);
+  } catch (error) {
+    await storage.removeItem(users.toKey(handle));
+    throw error;
+  }
+} else if (action === 'rename') {
+  const [handle, name] = parts;
+  if (!handle || !name || name.length > 80) process.exit(64);
+  const user = await storage.getItem(users.toKey(handle));
+  if (!user) process.exit(66);
+  user.name = name;
+  await storage.setItem(users.toKey(handle), user);
+} else if (action === 'delete') {
+  const [handle] = parts;
+  if (!handle || handle === 'default-user') process.exit(73);
+  const all = await records();
+  const target = all.find(user => user.handle === handle);
+  if (!target) process.exit(66);
+  if (target.admin && target.enabled && all.filter(user => user.admin && user.enabled).length <= 1) process.exit(73);
+  await storage.removeItem(users.toKey(handle));
+}
+
+const result = await records();
+console.log('==== SillyTavern users ====');
+for (const user of result) {
+  console.log(`user.record=${encode(user.handle)}|${encode(user.name)}|${!!user.admin}|${!!user.enabled}|${!!user.exists}|${user.kb}`);
+}
+console.log('==== end SillyTavern users ====');
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "SillyTavern user operation failed or was blocked by a safety rule" false "$code"
+    emit_status
+    return "$code"
+  fi
+  write_status "users-$action" "SillyTavern user operation completed" false 0
+  cat "$STATUS_FILE"
+  printf "%s\n" "$output"
+}
+
 main() {
   command="${1:-status}"
   case "$command" in
@@ -3576,6 +3682,21 @@ main() {
     upload-limit-set|tavern-upload-limit-set)
       shift
       cmd_upload_limit_set "$@"
+      ;;
+    users-list|tavern-users-list)
+      run_tavern_user_action list ""
+      ;;
+    user-create|tavern-user-create)
+      shift
+      run_tavern_user_action create "${1:-}"
+      ;;
+    user-rename|tavern-user-rename)
+      shift
+      run_tavern_user_action rename "${1:-}"
+      ;;
+    user-delete|tavern-user-delete)
+      shift
+      run_tavern_user_action delete "${1:-}"
       ;;
     log|logs|tail)
       cmd_log
