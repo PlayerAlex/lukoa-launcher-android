@@ -3617,13 +3617,6 @@ if (action === 'create') {
     await storage.removeItem(users.toKey(handle));
     throw error;
   }
-} else if (action === 'rename') {
-  const [handle, name] = parts;
-  if (!handle || !name || name.length > 80) process.exit(64);
-  const user = await storage.getItem(users.toKey(handle));
-  if (!user) process.exit(66);
-  user.name = name;
-  await storage.setItem(users.toKey(handle), user);
 } else if (action === 'delete') {
   const [handle] = parts;
   if (!handle || handle === 'default-user') process.exit(73);
@@ -3689,10 +3682,6 @@ main() {
     user-create|tavern-user-create)
       shift
       run_tavern_user_action create "${1:-}"
-      ;;
-    user-rename|tavern-user-rename)
-      shift
-      run_tavern_user_action rename "${1:-}"
       ;;
     user-delete|tavern-user-delete)
       shift

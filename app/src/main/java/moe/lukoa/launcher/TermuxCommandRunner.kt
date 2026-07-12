@@ -248,8 +248,6 @@ class TermuxCommandRunner(private val context: Context) {
 
     fun runTavernUserCreate(value: String?): CommandDispatch = runTavernUserMutation("create", value)
 
-    fun runTavernUserRename(value: String?): CommandDispatch = runTavernUserMutation("rename", value)
-
     fun runTavernUserDelete(value: String?): CommandDispatch = runTavernUserMutation("delete", value)
 
     private fun runTavernUserMutation(action: String, value: String?): CommandDispatch {

@@ -3663,12 +3663,6 @@ fun LukoaLauncherScreen(
                                     onCommand(LauncherCommandCodec.encode("tavern-user-create", payload), guardedUpdate)
                                 }
                             },
-                            onRenameTavernUser = { handle, name ->
-                                val payload = TavernUserCommandCodec.encode(handle, name)
-                                runGuarded("修改用户显示名称", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-rename"), allowRunningInference = false) { guardedUpdate ->
-                                    onCommand(LauncherCommandCodec.encode("tavern-user-rename", payload), guardedUpdate)
-                                }
-                            },
                             onDeleteTavernUser = { handle ->
                                 val payload = TavernUserCommandCodec.encode(handle)
                                 runGuarded("删除酒馆用户账户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-delete"), allowRunningInference = false) { guardedUpdate ->

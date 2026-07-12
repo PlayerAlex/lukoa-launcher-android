@@ -136,7 +136,6 @@ fun SettingsSection(
     onSetUploadLimit: (Int) -> Unit,
     onRefreshTavernUsers: () -> Unit,
     onCreateTavernUser: (String, String) -> Unit,
-    onRenameTavernUser: (String, String) -> Unit,
     onDeleteTavernUser: (String) -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
@@ -357,7 +356,6 @@ fun SettingsSection(
                 tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
                 onRefresh = onRefreshTavernUsers,
                 onCreate = onCreateTavernUser,
-                onRename = onRenameTavernUser,
                 onDelete = onDeleteTavernUser,
             )
 

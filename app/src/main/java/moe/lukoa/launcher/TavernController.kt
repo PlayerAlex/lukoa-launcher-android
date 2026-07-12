@@ -87,7 +87,6 @@ class TavernController(
             "tavern-upload-limit-set" -> runner.runTavernUploadLimitSet(parsed.argument)
             "tavern-users-list" -> runner.runTavernUsersList()
             "tavern-user-create" -> runner.runTavernUserCreate(parsed.argument)
-            "tavern-user-rename" -> runner.runTavernUserRename(parsed.argument)
             "tavern-user-delete" -> runner.runTavernUserDelete(parsed.argument)
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
@@ -346,7 +345,6 @@ class TavernController(
             "tavern-upload-limit-set" -> "正在修改聊天记录上传限制。"
             "tavern-users-list" -> "正在读取当前酒馆用户。"
             "tavern-user-create" -> "正在创建酒馆用户。"
-            "tavern-user-rename" -> "正在修改用户显示名称。"
             "tavern-user-delete" -> "正在删除用户账户并保留数据目录。"
             "tavern-official-versions" -> "正在读取官方版本列表。"
             "termux-storage-permission" -> "正在请求 Termux 存储权限。"
@@ -392,7 +390,6 @@ class TavernController(
             "tavern-upload-limit-set" -> if (ok) "上传限制已修改，重启酒馆后生效。" else "修改上传限制失败，源文件未被强行改动。"
             "tavern-users-list" -> if (ok) "酒馆用户已读取。" else "读取酒馆用户失败。"
             "tavern-user-create" -> if (ok) "酒馆用户已创建。" else "创建酒馆用户失败。"
-            "tavern-user-rename" -> if (ok) "用户显示名称已修改。" else "修改用户显示名称失败。"
             "tavern-user-delete" -> if (ok) "用户账户已删除，数据目录仍然保留。" else "删除用户账户失败。"
             "tavern-official-versions" -> if (ok) "官方版本列表已读取。" else "读取官方版本失败。"
             "termux-storage-permission" -> if (ok) "Termux 存储权限已可用。" else "Termux 存储权限还没打开。"

@@ -24,22 +24,14 @@ fun TavernUserManagementSection(
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onCreate: (String, String) -> Unit,
-    onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
     var createDialog by remember { mutableStateOf(false) }
-    var renameUser by remember { mutableStateOf<TavernUserRecord?>(null) }
     var deleteUser by remember { mutableStateOf<TavernUserRecord?>(null) }
     if (createDialog) {
         UserInputDialog("新增酒馆用户", "登录标识", "显示名称", onDismiss = { createDialog = false }) { handle, name ->
             createDialog = false
             onCreate(handle, name)
-        }
-    }
-    renameUser?.let { user ->
-        UserInputDialog("修改显示名称", null, "新显示名称", initialName = user.name, onDismiss = { renameUser = null }) { _, name ->
-            renameUser = null
-            onRename(user.handle, name)
         }
     }
     deleteUser?.let { user ->
@@ -62,10 +54,7 @@ fun TavernUserManagementSection(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${user.name} · ${user.handle}${if (user.admin) " · 管理员" else ""}")
                 Text("目录：${if (user.directoryExists) formatUserDirectorySize(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}")
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !actionsLocked && !tavernRunning && user.handle != "default-user", onClick = { renameUser = user }) { Text("改显示名") }
-                    OutlinedButton(modifier = Modifier.weight(1f), enabled = !actionsLocked && !tavernRunning && user.handle != "default-user", onClick = { deleteUser = user }) { Text("删除账户") }
-                }
+                OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !actionsLocked && !tavernRunning && user.handle != "default-user", onClick = { deleteUser = user }) { Text("删除账户") }
             }
         }
     }
@@ -74,22 +63,22 @@ fun TavernUserManagementSection(
 @Composable
 private fun UserInputDialog(
     title: String,
-    handleLabel: String?,
+    handleLabel: String,
     nameLabel: String,
-    initialName: String = "",
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
     var handle by remember { mutableStateOf("") }
-    var name by remember(initialName) { mutableStateOf(initialName) }
-    val handleError = handleLabel?.let { TavernUserCommandCodec.validateHandle(handle.trim()) }
+    var name by remember { mutableStateOf("") }
+    val handleError = TavernUserCommandCodec.validateHandle(handle.trim())
     val nameError = TavernUserCommandCodec.validateName(name.trim())
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                handleLabel?.let { OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(it) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } }) }
+                Text("登录标识会成为用户数据目录名。SillyTavern 官方没有提供修改登录标识的接口，创建后不能在启动器里重命名，请确认无误。")
+                OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(handleLabel) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } })
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(nameLabel) }, isError = nameError != null, supportingText = { nameError?.let { e -> Text(e) } })
             }
         },
