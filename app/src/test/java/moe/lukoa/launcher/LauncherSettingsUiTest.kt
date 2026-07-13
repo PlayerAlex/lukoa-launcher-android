@@ -7,6 +7,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -135,6 +137,161 @@ class LauncherSettingsUiTest {
         composeRule.runOnIdle {
             assertEquals(1, openReleaseCount)
         }
+    }
+
+    @Test
+    fun instanceManagementPanel_dispatchesEachSettingsEntry() {
+        var pathCount = 0
+        var mirrorCount = 0
+        var wakeCount = 0
+        var permissionCount = 0
+        val pathConfig = TavernPathConfig()
+
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    InstanceManagementPanel(
+                        termuxReturnDelayMs = 600L,
+                        tavernMirrorConfig = TavernMirrorConfig(),
+                        tavernPathConfig = pathConfig,
+                        activePathInfo = TavernProfilePathPolicy.describe(pathConfig.activeProfile),
+                        mirrorProbeStatus = TavernMirrorProbeStatus(),
+                        permissionNotice = PermissionStatusNotice(
+                            title = "权限基本就绪",
+                            detail = "当前权限基本就绪。",
+                        ),
+                        onOpenPathSettings = { pathCount += 1 },
+                        onOpenMirrorSettings = { mirrorCount += 1 },
+                        onOpenWakeDelaySettings = { wakeCount += 1 },
+                        onOpenPermissionCenter = { permissionCount += 1 },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("酒馆路径") and hasClickAction()).performScrollTo().performClick()
+        composeRule.onNode(hasText("网络与镜像源") and hasClickAction()).performScrollTo().performClick()
+        composeRule.onNode(hasText("唤醒延迟") and hasClickAction()).performScrollTo().performClick()
+        composeRule.onNode(hasText("权限中心") and hasClickAction()).performScrollTo().performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, pathCount)
+            assertEquals(1, mirrorCount)
+            assertEquals(1, wakeCount)
+            assertEquals(1, permissionCount)
+        }
+    }
+
+    @Test
+    fun userAndRepairSections_runningDisablesMutationsButKeepsInspection() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernUserManagementSection(
+                        state = TavernUserManagementState(),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = true,
+                        onRefresh = {},
+                        onCreate = { _, _ -> },
+                        onDelete = {},
+                    )
+                    RepairToolsSection(
+                        actionsLocked = false,
+                        tavernRunning = true,
+                        uploadLimitStatus = TavernUploadLimitStatus(),
+                        onRepairDependencies = {},
+                        onResetTheme = {},
+                        onSetNodeMemory = {},
+                        onCheckUploadLimit = {},
+                        onSetUploadLimit = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("读取用户").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("新增用户").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("重新检查当前限制").performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun repairSection_requiresConfirmationBeforeMutation() {
+        var repairCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    RepairToolsSection(
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        uploadLimitStatus = TavernUploadLimitStatus(),
+                        onRepairDependencies = { repairCount += 1 },
+                        onResetTheme = {},
+                        onSetNodeMemory = {},
+                        onCheckUploadLimit = {},
+                        onSetUploadLimit = {},
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(0, repairCount) }
+        composeRule.onNodeWithText("确认执行").performClick()
+        composeRule.runOnIdle { assertEquals(1, repairCount) }
+    }
+
+    @Test
+    fun userSection_defaultUserDeleteRemainsDisabled() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernUserManagementSection(
+                        state = TavernUserManagementState(
+                            users = listOf(
+                                TavernUserRecord(
+                                    handle = "default-user",
+                                    name = "默认用户",
+                                    admin = true,
+                                    enabled = true,
+                                    directoryExists = true,
+                                    directoryKilobytes = 1024L,
+                                ),
+                            ),
+                            message = "已读取 1 位用户。",
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        onRefresh = {},
+                        onCreate = { _, _ -> },
+                        onDelete = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("删除").performScrollTo().assertIsNotEnabled()
     }
 
     private fun setUpdatePanelContent(

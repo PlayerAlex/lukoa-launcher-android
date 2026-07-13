@@ -1,20 +1,14 @@
 package moe.lukoa.launcher
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,12 +16,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -254,8 +244,9 @@ fun SettingsSection(
                         .fillMaxWidth()
                         .heightIn(max = 540.dp)
                         .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    HealthCheckSection(
+                    HealthCheckContent(
                         report = healthCheckReport,
                         checking = healthCheckInFlight,
                         actionsLocked = actionsLocked,
@@ -317,13 +308,16 @@ fun SettingsSection(
             onCheckUploadLimit = onCheckUploadLimit,
             onSetUploadLimit = onSetUploadLimit,
             leadingContent = {
-                SettingsEntryRow(
-                    title = "一键体检",
-                    detail = "检查权限、路径、网络与酒馆环境，并给出下一步处理建议。",
-                    value = settingsHealthSummaryText(healthCheckReport),
-                    onClick = { showHealthDialog = true },
-                )
-                HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.4f))
+                SettingsEntryGroup {
+                    SettingsEntryRow(
+                        title = "一键体检",
+                        detail = "检查权限、路径、网络与酒馆环境，并给出下一步处理建议。",
+                        value = settingsHealthSummaryText(healthCheckReport),
+                        valueColor = settingsHealthSummaryTone(healthCheckReport),
+                        valueAsPill = true,
+                        onClick = { showHealthDialog = true },
+                    )
+                }
             },
             extraContent = {
                 RepairDiagnosticsContent(
@@ -365,30 +359,67 @@ internal fun LauncherUpdateSettingsPanel(
         githubUpdateState.latest != null -> "当前已经是所选通道的最新版本。"
         else -> githubUpdateState.message
     }
+    val updateStatusText = when {
+        githubUpdateState.downloading -> "下载中"
+        githubUpdateState.checking -> "检查中"
+        githubUpdateState.hasUpdate -> "有新版"
+        githubUpdateState.latest != null -> "已是最新"
+        else -> "未检查"
+    }
+    val updateStatusTone = when {
+        githubUpdateState.checking -> LukoaColors.Amber
+        githubUpdateState.hasUpdate || githubUpdateState.downloading -> LukoaColors.Accent
+        else -> LukoaColors.Muted
+    }
 
-    SectionPanel(title = "启动器更新", accentColor = LukoaColors.Accent) {
-        SettingsEntryRow(
-            title = "当前版本",
-            detail = versionDetail,
-            value = versionSummary,
-            valueColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else LukoaColors.Text,
-            enabled = !updateLocked,
-            onClick = if (githubUpdateState.hasUpdate) onInstallUpdate else null,
-        )
-        SettingsEntryRow(
-            title = "修改仓库地址",
-            detail = "设置启动器检查和下载更新所使用的 GitHub 仓库。",
-            value = repository,
-            enabled = !updateLocked,
-            onClick = onOpenSettings,
-        )
-        SettingsEntryRow(
-            title = "更新通道",
-            detail = githubUpdateState.channel.description,
-            value = githubUpdateState.channel.label,
-            enabled = !updateLocked,
-            onClick = onOpenSettings,
-        )
+    SectionPanel(
+        title = "启动器更新",
+        accentColor = LukoaColors.Accent,
+        headerAction = {
+            StatusPill(
+                text = updateStatusText,
+                active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
+                toneColor = updateStatusTone,
+                activeBackground = updateStatusTone.copy(alpha = 0.16f),
+            )
+        },
+    ) {
+        SettingsSectionIntro("管理启动器自身的版本、更新仓库和稳定版/测试版通道。")
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "当前版本",
+                detail = versionDetail,
+                value = versionSummary,
+                valueColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else LukoaColors.Text,
+                valueLayout = SettingsValueLayout.Supporting,
+                highlightColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else null,
+                enabled = !updateLocked,
+                onClick = if (githubUpdateState.hasUpdate) onInstallUpdate else null,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "修改仓库地址",
+                detail = "点击后可修改启动器检查和下载更新所使用的 GitHub 仓库。",
+                value = repository,
+                valueLayout = SettingsValueLayout.Supporting,
+                enabled = !updateLocked,
+                onClick = onOpenSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "更新通道",
+                detail = githubUpdateState.channel.description,
+                value = githubUpdateState.channel.label,
+                valueColor = if (githubUpdateState.channel == GithubReleaseChannel.Test) {
+                    LukoaColors.Amber
+                } else {
+                    LukoaColors.Accent
+                },
+                valueAsPill = true,
+                enabled = !updateLocked,
+                onClick = onOpenSettings,
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -416,7 +447,7 @@ internal fun LauncherUpdateSettingsPanel(
 }
 
 @Composable
-private fun InstanceManagementPanel(
+internal fun InstanceManagementPanel(
     termuxReturnDelayMs: Long,
     tavernMirrorConfig: TavernMirrorConfig,
     tavernPathConfig: TavernPathConfig,
@@ -428,51 +459,82 @@ private fun InstanceManagementPanel(
     onOpenWakeDelaySettings: () -> Unit,
     onOpenPermissionCenter: () -> Unit,
 ) {
-    SectionPanel(title = "实例管理", accentColor = LukoaColors.Info) {
-        SettingsEntryRow(
-            title = "当前实例",
-            detail = "选择、新增或删除酒馆实例。删除托管分身时会再次确认数据风险。",
-            value = tavernPathConfig.activeProfileLabel,
-            onClick = onOpenPathSettings,
-        )
-        SettingsEntryRow(
-            title = "酒馆路径",
-            detail = activePathInfo.kind.label,
-            value = tavernPathConfig.displayTavernDir,
-            onClick = onOpenPathSettings,
-        )
-        SettingsEntryRow(
-            title = "实例端口",
-            detail = "每个实例需要使用不同端口，避免启动冲突。",
-            value = tavernPathConfig.normalizedPort.toString(),
-            onClick = onOpenPathSettings,
-        )
-        SettingsEntryRow(
-            title = "网络与镜像源",
-            detail = "Git：${tavernMirrorConfig.repoLabel} · npm：${tavernMirrorConfig.npmLabel}",
-            value = mirrorProbeStatus.overallLevel.label(),
-            onClick = onOpenMirrorSettings,
-        )
-        SettingsEntryRow(
-            title = "唤醒延迟",
-            detail = "调整唤醒 Termux 后自动返回启动器的等待时间。",
-            value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
-            onClick = onOpenWakeDelaySettings,
-        )
-        SettingsEntryRow(
-            title = "权限中心",
-            detail = permissionNotice.detail,
-            value = if (permissionNotice.pendingItems.isEmpty()) {
-                "已就绪"
-            } else {
-                "${permissionNotice.pendingItems.size} 项待处理"
-            },
-            valueColor = when (permissionNotice.tone) {
-                PermissionNoticeTone.Info -> LukoaColors.Accent
-                PermissionNoticeTone.Warning -> LukoaColors.Amber
-            },
-            onClick = onOpenPermissionCenter,
-        )
+    val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
+    SectionPanel(
+        title = "实例管理",
+        accentColor = LukoaColors.Info,
+        headerAction = {
+            StatusPill(
+                text = "端口 ${tavernPathConfig.normalizedPort}",
+                active = true,
+                toneColor = LukoaColors.Info,
+                activeBackground = LukoaColors.InfoSoft,
+            )
+        },
+    ) {
+        SettingsSectionIntro("管理当前实例的目录、端口、下载来源、唤醒等待和权限。")
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "当前实例",
+                detail = "选择、新增或删除酒馆实例；删除托管分身前会再次确认。",
+                value = tavernPathConfig.activeProfileLabel,
+                valueColor = LukoaColors.Info,
+                valueAsPill = true,
+                highlightColor = LukoaColors.Info,
+                onClick = onOpenPathSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "酒馆路径",
+                detail = activePathInfo.kind.label,
+                value = tavernPathConfig.displayTavernDir,
+                valueLayout = SettingsValueLayout.Supporting,
+                onClick = onOpenPathSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "实例端口",
+                detail = "每个实例使用不同端口，避免启动冲突。",
+                value = tavernPathConfig.normalizedPort.toString(),
+                valueColor = LukoaColors.Info,
+                valueAsPill = true,
+                onClick = onOpenPathSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "网络与镜像源",
+                detail = "Git：${tavernMirrorConfig.repoLabel} · npm：${tavernMirrorConfig.npmLabel}",
+                value = mirrorProbeStatus.overallLevel.label(),
+                valueColor = mirrorTone,
+                valueAsPill = true,
+                onClick = onOpenMirrorSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "唤醒延迟",
+                detail = "唤醒 Termux 后，自动返回启动器前等待多久。",
+                value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
+                valueColor = LukoaColors.Accent,
+                valueAsPill = true,
+                onClick = onOpenWakeDelaySettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "权限中心",
+                detail = permissionNotice.detail,
+                value = if (permissionNotice.pendingItems.isEmpty()) {
+                    "已就绪"
+                } else {
+                    "${permissionNotice.pendingItems.size} 项待处理"
+                },
+                valueColor = when (permissionNotice.tone) {
+                    PermissionNoticeTone.Info -> LukoaColors.Accent
+                    PermissionNoticeTone.Warning -> LukoaColors.Amber
+                },
+                valueAsPill = true,
+                onClick = onOpenPermissionCenter,
+            )
+        }
     }
 }
 
@@ -484,111 +546,37 @@ private fun RepairDiagnosticsContent(
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
 ) {
-    HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.4f))
-    Text(
-        text = "诊断与日志",
-        color = LukoaColors.Text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-    )
-    Text(
-        text = "导出的诊断日志适合在遇到问题时发给维护者。清除日志只会清空页面显示，不会删除后台归档。",
-        color = LukoaColors.Muted,
-        style = MaterialTheme.typography.bodySmall,
-    )
-    SecondaryActionButton(
-        text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Danger,
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onForceCleanup,
-    )
-    Text(
-        text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
-        color = LukoaColors.Amber,
-        style = MaterialTheme.typography.bodySmall,
-    )
-    SecondaryActionButton(
-        text = "清除日志",
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Accent,
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClearLogs,
-    )
-    SecondaryActionButton(
-        text = "导出诊断日志",
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Accent,
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onExportDiagnostic,
-    )
-}
-
-@Composable
-private fun SettingsEntryRow(
-    title: String,
-    detail: String,
-    value: String? = null,
-    valueColor: Color = LukoaColors.Text,
-    enabled: Boolean = true,
-    onClick: (() -> Unit)? = null,
-) {
-    val interactionModifier = if (onClick != null) {
-        Modifier.clickable(enabled = enabled, onClick = onClick)
-    } else {
-        Modifier
-    }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(interactionModifier),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.52f),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.42f)),
+    SettingsSectionDivider()
+    SettingsSubsection(
+        title = "诊断与日志",
+        detail = "导出的诊断日志适合排查问题；清除日志只会清空页面显示，不会删除后台归档。",
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = title,
-                    color = if (enabled) LukoaColors.Text else LukoaColors.Dim,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = detail,
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (value != null) {
-                Text(
-                    text = value,
-                    modifier = Modifier.weight(0.72f, fill = false),
-                    color = if (enabled) valueColor else LukoaColors.Dim,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.End,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (onClick != null) {
-                Text(
-                    text = "›",
-                    color = if (enabled) LukoaColors.Muted else LukoaColors.Dim,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-        }
+        SecondaryActionButton(
+            text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Danger,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onForceCleanup,
+        )
+        Text(
+            text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
+            color = LukoaColors.Amber,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        SecondaryActionButton(
+            text = "清除日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onClearLogs,
+        )
+        SecondaryActionButton(
+            text = "导出诊断日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onExportDiagnostic,
+        )
     }
 }
 
@@ -610,5 +598,15 @@ private fun settingsHealthSummaryText(report: LauncherHealthReport?): String {
         effectiveReport.errorCount > 0 -> "${effectiveReport.errorCount} 个问题"
         effectiveReport.warningCount > 0 -> "${effectiveReport.warningCount} 个提醒"
         else -> "基本正常"
+    }
+}
+
+private fun settingsHealthSummaryTone(report: LauncherHealthReport?): Color {
+    val effectiveReport = report?.takeIf { it.hasData }
+    return when {
+        effectiveReport == null -> LukoaColors.Muted
+        effectiveReport.errorCount > 0 -> LukoaColors.Danger
+        effectiveReport.warningCount > 0 -> LukoaColors.Amber
+        else -> LukoaColors.Accent
     }
 }

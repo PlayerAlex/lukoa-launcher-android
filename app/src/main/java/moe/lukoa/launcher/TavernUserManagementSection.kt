@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -14,7 +17,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -45,20 +50,116 @@ fun TavernUserManagementSection(
         )
     }
 
-    SectionPanel(title = "用户管理", accentColor = LukoaColors.Info) {
-        Text("当前实例：$instanceLabel")
-        Text(if (tavernRunning) "请先停止酒馆再修改用户。读取列表也建议在停止状态进行。" else state.message)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(modifier = Modifier.weight(1f), enabled = !actionsLocked && !state.loading && !tavernRunning, onClick = onRefresh) { Text("读取用户") }
-            Button(modifier = Modifier.weight(1f), enabled = !actionsLocked && !tavernRunning, onClick = { createDialog = true }) { Text("新增用户") }
+    SectionPanel(
+        title = "用户管理",
+        accentColor = LukoaColors.Info,
+        headerAction = {
+            StatusPill(
+                text = when {
+                    actionsLocked -> "当前忙碌"
+                    state.loading -> "读取中"
+                    state.users.isEmpty() -> "未读取"
+                    else -> "${state.users.size} 位用户"
+                },
+                active = actionsLocked || state.loading || state.users.isNotEmpty(),
+                toneColor = if (actionsLocked || state.loading) LukoaColors.Amber else LukoaColors.Info,
+                activeBackground = if (actionsLocked || state.loading) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
+            )
+        },
+    ) {
+        SettingsSectionIntro("管理当前实例里的 SillyTavern 登录账户；这里不是启动器多实例。")
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "当前实例",
+                detail = when {
+                    actionsLocked -> "当前有其他任务正在处理，用户操作暂时不可用。"
+                    tavernRunning -> "酒馆正在运行，请先停止后再读取或修改用户。"
+                    else -> state.message
+                },
+                value = instanceLabel,
+                valueColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
+                valueAsPill = true,
+                highlightColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
+            )
         }
-        state.users.forEach { user ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${user.name} · ${user.handle}${if (user.admin) " · 管理员" else ""}")
-                Text("目录：${if (user.directoryExists) formatUserDirectorySize(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}")
-                OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !actionsLocked && !tavernRunning && user.handle != "default-user", onClick = { deleteUser = user }) { Text("删除账户") }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SecondaryActionButton(
+                text = if (state.loading) "读取中..." else "读取用户",
+                modifier = Modifier.weight(1f),
+                enabled = !actionsLocked && !state.loading && !tavernRunning,
+                accentColor = LukoaColors.Info,
+                onClick = onRefresh,
+            )
+            SecondaryActionButton(
+                text = "新增用户",
+                modifier = Modifier.weight(1f),
+                enabled = !actionsLocked && !tavernRunning,
+                accentColor = LukoaColors.Accent,
+                onClick = { createDialog = true },
+            )
+        }
+        if (state.users.isNotEmpty()) {
+            SettingsEntryGroup {
+                state.users.forEachIndexed { index, user ->
+                    TavernUserRow(
+                        user = user,
+                        deleteEnabled = !actionsLocked && !tavernRunning && user.handle != "default-user",
+                        onDelete = { deleteUser = user },
+                    )
+                    if (index < state.users.lastIndex) {
+                        SettingsEntryDivider()
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TavernUserRow(
+    user: TavernUserRecord,
+    deleteEnabled: Boolean,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = user.name,
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "登录标识：${user.handle}${if (user.admin) " · 管理员" else ""}",
+                color = if (user.admin) LukoaColors.Info else LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "目录：${if (user.directoryExists) formatUserDirectorySize(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}",
+                color = when {
+                    !user.directoryExists -> LukoaColors.Amber
+                    !user.enabled -> LukoaColors.Dim
+                    else -> LukoaColors.Muted
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        SecondaryActionButton(
+            text = "删除",
+            modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+            enabled = deleteEnabled,
+            accentColor = LukoaColors.Danger,
+            onClick = onDelete,
+        )
     }
 }
 
