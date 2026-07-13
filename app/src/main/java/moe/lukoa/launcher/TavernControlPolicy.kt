@@ -6,6 +6,10 @@ fun shouldOfferStopTavern(tavernRunning: Boolean, tavernStarting: Boolean): Bool
     return tavernRunning || tavernStarting
 }
 
+fun shouldLockLauncherOperations(actionInProgress: Boolean, tavernStarting: Boolean): Boolean {
+    return actionInProgress || tavernStarting
+}
+
 fun canInterruptActiveTavernStart(
     actionInProgress: Boolean,
     tavernStarting: Boolean,

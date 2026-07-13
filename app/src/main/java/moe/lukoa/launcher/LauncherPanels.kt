@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -64,7 +67,8 @@ fun Header(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .statusBarsPadding()
+                .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -76,7 +80,7 @@ fun Header(
                     painter = painterResource(id = R.drawable.ic_lukoa_launcher),
                     contentDescription = "露科亚启动器",
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(40.dp)
                         .clip(RoundedCornerShape(12.dp)),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -85,14 +89,16 @@ fun Header(
                 ) {
                     Text(
                         text = "露科亚启动器",
-                        style = MaterialTheme.typography.titleMedium,
                         color = LukoaColors.Text,
+                        fontSize = 17.sp,
+                        lineHeight = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     Text(
                         text = "$instanceLabel · 端口 $instancePort",
-                        style = MaterialTheme.typography.bodySmall,
                         color = LukoaColors.Muted,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -100,15 +106,17 @@ fun Header(
             }
             Box(
                 modifier = Modifier
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .sizeIn(minWidth = 48.dp, minHeight = 40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "v$versionName",
+                    text = formatLauncherVersionLabel(versionName),
                     color = if (showVersionUpdateBadge) LukoaColors.Text else LukoaColors.Muted,
-                    style = MaterialTheme.typography.labelMedium,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (showVersionUpdateBadge) {
@@ -134,14 +142,21 @@ fun OverviewPanel(
     tavernRunning: Boolean,
     tavernStarting: Boolean,
     syncActive: Boolean,
+    instancePort: Int? = null,
+    blockingMessage: String? = null,
+    busyLabel: String? = null,
+    busyStartedAtMillis: Long = 0L,
+    onStop: (() -> Unit)? = null,
 ) {
     val stateLabel = when {
+        blockingMessage != null -> "无法启动"
         tavernRunning -> "运行中"
         tavernStarting -> "启动中"
         verified -> "未运行"
         else -> "未就绪"
     }
     val stateColor = when {
+        blockingMessage != null -> LukoaColors.Danger
         tavernRunning || tavernStarting -> LukoaColors.Accent
         verified -> LukoaColors.Text
         else -> LukoaColors.Amber
@@ -152,37 +167,73 @@ fun OverviewPanel(
         .orEmpty()
         .trim()
         .ifBlank { "等待操作" }
+    val stateDetail = when {
+        blockingMessage != null -> blockingMessage
+        tavernStarting -> "正在等待 Termux 返回启动结果"
+        tavernRunning && instancePort != null -> "正在监听 127.0.0.1:$instancePort"
+        tavernRunning -> "酒馆正在当前实例中运行"
+        verified -> "酒馆当前没有运行。"
+        else -> summary.ifBlank { statusLine }
+    }
     DashedSection(
         label = "酒馆状态",
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(top = 7.dp),
+        headerLeading = {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(stateColor, LukoaCapsuleShape),
+            )
+        },
+        contentPadding = PaddingValues(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 20.dp),
+        verticalSpacing = 7.dp,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(
-                text = stateLabel,
-                color = stateColor,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            Text(
-                text = summary.ifBlank { statusLine },
-                color = LukoaColors.Muted,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        Text(
+            text = stateLabel,
+            color = stateColor,
+            fontSize = 28.sp,
+            lineHeight = 34.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Text(
+            text = stateDetail,
+            color = LukoaColors.Muted,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+        if (blockingMessage == null && !tavernStarting && (tavernRunning || verified)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 DotStatusPill(
-                    text = if (tavernRunning || tavernStarting) "酒馆运行中" else "酒馆未运行",
-                    active = tavernRunning || tavernStarting,
+                    text = if (tavernRunning) "酒馆运行中" else "酒馆未运行",
+                    active = tavernRunning,
                 )
                 DotStatusPill(
                     text = if (syncActive) "Termux 同步中" else "Termux 未同步",
                     active = syncActive,
                 )
             }
+        }
+        if (tavernStarting && onStop != null) {
+            PrimaryActionButton(
+                text = "停止酒馆",
+                enabled = true,
+                danger = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 3.dp),
+                onClick = onStop,
+            )
+        }
+        if (busyLabel != null) {
+            BusyInlineBlock(
+                label = busyLabel,
+                startedAtMillis = busyStartedAtMillis,
+            )
         }
     }
 }
@@ -264,17 +315,28 @@ fun LogPanel(
 
     DashedSection(
         label = title,
-        headerAction = if (showFollowControls) {
-            {
+        headerAction = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                if (showFollowControls) {
                 Text(
                     text = if (followLatest) "追踪中" else "已暂停",
                     color = if (followLatest) LukoaColors.Accent else LukoaColors.Amber,
-                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+                }
+                HelpHint(
+                    text = if (title.contains("Termux")) {
+                        "这里显示 Termux 命令和酒馆运行过程的最新返回。出现 failed、denied 或 not found 时，优先看这里。"
+                    } else {
+                        "这里显示启动器对按钮操作、状态检测和权限检查的反馈。"
+                    },
+                )
             }
-        } else {
-            null
         },
     ) {
         subtitle?.let {
@@ -287,13 +349,13 @@ fun LogPanel(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 180.dp, max = 430.dp)
+                .heightIn(min = 96.dp, max = 360.dp)
                 .background(LukoaColors.Terminal, RoundedCornerShape(14.dp)),
         ) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .padding(12.dp)
+                    .padding(14.dp)
                     .verticalScroll(scrollState),
             ) {
                 TerminalText(text = displayContent)
@@ -369,5 +431,15 @@ private fun String.keepLatestLines(maxLines: Int): String {
     return buildString {
         appendLine("... 已隐藏前面 $omitted 行，只显示最新 $maxLines 行 ...")
         append(lines.takeLast(maxLines).joinToString("\n"))
+    }
+}
+
+internal fun formatLauncherVersionLabel(versionName: String): String {
+    val normalized = versionName.trim()
+    val beta = Regex("""^(\d+\.\d+\.\d+)-beta(\d+)$""").matchEntire(normalized)
+    return if (beta != null) {
+        "v${beta.groupValues[1]}-b${beta.groupValues[2]}"
+    } else {
+        "v${normalized.ifBlank { "..." }}"
     }
 }

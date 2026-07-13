@@ -94,7 +94,7 @@ fun MirrorSettingsSection(
 }
 
 @Composable
-private fun MirrorSettingsDialog(
+internal fun MirrorSettingsDialog(
     tavernMirrorConfig: TavernMirrorConfig,
     tavernRepoInput: String,
     npmRegistryInput: String,
@@ -116,7 +116,8 @@ private fun MirrorSettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.DialogSurface,
+        shape = RoundedCornerShape(24.dp),
         titleContentColor = LukoaColors.Text,
         textContentColor = LukoaColors.Text,
         title = { Text("切换下载源") },

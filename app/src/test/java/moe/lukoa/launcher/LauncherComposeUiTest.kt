@@ -9,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -81,6 +84,61 @@ class LauncherComposeUiTest {
     }
 
     @Test
+    fun documentation_usesDesignCategoriesAndAccessibleAccordions() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    DocumentationSection()
+                }
+            }
+        }
+
+        listOf(
+            "入门",
+            "启动与日志",
+            "网络与 API",
+            "角色与预设",
+            "备份与排错",
+            "多实例与用户",
+            "高级功能",
+        ).forEach { category ->
+            composeRule.onNodeWithText(category)
+                .performScrollTo()
+                .assertIsDisplayed()
+        }
+
+        val expandedState = SemanticsMatcher.expectValue(
+            SemanticsProperties.StateDescription,
+            "已展开",
+        )
+        val collapsedState = SemanticsMatcher.expectValue(
+            SemanticsProperties.StateDescription,
+            "已折叠",
+        )
+        val firstTopic = composeRule.onNode(
+            hasText("第一次使用顺序") and hasClickAction(),
+        )
+        val relationTopic = composeRule.onNode(
+            hasText("启动器、Termux、酒馆是什么关系") and hasClickAction(),
+        )
+
+        firstTopic.performScrollTo().assert(expandedState)
+        composeRule.onNodeWithText("先安装 Termux，再打开一次 Termux", substring = true)
+            .assertIsDisplayed()
+        relationTopic.performScrollTo().assert(collapsedState).performClick().assert(expandedState)
+        composeRule.onNodeWithText("启动器负责按钮、状态和日志", substring = true)
+            .assertIsDisplayed()
+
+        firstTopic.performScrollTo().performClick().assert(collapsedState)
+        composeRule.onAllNodesWithText("先安装 Termux，再打开一次 Termux", substring = true)
+            .assertCountEquals(0)
+    }
+
+    @Test
     fun overviewPanel_runningAndIdleStatesUseNewLabels() {
         composeRule.setContent {
             LukoaTheme {
@@ -114,22 +172,20 @@ class LauncherComposeUiTest {
     }
 
     @Test
-    fun tavernControl_startingKeepsStopActionEnabled() {
+    fun overviewPanel_startingKeepsStopActionEnabled() {
         var stopCount = 0
         composeRule.setContent {
             LukoaTheme {
-                TavernControlSection(
+                OverviewPanel(
+                    summary = "正在等待 Termux 返回启动结果",
+                    status = "启动中",
+                    verified = true,
                     tavernRunning = false,
                     tavernStarting = true,
-                    actionInProgress = true,
+                    syncActive = true,
                     busyLabel = "启动酒馆",
-                    wakeEnabled = true,
-                    primaryEnabled = true,
-                    primaryDisabledReason = null,
-                    onWakeTermux = {},
-                    onPrimaryAction = { stopCount += 1 },
-                    onOpenTavern = {},
-                    onExportLog = {},
+                    busyStartedAtMillis = 0L,
+                    onStop = { stopCount += 1 },
                 )
             }
         }
@@ -137,6 +193,10 @@ class LauncherComposeUiTest {
         composeRule.onNode(hasText("停止酒馆") and hasClickAction())
             .assertIsEnabled()
             .performClick()
+        composeRule.onNodeWithText("正在启动酒馆").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "安装、更新、回退、备份、恢复和用户修改已暂时锁定，避免多个命令互相冲突。",
+        ).assertIsDisplayed()
         composeRule.runOnIdle { assertEquals(1, stopCount) }
     }
 
@@ -164,10 +224,14 @@ class LauncherComposeUiTest {
             }
         }
 
-        composeRule.onNodeWithText("当前检查结果：500MB").assertIsDisplayed()
-        composeRule.onNodeWithText("补丁未应用").assertIsDisplayed()
+        composeRule.onNodeWithText("当前检查结果：500MB", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("补丁未应用")
+            .performScrollTo()
+            .assertIsDisplayed()
         composeRule.onNodeWithText("1GB").assertExists()
-        composeRule.onAllNodesWithText("2GB").assertCountEquals(2)
+        composeRule.onAllNodesWithText("2GB").assertCountEquals(1)
         composeRule.onNodeWithText("重新检查当前限制").assertExists()
     }
 
@@ -195,10 +259,13 @@ class LauncherComposeUiTest {
             }
         }
 
-        composeRule.onNodeWithText("目标代码不兼容").assertIsDisplayed()
+        composeRule.onNodeWithText("目标代码不兼容")
+            .performScrollTo()
+            .assertIsDisplayed()
         composeRule.onNode(hasText("1GB") and hasClickAction()).assertIsNotEnabled()
         composeRule.onNodeWithText(
-            "请先重新检查当前限制。只有唯一识别到兼容目标代码后，修改按钮才会启用。",
+            "修改前：记录原值并备份目标文件。ST 更新或回退后自动重新检查；无法唯一识别代码时拒绝修改。",
+            substring = true,
         ).assertExists()
     }
 
@@ -245,6 +312,7 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("sd-ui-test.tar.gz")
             .performScrollTo()
             .assertIsDisplayed()
+            .performClick()
         composeRule.onNode(hasText("应用") and hasClickAction())
             .performScrollTo()
             .performClick()
@@ -271,12 +339,14 @@ class LauncherComposeUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("确认应用备份").assertIsDisplayed()
-        composeRule.onNodeWithText("sd-ui-test.tar.gz").assertExists()
+        composeRule.onNodeWithText("sd-ui-test.tar.gz · 2.0 KB").assertExists()
+        composeRule.onNodeWithText("主实例 · 端口 8000").assertExists()
         composeRule.onNodeWithText("~/SillyTavern").assertExists()
+        composeRule.onNodeWithText("已停止").assertExists()
         composeRule.onNodeWithText(
-            "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
+            "会覆盖当前数据。启动器不会自动复制一份当前酒馆；需要保留时，请先取消并生成手动备份。",
         ).assertExists()
-        composeRule.onNode(hasText("确认应用") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("确认覆盖并恢复") and hasClickAction()).performClick()
 
         composeRule.runOnIdle {
             assertEquals(1, confirmCount)
@@ -308,6 +378,23 @@ class LauncherComposeUiTest {
         }
     }
 
+    @Test
+    fun restorePreview_runningTargetDisablesDangerousConfirm() {
+        composeRule.setContent {
+            LukoaTheme {
+                ApplyBackupPreviewDialog(
+                    preview = restorePreview().copy(targetWasRunning = true),
+                    onConfirm = {},
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("运行中，请先停止").assertExists()
+        composeRule.onNode(hasText("确认覆盖并恢复") and hasClickAction())
+            .assertIsNotEnabled()
+    }
+
     private fun advancePastClickDebounce() {
         ShadowSystemClock.advanceBy(Duration.ofMillis(300L))
         composeRule.waitForIdle()
@@ -321,6 +408,10 @@ class LauncherComposeUiTest {
             modifiedAtMillis = null,
             sizeBytes = 2_048L,
             restoreTargetDir = "~/SillyTavern",
+            targetProfileId = "main",
+            targetInstanceLabel = "主实例",
+            targetPort = 8000,
+            targetWasRunning = false,
         )
     }
 }

@@ -87,6 +87,10 @@ class BackupRestoreIntegrationTest {
             context = context,
             archivePath = imported.termuxReadablePath,
             restoreTargetDir = "~/SillyTavern",
+            targetProfileId = "main",
+            targetInstanceLabel = "主实例",
+            targetPort = 8000,
+            targetWasRunning = false,
         )
 
         assertEquals(imported.termuxReadablePath, preview.archivePath)
@@ -95,6 +99,9 @@ class BackupRestoreIntegrationTest {
         assertNotNull(preview.modifiedAtMillis)
         assertTrue(preview.modifiedAtMillis!! > 0L)
         assertEquals("~/SillyTavern", preview.restoreTargetDir)
+        assertEquals("main", preview.targetProfileId)
+        assertEquals("主实例", preview.targetInstanceLabel)
+        assertEquals(8000, preview.targetPort)
     }
 
     @Test

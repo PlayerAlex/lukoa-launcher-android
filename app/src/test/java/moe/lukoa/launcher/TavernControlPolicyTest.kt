@@ -21,6 +21,16 @@ class TavernControlPolicyTest {
     }
 
     @Test
+    fun `starting tavern keeps other launcher operations locked without busy label`() {
+        assertTrue(shouldLockLauncherOperations(actionInProgress = false, tavernStarting = true))
+    }
+
+    @Test
+    fun `idle launcher unlocks other operations`() {
+        assertFalse(shouldLockLauncherOperations(actionInProgress = false, tavernStarting = false))
+    }
+
+    @Test
     fun `active start command can be interrupted once starting is detected`() {
         assertTrue(
             canInterruptActiveTavernStart(

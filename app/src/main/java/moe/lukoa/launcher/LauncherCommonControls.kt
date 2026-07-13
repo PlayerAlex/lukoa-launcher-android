@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 val LukoaCapsuleShape = RoundedCornerShape(999.dp)
 
@@ -60,7 +61,7 @@ fun rememberFeedbackClick(
     minIntervalMs: Long = 260L,
 ): () -> Unit {
     val haptic = LocalHapticFeedback.current
-    var lastClickAt by remember { mutableLongStateOf(0L) }
+    var lastClickAt by remember { mutableLongStateOf(Long.MIN_VALUE / 2L) }
     return remember(onClick, haptic, minIntervalMs) {
         {
             val now = SystemClock.elapsedRealtime()
@@ -156,7 +157,7 @@ fun PrimaryActionButton(
     Button(
         onClick = feedbackClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = 52.dp),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = color,
@@ -167,8 +168,9 @@ fun PrimaryActionButton(
     ) {
         Text(
             text = text,
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
             fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelLarge,
         )
     }
 }
@@ -191,17 +193,17 @@ fun SecondaryActionButton(
         LukoaColors.Text
     }
     val containerColor = when {
-        !enabled -> Color.Transparent
-        styleColor == LukoaColors.Danger -> LukoaColors.DangerSoft.copy(alpha = 0.72f)
-        styleColor == LukoaColors.Amber -> LukoaColors.AmberSoft.copy(alpha = 0.72f)
+        !enabled -> Color.White.copy(alpha = 0.03f)
+        styleColor == LukoaColors.Danger -> LukoaColors.DangerSoft
+        styleColor == LukoaColors.Amber -> LukoaColors.AmberSoft
         else -> Color.White.copy(alpha = 0.06f)
     }
     OutlinedButton(
         onClick = feedbackClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = 44.dp),
         border = null,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
             contentColor = toneColor,
@@ -211,10 +213,11 @@ fun SecondaryActionButton(
     ) {
         Text(
             text = text,
+            fontSize = 13.5.sp,
+            lineHeight = 18.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontWeight = FontWeight.SemiBold,
-            style = MaterialTheme.typography.labelLarge,
         )
     }
 }
@@ -361,20 +364,19 @@ fun StatusPill(
     activeBackground: Color = LukoaColors.AccentSoft,
 ) {
     val shape = RoundedCornerShape(999.dp)
-    val background = if (active) activeBackground else LukoaColors.SurfaceAlt
+    val background = if (active) activeBackground else Color.White.copy(alpha = 0.04f)
     val contentColor = if (active) toneColor else LukoaColors.Muted
-    val borderColor = if (active) toneColor.copy(alpha = 0.3f) else Color.Transparent
     Surface(
-        modifier = modifier
-            .heightIn(min = 32.dp)
-            .border(1.dp, borderColor, shape),
-        color = if (active) background.copy(alpha = 0.8f) else background.copy(alpha = 0.5f),
+        modifier = modifier.heightIn(min = 28.dp),
+        color = background,
         shape = shape,
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
             color = contentColor,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,

@@ -1,10 +1,8 @@
 package moe.lukoa.launcher
 
 import android.os.SystemClock
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,22 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,10 +36,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 
 enum class LauncherTab(
@@ -77,14 +59,15 @@ fun LauncherBottomBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Background.copy(alpha = 0.98f),
+        color = Color(0xF20B0D11),
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
-            HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.18f))
+            HorizontalDivider(color = LukoaColors.Divider)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(66.dp),
+                    .height(66.dp)
+                    .padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 LauncherTab.entries.forEach { tab ->
@@ -107,12 +90,11 @@ fun LauncherBottomBar(
                         if (isLaunch) {
                             Box(
                                 modifier = Modifier
-                                    .height(38.dp)
+                                    .size(width = 50.dp, height = 38.dp)
                                     .background(
-                                        color = if (selected) LukoaColors.Accent else LukoaColors.AccentSoft.copy(alpha = 0.55f),
+                                        color = if (selected) LukoaColors.Accent else LukoaColors.AccentSoft,
                                         shape = RoundedCornerShape(14.dp),
-                                    )
-                                    .padding(horizontal = 15.dp),
+                                    ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 LauncherNavIcon(
@@ -127,7 +109,8 @@ fun LauncherBottomBar(
                         Text(
                             text = tab.label,
                             color = color,
-                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -141,7 +124,7 @@ fun LauncherBottomBar(
 
 @Composable
 private fun LauncherNavIcon(tab: LauncherTab, color: Color) {
-    Canvas(modifier = Modifier.size(22.dp)) {
+    Canvas(modifier = Modifier.size(21.dp)) {
         val stroke = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
         when (tab) {
             LauncherTab.Docs -> {
@@ -190,7 +173,7 @@ private fun LauncherNavIcon(tab: LauncherTab, color: Color) {
 
 
 @Composable
-fun BusyPanel(label: String, startedAtMillis: Long) {
+fun BusyInlineBlock(label: String, startedAtMillis: Long) {
     var nowMillis by remember(label, startedAtMillis) {
         mutableLongStateOf(SystemClock.elapsedRealtime())
     }
@@ -206,17 +189,24 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
         0
     }
     val elapsedText = formatBusyElapsed(elapsedSeconds)
-    val detail = busyDetailFor(label, elapsedSeconds)
-    SectionPanel(title = "当前任务", accentColor = LukoaColors.Accent) {
+    val displayLabel = if (label.startsWith("正在")) label else "正在$label"
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 2.dp, bottom = 7.dp),
+            thickness = 1.dp,
+            color = Color.White.copy(alpha = 0.06f),
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = label,
+                text = displayLabel,
                 modifier = Modifier.weight(1f),
                 color = LukoaColors.Text,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -224,20 +214,16 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
             Text(
                 text = elapsedText,
                 color = LukoaColors.Text,
-                style = MaterialTheme.typography.labelMedium,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
         Text(
-            text = detail,
-            color = LukoaColors.Text,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
             text = "安装、更新、回退、备份、恢复和用户修改已暂时锁定，避免多个命令互相冲突。",
             color = LukoaColors.Text,
-            style = MaterialTheme.typography.bodySmall,
+            fontSize = 11.5.sp,
+            lineHeight = 17.sp,
         )
     }
 }
@@ -246,16 +232,4 @@ internal fun formatBusyElapsed(seconds: Int): String {
     val minutes = seconds / 60
     val rest = seconds % 60
     return "%02d:%02d".format(minutes, rest)
-}
-
-private fun busyDetailFor(label: String, seconds: Int): String {
-    if (!label.contains("准备 Termux 环境")) {
-        return "Termux 正在处理这个操作。"
-    }
-    return when {
-        seconds < 20 -> "已发送命令，正在连接 Termux 包源。"
-        seconds < 90 -> "可能正在执行 apt update 或升级基础包。"
-        seconds < 240 -> "可能正在安装 git、node、npm，首次安装会比较久。"
-        else -> "仍在等待 Termux 回传。只要按钮还锁着，就说明启动器还在等结果。"
-    }
 }
