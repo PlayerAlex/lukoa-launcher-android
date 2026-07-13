@@ -18,24 +18,6 @@ data class TavernUserManagementState(
     val message: String = "尚未读取当前酒馆的用户。",
 )
 
-object TavernUserDeletionPolicy {
-    fun disabledReason(
-        users: List<TavernUserRecord>,
-        target: TavernUserRecord,
-    ): String? {
-        if (target.handle == "default-user") {
-            return "默认用户不能删除。"
-        }
-        if (target.admin && target.enabled) {
-            val enabledAdministrators = users.count { it.admin && it.enabled }
-            if (enabledAdministrators <= 1) {
-                return "最后一个启用的管理员不能删除。"
-            }
-        }
-        return null
-    }
-}
-
 object TavernUserOutputParser {
     fun parse(output: String): List<TavernUserRecord>? {
         if (!output.contains("==== SillyTavern users ====")) return null

@@ -1,10 +1,18 @@
 package moe.lukoa.launcher
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,32 +38,69 @@ fun TavernControlSection(
     onOpenTavern: () -> Unit,
     onExportLog: () -> Unit,
 ) {
-    val offerStop = shouldOfferStopTavern(tavernRunning, tavernStarting)
     val wakeClick = rememberFeedbackClick(onWakeTermux)
     val primaryClick = rememberFeedbackClick(
         onClick = onPrimaryAction,
-        minIntervalMs = if (offerStop) 0L else 260L,
+        minIntervalMs = if (shouldOfferStopTavern(tavernRunning, tavernStarting)) 0L else 260L,
     )
     val openTavernClick = rememberFeedbackClick(onOpenTavern)
+    val exportClick = rememberFeedbackClick(onExportLog)
+    val statusText = when {
+        actionInProgress -> busyLabel ?: "处理中"
+        tavernStarting -> "启动中"
+        tavernRunning -> "运行中"
+        else -> "未运行"
+    }
+    val statusDetail = when {
+        actionInProgress -> "正在执行操作，完成后按钮会恢复。"
+        tavernStarting -> "正在等待酒馆打开网页。"
+        tavernRunning -> "酒馆已运行，主按钮会切换为停止。"
+        primaryEnabled -> "酒馆未运行，可以直接启动。"
+        primaryDisabledReason != null -> primaryDisabledReason
+        else -> "等待检测结果。"
+    }
     val primaryText = when {
-        tavernStarting -> "停止酒馆"
-        tavernRunning -> "停止酒馆"
         actionInProgress -> "${busyLabel ?: "处理中"}..."
+        tavernStarting -> "停止酒馆"
         !primaryEnabled && primaryDisabledReason?.contains("权限") == true -> "先修权限"
         !primaryEnabled && primaryDisabledReason?.contains("Termux") == true -> "先安装 Termux"
         !primaryEnabled -> "先安装酒馆"
+        tavernRunning -> "停止酒馆"
         else -> "启动酒馆"
     }
-    SectionPanel(title = "操作", accentColor = LukoaColors.Accent) {
-        PrimaryActionButton(
-            text = primaryText,
-            enabled = primaryEnabled && (!actionInProgress || offerStop),
+    val primaryColor = when {
+        shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Danger
+        else -> LukoaColors.Accent
+    }
+    SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Accent) {
+        TavernControlStatusCard(
+            statusText = statusText,
+            statusDetail = statusDetail,
+            statusActive = tavernRunning || tavernStarting || actionInProgress,
+            statusTone = if (tavernRunning) LukoaColors.Danger else LukoaColors.Accent,
+            wakeEnabled = !actionInProgress && wakeEnabled,
+            onWake = wakeClick,
+        )
+        Button(
+            onClick = primaryClick,
+            enabled = !actionInProgress && primaryEnabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 1.dp),
-            danger = offerStop,
-            onClick = primaryClick,
-        )
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (actionInProgress) LukoaColors.SurfaceAlt else primaryColor,
+                contentColor = if (actionInProgress) LukoaColors.Muted else LukoaColors.Background,
+                disabledContainerColor = LukoaColors.SurfaceAlt,
+                disabledContentColor = LukoaColors.Dim,
+            ),
+        ) {
+            Text(
+                primaryText,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
         if (!primaryEnabled && primaryDisabledReason != null) {
             Text(
                 text = primaryDisabledReason,
@@ -69,107 +114,77 @@ fun TavernControlSection(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             TavernToolButton(
-                text = "唤醒 Termux",
-                enabled = !actionInProgress && wakeEnabled,
-                modifier = Modifier.weight(1f),
-                onClick = wakeClick,
-            )
-            TavernToolButton(
-                text = "打开酒馆",
+                text = "返回酒馆",
                 enabled = !actionInProgress,
                 modifier = Modifier.weight(1f),
                 onClick = openTavernClick,
+            )
+            TavernToolButton(
+                text = "导出日志",
+                enabled = !actionInProgress,
+                modifier = Modifier.weight(1f),
+                onClick = exportClick,
             )
         }
     }
 }
 
 @Composable
-fun LaunchBlockerActionSection(
-    termuxInstalled: Boolean,
-    runCommandPermissionGranted: Boolean,
-    externalAppsBlocked: Boolean,
-    actionsLocked: Boolean,
-    onOpenTermuxDownload: () -> Unit,
-    onOpenTermuxGithub: () -> Unit,
-    onRecheckTermux: () -> Unit,
-    onRequestPermission: () -> Unit,
-    onCopyPermissionCommand: () -> Unit,
-    onOpenTermux: () -> Unit,
-    onRecheckPermission: () -> Unit,
+private fun TavernControlStatusCard(
+    statusText: String,
+    statusDetail: String,
+    statusActive: Boolean,
+    statusTone: androidx.compose.ui.graphics.Color,
+    wakeEnabled: Boolean,
+    onWake: () -> Unit,
 ) {
-    DashedSection(label = "下一步") {
-        when {
-            !termuxInstalled -> {
-                StateNote("为什么需要：Termux 负责真正执行安装、启动和备份命令。启动器不会在后台偷偷安装它。")
-                PrimaryActionButton(
-                    text = "从 F-Droid 安装 Termux",
-                    enabled = !actionsLocked,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onOpenTermuxDownload,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    SecondaryActionButton(
-                        text = "GitHub 下载",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Text,
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenTermuxGithub,
+                    Text(
+                        text = "当前控制状态",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
-                    SecondaryActionButton(
-                        text = "重新检测",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Text,
-                        modifier = Modifier.weight(1f),
-                        onClick = onRecheckTermux,
+                    Text(
+                        text = statusDetail,
+                        color = LukoaColors.Text,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-
-            !runCommandPermissionGranted || externalAppsBlocked -> {
-                StateNote(
-                    if (!runCommandPermissionGranted) {
-                        "为什么需要：RUN_COMMAND 是 Android 允许启动器向 Termux 发送命令的权限，不会读取聊天内容。"
-                    } else {
-                        "为什么需要：Termux 还没有允许外部应用调用。复制命令到 Termux 执行一次即可。"
-                    },
-                )
-                PrimaryActionButton(
-                    text = if (!runCommandPermissionGranted) "请求权限" else "复制权限命令",
-                    enabled = !actionsLocked,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = if (!runCommandPermissionGranted) onRequestPermission else onCopyPermissionCommand,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    SecondaryActionButton(
-                        text = "复制权限命令",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Text,
-                        modifier = Modifier.weight(1f),
-                        onClick = onCopyPermissionCommand,
-                    )
-                    SecondaryActionButton(
-                        text = "打开 Termux",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Text,
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenTermux,
-                    )
-                }
-                SecondaryActionButton(
-                    text = "重新检测",
-                    enabled = !actionsLocked,
-                    accentColor = LukoaColors.Text,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onRecheckPermission,
+                StatusPill(
+                    text = statusText,
+                    active = statusActive,
+                    toneColor = if (statusActive) statusTone else LukoaColors.Muted,
+                    activeBackground = if (statusTone == LukoaColors.Danger) LukoaColors.DangerSoft else LukoaColors.AccentSoft,
                 )
             }
+            SecondaryActionButton(
+                text = "唤醒 Termux 并返回",
+                enabled = wakeEnabled,
+                accentColor = LukoaColors.Accent,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onWake,
+            )
         }
     }
 }

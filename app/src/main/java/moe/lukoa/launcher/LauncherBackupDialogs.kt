@@ -380,41 +380,63 @@ fun ApplyBackupPreviewDialog(
     RiskyActionDialogScaffold(
         title = "确认应用备份",
         titleTone = ActionTone.Danger,
-        confirmText = "确认覆盖并恢复",
+        confirmText = "确认应用",
         confirmTone = ActionTone.Danger,
-        confirmEnabled = !preview.targetWasRunning,
         onConfirm = onConfirm,
         onDismiss = onDismiss,
     ) {
-        VersionInfoLine(
-            "备份",
-            "${preview.backupName} · ${formatBackupRestorePreviewSize(preview.sizeBytes)}",
-        )
-        VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
-        VersionInfoLine(
-            "目标实例",
-            "${preview.targetInstanceLabel} · 端口 ${preview.targetPort}",
-        )
-        VersionInfoLine("目标目录", preview.restoreTargetDir)
-        VersionInfoLine(
-            "酒馆状态",
-            if (preview.targetWasRunning) "运行中，请先停止" else "已停止",
-        )
-        StateNote(
-            text = if (preview.targetWasRunning) {
-                "检测到目标实例仍在运行。请取消并停止酒馆，再重新打开恢复预览。"
-            } else {
-                "会覆盖当前数据。启动器不会自动复制一份当前酒馆；需要保留时，请先取消并生成手动备份。"
-            },
-            tone = if (preview.targetWasRunning) LukoaPillTone.Warning else LukoaPillTone.Danger,
+        Text(
+            text = "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
+            color = LukoaColors.Danger,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = preview.archivePath,
-            color = LukoaColors.Dim,
+            text = "启动器不会自动复制一份当前酒馆。需要保留当前数据时，请先手动备份。",
+            color = LukoaColors.Muted,
             style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
         )
+        Text(
+            text = "应用前请确认酒馆已经停止。若 Termux 没有存储权限，启动器会提示你授权。",
+            color = LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("备份名", preview.backupName)
+                VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
+                VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
+                VersionInfoLine("恢复到", preview.restoreTargetDir)
+                Text(
+                    text = preview.archivePath,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Danger.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.28f)),
+        ) {
+            Text(
+                text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
+                modifier = Modifier.padding(12.dp),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

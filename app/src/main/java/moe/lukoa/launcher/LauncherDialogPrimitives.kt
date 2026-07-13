@@ -1,25 +1,51 @@
 package moe.lukoa.launcher
 
+import android.os.SystemClock
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 
 @Composable
@@ -35,42 +61,11 @@ internal fun RiskyActionDialogScaffold(
     content: @Composable () -> Unit,
 ) {
     AlertDialog(
-        modifier = Modifier.widthIn(max = 330.dp),
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.DialogSurface,
-        shape = RoundedCornerShape(24.dp),
+        containerColor = LukoaColors.Surface,
         titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.Text,
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    color = titleTone.color().copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(13.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = when (titleTone) {
-                                ActionTone.Danger -> "!"
-                                ActionTone.Warning -> "!"
-                                ActionTone.Safe -> "↑"
-                                ActionTone.Neutral -> "·"
-                            },
-                            color = titleTone.color(),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
-                }
-                Text(
-                    text = title,
-                    color = LukoaColors.Text,
-                    fontSize = 18.sp,
-                    lineHeight = 23.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
-        },
+        title = { Text(title) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } },
         confirmButton = {
             DialogActionButton(
@@ -82,49 +77,6 @@ internal fun RiskyActionDialogScaffold(
         },
         dismissButton = {
             DialogActionButton(dismissText, tone = ActionTone.Neutral, onClick = onDismiss)
-        },
-    )
-}
-
-@Composable
-internal fun LauncherDetailDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    AlertDialog(
-        modifier = Modifier.widthIn(max = 330.dp),
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.DialogSurface,
-        shape = RoundedCornerShape(24.dp),
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
-        title = {
-            Text(
-                text = title,
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                content()
-            }
-        },
-        confirmButton = {
-            SecondaryActionButton(
-                text = "关闭",
-                enabled = true,
-                accentColor = LukoaColors.Text,
-                onClick = onDismiss,
-            )
         },
     )
 }

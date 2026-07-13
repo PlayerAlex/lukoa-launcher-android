@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -31,6 +34,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.absoluteValue
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -293,7 +298,6 @@ fun LukoaLauncherScreen(
     var pendingLauncherTask by remember { mutableStateOf(initialPendingLauncherTask) }
     var showPendingTaskDialog by remember { mutableStateOf(initialPendingLauncherTask != null) }
     val actionInProgress = busyLabel != null
-    val operationsLocked = shouldLockLauncherOperations(actionInProgress, tavernStarting)
     val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
     val scope = rememberCoroutineScope()
     val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
@@ -899,12 +903,6 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(tavernRunning, busyLabel) {
-        if (tavernRunning && busyLabel == TAVERN_START_BUSY_LABEL) {
-            releaseBusy()
-        }
-    }
-
     fun runGuarded(
         label: String,
         timeoutMs: Long = 18000L,
@@ -1413,7 +1411,7 @@ fun LukoaLauncherScreen(
             activeOperationLabel = { busyLabel ?: OperationLockStore.activeLabel(context) },
             beginBusy = ::beginBusy,
             releaseBusy = ::releaseBusy,
-            isActionInProgress = { busyLabel != null || tavernStarting },
+            isActionInProgress = { busyLabel != null },
             blockIfPendingTaskExists = ::blockIfPendingTaskExists,
             runGuardedCommand = { label, timeoutMs, allowRunningInference, command ->
                 runGuarded(label, timeoutMs, allowRunningInference, command)
@@ -1428,10 +1426,7 @@ fun LukoaLauncherScreen(
             },
             onCommand = onCommand,
             activeProfileId = { tavernPathConfig.activeProfile.id },
-            activeProfileLabel = { tavernPathConfig.activeProfileLabel },
-            activeProfilePort = { tavernPathConfig.normalizedPort },
             restoreTargetDirectory = { tavernPathConfig.displayTavernDir },
-            isTavernRunning = { tavernRunning || tavernStarting },
             isTermuxStoragePermissionBlocked = { termuxStoragePermissionBlocked },
             setTermuxStoragePermissionBlocked = { termuxStoragePermissionBlocked = it },
             onCopyText = onCopyText,
@@ -1580,7 +1575,7 @@ fun LukoaLauncherScreen(
             beginBusy = ::beginBusy,
             releaseBusy = ::releaseBusy,
             isTransientStatus = ::isTransientStatus,
-            isActionInProgress = { busyLabel != null || tavernStarting },
+            isActionInProgress = { busyLabel != null },
             isTavernRunning = { tavernRunning },
             isTavernStarting = { tavernStarting },
             isTermuxInstalled = { termuxInstalled },
@@ -2601,36 +2596,24 @@ fun LukoaLauncherScreen(
             update("酒馆正在启动中，请稍等。", "", false)
             return
         }
-        if (!beginBusy(TAVERN_START_BUSY_LABEL, 65_000L)) return
+        if (!beginBusy("启动酒馆", 15000L)) return
 
         showStopConfirmDialog = false
-        launchAttemptToken += 1
-        val requestToken = launchAttemptToken
-        val startBusyToken = busyToken
         onForegroundStart { newStatus, termuxOutput, ok ->
-            if (launchAttemptToken != requestToken) {
-                return@onForegroundStart
-            }
             update(newStatus, termuxOutput, ok)
             if (isTransientStatus(newStatus)) {
                 return@onForegroundStart
             }
+            releaseBusy()
             if (ok) {
-                if (tavernRunning) {
-                    if (busyToken == startBusyToken && busyLabel == TAVERN_START_BUSY_LABEL) {
-                        releaseBusy()
-                    }
-                } else {
-                    tavernStarting = true
-                    tavernRunning = false
-                }
+                tavernStarting = true
+                tavernRunning = false
+                launchAttemptToken += 1
+                val token = launchAttemptToken
                 scope.launch {
                     delay(60_000L)
-                    if (launchAttemptToken == requestToken && tavernStarting && !tavernRunning) {
+                    if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
                         tavernStarting = false
-                        if (busyToken == startBusyToken && busyLabel == TAVERN_START_BUSY_LABEL) {
-                            releaseBusy()
-                        }
                         update(
                             "启动太久了，请看下方 Termux 返回。",
                             "",
@@ -2641,9 +2624,6 @@ fun LukoaLauncherScreen(
                 }
             } else {
                 tavernStarting = false
-                if (busyToken == startBusyToken && busyLabel == TAVERN_START_BUSY_LABEL) {
-                    releaseBusy()
-                }
             }
         }
     }
@@ -2821,12 +2801,7 @@ fun LukoaLauncherScreen(
     }
 
     fun requestStopTavern() {
-        val interruptingStart = canInterruptActiveTavernStart(
-            actionInProgress = actionInProgress,
-            tavernStarting = tavernStarting,
-            busyLabel = busyLabel,
-        )
-        if (actionInProgress && !interruptingStart) {
+        if (actionInProgress) {
             update("正在处理，稍后再停止酒馆。", "", false)
             return
         }
@@ -2844,20 +2819,6 @@ fun LukoaLauncherScreen(
 
     fun confirmStopTavern() {
         showStopConfirmDialog = false
-        val interruptingStart = canInterruptActiveTavernStart(
-            actionInProgress = actionInProgress,
-            tavernStarting = tavernStarting,
-            busyLabel = busyLabel,
-        )
-        if (actionInProgress && !interruptingStart) {
-            update("正在处理，稍后再停止酒馆。", "", false, allowRunningInference = false)
-            return
-        }
-        if (interruptingStart) {
-            launchAttemptToken += 1
-            tavernStarting = false
-            releaseBusy()
-        }
         if (!beginBusy(
                 "停止酒馆",
                 TermuxCommandTimeoutPolicy.operationLockMillis("stop"),
@@ -3069,7 +3030,7 @@ fun LukoaLauncherScreen(
     pendingAptConfigTask?.let { task ->
         AptConfigPolicyDialog(
             pendingTask = task,
-            actionsLocked = operationsLocked,
+            actionsLocked = actionInProgress,
             onChoose = ::chooseAptConfigPolicy,
             onDismiss = ::clearPendingAptConfigTask,
         )
@@ -3155,14 +3116,9 @@ fun LukoaLauncherScreen(
     )
 
     if (showStopConfirmDialog) {
-        val stopBlocked = actionInProgress && !canInterruptActiveTavernStart(
-            actionInProgress = actionInProgress,
-            tavernStarting = tavernStarting,
-            busyLabel = busyLabel,
-        )
         StopTavernConfirmDialog(
             profile = tavernPathConfig.activeProfile,
-            actionsLocked = stopBlocked,
+            actionsLocked = actionInProgress,
             onConfirm = ::confirmStopTavern,
             onDismiss = { showStopConfirmDialog = false },
         )
@@ -3171,7 +3127,7 @@ fun LukoaLauncherScreen(
     pendingTavernForceCleanupConfirmation?.let { confirmation ->
         ForceCleanupTavernConfirmDialog(
             confirmation = confirmation,
-            actionsLocked = operationsLocked,
+            actionsLocked = actionInProgress,
             onConfirm = ::confirmForceCleanupDialog,
             onDismiss = ::dismissForceCleanupDialog,
         )
@@ -3180,7 +3136,7 @@ fun LukoaLauncherScreen(
     pendingTavernVersionActionConfirmation?.let { confirmation ->
         TavernVersionActionConfirmDialog(
             confirmation = confirmation,
-            actionsLocked = operationsLocked,
+            actionsLocked = actionInProgress,
             onConfirm = ::confirmTavernVersionActionDialog,
             onDismiss = ::dismissTavernVersionActionDialog,
         )
@@ -3227,7 +3183,7 @@ fun LukoaLauncherScreen(
 
     LauncherBackupSettingsDialogHost(
         coordinator = backupCoordinator,
-        actionsLocked = operationsLocked,
+        actionsLocked = actionInProgress,
     )
 
     if (showBackgroundRunPermissionDialog) {
@@ -3253,12 +3209,12 @@ fun LukoaLauncherScreen(
 
     LauncherBackupOperationDialogHost(
         coordinator = backupCoordinator,
-        actionsLocked = operationsLocked,
+        actionsLocked = actionInProgress,
     )
 
     LauncherProfileMutationDialogHost(
         state = pathSettingsState,
-        actionsLocked = operationsLocked,
+        actionsLocked = actionInProgress,
         onConfirmRemoval = ::confirmRemoveCurrentTavernProfile,
         onConfirmMigration = ::confirmMigrateCurrentTavernPath,
         onConfirmCustomMigration = ::confirmCustomTavernPathMigrationDialog,
@@ -3289,18 +3245,6 @@ fun LukoaLauncherScreen(
             .fillMaxSize()
             .background(LukoaColors.Background),
     ) {
-        Header(
-            instanceLabel = tavernPathConfig.activeProfileLabel,
-            instancePort = tavernPathConfig.normalizedPort,
-            showVersionUpdateBadge = showGithubUpdateBadge,
-            onVersionClick = {
-                if (githubUpdateState.hasUpdate) {
-                    showUpdateDialog = true
-                } else {
-                    checkGithubUpdate(manual = true)
-                }
-            },
-        )
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -3317,43 +3261,71 @@ fun LukoaLauncherScreen(
                         }
                     }
                     false
-            },
+                },
             beyondViewportPageCount = 1,
+            pageSpacing = 6.dp,
+            contentPadding = PaddingValues(horizontal = 2.dp),
             userScrollEnabled = !pagerInteractionLocked,
         ) { page ->
             val tab = LauncherTab.entries[page]
+            val pageOffset = (
+                (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                ).absoluteValue.coerceIn(0f, 1f)
+            val pageScale = 0.992f + ((1f - pageOffset) * 0.008f)
+            val pageAlpha = 0.94f + ((1f - pageOffset) * 0.06f)
+            val pageScrollState = rememberScrollState()
 
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = pageAlpha
+                        scaleX = pageScale
+                        scaleY = pageScale
+                    },
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(pageScrollState)
+                        .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    pendingLauncherTask
-                        ?.takeIf { !showPendingTaskDialog && tab == LauncherTab.Launch }
-                        ?.let { task ->
-                        Box(
-                            modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 12.dp),
-                        ) {
-                            PendingTaskNoticePanel(
-                                task = task,
-                                activeLockLabel = OperationLockStore.activeLabel(context),
-                                actionsLocked = operationsLocked && !restoredOperationLockActive,
-                                onContinueCheck = ::continuePendingLauncherTask,
-                                onAbandon = ::abandonPendingLauncherTask,
-                            )
+                    Header(
+                        tavernRunning = tavernRunning,
+                        tavernStarting = tavernStarting,
+                        showVersionUpdateBadge = showGithubUpdateBadge,
+                        onVersionClick = {
+                            if (githubUpdateState.hasUpdate) {
+                                showUpdateDialog = true
+                            } else {
+                                checkGithubUpdate(manual = true)
+                            }
+                        },
+                    )
+
+                    if (tab != LauncherTab.Launch) {
+                        if (busyLabel != null) {
+                            BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                         }
                     }
 
+                    pendingLauncherTask?.takeIf { !showPendingTaskDialog }?.let { task ->
+                        PendingTaskNoticePanel(
+                            task = task,
+                            activeLockLabel = OperationLockStore.activeLabel(context),
+                            actionsLocked = actionInProgress && !restoredOperationLockActive,
+                            onContinueCheck = ::continuePendingLauncherTask,
+                            onAbandon = ::abandonPendingLauncherTask,
+                        )
+                    }
+
                     when (tab) {
-                        LauncherTab.Docs -> LauncherScrollablePage(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            DocumentationSection()
-                        }
+                        LauncherTab.Docs -> DocumentationSection(
+                            onPagerLockChange = { pagerInteractionLocked = it },
+                        )
                         LauncherTab.Version -> VersionManagementSection(
-                            modifier = Modifier.weight(1f),
-                            actionsLocked = operationsLocked,
+                            actionsLocked = actionInProgress,
                             tavernRunning = tavernRunning,
                             tavernStarting = tavernStarting,
                             tavernVersionInfo = tavernVersionInfo,
@@ -3372,18 +3344,15 @@ fun LukoaLauncherScreen(
                             },
                             onTavernUpdate = ::requestTavernUpdate,
                             onTavernRollback = ::requestTavernRollback,
-                            onTavernInstall = ::installSelectedTavern,
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
-                        LauncherTab.Launch -> LauncherScrollablePage(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            val blockingMessage = when {
-                                termuxKnownMissing() -> "没有检测到 Termux，请先安装并打开一次。"
-                                !runCommandPermissionGranted -> "RUN_COMMAND 尚未授权，启动器不能调用 Termux。"
-                                termuxExternalAppsBlocked -> "Termux 尚未允许外部调用，请先执行权限命令。"
-                                else -> null
-                            }
+                        LauncherTab.Launch -> {
+                            val launchPermissionReminder = PermissionStatusSummary.launchReminder(
+                                termuxInstalled = termuxInstalled,
+                                launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
+                                termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
+                                termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
+                            )
                             OverviewPanel(
                                 summary = summary,
                                 status = status,
@@ -3391,33 +3360,28 @@ fun LukoaLauncherScreen(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
                                 syncActive = termuxInstalled && runCommandPermissionGranted,
-                                instancePort = tavernPathConfig.normalizedPort,
-                                blockingMessage = blockingMessage,
-                                busyLabel = busyLabel ?: TAVERN_START_BUSY_LABEL.takeIf { tavernStarting },
-                                busyStartedAtMillis = busyStartedAtMillis,
-                                onStop = if (tavernStarting) ::requestStopTavern else null,
                             )
-                            val setupRecommended = termuxSetupRecommended()
-                            val launchBlocked = !termuxInstalled || termuxPermissionBlocked()
-                            if (launchBlocked) {
-                                LaunchBlockerActionSection(
-                                    termuxInstalled = termuxInstalled,
-                                    runCommandPermissionGranted = runCommandPermissionGranted,
-                                    externalAppsBlocked = termuxExternalAppsBlocked,
-                                    actionsLocked = operationsLocked,
-                                    onOpenTermuxDownload = {
-                                        openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
+                            launchPermissionReminder?.let { reminder ->
+                                NoticeCard(
+                                    title = reminder.title,
+                                    detail = reminder.detail,
+                                    accentColor = LukoaColors.Amber,
+                                    actionLabel = "去权限页处理",
+                                    onAction = {
+                                        selectedTab = LauncherTab.Settings
+                                        update("请到设置里的权限分区补齐后台常驻或备份相关权限。", "", false, allowRunningInference = false)
                                     },
-                                    onOpenTermuxGithub = {
-                                        openTermuxDownload(TERMUX_GITHUB_RELEASES_URL, "Termux GitHub Releases")
-                                    },
-                                    onRecheckTermux = ::recheckTermuxInstalled,
-                                    onRequestPermission = ::requestRunCommandPermission,
-                                    onCopyPermissionCommand = ::copyTermuxPermissionCommand,
-                                    onOpenTermux = ::openTermuxFromGuide,
-                                    onRecheckPermission = ::recheckRunCommandPermission,
                                 )
-                            } else if (setupRecommended || tavernInstallDetected != true) {
+                            }
+                            if (busyLabel != null) {
+                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
+                            }
+                            val setupRecommended = termuxSetupRecommended()
+                            val showQuickStartGuide = !termuxInstalled ||
+                                termuxPermissionBlocked() ||
+                                setupRecommended ||
+                                tavernInstallDetected != true
+                            if (showQuickStartGuide) {
                                 QuickStartGuideSection(
                                     termuxInstalled = termuxInstalled,
                                     runCommandPermissionGranted = runCommandPermissionGranted,
@@ -3429,7 +3393,7 @@ fun LukoaLauncherScreen(
                                     selectedVersion = selectedTavernVersion,
                                     mirrorRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                                     commandText = TERMUX_EXTERNAL_APPS_COMMAND,
-                                    actionsLocked = operationsLocked,
+                                    actionsLocked = actionInProgress,
                                     onOpenTermuxDownload = {
                                         openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
                                     },
@@ -3451,86 +3415,77 @@ fun LukoaLauncherScreen(
                                     onInstallTavern = ::installSelectedTavern,
                                 )
                             }
-                            if (!tavernStarting) {
-                                TavernControlSection(
-                                    tavernRunning = tavernRunning,
-                                    tavernStarting = tavernStarting,
-                                    actionInProgress = operationsLocked,
-                                    busyLabel = busyLabel,
-                                    wakeEnabled = termuxInstalled,
-                                    primaryEnabled = !termuxKnownMissing() &&
-                                        !termuxPermissionBlocked() &&
-                                        (shouldOfferStopTavern(tavernRunning, tavernStarting) || tavernInstallDetected == true),
-                                    primaryDisabledReason = when {
-                                        termuxKnownMissing() -> "请先安装并打开 Termux。"
-                                        termuxPermissionBlocked() -> "请先打开 Termux 调用权限。"
-                                        tavernInstallDetected == null -> "请先检测酒馆或安装。"
-                                        !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
-                                        else -> null
-                                    },
-                                    onWakeTermux = {
-                                        if (beginBusy("唤醒 Termux", 6000L)) {
-                                            val result = onWakeTermux(termuxReturnDelayMs)
-                                            releaseBusy()
-                                            update(
-                                                result.message,
-                                                "",
-                                                result.ok,
-                                            )
-                                        }
-                                    },
-                                    onPrimaryAction = {
-                                        if (shouldOfferStopTavern(tavernRunning, tavernStarting)) requestStopTavern() else requestStartTavern()
-                                    },
-                                    onOpenTavern = ::returnToTavern,
-                                    onExportLog = { showExportDialog = true },
-                                )
-                            }
+                            TavernControlSection(
+                                tavernRunning = tavernRunning,
+                                tavernStarting = tavernStarting,
+                                actionInProgress = actionInProgress,
+                                busyLabel = busyLabel,
+                                wakeEnabled = termuxInstalled,
+                                primaryEnabled = !termuxKnownMissing() &&
+                                    !termuxPermissionBlocked() &&
+                                    (shouldOfferStopTavern(tavernRunning, tavernStarting) || tavernInstallDetected == true),
+                                primaryDisabledReason = when {
+                                    termuxKnownMissing() -> "请先安装并打开 Termux。"
+                                    termuxPermissionBlocked() -> "请先打开 Termux 调用权限。"
+                                    tavernInstallDetected == null -> "请先检测酒馆或安装。"
+                                    !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
+                                    else -> null
+                                },
+                                onWakeTermux = {
+                                    if (beginBusy("唤醒 Termux", 6000L)) {
+                                        val result = onWakeTermux(termuxReturnDelayMs)
+                                        releaseBusy()
+                                        update(
+                                            result.message,
+                                            "",
+                                            result.ok,
+                                        )
+                                    }
+                                },
+                                onPrimaryAction = {
+                                    if (shouldOfferStopTavern(tavernRunning, tavernStarting)) requestStopTavern() else requestStartTavern()
+                                },
+                                onOpenTavern = ::returnToTavern,
+                                onExportLog = { showExportDialog = true },
+                            )
+                            IssueAnalysisPanel(
+                                issues = issueAnalysis,
+                                actionsLocked = actionInProgress,
+                                onQuickFixAction = ::runLauncherQuickFixAction,
+                            )
                             LogPanel(
-                                title = "Termux 调用返回",
-                                content = listOf(termuxLog, tavernRuntimeLog)
-                                    .filter { it.isNotBlank() }
-                                    .joinToString("\n\n"),
-                                accentColor = LukoaColors.Accent,
+                                title = "酒馆运行日志",
+                                content = tavernRuntimeLog,
+                                accentColor = LukoaColors.Info,
                                 maxVisibleLines = null,
                             )
                             LogPanel(
-                                title = "操作反馈",
+                                title = "App 操作反馈",
                                 content = appLog,
                                 accentColor = LukoaColors.Muted,
                             )
                         }
-                        LauncherTab.Backup -> LauncherScrollablePage(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            BackupSection(
-                                instanceLabel = tavernPathConfig.activeProfileLabel,
-                                instanceDirectory = tavernPathConfig.displayTavernDir,
-                                instancePort = tavernPathConfig.normalizedPort,
-                                actionsLocked = operationsLocked || backupUiState.applyBackupPreviewRequest != null,
-                                backupListRefreshing = backupUiState.backupListRefreshing,
-                                autoBackupEnabled = autoBackupEnabled,
-                                autoBackupIntervalMinutes = autoBackupIntervalMinutes,
-                                autoBackupKeepCount = autoBackupKeepCount,
-                                backupHistory = backupHistory,
-                                onCreateManualBackup = backupCoordinator::openManualBackupDialog,
-                                onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
-                                onRefreshBackups = { backupCoordinator.refreshBackupList() },
-                                onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
-                                onApplyBackup = backupCoordinator::requestApplyBackup,
-                                onCopyBackup = backupCoordinator::requestCopyBackup,
-                                onRenameBackup = backupCoordinator::requestRenameBackup,
-                                onDeleteBackup = backupCoordinator::requestDeleteBackup,
-                                onExportBackup = backupCoordinator::exportBackupArchive,
-                                onImportBackup = backupCoordinator::pickAndImportExternalBackup,
-                                onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
-                            )
-                        }
-                        LauncherTab.Settings -> LauncherScrollablePage(
-                            modifier = Modifier.weight(1f),
-                            topPadding = 15.dp,
-                        ) {
-                            SettingsSection(
+                        LauncherTab.Backup -> BackupSection(
+                            actionsLocked = actionInProgress || backupUiState.applyBackupPreviewRequest != null,
+                            backupListRefreshing = backupUiState.backupListRefreshing,
+                            autoBackupEnabled = autoBackupEnabled,
+                            autoBackupIntervalMinutes = autoBackupIntervalMinutes,
+                            autoBackupKeepCount = autoBackupKeepCount,
+                            backupHistory = backupHistory,
+                            onCreateManualBackup = backupCoordinator::openManualBackupDialog,
+                            onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
+                            onRefreshBackups = { backupCoordinator.refreshBackupList() },
+                            onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
+                            onApplyBackup = backupCoordinator::requestApplyBackup,
+                            onCopyBackup = backupCoordinator::requestCopyBackup,
+                            onRenameBackup = backupCoordinator::requestRenameBackup,
+                            onDeleteBackup = backupCoordinator::requestDeleteBackup,
+                            onExportBackup = backupCoordinator::exportBackupArchive,
+                            onImportBackup = backupCoordinator::pickAndImportExternalBackup,
+                            onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
+                            onPagerLockChange = { pagerInteractionLocked = it },
+                        )
+                        LauncherTab.Settings -> SettingsSection(
                             termuxReturnDelayMs = termuxReturnDelayMs,
                             termuxInstalled = termuxInstalled,
                             runCommandPermissionGranted = runCommandPermissionGranted,
@@ -3553,9 +3508,7 @@ fun LukoaLauncherScreen(
                             githubUpdateState = githubUpdateState,
                             healthCheckReport = healthCheckReport,
                             healthCheckInFlight = healthCheckInFlight,
-                            actionsLocked = operationsLocked,
-                            tavernRunning = tavernRunning || tavernStarting,
-                            issues = issueAnalysis,
+                            actionsLocked = actionInProgress,
                             uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
@@ -3642,7 +3595,6 @@ fun LukoaLauncherScreen(
                             },
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
-                            onQuickFixAction = ::runLauncherQuickFixAction,
                             onForceCleanup = ::requestForceCleanup,
                             onRepairDependencies = {
                                 runGuarded(
@@ -3718,7 +3670,6 @@ fun LukoaLauncherScreen(
                                 }
                             },
                             onClearLogs = ::requestClearLogs,
-                            onExportLog = { showExportDialog = true },
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs - 100L)
@@ -3726,9 +3677,9 @@ fun LukoaLauncherScreen(
                             onIncreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
                             },
+                            onPagerLockChange = { pagerInteractionLocked = it },
                         )
                     }
-                }
                 }
             }
         }

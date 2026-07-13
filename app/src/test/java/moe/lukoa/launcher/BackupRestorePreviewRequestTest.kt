@@ -3,7 +3,6 @@ package moe.lukoa.launcher
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,50 +45,4 @@ class BackupRestorePreviewRequestTest {
         assertEquals("未读取", formatBackupRestorePreviewTime(null, ZoneId.of("UTC")))
         assertEquals("未读取", formatBackupRestorePreviewSize(null))
     }
-
-    @Test
-    fun `restore preview is rejected after target instance changes`() {
-        val reason = BackupRestorePreviewGuard.rejectionReason(
-            preview = preview(),
-            activeProfileId = "clone",
-            activeTargetDir = "~/Clone/SillyTavern",
-            tavernRunning = false,
-        )
-
-        assertTrue(reason.orEmpty().contains("实例已经切换"))
-    }
-
-    @Test
-    fun `restore preview is rejected when tavern starts after preview`() {
-        val reason = BackupRestorePreviewGuard.rejectionReason(
-            preview = preview(),
-            activeProfileId = "main",
-            activeTargetDir = "~/SillyTavern",
-            tavernRunning = true,
-        )
-
-        assertTrue(reason.orEmpty().contains("正在运行或启动"))
-    }
-
-    @Test
-    fun `restore preview stays valid for unchanged stopped instance`() {
-        assertNull(
-            BackupRestorePreviewGuard.rejectionReason(
-                preview = preview(),
-                activeProfileId = "main",
-                activeTargetDir = "~/SillyTavern",
-                tavernRunning = false,
-            ),
-        )
-    }
-
-    private fun preview() = BackupRestorePreview(
-        archivePath = "/storage/backup.tar.gz",
-        backupName = "backup.tar.gz",
-        restoreTargetDir = "~/SillyTavern",
-        targetProfileId = "main",
-        targetInstanceLabel = "主实例",
-        targetPort = 8000,
-        targetWasRunning = false,
-    )
 }

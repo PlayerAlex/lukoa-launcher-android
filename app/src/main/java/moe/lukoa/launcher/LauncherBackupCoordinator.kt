@@ -31,10 +31,7 @@ class LauncherBackupCoordinator(
     private val runPendingCommand: (PendingLauncherTask, String, Long, (LauncherUpdate) -> Unit) -> Unit,
     private val onCommand: (String, LauncherUpdate) -> Unit,
     private val activeProfileId: () -> String,
-    private val activeProfileLabel: () -> String,
-    private val activeProfilePort: () -> Int,
     private val restoreTargetDirectory: () -> String,
-    private val isTavernRunning: () -> Boolean,
     private val isTermuxStoragePermissionBlocked: () -> Boolean,
     private val setTermuxStoragePermissionBlocked: (Boolean) -> Unit,
     private val onCopyText: (String, String) -> Boolean,
@@ -204,11 +201,7 @@ class LauncherBackupCoordinator(
         state.applyBackupPreview = null
         state.showApplyBackupPreviewDialog = false
         state.applyBackupPreviewRequest = request
-        val targetProfileId = activeProfileId()
-        val targetInstanceLabel = activeProfileLabel()
-        val targetPort = activeProfilePort()
         val targetDirectory = restoreTargetDirectory()
-        val targetWasRunning = isTavernRunning()
         previewJob = scope.launch {
             try {
                 val preview = withContext(Dispatchers.IO) {
@@ -216,10 +209,6 @@ class LauncherBackupCoordinator(
                         context = appContext,
                         archivePath = normalized,
                         restoreTargetDir = targetDirectory,
-                        targetProfileId = targetProfileId,
-                        targetInstanceLabel = targetInstanceLabel,
-                        targetPort = targetPort,
-                        targetWasRunning = targetWasRunning,
                     )
                 }
                 if (!previewRequestCoordinator.accepts(request, state.applyBackupPath)) return@launch
@@ -253,22 +242,6 @@ class LauncherBackupCoordinator(
 
     fun applySelectedBackup() {
         if (blockIfPendingTaskExists("应用备份")) {
-            dismissApplyBackupPreview()
-            return
-        }
-        val preview = state.applyBackupPreview
-        if (preview == null) {
-            statusUpdate("恢复预览已经失效，请重新选择备份。", "", false)
-            dismissApplyBackupPreview()
-            return
-        }
-        BackupRestorePreviewGuard.rejectionReason(
-            preview = preview,
-            activeProfileId = activeProfileId(),
-            activeTargetDir = restoreTargetDirectory(),
-            tavernRunning = isTavernRunning(),
-        )?.let { reason ->
-            statusUpdate(reason, "", false)
             dismissApplyBackupPreview()
             return
         }
@@ -334,9 +307,7 @@ class LauncherBackupCoordinator(
         setTermuxStoragePermissionBlocked(false)
         state.showTermuxStoragePermissionDialog = false
         state.applyBackupPath = retryPath
-        if (openApplyBackupPreview(retryPath)) {
-            statusUpdate("Termux 存储权限已处理，请重新确认恢复目标。", "", true)
-        }
+        applySelectedBackup()
     }
 
     fun requestDeleteBackup(path: String) {

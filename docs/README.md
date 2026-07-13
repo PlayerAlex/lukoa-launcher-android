@@ -4,13 +4,6 @@
 
 ## 目录
 
-### `design/`
-
-给 UI / UX 重构使用：
-
-- `UI_REDESIGN_BRIEF.md`
-  新信息架构、页面状态、组件清单、设计交付和工程承接边界
-
 ### `project-management/`
 
 给项目长期推进和 AI 交接使用：
