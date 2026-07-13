@@ -117,6 +117,7 @@ fun LukoaLauncherScreen(
     onCheckTavernMirror: (TavernMirrorConfig, (TavernMirrorProbeStatus) -> Unit) -> Unit,
     onInstallGithubUpdate: (GithubUpdateInfo, (GithubUpdateInstallResult) -> Unit) -> Unit,
     onOpenGithubRelease: (GithubUpdateInfo) -> GithubUpdateInstallResult,
+    onOpenGithubRepositoryReleases: (String) -> GithubUpdateInstallResult,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -3506,9 +3507,11 @@ fun LukoaLauncherScreen(
                             customTermuxRepoInput = customTermuxRepoInput,
                             repositoryInput = githubRepositoryInput,
                             githubUpdateState = githubUpdateState,
+                            currentLauncherVersion = versionInfo.versionName,
                             healthCheckReport = healthCheckReport,
                             healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
+                            tavernRunning = tavernRunning,
                             uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
@@ -3588,10 +3591,13 @@ fun LukoaLauncherScreen(
                                 }
                             },
                             onOpenRelease = {
-                                githubUpdateState.latest?.let { latest ->
-                                    val result = onOpenGithubRelease(latest)
-                                    update(result.message, "", result.ok, allowRunningInference = false)
+                                val latest = githubUpdateState.latest
+                                val result = if (latest?.releaseUrl?.isNotBlank() == true) {
+                                    onOpenGithubRelease(latest)
+                                } else {
+                                    onOpenGithubRepositoryReleases(githubUpdateState.repository)
                                 }
+                                update(result.message, "", result.ok, allowRunningInference = false)
                             },
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
@@ -3677,7 +3683,6 @@ fun LukoaLauncherScreen(
                             onIncreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
                             },
-                            onPagerLockChange = { pagerInteractionLocked = it },
                         )
                     }
                 }

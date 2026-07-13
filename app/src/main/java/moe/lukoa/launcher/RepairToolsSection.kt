@@ -28,6 +28,8 @@ fun RepairToolsSection(
     onSetNodeMemory: (Int) -> Unit,
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
+    leadingContent: (@Composable () -> Unit)? = null,
+    extraContent: (@Composable () -> Unit)? = null,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
     confirmation?.let { request ->
@@ -44,7 +46,8 @@ fun RepairToolsSection(
         )
     }
 
-    SectionPanel(title = "酒馆修复工具", accentColor = LukoaColors.Amber) {
+    SectionPanel(title = "修复工具", accentColor = LukoaColors.Amber) {
+        leadingContent?.invoke()
         Text(if (tavernRunning) "检测到酒馆可能正在运行，请先回到启动页停止酒馆。" else "修复只作用于当前选中的酒馆实例，执行前会保留恢复副本。")
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
@@ -115,5 +118,6 @@ fun RepairToolsSection(
                 ) { Text(TavernUploadLimitPolicy.label(limit)) }
             }
         }
+        extraContent?.invoke()
     }
 }

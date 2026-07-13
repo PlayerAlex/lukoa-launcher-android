@@ -262,6 +262,9 @@ class MainActivity : ComponentActivity() {
                     onOpenGithubRelease = { updateInfo ->
                         githubUpdateManager.openReleasePage(updateInfo)
                     },
+                    onOpenGithubRepositoryReleases = { repository ->
+                        githubUpdateManager.openRepositoryReleasesPage(repository)
+                    },
                 )
             }
         }

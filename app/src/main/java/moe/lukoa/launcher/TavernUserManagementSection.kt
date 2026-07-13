@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TavernUserManagementSection(
     state: TavernUserManagementState,
+    instanceLabel: String,
     actionsLocked: Boolean,
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
@@ -44,7 +45,8 @@ fun TavernUserManagementSection(
         )
     }
 
-    SectionPanel(title = "酒馆用户管理", accentColor = LukoaColors.Info) {
+    SectionPanel(title = "用户管理", accentColor = LukoaColors.Info) {
+        Text("当前实例：$instanceLabel")
         Text(if (tavernRunning) "请先停止酒馆再修改用户。读取列表也建议在停止状态进行。" else state.message)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(modifier = Modifier.weight(1f), enabled = !actionsLocked && !state.loading && !tavernRunning, onClick = onRefresh) { Text("读取用户") }

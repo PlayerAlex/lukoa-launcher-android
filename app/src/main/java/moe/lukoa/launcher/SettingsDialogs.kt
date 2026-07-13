@@ -17,7 +17,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -263,9 +262,6 @@ fun LauncherUpdateSettingsDialog(
     onSaveRepository: () -> Unit,
     onRestoreDefaultRepository: () -> Unit,
     onSaveUpdateChannel: (GithubReleaseChannel) -> Unit,
-    onCheckUpdate: () -> Unit,
-    onInstallUpdate: () -> Unit,
-    onOpenRelease: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
@@ -286,21 +282,9 @@ fun LauncherUpdateSettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "这里只管露科亚启动器 APK 更新，走的是 App 自己的 GitHub 下载和安装流程，不用靠 Termux。酒馆版本的安装、更新、回退还在版本页处理。",
+                    text = "这里设置启动器更新使用的 GitHub 仓库和更新通道。酒馆版本仍在版本页管理。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
-                )
-                UpdateStatusSummary(githubUpdateState = githubUpdateState)
-                githubReleaseNotesEntries(githubUpdateState).forEach { (title, updateInfo) ->
-                    GithubReleaseNotesCard(
-                        title = title,
-                        updateInfo = updateInfo,
-                    )
-                }
-                UpdateChannelSelectorCard(
-                    channel = githubUpdateState.channel,
-                    enabled = !updateLocked,
-                    onSelectChannel = onSaveUpdateChannel,
                 )
                 OutlinedTextField(
                     value = repositoryInput,
@@ -331,40 +315,11 @@ fun LauncherUpdateSettingsDialog(
                         onClick = onRestoreDefaultRepository,
                     )
                 }
-                DialogActionButton(
-                    text = when {
-                        githubUpdateState.checking -> "检查中..."
-                        githubUpdateState.downloading -> "下载中..."
-                        else -> "检查更新"
-                    },
+                UpdateChannelSelectorCard(
+                    channel = githubUpdateState.channel,
                     enabled = !updateLocked,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onCheckUpdate,
+                    onSelectChannel = onSaveUpdateChannel,
                 )
-                if (githubUpdateState.hasUpdate || githubUpdateState.latest?.releaseUrl?.isNotBlank() == true) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (githubUpdateState.hasUpdate) {
-                            DialogActionButton(
-                                text = "查看新版",
-                                enabled = !updateLocked,
-                                modifier = Modifier.weight(1f),
-                                onClick = onInstallUpdate,
-                            )
-                        }
-                        if (githubUpdateState.latest?.releaseUrl?.isNotBlank() == true) {
-                            DialogActionButton(
-                                text = "打开发布页",
-                                enabled = !updateLocked,
-                                tone = ActionTone.Neutral,
-                                modifier = Modifier.weight(1f),
-                                onClick = onOpenRelease,
-                            )
-                        }
-                    }
-                }
                 DialogActionButton(
                     text = "关闭",
                     enabled = true,
@@ -377,77 +332,6 @@ fun LauncherUpdateSettingsDialog(
         confirmButton = {},
         dismissButton = {},
     )
-}
-
-@Composable
-fun GithubReleaseNotesCard(
-    title: String,
-    updateInfo: GithubUpdateInfo,
-) {
-    val formattedReleaseNotes = remember(updateInfo.versionName, updateInfo.body) {
-        GithubReleaseNotesFormatter.format(updateInfo.versionName, updateInfo.body)
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                color = LukoaColors.Accent,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            MiniInfoLine("版本", "v${updateInfo.versionName}")
-            MiniInfoLine("类型", updateInfo.releaseTypeLabel)
-            if (updateInfo.releaseName.isNotBlank() && updateInfo.releaseName != updateInfo.tagName) {
-                MiniInfoLine("标题", updateInfo.releaseName)
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.Surface,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.35f)),
-            ) {
-                Text(
-                    text = formattedReleaseNotes,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 88.dp, max = 180.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(12.dp),
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
-}
-
-fun githubReleaseNotesEntries(
-    githubUpdateState: GithubUpdateUiState,
-): List<Pair<String, GithubUpdateInfo>> {
-    val current = githubUpdateState.currentRelease
-    val latest = githubUpdateState.latest
-    return buildList {
-        if (current != null) {
-            add("当前版本更新内容" to current)
-        }
-        if (latest != null && latest.tagName != current?.tagName) {
-            add(
-                if (latest.isNewer) {
-                    "最新版本更新内容" to latest
-                } else {
-                    "当前通道最新版本更新内容" to latest
-                },
-            )
-        }
-    }
 }
 
 @Composable
@@ -756,98 +640,6 @@ fun PermissionCenterDialog(
         confirmButton = {},
         dismissButton = {},
     )
-}
-
-@Composable
-private fun UpdateStatusSummary(
-    githubUpdateState: GithubUpdateUiState,
-) {
-    val statusText: String
-    val statusColor: Color
-    when {
-        githubUpdateState.downloading -> {
-            statusText = "正在下载"
-            statusColor = LukoaColors.Accent
-        }
-        githubUpdateState.checking -> {
-            statusText = "正在检查"
-            statusColor = LukoaColors.Amber
-        }
-        githubUpdateState.hasUpdate -> {
-            statusText = "发现新版本"
-            statusColor = LukoaColors.Accent
-        }
-        githubUpdateState.latest != null -> {
-            statusText = "已是最新"
-            statusColor = LukoaColors.Muted
-        }
-        githubUpdateState.repository.isBlank() -> {
-            statusText = "未配置仓库"
-            statusColor = LukoaColors.Amber
-        }
-        else -> {
-            statusText = "等待检查"
-            statusColor = LukoaColors.Muted
-        }
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = "当前状态",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                StatusPill(
-                    text = statusText,
-                    active = githubUpdateState.hasUpdate || githubUpdateState.downloading || githubUpdateState.checking,
-                    toneColor = statusColor,
-                    activeBackground = when (statusColor) {
-                        LukoaColors.Accent -> LukoaColors.AccentSoft
-                        LukoaColors.Amber -> LukoaColors.AmberSoft
-                        else -> LukoaColors.SurfaceAlt
-                    },
-                )
-            }
-            Text(
-                text = githubUpdateState.message,
-                color = if (githubUpdateState.hasUpdate) LukoaColors.Text else LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            MiniInfoLine("更新通道", githubUpdateState.channel.label)
-            githubUpdateState.latest?.let { latest ->
-                MiniInfoLine("GitHub 最新", "v${latest.versionName}")
-                MiniInfoLine("版本类型", latest.releaseTypeLabel)
-                if (latest.prerelease) {
-                    Text(
-                        text = "这是测试版发布，可能会比稳定版更早，但也更容易遇到问题。",
-                        color = LukoaColors.Amber,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            githubUpdateState.lastCheckedText
-                .takeIf { it.isNotBlank() }
-                ?.let { checkedText ->
-                    MiniInfoLine("上次检查", checkedText)
-                }
-        }
-    }
 }
 
 @Composable

@@ -94,7 +94,7 @@ fun MirrorSettingsSection(
 }
 
 @Composable
-private fun MirrorSettingsDialog(
+internal fun MirrorSettingsDialog(
     tavernMirrorConfig: TavernMirrorConfig,
     tavernRepoInput: String,
     npmRegistryInput: String,
