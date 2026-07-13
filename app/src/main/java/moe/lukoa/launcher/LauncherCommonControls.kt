@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -50,7 +51,7 @@ fun ActionTone.color(): Color = when (this) {
     ActionTone.Safe -> LukoaColors.Accent
     ActionTone.Warning -> LukoaColors.Amber
     ActionTone.Danger -> LukoaColors.Danger
-    ActionTone.Neutral -> LukoaColors.Info
+    ActionTone.Neutral -> LukoaColors.Text
 }
 
 @Composable
@@ -82,21 +83,28 @@ fun InfoIconButton(
     val feedbackClick = rememberFeedbackClick(onClick)
     Surface(
         modifier = modifier
-            .size(24.dp)
+            .size(32.dp)
             .semantics { this.contentDescription = contentDescription }
             .clickable(onClick = feedbackClick),
-        color = LukoaColors.SurfaceAlt,
+        color = Color.Transparent,
         shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.5f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = "!",
-                color = accentColor,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-            )
+            Surface(
+                modifier = Modifier.size(18.dp),
+                color = LukoaColors.SurfaceAlt.copy(alpha = 0.75f),
+                shape = LukoaCapsuleShape,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "?",
+                        color = accentColor,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -136,6 +144,36 @@ fun DialogActionButton(
 }
 
 @Composable
+fun PrimaryActionButton(
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val feedbackClick = rememberFeedbackClick(onClick = onClick)
+    val color = if (danger) LukoaColors.Danger else LukoaColors.Accent
+    Button(
+        onClick = feedbackClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = if (danger) Color(0xFF2A050D) else LukoaColors.AccentDark,
+            disabledContainerColor = LukoaColors.SurfaceAlt,
+            disabledContentColor = LukoaColors.Dim,
+        ),
+    ) {
+        Text(
+            text = text,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+@Composable
 fun SecondaryActionButton(
     text: String,
     enabled: Boolean,
@@ -145,16 +183,27 @@ fun SecondaryActionButton(
 ) {
     val feedbackClick = rememberFeedbackClick(onClick)
     val styleColor = accentColor
-    val toneColor = if (enabled) styleColor else LukoaColors.Dim
-    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Line.copy(alpha = 0.3f)
+    val toneColor = if (!enabled) {
+        LukoaColors.Dim
+    } else if (styleColor == LukoaColors.Danger || styleColor == LukoaColors.Amber) {
+        styleColor
+    } else {
+        LukoaColors.Text
+    }
+    val containerColor = when {
+        !enabled -> Color.Transparent
+        styleColor == LukoaColors.Danger -> LukoaColors.DangerSoft.copy(alpha = 0.72f)
+        styleColor == LukoaColors.Amber -> LukoaColors.AmberSoft.copy(alpha = 0.72f)
+        else -> Color.White.copy(alpha = 0.06f)
+    }
     OutlinedButton(
         onClick = feedbackClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
-        border = BorderStroke(1.dp, borderColor),
-        shape = LukoaCapsuleShape,
+        border = null,
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (enabled) styleColor.copy(alpha = 0.05f) else Color.Transparent,
+            containerColor = containerColor,
             contentColor = toneColor,
             disabledContainerColor = Color.Transparent,
             disabledContentColor = LukoaColors.Dim,

@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import android.view.MotionEvent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,52 +49,23 @@ private enum class DocCategory(val label: String, val title: String) {
 fun DocumentationSection(
     onPagerLockChange: (Boolean) -> Unit = {},
 ) {
-    var selectedCategory by remember { mutableStateOf(DocCategory.NewUser) }
-    DisposableEffect(onPagerLockChange) {
-        onDispose { onPagerLockChange(false) }
-    }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionPanel(title = "文档导航", accentColor = LukoaColors.Accent) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInteropFilter { event ->
-                        when (event.actionMasked) {
-                            MotionEvent.ACTION_DOWN -> onPagerLockChange(true)
-                            MotionEvent.ACTION_UP,
-                            MotionEvent.ACTION_CANCEL,
-                            MotionEvent.ACTION_OUTSIDE -> onPagerLockChange(false)
-                        }
-                        false
-                    }
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                DocCategory.entries.forEach { category ->
-                    DocNavChip(
-                        text = category.label,
-                        selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
-                    )
-                }
-            }
-            Text(
-                text = "遇到问题先看对应分类，不用从头翻。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        DocumentationGroup("入门") { NewUserDocs() }
+        DocumentationGroup("启动与日志") { LaunchDocs() }
+        DocumentationGroup("网络与 API") { ApiDocs() }
+        DocumentationGroup("角色与预设") { RoleDocs() }
+        DocumentationGroup("备份与数据安全") { BackupDocs() }
+        DocumentationGroup("排错") { TroubleshootingDocs() }
+    }
+}
 
-        SectionPanel(title = selectedCategory.title, accentColor = LukoaColors.Accent) {
-            when (selectedCategory) {
-                DocCategory.NewUser -> NewUserDocs()
-                DocCategory.Launch -> LaunchDocs()
-                DocCategory.Api -> ApiDocs()
-                DocCategory.Role -> RoleDocs()
-                DocCategory.Backup -> BackupDocs()
-                DocCategory.Troubleshooting -> TroubleshootingDocs()
-            }
-        }
+@Composable
+private fun DocumentationGroup(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    SectionPanel(title = title, accentColor = LukoaColors.Accent) {
+        content()
     }
 }
 
@@ -240,37 +212,42 @@ private fun DocTopicCard(
     body: String,
     accentColor: Color,
 ) {
+    var expanded by remember(title) { mutableStateOf(false) }
+    val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = feedbackClick),
+        color = Color.Transparent,
+        shape = RoundedCornerShape(12.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
+        Column(
+            modifier = Modifier.padding(horizontal = 2.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .width(4.dp)
-                    .height(18.dp)
-                    .background(accentColor, RoundedCornerShape(2.dp))
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 Text(
                     text = title,
+                    modifier = Modifier.weight(1f),
                     color = LukoaColors.Text,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                 )
+                Text(
+                    text = if (expanded) "⌄" else "›",
+                    color = accentColor,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
                 Text(
                     text = body,
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 22.sp
+                    lineHeight = 22.sp,
                 )
             }
         }

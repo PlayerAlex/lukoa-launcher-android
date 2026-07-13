@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,8 +45,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun Header(
-    tavernRunning: Boolean,
-    tavernStarting: Boolean,
+    instanceLabel: String,
+    instancePort: Int,
     showVersionUpdateBadge: Boolean,
     onVersionClick: () -> Unit,
 ) {
@@ -60,7 +62,9 @@ fun Header(
         color = LukoaColors.Background,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -72,83 +76,50 @@ fun Header(
                     painter = painterResource(id = R.drawable.ic_lukoa_launcher),
                     contentDescription = "露科亚启动器",
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(42.dp)
                         .clip(RoundedCornerShape(12.dp)),
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     Text(
                         text = "露科亚启动器",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleMedium,
                         color = LukoaColors.Text,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = "Termux 控制台",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = LukoaColors.Muted,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .background(
-                                    color = when {
-                                        tavernRunning -> LukoaColors.Accent
-                                        tavernStarting -> LukoaColors.Amber
-                                        else -> LukoaColors.Danger
-                                    },
-                                    shape = RoundedCornerShape(5.dp),
-                                ),
-                        )
-                    }
+                    Text(
+                        text = "$instanceLabel · 端口 $instancePort",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LukoaColors.Muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
-            Surface(
+            Box(
                 modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
-                color = if (showVersionUpdateBadge) {
-                    LukoaColors.DangerSoft.copy(alpha = 0.55f)
-                } else {
-                    LukoaColors.SurfaceAlt
-                },
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (showVersionUpdateBadge) {
-                        LukoaColors.Danger.copy(alpha = 0.5f)
-                    } else {
-                        LukoaColors.Line
-                    },
-                ),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = "v$versionName",
-                        color = if (showVersionUpdateBadge) LukoaColors.Text else LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
+                Text(
+                    text = "v$versionName",
+                    color = if (showVersionUpdateBadge) LukoaColors.Text else LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (showVersionUpdateBadge) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = (-4).dp, y = 7.dp)
+                            .size(8.dp)
+                            .background(LukoaColors.Danger, LukoaCapsuleShape)
+                            .border(2.dp, LukoaColors.Background, LukoaCapsuleShape),
                     )
-                    if (showVersionUpdateBadge) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    color = LukoaColors.Danger,
-                                    shape = RoundedCornerShape(4.dp),
-                                ),
-                        )
-                    }
                 }
             }
         }
@@ -164,17 +135,16 @@ fun OverviewPanel(
     tavernStarting: Boolean,
     syncActive: Boolean,
 ) {
-    val accentColor = when {
-        tavernRunning -> LukoaColors.Accent
-        tavernStarting -> LukoaColors.Accent
-        verified -> LukoaColors.Accent
-        else -> LukoaColors.Line
-    }
     val stateLabel = when {
-        tavernRunning -> "酒馆运行中"
-        tavernStarting -> "酒馆启动中"
-        verified -> "状态已确认"
-        else -> "等待确认"
+        tavernRunning -> "运行中"
+        tavernStarting -> "启动中"
+        verified -> "未运行"
+        else -> "未就绪"
+    }
+    val stateColor = when {
+        tavernRunning || tavernStarting -> LukoaColors.Accent
+        verified -> LukoaColors.Text
+        else -> LukoaColors.Amber
     }
     val statusLine = status
         .lineSequence()
@@ -182,83 +152,35 @@ fun OverviewPanel(
         .orEmpty()
         .trim()
         .ifBlank { "等待操作" }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
+    DashedSection(
+        label = "酒馆状态",
+        modifier = Modifier.padding(top = 8.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, accentColor.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .width(9.dp)
-                            .height(9.dp)
-                            .background(accentColor, RoundedCornerShape(5.dp)),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "当前状态",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                StatusPill(
-                    text = if (verified) "已确认" else "未确认",
-                    active = verified,
-                    toneColor = if (verified) LukoaColors.Accent else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
-                )
-            }
-
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
-                text = summary,
-                color = LukoaColors.Text,
+                text = stateLabel,
+                color = stateColor,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Text(
+                text = summary.ifBlank { statusLine },
+                color = LukoaColors.Muted,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
             )
-
-            Text(
-                text = statusLine,
-                color = LukoaColors.Muted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                StatusPill(
-                    text = stateLabel,
+                DotStatusPill(
+                    text = if (tavernRunning || tavernStarting) "酒馆运行中" else "酒馆未运行",
                     active = tavernRunning || tavernStarting,
-                    modifier = Modifier.weight(1f),
-                    toneColor = when {
-                        tavernRunning -> LukoaColors.Accent
-                        tavernStarting -> LukoaColors.Accent
-                        else -> LukoaColors.Muted
-                    },
-                    activeBackground = LukoaColors.AccentSoft,
                 )
-                StatusPill(
+                DotStatusPill(
                     text = if (syncActive) "Termux 同步中" else "Termux 未同步",
                     active = syncActive,
-                    modifier = Modifier.weight(1f),
-                    toneColor = if (syncActive) LukoaColors.Accent else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
                 )
             }
         }
@@ -272,42 +194,11 @@ fun SectionPanel(
     headerAction: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.2f),
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 0.dp,
+    DashedSection(
+        label = title,
+        headerAction = headerAction,
     ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(18.dp)
-                        .background(accentColor, RoundedCornerShape(2.dp)),
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = title,
-                    modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                headerAction?.invoke()
-            }
-            content()
-        }
+        content()
     }
 }
 
@@ -371,89 +262,66 @@ fun LogPanel(
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+    DashedSection(
+        label = title,
+        headerAction = if (showFollowControls) {
+            {
                 Text(
-                    text = title,
-                    modifier = Modifier.weight(1f),
-                    color = accentColor,
+                    text = if (followLatest) "追踪中" else "已暂停",
+                    color = if (followLatest) LukoaColors.Accent else LukoaColors.Amber,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (showFollowControls) {
-                    StatusPill(
-                        text = if (followLatest) "追踪最新" else "已暂停",
-                        active = followLatest,
-                        toneColor = if (followLatest) LukoaColors.Accent else LukoaColors.Amber,
-                        activeBackground = if (followLatest) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
-                    )
-                }
-            }
-            subtitle?.let {
-                Text(
-                    text = it,
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
                 )
             }
+        } else {
+            null
+        },
+    ) {
+        subtitle?.let {
+            Text(
+                text = it,
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 180.dp, max = 430.dp)
+                .background(LukoaColors.Terminal, RoundedCornerShape(14.dp)),
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 220.dp, max = 430.dp)
-                    .background(LukoaColors.Terminal, RoundedCornerShape(12.dp))
-                    .border(1.dp, accentColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                    .matchParentSize()
+                    .padding(12.dp)
+                    .verticalScroll(scrollState),
             ) {
-                Box(
+                TerminalText(text = displayContent)
+            }
+            if (showFollowControls && !followLatest && !isNearBottom) {
+                ReturnToLatestChip(
+                    accentColor = accentColor,
                     modifier = Modifier
-                        .matchParentSize()
-                        .padding(10.dp)
-                        .verticalScroll(scrollState),
-                ) {
-                    TerminalText(
-                        text = displayContent,
-                    )
-                }
-                if (showFollowControls && !followLatest && !isNearBottom) {
-                    ReturnToLatestChip(
-                        accentColor = accentColor,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(10.dp),
-                        onClick = {
-                            followLatest = true
-                            scope.launch {
-                                autoScrollInProgress = true
-                                suppressUserPause = true
-                                try {
-                                    withFrameNanos { }
-                                    scrollState.scrollTo(scrollState.maxValue)
-                                    withFrameNanos { }
-                                    scrollState.animateScrollTo(scrollState.maxValue)
-                                } finally {
-                                    autoScrollInProgress = false
-                                    withFrameNanos { }
-                                    suppressUserPause = false
-                                }
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp),
+                    onClick = {
+                        followLatest = true
+                        scope.launch {
+                            autoScrollInProgress = true
+                            suppressUserPause = true
+                            try {
+                                withFrameNanos { }
+                                scrollState.scrollTo(scrollState.maxValue)
+                                withFrameNanos { }
+                                scrollState.animateScrollTo(scrollState.maxValue)
+                            } finally {
+                                autoScrollInProgress = false
+                                withFrameNanos { }
+                                suppressUserPause = false
                             }
-                        },
-                    )
-                }
+                        }
+                    },
+                )
             }
         }
     }

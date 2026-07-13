@@ -74,23 +74,6 @@ fun VersionManagementSection(
         actionState.updateDisabledReason?.let { "更新：$it" },
         actionState.rollbackDisabledReason?.let { "回退：$it" },
     ).distinct()
-    var selectedView by remember {
-        mutableStateOf(
-            if (tavernVersionInfo.hasData) VersionPageView.Current else VersionPageView.Target,
-        )
-    }
-    val viewOptions = listOf(
-        SectionSwitchOption(
-            value = VersionPageView.Current,
-            label = "当前安装",
-            description = "看当前酒馆版本、分支、提交、本地改动和检测目录。",
-        ),
-        SectionSwitchOption(
-            value = VersionPageView.Target,
-            label = "目标切换",
-            description = "读取官方版本、选择目标版本，再决定更新还是回退。",
-        ),
-    )
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         VersionOverviewCard(
             tavernVersionInfo = tavernVersionInfo,
@@ -99,16 +82,9 @@ fun VersionManagementSection(
             actionsLocked = actionsLocked,
             onRefreshCurrentVersion = onTavernVersion,
         )
-        SectionSwitcherCard(
-            title = "版本分区",
-            options = viewOptions,
-            selected = selectedView,
-            onPagerLockChange = onPagerLockChange,
-            onSelect = { selectedView = it },
-        )
-
-        when (selectedView) {
-            VersionPageView.Current -> SectionPanel(title = "当前安装信息", accentColor = LukoaColors.Accent) {
+        listOf(VersionPageView.Current, VersionPageView.Target).forEach { view ->
+            when (view) {
+            VersionPageView.Current -> SectionPanel(title = "安装详情", accentColor = LukoaColors.Accent) {
                 Text(
                     text = tavernVersionInfo.displayVersion,
                     color = when {
@@ -214,17 +190,17 @@ fun VersionManagementSection(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     SecondaryActionButton(
-                        text = "更新",
+                        text = "更新到 ${selectedVersion?.name ?: "目标版本"}",
                         enabled = updateEnabled,
-                        accentColor = LukoaColors.Amber,
+                        accentColor = LukoaColors.Accent,
                         modifier = Modifier
                             .weight(1f),
                         onClick = onTavernUpdate,
                     )
                     SecondaryActionButton(
-                        text = "回退",
+                        text = "回退到 ${selectedVersion?.name ?: "目标版本"}",
                         enabled = rollbackEnabled,
-                        accentColor = LukoaColors.Amber,
+                        accentColor = LukoaColors.Accent,
                         modifier = Modifier
                             .weight(1f),
                         onClick = onTavernRollback,
@@ -241,6 +217,7 @@ fun VersionManagementSection(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
         }
     }
 }
@@ -274,24 +251,18 @@ private fun VersionOverviewCard(
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
+    DashedSection(
+        label = "当前安装",
+        modifier = Modifier.padding(top = 8.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "版本部署",
+                    text = if (tavernVersionInfo.hasData) tavernVersionInfo.displayVersion else "尚未读取版本",
                     color = LukoaColors.Text,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
@@ -304,16 +275,11 @@ private fun VersionOverviewCard(
                 )
             }
 
-            Surface(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
                     VersionStatBlock(
                         label = "当前版本",
                         value = if (tavernVersionInfo.hasData) tavernVersionInfo.displayVersion else "未知",
@@ -333,7 +299,6 @@ private fun VersionOverviewCard(
                         accentColor = if (selectedVersion != null) LukoaColors.Accent else LukoaColors.Dim,
                         modifier = Modifier.weight(1f)
                     )
-                }
             }
             SecondaryActionButton(
                 text = "重新检测酒馆版本",

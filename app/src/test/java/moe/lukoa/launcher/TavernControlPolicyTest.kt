@@ -19,4 +19,26 @@ class TavernControlPolicyTest {
     fun `start is offered only when tavern is inactive`() {
         assertFalse(shouldOfferStopTavern(tavernRunning = false, tavernStarting = false))
     }
+
+    @Test
+    fun `active start command can be interrupted once starting is detected`() {
+        assertTrue(
+            canInterruptActiveTavernStart(
+                actionInProgress = true,
+                tavernStarting = true,
+                busyLabel = TAVERN_START_BUSY_LABEL,
+            ),
+        )
+    }
+
+    @Test
+    fun `unrelated busy command cannot be interrupted as a start`() {
+        assertFalse(
+            canInterruptActiveTavernStart(
+                actionInProgress = true,
+                tavernStarting = true,
+                busyLabel = "更新酒馆",
+            ),
+        )
+    }
 }

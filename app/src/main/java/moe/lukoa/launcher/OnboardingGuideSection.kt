@@ -231,7 +231,7 @@ fun QuickStartGuideSection(
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Text(
-                            text = "安装完成后，回到上方酒馆控制，点一次“启动酒馆”即可。",
+                            text = "安装完成后，到下方操作区点一次“启动酒馆”即可。",
                             color = LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )

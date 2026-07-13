@@ -2,15 +2,21 @@ package moe.lukoa.launcher
 
 import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,47 +77,112 @@ fun LauncherBottomBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
+        color = LukoaColors.Background.copy(alpha = 0.98f),
     ) {
-        Column {
-            HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.3f))
-            NavigationBar(
-                containerColor = LukoaColors.Surface,
-                contentColor = LukoaColors.Text,
-                tonalElevation = 0.dp,
+        Column(modifier = Modifier.navigationBarsPadding()) {
+            HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.18f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(66.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 LauncherTab.entries.forEach { tab ->
                     val selected = selectedTab == tab
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { onSelectTab(tab) },
-                        icon = {
-                            Text(
-                                text = tab.shortLabel,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                    val isLaunch = tab == LauncherTab.Launch
+                    val color = if (selected) LukoaColors.Accent else LukoaColors.Dim
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 56.dp)
+                            .selectable(
+                                selected = selected,
+                                onClick = { onSelectTab(tab) },
+                                role = Role.Tab,
                             )
-                        },
-                        label = {
-                            Text(
-                                text = tab.label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) LukoaColors.Text else LukoaColors.Muted,
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = LukoaColors.Accent,
-                            selectedTextColor = LukoaColors.Text,
-                            indicatorColor = LukoaColors.AccentSoft.copy(alpha = 0.6f),
-                            unselectedIconColor = LukoaColors.Muted,
-                            unselectedTextColor = LukoaColors.Muted,
-                        ),
-                    )
+                            .padding(vertical = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        if (isLaunch) {
+                            Box(
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .background(
+                                        color = if (selected) LukoaColors.Accent else LukoaColors.AccentSoft.copy(alpha = 0.55f),
+                                        shape = RoundedCornerShape(14.dp),
+                                    )
+                                    .padding(horizontal = 15.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                LauncherNavIcon(
+                                    tab = tab,
+                                    color = if (selected) LukoaColors.AccentDark else LukoaColors.Accent,
+                                )
+                            }
+                        } else {
+                            LauncherNavIcon(tab = tab, color = color)
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = tab.label,
+                            color = color,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LauncherNavIcon(tab: LauncherTab, color: Color) {
+    Canvas(modifier = Modifier.size(22.dp)) {
+        val stroke = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        when (tab) {
+            LauncherTab.Docs -> {
+                drawLine(color, start = androidx.compose.ui.geometry.Offset(4f, size.height * .28f), end = androidx.compose.ui.geometry.Offset(size.width - 4f, size.height * .28f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawLine(color, start = androidx.compose.ui.geometry.Offset(4f, size.height * .5f), end = androidx.compose.ui.geometry.Offset(size.width - 4f, size.height * .5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawLine(color, start = androidx.compose.ui.geometry.Offset(4f, size.height * .72f), end = androidx.compose.ui.geometry.Offset(size.width * .68f, size.height * .72f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            }
+            LauncherTab.Version -> {
+                val top = Path().apply {
+                    moveTo(size.width / 2f, 3f)
+                    lineTo(size.width - 3f, size.height * .3f)
+                    lineTo(size.width / 2f, size.height * .55f)
+                    lineTo(3f, size.height * .3f)
+                    close()
+                }
+                drawPath(top, color, style = stroke)
+                drawLine(color, androidx.compose.ui.geometry.Offset(4f, size.height * .58f), androidx.compose.ui.geometry.Offset(size.width / 2f, size.height - 3f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+                drawLine(color, androidx.compose.ui.geometry.Offset(size.width - 4f, size.height * .58f), androidx.compose.ui.geometry.Offset(size.width / 2f, size.height - 3f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            }
+            LauncherTab.Launch -> {
+                val play = Path().apply {
+                    moveTo(size.width * .34f, size.height * .2f)
+                    lineTo(size.width * .78f, size.height * .5f)
+                    lineTo(size.width * .34f, size.height * .8f)
+                    close()
+                }
+                drawPath(play, color)
+            }
+            LauncherTab.Backup -> {
+                drawRoundRect(
+                    color = color,
+                    topLeft = androidx.compose.ui.geometry.Offset(3f, 3f),
+                    size = androidx.compose.ui.geometry.Size(size.width - 6f, size.height - 6f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
+                    style = stroke,
+                )
+                drawLine(color, androidx.compose.ui.geometry.Offset(6f, size.height * .35f), androidx.compose.ui.geometry.Offset(size.width - 6f, size.height * .35f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            }
+            LauncherTab.Settings -> {
+                drawCircle(color = color, radius = size.minDimension * .38f, style = stroke)
+                drawCircle(color = color, radius = size.minDimension * .12f, style = stroke)
             }
         }
     }
@@ -132,7 +207,7 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
     }
     val elapsedText = formatBusyElapsed(elapsedSeconds)
     val detail = busyDetailFor(label, elapsedSeconds)
-    SectionPanel(title = "正在处理", accentColor = LukoaColors.Amber) {
+    SectionPanel(title = "当前任务", accentColor = LukoaColors.Accent) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -146,11 +221,11 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            StatusPill(
+            Text(
                 text = elapsedText,
-                active = true,
-                toneColor = LukoaColors.Amber,
-                activeBackground = LukoaColors.AmberSoft,
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
             )
         }
         Text(
@@ -160,21 +235,17 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "按钮已锁定，别重复点。完成后会显示 Termux 完整返回。",
-            color = LukoaColors.Muted,
+            text = "安装、更新、回退、备份、恢复和用户修改已暂时锁定，避免多个命令互相冲突。",
+            color = LukoaColors.Text,
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
 
-private fun formatBusyElapsed(seconds: Int): String {
+internal fun formatBusyElapsed(seconds: Int): String {
     val minutes = seconds / 60
     val rest = seconds % 60
-    return if (minutes > 0) {
-        "%d:%02d".format(minutes, rest)
-    } else {
-        "${rest}s"
-    }
+    return "%02d:%02d".format(minutes, rest)
 }
 
 private fun busyDetailFor(label: String, seconds: Int): String {
@@ -188,4 +259,3 @@ private fun busyDetailFor(label: String, seconds: Int): String {
         else -> "仍在等待 Termux 回传。只要按钮还锁着，就说明启动器还在等结果。"
     }
 }
-

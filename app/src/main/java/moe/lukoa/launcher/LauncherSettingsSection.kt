@@ -87,6 +87,8 @@ fun SettingsSection(
     healthCheckReport: LauncherHealthReport?,
     healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    issues: List<TavernIssue>,
     uploadLimitStatus: TavernUploadLimitStatus,
     tavernUserState: TavernUserManagementState,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
@@ -128,6 +130,7 @@ fun SettingsSection(
     onOpenRelease: () -> Unit,
     onRunHealthCheck: () -> Unit,
     onRunHealthCheckPrimaryAction: () -> Unit,
+    onQuickFixAction: (LauncherQuickFixAction) -> Unit,
     onForceCleanup: () -> Unit,
     onRepairDependencies: () -> Unit,
     onResetTavernTheme: () -> Unit,
@@ -138,6 +141,7 @@ fun SettingsSection(
     onCreateTavernUser: (String, String) -> Unit,
     onDeleteTavernUser: (String) -> Unit,
     onClearLogs: () -> Unit,
+    onExportLog: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
@@ -165,67 +169,6 @@ fun SettingsSection(
     var showPermissionCenterDialog by remember { mutableStateOf(false) }
     var showUpdateSettingsDialog by remember { mutableStateOf(false) }
     var showWakeDelayDialog by remember { mutableStateOf(false) }
-    var selectedView by remember {
-        mutableStateOf(
-            if (healthCheckReport?.hasData == true) {
-                if (termuxInstalled && permissionNotice.pendingItems.isEmpty()) {
-                    SettingsPageView.Mirror
-                } else {
-                    SettingsPageView.Permissions
-                }
-            } else {
-                SettingsPageView.Health
-            },
-        )
-    }
-    val sectionOptions = listOf(
-        SectionSwitchOption(
-            value = SettingsPageView.Repair,
-            label = "修复",
-            description = "修复依赖、重置网页主题，或调整 Node.js 内存上限。所有修改都会先保留可恢复副本。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Users,
-            label = "用户",
-            description = "管理当前酒馆内部的用户账户和数据目录，不是启动器的多实例。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Health,
-            label = "体检",
-            description = "先做一键体检，集中看权限、路径、镜像源和酒馆环境哪里卡住了。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Path,
-            label = "路径",
-            description = "管理实例目录、迁移位置和端口，也可以处理旧酒馆目录迁移到启动器托管目录。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Mirror,
-            label = "网络",
-            description = "切 GitHub 源、npm 源和 Termux 包源，主要处理国内网络和镜像问题。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Permissions,
-            label = "权限",
-            description = "集中看 RUN_COMMAND、外部调用、后台运行、文件和安装权限。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Update,
-            label = "更新",
-            description = "这里只管启动器 APK 的 GitHub 更新，不是酒馆版本更新。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Diagnostic,
-            label = "诊断",
-            description = "导出诊断日志，或者清启动器里的显示日志，方便查 bug。",
-        ),
-        SectionSwitchOption(
-            value = SettingsPageView.Wake,
-            label = "唤醒",
-            description = "调整唤醒 Termux 后多久自动切回来。",
-        ),
-    )
-
     if (showPathSettingsDialog) {
         key(
             tavernPathConfig.activeProfile.id,
@@ -315,22 +258,25 @@ fun SettingsSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        SettingsOverviewCard(
-            tavernPathConfig = tavernPathConfig,
-            mirrorProbeStatus = mirrorProbeStatus,
-            healthSummaryText = healthSummaryText,
-            healthSummaryColor = healthSummaryColor,
-            githubUpdateState = githubUpdateState,
-        )
-        SectionSwitcherCard(
-            title = "设置分区",
-            options = sectionOptions,
-            selected = selectedView,
-            onPagerLockChange = onPagerLockChange,
-            onSelect = { selectedView = it },
-        )
-
-        when (selectedView) {
+        if (issues.isNotEmpty()) {
+            IssueAnalysisPanel(
+                issues = issues,
+                actionsLocked = actionsLocked,
+                onQuickFixAction = onQuickFixAction,
+            )
+        }
+        listOf(
+            SettingsPageView.Update,
+            SettingsPageView.Path,
+            SettingsPageView.Mirror,
+            SettingsPageView.Users,
+            SettingsPageView.Repair,
+            SettingsPageView.Health,
+            SettingsPageView.Permissions,
+            SettingsPageView.Diagnostic,
+            SettingsPageView.Wake,
+        ).forEach { view ->
+            when (view) {
             SettingsPageView.Health -> HealthCheckSection(
                 report = healthCheckReport,
                 checking = healthCheckInFlight,
@@ -341,7 +287,7 @@ fun SettingsSection(
 
             SettingsPageView.Repair -> RepairToolsSection(
                 actionsLocked = actionsLocked,
-                tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
+                tavernRunning = tavernRunning,
                 uploadLimitStatus = uploadLimitStatus,
                 onRepairDependencies = onRepairDependencies,
                 onResetTheme = onResetTavernTheme,
@@ -353,7 +299,7 @@ fun SettingsSection(
             SettingsPageView.Users -> TavernUserManagementSection(
                 state = tavernUserState,
                 actionsLocked = actionsLocked,
-                tavernRunning = healthCheckReport?.doctorReport?.let { it.httpOk == true || it.processDetected == true } == true,
+                tavernRunning = tavernRunning,
                 onRefresh = onRefreshTavernUsers,
                 onCreate = onCreateTavernUser,
                 onDelete = onDeleteTavernUser,
@@ -585,7 +531,14 @@ fun SettingsSection(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
-                    text = "清除日志",
+                    text = "导出日志",
+                    enabled = !actionsLocked,
+                    accentColor = LukoaColors.Text,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExportLog,
+                )
+                SecondaryActionButton(
+                    text = "清空页面日志",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
@@ -631,6 +584,7 @@ fun SettingsSection(
                     onClick = { showWakeDelayDialog = true },
                 )
             }
+        }
         }
     }
 }

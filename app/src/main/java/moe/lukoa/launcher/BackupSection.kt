@@ -44,6 +44,9 @@ private enum class BackupSectionView {
 
 @Composable
 fun BackupSection(
+    instanceLabel: String,
+    instanceDirectory: String,
+    instancePort: Int,
     actionsLocked: Boolean,
     backupListRefreshing: Boolean,
     autoBackupEnabled: Boolean,
@@ -65,31 +68,8 @@ fun BackupSection(
 ) {
     var showBackupContentDialog by remember { mutableStateOf(false) }
     var showCopyPathDialog by remember { mutableStateOf(false) }
-    var selectedView by remember { mutableStateOf(BackupSectionView.Quick) }
     val manualBackups = backupHistory.filter { isManualBackupPath(it) }
     val autoBackups = backupHistory.filter { isAutoBackupPath(it) }
-    val sectionOptions = listOf(
-        SectionSwitchOption(
-            value = BackupSectionView.Quick,
-            label = "快捷操作",
-            description = "先做备份、导入备份、刷新备份库和复制备份路径，都在这里。",
-        ),
-        SectionSwitchOption(
-            value = BackupSectionView.Auto,
-            label = "自动备份",
-            description = "这里只看自动备份开关、间隔和保留策略。",
-        ),
-        SectionSwitchOption(
-            value = BackupSectionView.Library,
-            label = "备份库",
-            description = "手动备份库和自动备份库分开看，应用、导出、复制、重命名、删除都在这里。",
-        ),
-        SectionSwitchOption(
-            value = BackupSectionView.Safety,
-            label = "数据安全",
-            description = "提醒你哪些操作会覆盖数据，哪些只是导入导出文件。",
-        ),
-    )
 
     if (showBackupContentDialog) {
         BackupContentInfoDialog(onDismiss = { showBackupContentDialog = false })
@@ -110,21 +90,17 @@ fun BackupSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         BackupOverviewCard(
+            instanceLabel = instanceLabel,
+            instanceDirectory = instanceDirectory,
+            instancePort = instancePort,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalMinutes = autoBackupIntervalMinutes,
             autoBackupKeepCount = autoBackupKeepCount,
             manualBackupCount = manualBackups.size,
             autoBackupCount = autoBackups.size,
         )
-        SectionSwitcherCard(
-            title = "备份分区",
-            options = sectionOptions,
-            selected = selectedView,
-            onPagerLockChange = onPagerLockChange,
-            onSelect = { selectedView = it },
-        )
-
-        when (selectedView) {
+        BackupSectionView.entries.forEach { view ->
+            when (view) {
             BackupSectionView.Quick -> SectionPanel(
                 title = "快速操作",
                 accentColor = LukoaColors.Accent,
@@ -140,29 +116,23 @@ fun BackupSection(
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                PrimaryActionButton(
+                    text = "立即备份",
+                    enabled = !actionsLocked,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onCreateManualBackup,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     SecondaryActionButton(
-                        text = "生成备份",
+                        text = "导入备份",
                         enabled = !actionsLocked,
-                        accentColor = LukoaColors.Accent,
-                        modifier = Modifier.weight(1f),
-                        onClick = onCreateManualBackup,
-                    )
-                    SecondaryActionButton(
-                        text = "导入到备份库",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Accent,
+                        accentColor = LukoaColors.Text,
                         modifier = Modifier.weight(1f),
                         onClick = onImportBackup,
                     )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
                     SecondaryActionButton(
                         text = if (backupListRefreshing) "刷新中..." else "刷新列表",
                         enabled = !actionsLocked && !backupListRefreshing,
@@ -170,14 +140,14 @@ fun BackupSection(
                         modifier = Modifier.weight(1f),
                         onClick = onRefreshBackups,
                     )
-                    SecondaryActionButton(
-                        text = "复制文件地址",
-                        enabled = !actionsLocked,
-                        accentColor = LukoaColors.Accent,
-                        modifier = Modifier.weight(1f),
-                        onClick = { showCopyPathDialog = true },
-                    )
                 }
+                SecondaryActionButton(
+                    text = "复制文件地址",
+                    enabled = !actionsLocked,
+                    accentColor = LukoaColors.Text,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showCopyPathDialog = true },
+                )
             }
 
             BackupSectionView.Auto -> SectionPanel(title = "自动备份", accentColor = LukoaColors.Accent) {
@@ -279,28 +249,26 @@ fun BackupSection(
                 )
             }
         }
+        }
     }
 }
 
 @Composable
 private fun BackupOverviewCard(
+    instanceLabel: String,
+    instanceDirectory: String,
+    instancePort: Int,
     autoBackupEnabled: Boolean,
     autoBackupIntervalMinutes: Int,
     autoBackupKeepCount: Int,
     manualBackupCount: Int,
     autoBackupCount: Int,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
+    DashedSection(
+        label = "备份概览",
+        modifier = Modifier.padding(top = 8.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -319,6 +287,13 @@ private fun BackupOverviewCard(
                     activeBackground = if (autoBackupEnabled) LukoaColors.AccentSoft else LukoaColors.SurfaceAlt,
                 )
             }
+            Text(
+                text = "$instanceLabel · $instanceDirectory · 端口 $instancePort",
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,

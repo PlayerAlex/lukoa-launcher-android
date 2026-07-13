@@ -2596,23 +2596,29 @@ fun LukoaLauncherScreen(
             update("酒馆正在启动中，请稍等。", "", false)
             return
         }
-        if (!beginBusy("启动酒馆", 15000L)) return
+        if (!beginBusy(TAVERN_START_BUSY_LABEL, 15000L)) return
 
         showStopConfirmDialog = false
+        launchAttemptToken += 1
+        val requestToken = launchAttemptToken
+        val startBusyToken = busyToken
         onForegroundStart { newStatus, termuxOutput, ok ->
+            if (launchAttemptToken != requestToken) {
+                return@onForegroundStart
+            }
             update(newStatus, termuxOutput, ok)
             if (isTransientStatus(newStatus)) {
                 return@onForegroundStart
             }
-            releaseBusy()
+            if (busyToken == startBusyToken && busyLabel == TAVERN_START_BUSY_LABEL) {
+                releaseBusy()
+            }
             if (ok) {
                 tavernStarting = true
                 tavernRunning = false
-                launchAttemptToken += 1
-                val token = launchAttemptToken
                 scope.launch {
                     delay(60_000L)
-                    if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
+                    if (launchAttemptToken == requestToken && tavernStarting && !tavernRunning) {
                         tavernStarting = false
                         update(
                             "启动太久了，请看下方 Termux 返回。",
@@ -2801,7 +2807,12 @@ fun LukoaLauncherScreen(
     }
 
     fun requestStopTavern() {
-        if (actionInProgress) {
+        val interruptingStart = canInterruptActiveTavernStart(
+            actionInProgress = actionInProgress,
+            tavernStarting = tavernStarting,
+            busyLabel = busyLabel,
+        )
+        if (actionInProgress && !interruptingStart) {
             update("正在处理，稍后再停止酒馆。", "", false)
             return
         }
@@ -2819,6 +2830,20 @@ fun LukoaLauncherScreen(
 
     fun confirmStopTavern() {
         showStopConfirmDialog = false
+        val interruptingStart = canInterruptActiveTavernStart(
+            actionInProgress = actionInProgress,
+            tavernStarting = tavernStarting,
+            busyLabel = busyLabel,
+        )
+        if (actionInProgress && !interruptingStart) {
+            update("正在处理，稍后再停止酒馆。", "", false, allowRunningInference = false)
+            return
+        }
+        if (interruptingStart) {
+            launchAttemptToken += 1
+            tavernStarting = false
+            releaseBusy()
+        }
         if (!beginBusy(
                 "停止酒馆",
                 TermuxCommandTimeoutPolicy.operationLockMillis("stop"),
@@ -3285,24 +3310,29 @@ fun LukoaLauncherScreen(
                     },
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(pageScrollState)
-                        .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxSize(),
                 ) {
-                    Header(
-                        tavernRunning = tavernRunning,
-                        tavernStarting = tavernStarting,
-                        showVersionUpdateBadge = showGithubUpdateBadge,
-                        onVersionClick = {
-                            if (githubUpdateState.hasUpdate) {
-                                showUpdateDialog = true
-                            } else {
-                                checkGithubUpdate(manual = true)
-                            }
-                        },
-                    )
+                    Box(modifier = Modifier.padding(start = 16.dp, top = 42.dp, end = 16.dp)) {
+                        Header(
+                            instanceLabel = tavernPathConfig.activeProfileLabel,
+                            instancePort = tavernPathConfig.normalizedPort,
+                            showVersionUpdateBadge = showGithubUpdateBadge,
+                            onVersionClick = {
+                                if (githubUpdateState.hasUpdate) {
+                                    showUpdateDialog = true
+                                } else {
+                                    checkGithubUpdate(manual = true)
+                                }
+                            },
+                        )
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(pageScrollState)
+                            .padding(start = 16.dp, top = 2.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
 
                     if (tab != LauncherTab.Launch) {
                         if (busyLabel != null) {
@@ -3448,24 +3478,24 @@ fun LukoaLauncherScreen(
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
                             )
-                            IssueAnalysisPanel(
-                                issues = issueAnalysis,
-                                actionsLocked = actionInProgress,
-                                onQuickFixAction = ::runLauncherQuickFixAction,
-                            )
                             LogPanel(
-                                title = "酒馆运行日志",
-                                content = tavernRuntimeLog,
-                                accentColor = LukoaColors.Info,
+                                title = "Termux 调用返回",
+                                content = listOf(termuxLog, tavernRuntimeLog)
+                                    .filter { it.isNotBlank() }
+                                    .joinToString("\n\n"),
+                                accentColor = LukoaColors.Accent,
                                 maxVisibleLines = null,
                             )
                             LogPanel(
-                                title = "App 操作反馈",
+                                title = "操作反馈",
                                 content = appLog,
                                 accentColor = LukoaColors.Muted,
                             )
                         }
                         LauncherTab.Backup -> BackupSection(
+                            instanceLabel = tavernPathConfig.activeProfileLabel,
+                            instanceDirectory = tavernPathConfig.displayTavernDir,
+                            instancePort = tavernPathConfig.normalizedPort,
                             actionsLocked = actionInProgress || backupUiState.applyBackupPreviewRequest != null,
                             backupListRefreshing = backupUiState.backupListRefreshing,
                             autoBackupEnabled = autoBackupEnabled,
@@ -3509,6 +3539,8 @@ fun LukoaLauncherScreen(
                             healthCheckReport = healthCheckReport,
                             healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
+                            tavernRunning = tavernRunning || tavernStarting,
+                            issues = issueAnalysis,
                             uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
@@ -3595,6 +3627,7 @@ fun LukoaLauncherScreen(
                             },
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
+                            onQuickFixAction = ::runLauncherQuickFixAction,
                             onForceCleanup = ::requestForceCleanup,
                             onRepairDependencies = {
                                 runGuarded(
@@ -3670,6 +3703,7 @@ fun LukoaLauncherScreen(
                                 }
                             },
                             onClearLogs = ::requestClearLogs,
+                            onExportLog = { showExportDialog = true },
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onDecreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs - 100L)
@@ -3680,6 +3714,7 @@ fun LukoaLauncherScreen(
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
                     }
+                }
                 }
             }
         }

@@ -9,6 +9,9 @@ enum class TavernUploadLimitPatchState {
 
 data class TavernUploadLimitStatus(
     val currentMegabytes: Int? = null,
+    val targetCompatible: Boolean? = null,
+    val targetFile: String = "",
+    val backupFile: String = "",
     val patchState: TavernUploadLimitPatchState = TavernUploadLimitPatchState.Unknown,
     val recordedPreviousMegabytes: Int? = null,
     val recordedAppliedMegabytes: Int? = null,
@@ -29,6 +32,9 @@ object TavernUploadLimitStatusParser {
         }
         return TavernUploadLimitStatus(
             currentMegabytes = current,
+            targetCompatible = output.lineValue("uploadLimit.status")?.let { it == "compatible" },
+            targetFile = output.lineValue("uploadLimit.file").orEmpty(),
+            backupFile = output.lineValue("uploadLimit.backupFile").orEmpty().takeUnless { it == "unknown" }.orEmpty(),
             patchState = patchState,
             recordedPreviousMegabytes = output.lineValue("uploadLimit.recordedPreviousMb")?.toIntOrNull(),
             recordedAppliedMegabytes = output.lineValue("uploadLimit.recordedAppliedMb")?.toIntOrNull(),
