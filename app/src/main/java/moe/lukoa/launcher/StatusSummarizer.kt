@@ -29,9 +29,16 @@ object StatusSummarizer {
             merged.contains("\"status\": \"stopped\"") ||
                 merged.contains("SillyTavern stopped") ||
                 merged.contains("SillyTavern was not running") ||
+                merged.contains("SillyTavern force cleanup completed") ||
                 merged.contains("SillyTavern foreground session exited") ||
                 merged.contains("process is not running", ignoreCase = true) -> {
                 if (
+                    merged.contains("命令已发送到 Termux：tavern-force-cleanup") ||
+                    merged.contains("强制清理已返回") ||
+                    merged.contains("SillyTavern force cleanup completed")
+                ) {
+                    "强制清理已完成"
+                } else if (
                     merged.contains("命令已发送到 Termux：stop") ||
                     merged.contains("SillyTavern stopped")
                 ) {
@@ -50,8 +57,14 @@ object StatusSummarizer {
                 merged.contains("\"status\": \"starting\"") ||
                 merged.contains("懒人启动：") -> "正在启动酒馆"
 
+            merged.contains("命令已发送到 Termux：tavern-force-cleanup") ||
+                merged.contains("强制清理命令已发送") -> "正在强制清理端口"
+
             merged.contains("命令已发送到 Termux：stop") ||
                 merged.contains("停止命令已发送") -> "正在停止酒馆"
+
+            merged.contains("Use force cleanup", ignoreCase = true) ||
+                merged.contains("普通停止后酒馆还没完全停下") -> "普通停止后酒馆还没完全停下"
 
             merged.contains("正在查询酒馆状态") -> "正在查询状态"
 
@@ -141,6 +154,8 @@ object StatusSummarizer {
 
             merged.contains("\"status\": \"unreachable\"") -> "酒馆进程存在，但网页暂时打不开"
 
+            inferTavernPortConflict(merged) -> "酒馆端口已被别的进程占用"
+
             merged.contains("SillyTavern directory not found") -> "没有找到酒馆目录"
 
             merged.contains("node command not found") -> "启动失败：Termux 里没有找到 node"
@@ -156,7 +171,7 @@ object StatusSummarizer {
             ok -> "操作完成"
 
             merged.contains("失败") ||
-                merged.contains("\"status\": \"error\"") -> "操作失败，请查看 Termux 调用返回"
+                merged.contains("\"status\": \"error\"") -> "操作失败，请查看 Termux 前台回传"
 
             else -> status.lineSequence().firstOrNull().orEmpty().ifBlank { "等待操作" }
         }

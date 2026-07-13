@@ -23,6 +23,15 @@
 powershell -ExecutionPolicy Bypass -File .\build-debug.ps1 -AndroidHome "你的 Android SDK 路径"
 ```
 
+需要查看 Debug JVM 单元测试覆盖率时，执行：
+
+```powershell
+.\gradlew.bat --no-daemon :app:jacocoDebugUnitTestReport
+```
+
+HTML 报告会生成到 `app/build/reports/jacoco/debugUnitTest/html/index.html`，XML 报告会生成到
+`app/build/reports/jacoco/debugUnitTest/report.xml`。该报告会排除 Compose 和 Android 的生成类，但仍会保留手写 UI、系统组件及业务代码；因此在尚未添加仪器化测试时，全模块覆盖率偏低是正常现象。
+
 ## 3. 提交约定
 
 - 每次提交尽量只解决一类问题，不把无关改动混进去。

@@ -29,78 +29,95 @@ fun HealthCheckSection(
     onPrimaryAction: () -> Unit,
 ) {
     SectionPanel(title = "一键体检", accentColor = LukoaColors.Accent) {
-        val effectiveReport = report.takeIf { it?.hasData == true }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        HealthCheckContent(
+            report = report,
+            checking = checking,
+            actionsLocked = actionsLocked,
+            onRunHealthCheck = onRunHealthCheck,
+            onPrimaryAction = onPrimaryAction,
+        )
+    }
+}
+
+@Composable
+internal fun HealthCheckContent(
+    report: LauncherHealthReport?,
+    checking: Boolean,
+    actionsLocked: Boolean,
+    onRunHealthCheck: () -> Unit,
+    onPrimaryAction: () -> Unit,
+) {
+    val effectiveReport = report.takeIf { it?.hasData == true }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = effectiveReport?.summaryTitle ?: "还没体检",
-                        modifier = Modifier.weight(1f),
-                        color = LukoaColors.Text,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    StatusPill(
-                        text = summaryPillText(effectiveReport),
-                        active = effectiveReport != null,
-                        toneColor = summaryTone(effectiveReport),
-                        activeBackground = summaryTone(effectiveReport).copy(alpha = 0.14f),
-                    )
-                }
                 Text(
-                    text = effectiveReport?.summaryDetail
-                        ?: "点“一键体检”后，启动器会把权限、路径、镜像源和酒馆环境一起看一遍。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                effectiveReport?.let {
-                    Text(
-                        text = "上次体检：${formatCheckedAt(it.checkedAtMillis)}",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SecondaryActionButton(
-                text = if (checking) "体检中..." else "一键体检",
-                enabled = !actionsLocked && !checking,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.weight(1f),
-                onClick = onRunHealthCheck,
-            )
-            effectiveReport?.primaryAction?.let { action ->
-                SecondaryActionButton(
-                    text = action.label,
-                    enabled = !actionsLocked && !checking,
-                    accentColor = primaryActionColor(action.type),
+                    text = effectiveReport?.summaryTitle ?: "还没体检",
                     modifier = Modifier.weight(1f),
-                    onClick = onPrimaryAction,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                StatusPill(
+                    text = summaryPillText(effectiveReport),
+                    active = effectiveReport != null,
+                    toneColor = summaryTone(effectiveReport),
+                    activeBackground = summaryTone(effectiveReport).copy(alpha = 0.14f),
+                )
+            }
+            Text(
+                text = effectiveReport?.summaryDetail
+                    ?: "点“一键体检”后，启动器会把权限、路径、镜像源和酒馆环境一起看一遍。",
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            effectiveReport?.let {
+                Text(
+                    text = "上次体检：${formatCheckedAt(it.checkedAtMillis)}",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
+    }
 
-        effectiveReport?.items?.takeIf { it.isNotEmpty() }?.forEach { item ->
-            HealthCheckItemRow(item)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SecondaryActionButton(
+            text = if (checking) "体检中..." else "一键体检",
+            enabled = !actionsLocked && !checking,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.weight(1f),
+            onClick = onRunHealthCheck,
+        )
+        effectiveReport?.primaryAction?.let { action ->
+            SecondaryActionButton(
+                text = action.label,
+                enabled = !actionsLocked && !checking,
+                accentColor = primaryActionColor(action.type),
+                modifier = Modifier.weight(1f),
+                onClick = onPrimaryAction,
+            )
         }
+    }
+
+    effectiveReport?.items?.takeIf { it.isNotEmpty() }?.forEach { item ->
+        HealthCheckItemRow(item)
     }
 }
 

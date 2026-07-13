@@ -17,7 +17,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -26,11 +25,22 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun TavernPathSettingsDialog(
+    tavernPathConfig: TavernPathConfig,
+    currentPathInfo: TavernProfilePathInfo,
     tavernPathInput: String,
+    tavernPortInput: String,
     tavernPathError: String?,
+    tavernPortError: String?,
     displayPathPreview: String,
     actionsLocked: Boolean,
-    onValueChange: (String) -> Unit,
+    onPathChange: (String) -> Unit,
+    onPortChange: (String) -> Unit,
+    onSelectProfile: (String) -> Unit,
+    onAddProfile: () -> Unit,
+    onRemoveCurrentProfile: () -> Unit,
+    onMigrateToManagedPath: () -> Unit,
+    onMigrateToTraditionalPath: () -> Unit,
+    onMigrateToCustomPath: () -> Unit,
     onSave: () -> Unit,
     onRestoreDefault: () -> Unit,
     onDismiss: () -> Unit,
@@ -47,28 +57,135 @@ fun TavernPathSettingsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 440.dp)
+                    .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "默认目录是 ~/SillyTavern。只有你自己改过文件夹名，或者酒馆不在默认目录时，才需要改这里。",
+                    text = "这里开始改成按实例管理。当前激活实例的路径和端口会直接影响启动、停止、体检、安装和打开网页。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Text(
+                    text = "“保存当前实例”只会改启动器配置，不会搬动现有文件；下面的迁移按钮才会真的移动酒馆目录。",
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                MiniInfoLine("当前实例", tavernPathConfig.activeProfileLabel)
+                MiniInfoLine("实例数量", "${tavernPathConfig.availableProfiles.size}")
+                MiniInfoLine("当前路径类型", currentPathInfo.kind.label)
+                MiniInfoLine("托管默认目录", currentPathInfo.launcherManagedDefaultDisplayPath)
+                if (currentPathInfo.canMigrateToTraditionalDefault || currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                    MiniInfoLine("传统默认目录", currentPathInfo.traditionalDefaultDisplayPath)
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    tavernPathConfig.availableProfiles.forEach { profile ->
+                        DialogActionButton(
+                            text = buildString {
+                                append(profile.normalizedName)
+                                append(" · ")
+                                append(profile.displayTavernDir)
+                                append(" · ")
+                                append(profile.normalizedPort)
+                                if (profile.id == tavernPathConfig.activeProfile.id) {
+                                    append(" · 当前")
+                                }
+                            },
+                            enabled = !actionsLocked && profile.id != tavernPathConfig.activeProfile.id,
+                            tone = if (profile.id == tavernPathConfig.activeProfile.id) ActionTone.Safe else ActionTone.Neutral,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onSelectProfile(profile.id) },
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    DialogActionButton(
+                        text = "新建分身",
+                        enabled = !actionsLocked,
+                        modifier = Modifier.weight(1f),
+                        onClick = onAddProfile,
+                    )
+                    DialogActionButton(
+                        text = "删除当前实例",
+                        enabled = !actionsLocked && tavernPathConfig.canRemoveActiveProfile,
+                        tone = ActionTone.Warning,
+                        modifier = Modifier.weight(1f),
+                        onClick = onRemoveCurrentProfile,
+                    )
+                }
+                if (tavernPathConfig.hasMultipleProfiles && tavernPathConfig.isActiveProfileMain) {
+                    Text(
+                        text = "主实例默认保留，当前只能删除分身实例。要删除分身，请先切换到对应分身后再删。",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else if (tavernPathConfig.canRemoveActiveProfile) {
+                    Text(
+                        text = if (currentPathInfo.canDeleteDirectoryWithProfile) {
+                            "当前分身正在使用它自己的托管默认目录。删除这个实例时，会连同这个目录里的酒馆文件一起删掉；备份库不会删。"
+                        } else {
+                            "删除实例前会再确认一次。当前只会移除启动器里的实例配置，不会删除酒馆目录和备份。"
+                        },
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 OutlinedTextField(
                     value = tavernPathInput,
-                    onValueChange = onValueChange,
+                    onValueChange = onPathChange,
                     enabled = !actionsLocked,
                     singleLine = true,
                     label = { Text("酒馆目录路径") },
-                    placeholder = { Text("~/SillyTavern2") },
+                    placeholder = { Text(currentPathInfo.launcherManagedDefaultDisplayPath) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = lukoaTextFieldColors(),
+                )
+                OutlinedTextField(
+                    value = tavernPortInput,
+                    onValueChange = onPortChange,
+                    enabled = !actionsLocked,
+                    singleLine = true,
+                    label = { Text("酒馆端口") },
+                    placeholder = { Text("8001") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = lukoaTextFieldColors(),
                 )
                 MiniInfoLine("当前预览", displayPathPreview)
+                MiniInfoLine("当前端口", tavernPortInput.ifBlank { "未填写" })
+                Text(
+                    text = when (currentPathInfo.kind) {
+                        TavernProfilePathKind.LauncherManaged -> {
+                            "当前实例正在使用启动器托管目录。后续从启动器安装酒馆时，默认也会装到这类目录。"
+                        }
+
+                        TavernProfilePathKind.TraditionalDefault -> {
+                            "当前实例还在用传统默认目录 ~/SillyTavern。这个位置会继续兼容旧习惯，但新实例更推荐迁到托管目录。"
+                        }
+
+                        TavernProfilePathKind.Custom -> {
+                            "当前实例正在使用自定义目录。删除实例时不会自动删除这个目录，后续路径识别也会更依赖你自己确认。"
+                        }
+                    },
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 tavernPathError?.let { error ->
+                    Text(
+                        text = error,
+                        color = LukoaColors.Danger,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                tavernPortError?.let { error ->
                     Text(
                         text = error,
                         color = LukoaColors.Danger,
@@ -80,19 +197,49 @@ fun TavernPathSettingsDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DialogActionButton(
-                        text = "保存路径",
-                        enabled = !actionsLocked && tavernPathError == null,
+                        text = "保存当前实例",
+                        enabled = !actionsLocked && tavernPathError == null && tavernPortError == null,
                         modifier = Modifier.weight(1f),
                         onClick = onSave,
                     )
                     DialogActionButton(
-                        text = "恢复默认",
+                        text = "恢复当前默认",
                         enabled = !actionsLocked,
                         tone = ActionTone.Neutral,
                         modifier = Modifier.weight(1f),
                         onClick = onRestoreDefault,
                     )
                 }
+                DialogActionButton(
+                    text = if (currentPathInfo.kind == TavernProfilePathKind.LauncherManaged) {
+                        "当前已在托管目录"
+                    } else {
+                        "迁移到托管默认目录"
+                    },
+                    enabled = !actionsLocked && currentPathInfo.kind != TavernProfilePathKind.LauncherManaged,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onMigrateToManagedPath,
+                )
+                if (currentPathInfo.canMigrateToTraditionalDefault || currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                    DialogActionButton(
+                        text = if (currentPathInfo.kind == TavernProfilePathKind.TraditionalDefault) {
+                            "当前已在传统默认目录"
+                        } else {
+                            "迁移到传统默认目录"
+                        },
+                        enabled = !actionsLocked && currentPathInfo.kind != TavernProfilePathKind.TraditionalDefault,
+                        tone = ActionTone.Neutral,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onMigrateToTraditionalPath,
+                    )
+                }
+                DialogActionButton(
+                    text = "迁移到自定义地址",
+                    enabled = !actionsLocked,
+                    tone = ActionTone.Warning,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onMigrateToCustomPath,
+                )
                 DialogActionButton(
                     text = "关闭",
                     enabled = true,
@@ -115,9 +262,6 @@ fun LauncherUpdateSettingsDialog(
     onSaveRepository: () -> Unit,
     onRestoreDefaultRepository: () -> Unit,
     onSaveUpdateChannel: (GithubReleaseChannel) -> Unit,
-    onCheckUpdate: () -> Unit,
-    onInstallUpdate: () -> Unit,
-    onOpenRelease: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
@@ -138,21 +282,9 @@ fun LauncherUpdateSettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "这里只管露科亚启动器 APK 更新，走的是 App 自己的 GitHub 下载和安装流程，不用靠 Termux。酒馆版本的安装、更新、回退还在版本页处理。",
+                    text = "这里设置启动器更新使用的 GitHub 仓库和更新通道。酒馆版本仍在版本页管理。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
-                )
-                UpdateStatusSummary(githubUpdateState = githubUpdateState)
-                githubReleaseNotesEntries(githubUpdateState).forEach { (title, updateInfo) ->
-                    GithubReleaseNotesCard(
-                        title = title,
-                        updateInfo = updateInfo,
-                    )
-                }
-                UpdateChannelSelectorCard(
-                    channel = githubUpdateState.channel,
-                    enabled = !updateLocked,
-                    onSelectChannel = onSaveUpdateChannel,
                 )
                 OutlinedTextField(
                     value = repositoryInput,
@@ -183,40 +315,11 @@ fun LauncherUpdateSettingsDialog(
                         onClick = onRestoreDefaultRepository,
                     )
                 }
-                DialogActionButton(
-                    text = when {
-                        githubUpdateState.checking -> "检查中..."
-                        githubUpdateState.downloading -> "下载中..."
-                        else -> "检查更新"
-                    },
+                UpdateChannelSelectorCard(
+                    channel = githubUpdateState.channel,
                     enabled = !updateLocked,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onCheckUpdate,
+                    onSelectChannel = onSaveUpdateChannel,
                 )
-                if (githubUpdateState.hasUpdate || githubUpdateState.latest?.releaseUrl?.isNotBlank() == true) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (githubUpdateState.hasUpdate) {
-                            DialogActionButton(
-                                text = "查看新版",
-                                enabled = !updateLocked,
-                                modifier = Modifier.weight(1f),
-                                onClick = onInstallUpdate,
-                            )
-                        }
-                        if (githubUpdateState.latest?.releaseUrl?.isNotBlank() == true) {
-                            DialogActionButton(
-                                text = "打开发布页",
-                                enabled = !updateLocked,
-                                tone = ActionTone.Neutral,
-                                modifier = Modifier.weight(1f),
-                                onClick = onOpenRelease,
-                            )
-                        }
-                    }
-                }
                 DialogActionButton(
                     text = "关闭",
                     enabled = true,
@@ -229,77 +332,6 @@ fun LauncherUpdateSettingsDialog(
         confirmButton = {},
         dismissButton = {},
     )
-}
-
-@Composable
-fun GithubReleaseNotesCard(
-    title: String,
-    updateInfo: GithubUpdateInfo,
-) {
-    val formattedReleaseNotes = remember(updateInfo.versionName, updateInfo.body) {
-        GithubReleaseNotesFormatter.format(updateInfo.versionName, updateInfo.body)
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                color = LukoaColors.Accent,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            MiniInfoLine("版本", "v${updateInfo.versionName}")
-            MiniInfoLine("类型", updateInfo.releaseTypeLabel)
-            if (updateInfo.releaseName.isNotBlank() && updateInfo.releaseName != updateInfo.tagName) {
-                MiniInfoLine("标题", updateInfo.releaseName)
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.Surface,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.35f)),
-            ) {
-                Text(
-                    text = formattedReleaseNotes,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 88.dp, max = 180.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(12.dp),
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
-}
-
-fun githubReleaseNotesEntries(
-    githubUpdateState: GithubUpdateUiState,
-): List<Pair<String, GithubUpdateInfo>> {
-    val current = githubUpdateState.currentRelease
-    val latest = githubUpdateState.latest
-    return buildList {
-        if (current != null) {
-            add("当前版本更新内容" to current)
-        }
-        if (latest != null && latest.tagName != current?.tagName) {
-            add(
-                if (latest.isNewer) {
-                    "最新版本更新内容" to latest
-                } else {
-                    "当前通道最新版本更新内容" to latest
-                },
-            )
-        }
-    }
 }
 
 @Composable
@@ -608,98 +640,6 @@ fun PermissionCenterDialog(
         confirmButton = {},
         dismissButton = {},
     )
-}
-
-@Composable
-private fun UpdateStatusSummary(
-    githubUpdateState: GithubUpdateUiState,
-) {
-    val statusText: String
-    val statusColor: Color
-    when {
-        githubUpdateState.downloading -> {
-            statusText = "正在下载"
-            statusColor = LukoaColors.Accent
-        }
-        githubUpdateState.checking -> {
-            statusText = "正在检查"
-            statusColor = LukoaColors.Amber
-        }
-        githubUpdateState.hasUpdate -> {
-            statusText = "发现新版本"
-            statusColor = LukoaColors.Accent
-        }
-        githubUpdateState.latest != null -> {
-            statusText = "已是最新"
-            statusColor = LukoaColors.Muted
-        }
-        githubUpdateState.repository.isBlank() -> {
-            statusText = "未配置仓库"
-            statusColor = LukoaColors.Amber
-        }
-        else -> {
-            statusText = "等待检查"
-            statusColor = LukoaColors.Muted
-        }
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = "当前状态",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                StatusPill(
-                    text = statusText,
-                    active = githubUpdateState.hasUpdate || githubUpdateState.downloading || githubUpdateState.checking,
-                    toneColor = statusColor,
-                    activeBackground = when (statusColor) {
-                        LukoaColors.Accent -> LukoaColors.AccentSoft
-                        LukoaColors.Amber -> LukoaColors.AmberSoft
-                        else -> LukoaColors.SurfaceAlt
-                    },
-                )
-            }
-            Text(
-                text = githubUpdateState.message,
-                color = if (githubUpdateState.hasUpdate) LukoaColors.Text else LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            MiniInfoLine("更新通道", githubUpdateState.channel.label)
-            githubUpdateState.latest?.let { latest ->
-                MiniInfoLine("GitHub 最新", "v${latest.versionName}")
-                MiniInfoLine("版本类型", latest.releaseTypeLabel)
-                if (latest.prerelease) {
-                    Text(
-                        text = "这是测试版发布，可能会比稳定版更早，但也更容易遇到问题。",
-                        color = LukoaColors.Amber,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            githubUpdateState.lastCheckedText
-                .takeIf { it.isNotBlank() }
-                ?.let { checkedText ->
-                    MiniInfoLine("上次检查", checkedText)
-                }
-        }
-    }
 }
 
 @Composable

@@ -12,6 +12,7 @@ docs/
     README.md
     AI新对话启动模板.md
     lukua-launcher-AI项目管理模板.xlsx
+    session-notes/
 ```
 
 ## 每个文件是干什么的
@@ -25,12 +26,20 @@ docs/
 - `README.md`
   说明这些资料怎么使用，以及未来应该怎么继续维护。
 
+- `session-notes/`
+  用来放“某一轮对话已经确认过什么、做到哪一步、下一轮该怎么接”的交接总结。
+
 ## 当前建议主线
 
-- 当前主线版本：`v0.9.1-beta4`
-- 该版本发布时间：`2026-07-03`
+- 当前主线版本：`v0.9.2-beta12`
+- 该版本发布时间：`2026-07-13`
 - 当前定位：`Beta / 预发布`
-- 当前最重要的风险：不同品牌手机的后台保活策略，以及 `Termux` 在后台、小窗、分屏等场景下的兼容性差异。
+- 当前最重要的风险：上传限制工具会修改 SillyTavern 的上传中间件源码，虽然已有唯一目标识别和修改前备份，仍需在真实设备验证大文件内存占用、更新后补丁状态和失败恢复。
+
+补充说明：
+
+- 如果这里的“当前建议主线”和代码、`CHANGELOG.md`、Git tag 不一致，优先相信代码和最新 `session-notes`。
+- 当前仓库里已经有一部分资料曾停留在 `v0.9.1-beta4`，不要直接把旧描述当最终事实。
 
 ## 建议维护方式
 
@@ -61,6 +70,7 @@ docs/
 3. `docs/project-management/AI新对话启动模板.md`
 4. `docs/project-management/lukua-launcher-AI项目管理模板.xlsx`
 5. 根目录 `CHANGELOG.md`
+6. `docs/project-management/session-notes/` 下最新一份总结
 
 这样新对话里的 AI 更容易知道：
 

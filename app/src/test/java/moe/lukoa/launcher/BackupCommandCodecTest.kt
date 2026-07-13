@@ -8,13 +8,13 @@ class BackupCommandCodecTest {
     @Test
     fun `rename args round trip keeps spaces and chinese`() {
         val encoded = BackupCommandCodec.encodeRename(
-            archivePath = "/sdcard/lukoa/backups/demo backup.tar.gz",
+            archivePath = "/sdcard/Download/LukoaLauncher/backups/sd/demo backup.tar.gz",
             newName = "更新前备份",
         )
 
         val decoded = BackupCommandCodec.decodeRename(encoded)
         requireNotNull(decoded)
-        assertEquals("/sdcard/lukoa/backups/demo backup.tar.gz", decoded.archivePath)
+        assertEquals("/sdcard/Download/LukoaLauncher/backups/sd/demo backup.tar.gz", decoded.archivePath)
         assertEquals("更新前备份", decoded.newName)
     }
 

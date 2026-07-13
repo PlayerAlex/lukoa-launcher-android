@@ -147,7 +147,11 @@ object LauncherHealthCheck {
                 } else {
                     LauncherHealthItem(
                         title = "系统权限",
-                        detail = "还有这些权限没准备好：${extraPermissionWarnings.joinToString("、")}。",
+                        detail = buildString {
+                            append("还有这些权限没准备好：")
+                            append(extraPermissionWarnings.joinToString("、"))
+                            append("。首次启动酒馆、长任务、自动备份和前台日志同步切到后台后更容易被系统打断。")
+                        },
                         level = LauncherHealthLevel.Warning,
                     )
                 },
@@ -209,7 +213,7 @@ object LauncherHealthCheck {
                         }
                         LauncherHealthItem(
                             title = "酒馆路径",
-                            detail = "$candidateMessage 当前配置是：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}",
+                            detail = "$candidateMessage 当前配置是：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}",
                             level = LauncherHealthLevel.Error,
                         )
                     }
@@ -234,7 +238,7 @@ object LauncherHealthCheck {
 
                     else -> LauncherHealthItem(
                         title = "酒馆路径",
-                        detail = "当前目录看起来是完整的酒馆目录：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}",
+                        detail = "当前目录看起来是完整的酒馆目录：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}",
                         level = LauncherHealthLevel.Good,
                     )
                 },
@@ -284,7 +288,7 @@ object LauncherHealthCheck {
 
                     doctorReport.portConflict == true -> LauncherHealthItem(
                         title = "运行与端口",
-                        detail = "端口 ${doctorReport.port} 已被别的进程占用，直接启动大概率会失败。",
+                        detail = "端口 ${doctorReport.port} 已被别的进程占用，直接启动大概率会失败。先关闭占用端口的应用，或重启 Termux/手机后重新体检。",
                         level = LauncherHealthLevel.Error,
                     )
 
@@ -373,7 +377,7 @@ object LauncherHealthCheck {
                 "先确认酒馆目录" to "当前路径没找到酒馆，但已经识别到候选目录。"
 
             pathProblem -> "先确认酒馆目录" to "当前路径不像完整的 SillyTavern 根目录。"
-            doctorReport?.portConflict == true -> "先处理端口占用" to "酒馆端口已经被别的进程占用，直接启动会撞车。"
+            doctorReport?.portConflict == true -> "先处理端口占用" to "酒馆端口已经被别的进程占用，先关闭占用端口的进程或重启 Termux/手机后再启动。"
             errorCount == 0 && warningCount == 0 -> "当前环境基本正常" to "启动、版本管理和镜像源检查都没有发现明显问题。"
             errorCount == 0 -> "有提醒项，启动前建议看一眼" to "当前没有致命问题，但还有 $warningCount 个提醒项。"
             else -> "发现 $errorCount 个需要先处理的问题" to "先修最上面的优先项，再重新体检一次。"
@@ -454,10 +458,7 @@ object LauncherHealthCheck {
                 label = "去设置改路径",
             )
 
-            doctorReport?.portConflict == true && tavernRunning -> LauncherHealthAction(
-                type = LauncherHealthActionType.StopTavern,
-                label = "停止酒馆",
-            )
+            doctorReport?.portConflict == true -> null
 
             !backgroundRunPermissionGranted -> LauncherHealthAction(
                 type = LauncherHealthActionType.RequestBackgroundRunPermission,

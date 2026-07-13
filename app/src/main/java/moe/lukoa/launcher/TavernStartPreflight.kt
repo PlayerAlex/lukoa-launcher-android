@@ -7,7 +7,7 @@ enum class TavernStartPreflightActionType {
     PrepareTermuxEnvironment,
     ChooseDetectedDirectory,
     OpenPathSettings,
-    StopDetectedProcess,
+    ForceCleanupDetectedProcess,
     ReturnToTavern,
     Retry,
 }
@@ -32,6 +32,7 @@ object TavernStartPreflight {
         runCommandPermissionGranted: Boolean,
         termuxExternalAppsBlocked: Boolean,
         doctorReport: TavernDoctorReport?,
+        activeProfile: TavernProfile? = null,
     ): TavernStartPreflightResult {
         if (!termuxInstalled) {
             return blocked(
@@ -64,6 +65,24 @@ object TavernStartPreflight {
                     label = "复制权限命令",
                 ),
             )
+        }
+
+        if (activeProfile != null) {
+            TavernProfileReservedPathPolicy.startBlockedMessage(activeProfile)?.let { reason ->
+                return blocked(
+                    summary = "当前实例路径还没设置稳，先改对再启动。",
+                    details = listOf(
+                        "当前实例：${activeProfile.normalizedName}",
+                        "当前路径：${activeProfile.displayTavernDir}",
+                        reason,
+                    ),
+                    action = TavernStartPreflightAction(
+                        type = TavernStartPreflightActionType.OpenPathSettings,
+                        label = "去设置路径",
+                    ),
+                    doctorReport = doctorReport,
+                )
+            }
         }
 
         if (doctorReport == null) {
@@ -99,7 +118,7 @@ object TavernStartPreflight {
 
         if (doctorReport.tavernDirExists == false) {
             val details = buildList {
-                add("当前配置路径：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}")
+                add("当前配置路径：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}")
                 if (doctorReport.candidateDirectories.isNotEmpty()) {
                     add("已发现 ${doctorReport.candidateDirectories.size} 个候选目录，可以直接选。")
                 } else {
@@ -130,7 +149,7 @@ object TavernStartPreflight {
             doctorReport.gitRepo == false
         ) {
             val details = buildList {
-                add("当前配置路径：${doctorReport.tavernDir.ifBlank { "~/SillyTavern" }}")
+                add("当前配置路径：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}")
                 if (doctorReport.packageJsonExists == false) {
                     add("目录里缺少 package.json。")
                 }
@@ -173,8 +192,8 @@ object TavernStartPreflight {
                 },
                 details = listOf("端口 ${doctorReport.port} 当前疑似已有旧进程占着。"),
                 action = TavernStartPreflightAction(
-                    type = TavernStartPreflightActionType.StopDetectedProcess,
-                    label = "尝试停止现有进程",
+                    type = TavernStartPreflightActionType.ForceCleanupDetectedProcess,
+                    label = "强制清理残留进程",
                 ),
                 doctorReport = doctorReport,
             )
@@ -183,7 +202,10 @@ object TavernStartPreflight {
         if (doctorReport.portConflict == true) {
             return blocked(
                 summary = "酒馆端口已经被别的进程占用，先处理端口占用再启动。",
-                details = listOf("端口 ${doctorReport.port} 当前不是空闲状态。"),
+                details = listOf(
+                    "端口 ${doctorReport.port} 当前不是空闲状态。",
+                    "先关闭占用端口的应用，或重启 Termux/手机后重新体检。",
+                ),
                 doctorReport = doctorReport,
             )
         }

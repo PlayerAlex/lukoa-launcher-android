@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 data class LauncherLoadResult(
     val state: LauncherUiState,
     val startupRefreshRequested: Boolean,
+    val displayLogsCleared: Boolean = false,
 )
 
 data class AutoBackupConfigSnapshot(
@@ -41,6 +42,7 @@ class LauncherStateStore(private val context: Context) {
             return LauncherLoadResult(
                 state = clearedState,
                 startupRefreshRequested = true,
+                displayLogsCleared = true,
             )
         }
 
@@ -63,6 +65,7 @@ class LauncherStateStore(private val context: Context) {
                 status = prefs.getString(KEY_STATUS, null) ?: defaults.status,
                 summary = prefs.getString(KEY_SUMMARY, null) ?: defaults.summary,
                 termuxLog = prefs.getString(KEY_TERMUX_LOG, null) ?: defaults.termuxLog,
+                tavernRuntimeLog = prefs.getString(KEY_TAVERN_RUNTIME_LOG, null) ?: defaults.tavernRuntimeLog,
                 appLog = prefs.getString(KEY_APP_LOG, null) ?: defaults.appLog,
                 verified = prefs.getBoolean(KEY_VERIFIED, defaults.verified),
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, null)
@@ -105,6 +108,7 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_STATUS, state.status)
             .putString(KEY_SUMMARY, state.summary)
             .putString(KEY_TERMUX_LOG, state.termuxLog)
+            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog)
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
@@ -135,6 +139,13 @@ class LauncherStateStore(private val context: Context) {
             intervalMinutes = intervalMinutes,
             keepCount = prefs.getInt(KEY_AUTO_BACKUP_KEEP_COUNT, defaults.autoBackupKeepCount).coerceIn(1, 50),
         )
+    }
+
+    fun readTermuxReturnDelayMs(): Long {
+        val defaults = defaultLauncherState(isTermuxInstalled = true)
+        val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+        return prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
+            .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
     }
 
     @SuppressLint("ApplySharedPref")
@@ -181,17 +192,18 @@ class LauncherStateStore(private val context: Context) {
             .commit()
     }
 
-    @SuppressLint("ApplySharedPref")
-    fun claimTermuxWakeSlot(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    fun hasRecentTermuxWake(nowMillis: Long = System.currentTimeMillis()): Boolean {
         val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
         val lastWakeAt = prefs.getLong(KEY_LAST_TERMUX_WAKE_AT, 0L)
-        if (nowMillis - lastWakeAt < TERMUX_WAKE_PERSISTENT_COOLDOWN_MS) {
-            return false
-        }
+        return nowMillis - lastWakeAt < TERMUX_WAKE_PERSISTENT_COOLDOWN_MS
+    }
+
+    @SuppressLint("ApplySharedPref")
+    fun recordTermuxWake(nowMillis: Long = System.currentTimeMillis()) {
+        val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
         prefs.edit()
             .putLong(KEY_LAST_TERMUX_WAKE_AT, nowMillis)
             .commit()
-        return true
     }
 
     @SuppressLint("ApplySharedPref")
@@ -210,6 +222,7 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_STATUS, state.status)
             .putString(KEY_SUMMARY, state.summary)
             .putString(KEY_TERMUX_LOG, state.termuxLog)
+            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog)
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
@@ -247,6 +260,7 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_STATUS = "status"
         const val KEY_SUMMARY = "summary"
         const val KEY_TERMUX_LOG = "termux_log"
+        const val KEY_TAVERN_RUNTIME_LOG = "tavern_runtime_log"
         const val KEY_APP_LOG = "app_log"
         const val KEY_VERIFIED = "verified"
         const val KEY_OFFICIAL_VERSIONS_CACHE = "official_versions_cache"

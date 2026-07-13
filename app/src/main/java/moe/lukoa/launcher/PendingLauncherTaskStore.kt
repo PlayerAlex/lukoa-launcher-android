@@ -9,6 +9,8 @@ enum class PendingLauncherTaskKind(
     InstallTavern("安装酒馆"),
     UpdateTavern("更新酒馆"),
     RollbackTavern("回退酒馆"),
+    MigrateTavernDirectory("迁移酒馆目录"),
+    RemoveManagedProfileDirectory("删除分身实例目录"),
     ManualBackup("创建酒馆备份"),
     RestoreBackup("应用酒馆备份"),
 }
@@ -21,6 +23,8 @@ data class PendingLauncherTask(
     val targetLabel: String = "",
     val archivePath: String = "",
     val safetyBackupPath: String = "",
+    val profileId: String = "",
+    val targetPath: String = "",
 ) {
     val title: String
         get() = kind.title
@@ -63,6 +67,8 @@ object PendingLauncherTaskStore {
             put("targetLabel", task.targetLabel)
             put("archivePath", task.archivePath)
             put("safetyBackupPath", task.safetyBackupPath)
+            put("profileId", task.profileId)
+            put("targetPath", task.targetPath)
         }.toString()
     }
 
@@ -75,6 +81,8 @@ object PendingLauncherTaskStore {
             targetLabel = objectJson.optString("targetLabel", ""),
             archivePath = objectJson.optString("archivePath", ""),
             safetyBackupPath = objectJson.optString("safetyBackupPath", ""),
+            profileId = objectJson.optString("profileId", ""),
+            targetPath = objectJson.optString("targetPath", ""),
         )
     }
 }

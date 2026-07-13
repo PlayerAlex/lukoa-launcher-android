@@ -4,6 +4,7 @@ import android.content.Context
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.pow
 
@@ -22,25 +23,26 @@ object BackupRestorePreviewResolver {
         restoreTargetDir: String,
     ): BackupRestorePreview {
         val normalizedPath = archivePath.trim()
-        val details = runCatching {
-            BackupLibraryFiles.describeLibraryArchive(context, normalizedPath)
-        }.getOrNull()
+        val details = BackupLibraryFiles.describeLibraryArchive(context, normalizedPath)
+            ?: error("启动器读不到这个备份。请先刷新备份库，或重新导入。")
         return BackupRestorePreview(
             archivePath = normalizedPath,
-            backupName = details?.fileName
-                ?: normalizedPath.replace('\\', '/').substringAfterLast('/').ifBlank { "未命名备份" },
-            modifiedAtMillis = details?.modifiedAtMillis?.takeIf { it > 0L },
-            sizeBytes = details?.size?.takeIf { it >= 0L },
+            backupName = details.fileName,
+            modifiedAtMillis = details.modifiedAtMillis.takeIf { it > 0L },
+            sizeBytes = details.size.takeIf { it >= 0L },
             restoreTargetDir = restoreTargetDir,
         )
     }
 }
 
-fun formatBackupRestorePreviewTime(modifiedAtMillis: Long?): String {
+fun formatBackupRestorePreviewTime(
+    modifiedAtMillis: Long?,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String {
     if (modifiedAtMillis == null || modifiedAtMillis <= 0L) return "未读取"
     return runCatching {
         Instant.ofEpochMilli(modifiedAtMillis)
-            .atZone(ZoneId.systemDefault())
+            .atZone(zoneId)
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
     }.getOrElse { "未读取" }
 }
@@ -53,5 +55,5 @@ fun formatBackupRestorePreviewSize(sizeBytes: Long?): String {
     val digitGroups = (ln(bytes.toDouble()) / ln(1024.0)).toInt().coerceAtMost(units.size)
     val value = bytes / 1024.0.pow(digitGroups.toDouble())
     val unit = units[digitGroups - 1]
-    return String.format("%.1f %s", value, unit)
+    return String.format(Locale.ROOT, "%.1f %s", value, unit)
 }

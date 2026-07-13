@@ -311,65 +311,6 @@ fun SectionPanel(
     }
 }
 
-@Composable
-fun SummaryPanel(summary: String, ok: Boolean) {
-    val accentColor = if (ok) LukoaColors.Accent else LukoaColors.Amber
-    val background = if (ok) LukoaColors.AccentSoft else LukoaColors.AmberSoft
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = background.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = "状态摘要",
-                color = accentColor,
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = summary,
-                color = LukoaColors.Text,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-fun StatusPanel(status: String, verified: Boolean) {
-    val dotColor = if (verified) LukoaColors.Accent else LukoaColors.Amber
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(LukoaColors.SurfaceAlt.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-            .border(1.dp, LukoaColors.Line.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .width(10.dp)
-                    .height(10.dp)
-                    .background(dotColor, RoundedCornerShape(5.dp)),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = status,
-                color = LukoaColors.Text,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-    }
-}
 
 @Composable
 fun LogPanel(
@@ -379,8 +320,11 @@ fun LogPanel(
     subtitle: String? = null,
     followLatestByDefault: Boolean = true,
     showFollowControls: Boolean = true,
+    maxVisibleLines: Int? = 900,
 ) {
-    val displayContent = remember(content) { content.keepLatestLines(maxLines = 900) }
+    val displayContent = remember(content, maxVisibleLines) {
+        maxVisibleLines?.let(content::keepLatestLines) ?: content
+    }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var followLatest by remember(followLatestByDefault) { mutableStateOf(followLatestByDefault) }

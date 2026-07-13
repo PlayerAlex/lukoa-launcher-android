@@ -201,7 +201,7 @@ fun BackupSection(
                             text = if (autoBackupEnabled) {
                                 "每 ${formatBackupInterval(autoBackupIntervalMinutes)} 一次，最多保留 ${autoBackupKeepCount} 个，只清理最旧的自动备份。"
                             } else {
-                                "开启后会把备份放进 Download/lukoa/backups/zd。"
+                                "开启后会把备份放进 Download/LukoaLauncher/backups/zd。"
                             },
                             color = if (autoBackupEnabled) LukoaColors.Text else LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
@@ -237,7 +237,7 @@ fun BackupSection(
                 )
                 BackupLibraryGroup(
                     title = "手动备份库 (${manualBackups.size})",
-                    subtitle = "Download/lukoa/backups/sd",
+                    subtitle = "Download/LukoaLauncher/backups/sd",
                     emptyText = "手动备份库还没有备份。",
                     backups = manualBackups,
                     actionsLocked = actionsLocked,
@@ -249,7 +249,7 @@ fun BackupSection(
                 )
                 BackupLibraryGroup(
                     title = "自动备份库 (${autoBackups.size})",
-                    subtitle = "Download/lukoa/backups/zd",
+                    subtitle = "Download/LukoaLauncher/backups/zd",
                     emptyText = "自动备份库还没有备份。",
                     backups = autoBackups,
                     actionsLocked = actionsLocked,
@@ -643,25 +643,22 @@ private fun BackupActionButton(
 
 private fun backupLocationLabel(path: String): String {
     return when {
-        path.contains("/lukoa/backups/sd/", ignoreCase = true) -> "手动备份 / Download/lukoa/backups/sd"
-        path.contains("/lukoa/backups/zd/", ignoreCase = true) -> "自动备份 / Download/lukoa/backups/zd"
-        path.contains("/lukoa/backups/", ignoreCase = true) -> "不支持的旧位置 / Download/lukoa/backups"
+        path.contains("/${BackupLibraryFiles.MANUAL_RELATIVE_DIR}/", ignoreCase = true) -> "手动备份 / Download/${BackupLibraryFiles.MANUAL_RELATIVE_DIR}"
+        path.contains("/${BackupLibraryFiles.AUTO_RELATIVE_DIR}/", ignoreCase = true) -> "自动备份 / Download/${BackupLibraryFiles.AUTO_RELATIVE_DIR}"
+        path.contains("/${BackupLibraryFiles.LEGACY_ROOT_RELATIVE_DIR}/", ignoreCase = true) -> "不支持的旧位置 / Download/${BackupLibraryFiles.LEGACY_ROOT_RELATIVE_DIR}"
         path.contains("/storage/downloads/", ignoreCase = true) -> "Downloads 备份库"
-        path.contains("/.local/state/", ignoreCase = true) -> "Termux 私有备份库"
         else -> "露科亚备份库"
     }
 }
 
 private fun isManualBackupPath(path: String): Boolean {
     val normalized = path.trim().replace('\\', '/')
-    return normalized.contains("/lukoa/backups/sd/", ignoreCase = true) ||
-        normalized.contains("/.local/state/lukoa-launcher/backups/sd/", ignoreCase = true)
+    return normalized.contains("/${BackupLibraryFiles.MANUAL_RELATIVE_DIR}/", ignoreCase = true)
 }
 
 private fun isAutoBackupPath(path: String): Boolean {
     val normalized = path.trim().replace('\\', '/')
-    return normalized.contains("/lukoa/backups/zd/", ignoreCase = true) ||
-        normalized.contains("/.local/state/lukoa-launcher/backups/zd/", ignoreCase = true)
+    return normalized.contains("/${BackupLibraryFiles.AUTO_RELATIVE_DIR}/", ignoreCase = true)
 }
 
 @Composable

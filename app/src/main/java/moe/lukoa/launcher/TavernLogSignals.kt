@@ -49,11 +49,12 @@ object TavernLogSignals {
         "SillyTavern foreground session exited",
         "SillyTavern process exited immediately",
         "SillyTavern stopped",
+        "SillyTavern force cleanup completed",
         "process is not running",
     )
 
     fun hasRecentLiveSignal(text: String): Boolean {
-        val lines = prepareForApp(text).lineSequence().takeLastCompat(160)
+        val lines = prepareForAnalysis(text).lineSequence().takeLastCompat(160)
         val lastLive = lines.indexOfLastMatching(liveMarkers, ignoreCase = false)
         if (lastLive < 0) return false
         val lastStop = lines.indexOfLastMatching(stopMarkers, ignoreCase = false)
@@ -80,35 +81,21 @@ object TavernLogSignals {
             .trim()
     }
 
+    fun latestForegroundSession(text: String): String {
+        val preparedLines = prepareForApp(text).lines()
+        if (preparedLines.isEmpty()) return ""
+        val plainLines = preparedLines.map(::stripAnsi)
+        val sessionStart = plainLines.indexOfLast { it.contains(SESSION_MARKER) }
+        if (sessionStart < 0) return ""
+        return preparedLines.subList(sessionStart, preparedLines.size)
+            .joinToString("\n")
+            .trim()
+    }
+
     fun prepareForApp(value: String): String {
         if (value.isBlank()) return ""
-        val lines = stripAnsi(value).replace("\r\n", "\n").lines()
-        val result = mutableListOf<String>()
-        var index = 0
-        while (index < lines.size) {
-            val line = lines[index]
-            val trimmed = line.trimEnd()
-            when {
-                trimmed.startsWith("Extensions available for") && trimmed.endsWith("[") -> {
-                    val itemCount = countUntilListEnd(lines, index + 1)
-                    result += "${trimmed.removeSuffix("[").trimEnd()} [已省略 ${itemCount.coerceAtLeast(1)} 项扩展]"
-                    index = skipListBlock(lines, index + 1)
-                }
-
-                trimmed.startsWith("Available models:") && trimmed.endsWith("[") -> {
-                    val itemCount = countUntilListEnd(lines, index + 1)
-                    result += "Available models: [已省略 ${itemCount.coerceAtLeast(1)} 项模型]"
-                    index = skipListBlock(lines, index + 1)
-                }
-
-                else -> {
-                    result += line
-                    index += 1
-                }
-            }
-        }
-        return result.joinToString("\n")
-            .replace(Regex("\n{3,}"), "\n\n")
+        return value
+            .replace("\r\n", "\n")
             .trimEnd()
     }
 
@@ -118,8 +105,12 @@ object TavernLogSignals {
             .replace(Regex("\u001B\\[[0-?]*[ -/]*[@-~]"), "")
     }
 
+    private fun prepareForAnalysis(value: String): String {
+        return stripAnsi(prepareForApp(value))
+    }
+
     private fun latestSessionLines(text: String): List<String> {
-        val preparedLines = prepareForApp(text).lines()
+        val preparedLines = prepareForAnalysis(text).lines()
         if (preparedLines.isEmpty()) return emptyList()
         val sessionStart = preparedLines.indexOfLast { it.contains(SESSION_MARKER) }
         return if (sessionStart >= 0) {
@@ -129,28 +120,6 @@ object TavernLogSignals {
         }
     }
 
-    private fun countUntilListEnd(lines: List<String>, startIndex: Int): Int {
-        var count = 0
-        var index = startIndex
-        while (index < lines.size && lines[index].trim() != "]") {
-            if (lines[index].trim().isNotBlank()) {
-                count += 1
-            }
-            index += 1
-        }
-        return count
-    }
-
-    private fun skipListBlock(lines: List<String>, startIndex: Int): Int {
-        var index = startIndex
-        while (index < lines.size) {
-            if (lines[index].trim() == "]") {
-                return index + 1
-            }
-            index += 1
-        }
-        return lines.size
-    }
 
     private fun Sequence<String>.takeLastCompat(count: Int): List<String> {
         return toList().takeLast(count)

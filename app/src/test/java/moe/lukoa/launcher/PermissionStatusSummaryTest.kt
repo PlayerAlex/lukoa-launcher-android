@@ -21,6 +21,7 @@ class PermissionStatusSummaryTest {
 
         assertEquals("后台常驻还没完全放行", notice.title)
         assertTrue(notice.detail.contains("Termux 后台常驻"))
+        assertTrue(notice.detail.contains("首次启动酒馆"))
         assertEquals(PermissionNoticeTone.Warning, notice.tone)
     }
 
@@ -36,6 +37,7 @@ class PermissionStatusSummaryTest {
         requireNotNull(notice)
         assertEquals("后台常驻还没完全放行", notice.title)
         assertTrue(notice.detail.contains("露科亚启动器和 Termux"))
+        assertTrue(notice.detail.contains("首次启动酒馆"))
     }
 
     @Test

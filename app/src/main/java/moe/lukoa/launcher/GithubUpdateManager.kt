@@ -97,12 +97,36 @@ class GithubUpdateManager(private val context: Context) {
     }
 
     fun openReleasePage(updateInfo: GithubUpdateInfo): GithubUpdateInstallResult {
+        return openWebPage(
+            url = updateInfo.releaseUrl,
+            successMessage = "已打开 GitHub 发布页。",
+        )
+    }
+
+    fun openRepositoryReleasesPage(repositoryInput: String): GithubUpdateInstallResult {
+        val repository = GithubRepositoryParser.normalize(repositoryInput)
+        if (repository == null || repository.isBlank()) {
+            return GithubUpdateInstallResult(false, "请先填写有效的 GitHub 仓库。")
+        }
+        return openWebPage(
+            url = "https://github.com/$repository/releases",
+            successMessage = "已打开 GitHub 发布列表。",
+        )
+    }
+
+    private fun openWebPage(
+        url: String,
+        successMessage: String,
+    ): GithubUpdateInstallResult {
+        if (url.isBlank()) {
+            return GithubUpdateInstallResult(false, "发布页地址为空，请先检查更新。")
+        }
         return try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.releaseUrl)).apply {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            GithubUpdateInstallResult(true, "已打开 GitHub 发布页。")
+            GithubUpdateInstallResult(true, successMessage)
         } catch (error: Exception) {
             GithubUpdateInstallResult(false, "打开发布页失败：${error.message ?: error.javaClass.simpleName}")
         }

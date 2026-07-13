@@ -59,7 +59,6 @@ enum class LauncherTab(
     Settings("设置", "设"),
 }
 
-
 @Composable
 fun LauncherBottomBar(
     selectedTab: LauncherTab,
@@ -188,4 +187,3 @@ private fun busyDetailFor(label: String, seconds: Int): String {
         else -> "仍在等待 Termux 回传。只要按钮还锁着，就说明启动器还在等结果。"
     }
 }
-

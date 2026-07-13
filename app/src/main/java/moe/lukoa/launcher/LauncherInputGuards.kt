@@ -5,6 +5,7 @@ object LauncherInputGuards {
     private const val MAX_BACKUP_NAME_LENGTH = 48
     private const val MAX_BACKUP_PATH_LENGTH = 1024
     private const val MAX_VERSION_TARGET_LENGTH = 128
+    private const val MAX_PORT_LENGTH = 5
     private val versionTargetPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,127}$")
     private val backupUnsafeNamePattern = Regex("[/\\\\:*?\"<>|]+")
     private val repeatedDashPattern = Regex("-+")
@@ -65,6 +66,18 @@ object LauncherInputGuards {
             normalized.contains("//") -> "版本不能包含连续斜杠。"
             normalized.endsWith("/") -> "版本不能以斜杠结尾。"
             !versionTargetPattern.matches(normalized) -> "只能填 tag、分支名或 commit。"
+            else -> null
+        }
+    }
+
+    fun validateTavernPort(value: String): String? {
+        val normalized = value.trim()
+        return when {
+            normalized.isBlank() -> "端口不能为空。"
+            normalized.length > MAX_PORT_LENGTH -> "端口太长了。"
+            hasUnsafeProtocolChars(normalized) -> "端口不能包含换行、控制字符或 ::。"
+            normalized.any { !it.isDigit() } -> "端口只能填写数字。"
+            normalized.toIntOrNull() !in 1..65535 -> "端口必须在 1 到 65535 之间。"
             else -> null
         }
     }

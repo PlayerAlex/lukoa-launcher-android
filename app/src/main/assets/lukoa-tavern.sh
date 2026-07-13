@@ -6,20 +6,12 @@ APP_NAME="lukoa-launcher"
 HOME_DIR="${LUKOA_HOME:-${HOME:-/data/data/com.termux/files/home}}"
 STATE_DIR="${LUKOA_STATE_DIR:-$HOME_DIR/.local/state/$APP_NAME}"
 CONFIG_FILE="${LUKOA_CONFIG_FILE:-$HOME_DIR/.config/$APP_NAME/config.env}"
-DEFAULT_TAVERN_DIR="$HOME_DIR/SillyTavern"
+LAUNCHER_TAVERN_ROOT_DIR="$HOME_DIR/LukoaLauncher"
+LEGACY_DEFAULT_TAVERN_DIR="$HOME_DIR/SillyTavern"
 TAVERN_PORT="${TAVERN_PORT:-8000}"
-PID_FILE="$STATE_DIR/pid"
-STATUS_FILE="$STATE_DIR/status.json"
-COMMAND_FILE="$STATE_DIR/last-command.json"
-PROOF_FILE="$STATE_DIR/launcher-proof.txt"
-LOG_FILE="$STATE_DIR/tavern.log"
-LOG_SYNC_CURSOR_FILE="$STATE_DIR/app-log.cursor"
-ROLLBACK_FILE="$STATE_DIR/last-tavern-update-commit"
-BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_BACKUP_LIBRARY_RELATIVE_DIR:-lukoa/backups}"
+BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_BACKUP_LIBRARY_RELATIVE_DIR:-LukoaLauncher/backups}"
 MANUAL_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_MANUAL_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/sd}"
 AUTO_BACKUP_LIBRARY_RELATIVE_DIR="${LUKOA_AUTO_BACKUP_LIBRARY_RELATIVE_DIR:-$BACKUP_LIBRARY_RELATIVE_DIR/zd}"
-
-mkdir -p "$STATE_DIR"
 
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC1090
@@ -29,6 +21,91 @@ fi
 if [ -n "${LUKOA_TAVERN_DIR:-}" ]; then
   TAVERN_DIR="$LUKOA_TAVERN_DIR"
 fi
+
+if [ -n "${LUKOA_TAVERN_PORT:-}" ]; then
+  TAVERN_PORT="$LUKOA_TAVERN_PORT"
+fi
+
+if [ -n "${LUKOA_TAVERN_PROFILE_ID:-}" ]; then
+  TAVERN_PROFILE_ID="$LUKOA_TAVERN_PROFILE_ID"
+fi
+
+profile_slot_number() {
+  profile_id="${1:-main}"
+  if [ "$profile_id" = "main" ]; then
+    printf "1"
+    return 0
+  fi
+  slot="${profile_id#profile-}"
+  case "$slot" in
+    ''|*[!0-9]*) printf "2" ;;
+    *)
+      if [ "$slot" -lt 2 ]; then
+        printf "2"
+      else
+        printf "%s" "$slot"
+      fi
+      ;;
+  esac
+}
+
+launcher_managed_profile_dir() {
+  slot="$(profile_slot_number "${1:-${TAVERN_PROFILE_ID:-main}}")"
+  if [ "$slot" -le 1 ]; then
+    printf "%s/SillyTavern" "$LAUNCHER_TAVERN_ROOT_DIR"
+  else
+    printf "%s/SillyTavern%s" "$LAUNCHER_TAVERN_ROOT_DIR" "$slot"
+  fi
+}
+
+DEFAULT_TAVERN_DIR="$(launcher_managed_profile_dir "${TAVERN_PROFILE_ID:-main}")"
+
+sanitize_profile_state_key() {
+  raw="${1:-main}"
+  sanitized="$(printf "%s" "$raw" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
+  if [ -z "$sanitized" ]; then
+    sanitized="main"
+  fi
+  printf "%s" "$sanitized"
+}
+
+PROFILE_STATE_KEY="$(sanitize_profile_state_key "${TAVERN_PROFILE_ID:-main}")"
+RUNTIME_STATE_DIR="$STATE_DIR/profiles/$PROFILE_STATE_KEY"
+
+mkdir -p "$STATE_DIR" "$RUNTIME_STATE_DIR"
+
+migrate_legacy_runtime_state() {
+  [ "$PROFILE_STATE_KEY" = "main" ] || return 0
+  for relative in pid status.json last-command.json launcher-proof.txt tavern.log app-log.cursor last-tavern-update-commit; do
+    legacy_file="$STATE_DIR/$relative"
+    runtime_file="$RUNTIME_STATE_DIR/$relative"
+    [ -e "$legacy_file" ] || continue
+    [ -e "$runtime_file" ] && continue
+    mv "$legacy_file" "$runtime_file" 2>/dev/null || cp -f "$legacy_file" "$runtime_file" 2>/dev/null || true
+  done
+}
+
+migrate_legacy_runtime_state
+
+PID_FILE="$RUNTIME_STATE_DIR/pid"
+STATUS_FILE="$RUNTIME_STATE_DIR/status.json"
+COMMAND_FILE="$RUNTIME_STATE_DIR/last-command.json"
+PROOF_FILE="$RUNTIME_STATE_DIR/launcher-proof.txt"
+LOG_FILE="$RUNTIME_STATE_DIR/tavern.log"
+LOG_SYNC_CURSOR_FILE="$RUNTIME_STATE_DIR/app-log.cursor"
+ROLLBACK_FILE="$RUNTIME_STATE_DIR/last-tavern-update-commit"
+NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
+UPLOAD_LIMIT_STATE_FILE="$RUNTIME_STATE_DIR/upload-limit.tsv"
+
+if [ -f "$NODE_MEMORY_FILE" ]; then
+  LUKOA_NODE_MEMORY_MB="$(sed -n "s/^LUKOA_NODE_MEMORY_MB='\([0-9][0-9]*\)'$/\1/p" "$NODE_MEMORY_FILE" | head -n 1)"
+fi
+case "${LUKOA_NODE_MEMORY_MB:-}" in
+  2048|4096|6144)
+    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
+    ;;
+  *) LUKOA_NODE_MEMORY_MB="" ;;
+esac
 
 OFFICIAL_REPO="${LUKOA_OFFICIAL_REPO:-https://github.com/SillyTavern/SillyTavern.git}"
 NPM_REGISTRY="${LUKOA_NPM_REGISTRY:-${NPM_CONFIG_REGISTRY:-}}"
@@ -78,7 +155,19 @@ looks_like_tavern_dir() {
   [ -n "$dir" ] || return 1
   [ -d "$dir" ] || return 1
   [ -f "$dir/package.json" ] || return 1
-  if [ -f "$dir/start.sh" ] || [ -f "$dir/server.js" ]; then
+  if [ ! -f "$dir/start.sh" ] && [ ! -f "$dir/server.js" ]; then
+    return 1
+  fi
+  if grep -qi '"name"[[:space:]]*:[[:space:]]*"sillytavern"' "$dir/package.json" 2>/dev/null; then
+    return 0
+  fi
+  if grep -qi 'SillyTavern' "$dir/package.json" 2>/dev/null; then
+    return 0
+  fi
+  if [ -f "$dir/public/index.html" ] && [ -d "$dir/default" ]; then
+    return 0
+  fi
+  if [ -f "$dir/public/index.html" ] && [ -d "$dir/plugins" ]; then
     return 0
   fi
   return 1
@@ -87,6 +176,12 @@ looks_like_tavern_dir() {
 append_tavern_candidate() {
   candidate="$1"
   [ -n "$candidate" ] || return 0
+  if [ "${TAVERN_PROFILE_ID:-main}" != "main" ]; then
+    reserved_main_dir="$(expand_launcher_path "$(launcher_managed_profile_dir main)")"
+    if [ "$(expand_launcher_path "$candidate")" = "$reserved_main_dir" ]; then
+      return 0
+    fi
+  fi
   case "$candidate" in
     "$TAVERN_DIR"|"$DEFAULT_TAVERN_DIR") ;;
   esac
@@ -114,10 +209,27 @@ collect_tavern_dir_candidates() {
   if [ "$DEFAULT_TAVERN_DIR" != "$TAVERN_DIR" ] && looks_like_tavern_dir "$DEFAULT_TAVERN_DIR"; then
     append_tavern_candidate "$DEFAULT_TAVERN_DIR"
   fi
+  if [ "$LEGACY_DEFAULT_TAVERN_DIR" != "$TAVERN_DIR" ] &&
+    [ "$LEGACY_DEFAULT_TAVERN_DIR" != "$DEFAULT_TAVERN_DIR" ] &&
+    looks_like_tavern_dir "$LEGACY_DEFAULT_TAVERN_DIR"; then
+    append_tavern_candidate "$LEGACY_DEFAULT_TAVERN_DIR"
+  fi
+  if [ -d "$LAUNCHER_TAVERN_ROOT_DIR" ]; then
+    for candidate in "$LAUNCHER_TAVERN_ROOT_DIR"/SillyTavern*; do
+      [ -d "$candidate" ] || continue
+      [ "$candidate" != "$TAVERN_DIR" ] || continue
+      [ "$candidate" != "$DEFAULT_TAVERN_DIR" ] || continue
+      [ "$candidate" != "$LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+      looks_like_tavern_dir "$candidate" || continue
+      append_tavern_candidate "$candidate"
+    done
+  fi
   for candidate in "$HOME_DIR"/*; do
     [ -d "$candidate" ] || continue
     [ "$candidate" != "$TAVERN_DIR" ] || continue
     [ "$candidate" != "$DEFAULT_TAVERN_DIR" ] || continue
+    [ "$candidate" != "$LEGACY_DEFAULT_TAVERN_DIR" ] || continue
+    [ "$candidate" != "$LAUNCHER_TAVERN_ROOT_DIR" ] || continue
     looks_like_tavern_dir "$candidate" || continue
     append_tavern_candidate "$candidate"
   done
@@ -179,6 +291,8 @@ write_status() {
   now="$(timestamp)"
   safe_message="$(json_escape "$message")"
   safe_dir="$(json_escape "$TAVERN_DIR")"
+  safe_profile_id="$(json_escape "${TAVERN_PROFILE_ID:-main}")"
+  safe_runtime_state_dir="$(json_escape "$RUNTIME_STATE_DIR")"
   cat > "$STATUS_FILE" <<EOF
 {
   "app": "$APP_NAME",
@@ -189,6 +303,8 @@ write_status() {
   "message": "$safe_message",
   "tavernDir": "$safe_dir",
   "port": $TAVERN_PORT,
+  "profileId": "$safe_profile_id",
+  "runtimeStateDir": "$safe_runtime_state_dir",
   "pidFile": "$PID_FILE",
   "logFile": "$LOG_FILE"
 }
@@ -286,7 +402,15 @@ is_running() {
     ''|*[!0-9]*) return 1 ;;
   esac
 
-  kill -0 "$pid" 2>/dev/null
+  if ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$PID_FILE"
+    return 1
+  fi
+  if process_matches_tavern "$pid"; then
+    return 0
+  fi
+  rm -f "$PID_FILE"
+  return 1
 }
 
 process_cwd_matches() {
@@ -301,18 +425,37 @@ process_cwd_matches() {
 
 process_matches_tavern() {
   pid="$1"
-  args=""
-  if [ -r "/proc/$pid/cmdline" ]; then
-    args="$(tr '\000' ' ' 2>/dev/null < "/proc/$pid/cmdline" || true)"
-  fi
-  case "$args" in
-    *"$TAVERN_DIR"*) return 0 ;;
+  process_cwd_matches "$pid" || return 1
+  [ -r "/proc/$pid/cmdline" ] || return 1
+
+  exe="$(basename "$(readlink "/proc/$pid/exe" 2>/dev/null || true)")"
+  args_lines="$(tr '\000' '\n' 2>/dev/null < "/proc/$pid/cmdline" || true)"
+  has_exact_arg() {
+    expected="$1"
+    printf "%s\n" "$args_lines" | grep -Fx -- "$expected" >/dev/null 2>&1
+  }
+  has_script_arg() {
+    script_name="$1"
+    printf "%s\n" "$args_lines" | grep -Fx \
+      -e "$script_name" \
+      -e "./$script_name" \
+      -e "$TAVERN_DIR/$script_name" >/dev/null 2>&1
+  }
+  case "$exe" in
+    node|nodejs)
+      has_script_arg "server.js" && return 0
+      ;;
+    sh|bash|dash)
+      has_script_arg "start.sh" && return 0
+      if printf "%s\n" "$args_lines" | grep -E '/lukoa-tavern\.sh$' >/dev/null 2>&1 &&
+        { has_exact_arg "console" || has_exact_arg "foreground"; }; then
+        return 0
+      fi
+      case "$(printf "%s\n" "$args_lines" | tr '\n' ' ')" in
+        *"Lukoa launcher foreground session"*) return 0 ;;
+      esac
+      ;;
   esac
-  if process_cwd_matches "$pid"; then
-    case "$args" in
-      *"server.js"*|*"start.sh"*) return 0 ;;
-    esac
-  fi
   return 1
 }
 
@@ -345,20 +488,37 @@ candidate_pids() {
     done || true
 }
 
+wait_for_pid_exit() {
+  pid="$1"
+  attempts="${2:-5}"
+  while [ "$attempts" -gt 0 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+    attempts=$((attempts - 1))
+  done
+  ! kill -0 "$pid" 2>/dev/null
+}
+
+force_cleanup_pid() {
+  pid="$1"
+  kill "$pid" 2>/dev/null || true
+  if wait_for_pid_exit "$pid" 2; then
+    return 0
+  fi
+  kill -9 "$pid" 2>/dev/null || true
+  wait_for_pid_exit "$pid" 2
+}
+
 kill_candidate_pids() {
   pids="$(candidate_pids | tr '\n' ' ')"
   if [ -z "$pids" ]; then
     return 1
   fi
 
-  # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
-  sleep 1
-
   for pid in $pids; do
-    if kill -0 "$pid" 2>/dev/null; then
-      kill -9 "$pid" 2>/dev/null || true
-    fi
+    force_cleanup_pid "$pid"
   done
   return 0
 }
@@ -739,6 +899,8 @@ cmd_selftest() {
     printf "home=%s\n" "$HOME_DIR"
     printf "prefix=%s\n" "${PREFIX:-unknown}"
     printf "state_dir=%s\n" "$STATE_DIR"
+    printf "runtime_state_dir=%s\n" "$RUNTIME_STATE_DIR"
+    printf "profile_id=%s\n" "${TAVERN_PROFILE_ID:-main}"
   } > "$PROOF_FILE"
 
   write_command "selftest" "$nonce"
@@ -1084,29 +1246,18 @@ cmd_stop() {
   write_command "stop"
   if ! is_running; then
     rm -f "$PID_FILE"
-    if kill_candidate_pids; then
-      if http_ok; then
-        write_status "error" "SillyTavern HTTP endpoint is still responding after killing candidate processes" true 76
-        emit_status
-        return 76
-      fi
-      write_status "stopped" "SillyTavern stopped by killing candidate processes because pid file was missing" false 0
+    if [ -n "$(candidate_pids | head -n 1)" ]; then
+      write_status "error" "Detected matching SillyTavern process without a tracked pid. Use force cleanup if you need to clear the current port." true 76
       emit_status
-      return 0
+      return 76
     fi
-
     if http_ok; then
-      if kill_candidate_pids; then
-        if http_ok; then
-          write_status "error" "SillyTavern HTTP endpoint is still responding after killing candidate processes" true 76
-          emit_status
-          return 76
-        fi
-        write_status "stopped" "SillyTavern stopped by killing candidate processes because pid file was missing" false 0
-        emit_status
-        return 0
-      fi
-      write_status "error" "SillyTavern HTTP endpoint is still responding, but pid file is missing and no candidate process was found" true 76
+      write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
+      emit_status
+      return 76
+    fi
+    if port_listening; then
+      write_status "error" "Current port is still occupied after stop request. Use force cleanup if you need to clear the current port." true 76
       emit_status
       return 76
     fi
@@ -1117,19 +1268,62 @@ cmd_stop() {
 
   pid="$(cat "$PID_FILE")"
   kill "$pid" 2>/dev/null || true
-  sleep 1
-
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -9 "$pid" 2>/dev/null || true
+  if ! wait_for_pid_exit "$pid" 5; then
+    write_status "error" "SillyTavern process is still running after stop request. Use force cleanup if you need to clear the current port." true 76
+    emit_status
+    return 76
   fi
 
   rm -f "$PID_FILE"
   if http_ok; then
-    write_status "error" "SillyTavern process was killed, but HTTP endpoint is still responding" true 76
+    write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
+    emit_status
+    return 76
+  fi
+  if port_listening; then
+    write_status "error" "Current port is still occupied after stop request. Use force cleanup if you need to clear the current port." true 76
     emit_status
     return 76
   fi
   write_status "stopped" "SillyTavern stopped" false 0
+  emit_status
+}
+
+cmd_force_cleanup() {
+  write_command "force-cleanup"
+  cleaned_any=0
+
+  if is_running; then
+    pid="$(cat "$PID_FILE")"
+    force_cleanup_pid "$pid"
+    cleaned_any=1
+  fi
+
+  if kill_candidate_pids; then
+    cleaned_any=1
+  fi
+
+  rm -f "$PID_FILE"
+  if [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Matching SillyTavern process is still present after force cleanup." true 76
+    emit_status
+    return 76
+  fi
+  if http_ok; then
+    write_status "error" "SillyTavern HTTP endpoint is still responding after force cleanup." true 76
+    emit_status
+    return 76
+  fi
+  if port_listening; then
+    write_status "error" "Current port is still occupied after force cleanup (Address 127.0.0.1:$TAVERN_PORT is already in use)." false 76
+    emit_status
+    return 76
+  fi
+  if [ "$cleaned_any" = "1" ]; then
+    write_status "stopped" "SillyTavern force cleanup completed" false 0
+  else
+    write_status "stopped" "SillyTavern was not running" false 0
+  fi
   emit_status
 }
 
@@ -1269,12 +1463,21 @@ cmd_update() {
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  upload_limit_reapply=""
+  upload_limit_prepare_update
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "Managed upload limit could not be safely removed before update; source files were left unchanged" false "$code"
+    emit_status
+    return "$code"
+  fi
   printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
+    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
     write_status "error" "git fetch failed; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== SillyTavern update ====\n"
@@ -1300,7 +1503,16 @@ cmd_update() {
   fi
 
   if [ "$git_code" -eq 0 ] && [ "$npm_code" -eq 0 ]; then
+    if [ -n "$upload_limit_reapply" ]; then
+      if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+        printf "uploadLimit.updateAction=reapplied\n"
+      else
+        printf "uploadLimit.updateAction=not-reapplied\n"
+        printf "uploadLimit.updateNotice=The new SillyTavern version no longer has exactly one compatible upload limit target.\n"
+      fi
+    fi
     write_status "updated" "SillyTavern source updated successfully" false 0
+    emit_upload_limit_status "after-update" 2>/dev/null || true
     code=0
   elif [ "$git_code" -eq 80 ]; then
     write_status "error" "Could not find a remote branch to update" false 80
@@ -1314,6 +1526,14 @@ cmd_update() {
   else
     write_status "error" "npm install failed; check tavern.log" false "$npm_code"
     code="$npm_code"
+  fi
+
+  if [ "$code" -ne 0 ] && [ -n "$upload_limit_reapply" ]; then
+    if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+      printf "uploadLimit.updateAction=restored-after-failure\n"
+    else
+      printf "uploadLimit.updateAction=restore-failed-after-update-error\n"
+    fi
   fi
 
   cat "$STATUS_FILE"
@@ -1358,12 +1578,21 @@ cmd_rollback() {
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  upload_limit_reapply=""
+  upload_limit_prepare_update
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "Managed upload limit could not be safely removed before rollback; source files were left unchanged" false "$code"
+    emit_status
+    return "$code"
+  fi
   printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
+    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
     write_status "error" "git fetch failed before rollback; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== Recent rollback log ====\n"
@@ -1382,6 +1611,13 @@ cmd_rollback() {
   fi
 
   if [ "$git_code" -eq 0 ] && [ "$npm_code" -eq 0 ]; then
+    if [ -n "$upload_limit_reapply" ]; then
+      if upload_limit_reapply_after_update "$upload_limit_reapply"; then
+        printf "uploadLimit.rollbackAction=reapplied\n"
+      else
+        printf "uploadLimit.rollbackAction=not-reapplied\n"
+      fi
+    fi
     write_status "rolled-back" "SillyTavern source rolled back successfully" false 0
     code=0
   elif [ "$git_code" -ne 0 ]; then
@@ -1393,6 +1629,10 @@ cmd_rollback() {
   else
     write_status "error" "npm install after rollback failed; check tavern.log" false "$npm_code"
     code="$npm_code"
+  fi
+
+  if [ "$code" -ne 0 ] && [ -n "$upload_limit_reapply" ]; then
+    upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
   fi
 
   cat "$STATUS_FILE"
@@ -1455,12 +1695,9 @@ backup_dir() {
   downloads_root="$(shared_download_dir || true)"
   if [ -n "$downloads_root" ]; then
     printf "%s/%s" "$downloads_root" "$relative_dir"
-  else
-    case "${1:-${BACKUP_KIND:-manual}}" in
-      auto) printf "%s/backups/zd" "$STATE_DIR" ;;
-      *) printf "%s/backups/sd" "$STATE_DIR" ;;
-    esac
+    return 0
   fi
+  return 1
 }
 
 backup_library_dirs() {
@@ -1470,8 +1707,6 @@ backup_library_dirs() {
   printf "%s/%s\n" "/storage/emulated/0/Download" "$AUTO_BACKUP_LIBRARY_RELATIVE_DIR"
   printf "%s/%s\n" "/sdcard/Download" "$MANUAL_BACKUP_LIBRARY_RELATIVE_DIR"
   printf "%s/%s\n" "/sdcard/Download" "$AUTO_BACKUP_LIBRARY_RELATIVE_DIR"
-  printf "%s\n" "$STATE_DIR/backups/sd"
-  printf "%s\n" "$STATE_DIR/backups/zd"
 }
 
 emit_backup_library_dirs() {
@@ -1719,7 +1954,16 @@ cmd_backup() {
     return 69
   fi
 
-  BACKUP_DIR="$(backup_dir)"
+  if ! BACKUP_DIR="$(backup_dir)"; then
+    write_status "error" "Termux storage is not ready. Run termux-setup-storage before creating backups." false 73
+    cat "$STATUS_FILE"
+    printf "\n==== backup storage permission ====\n"
+    printf "error=termux-storage-permission\n"
+    printf "fix.command=termux-setup-storage\n"
+    printf "fix.steps=Open Termux, run termux-setup-storage, allow storage permission, then retry.\n"
+    printf "==== end backup storage permission ====\n"
+    return 73
+  fi
   if ! mkdir -p "$BACKUP_DIR"; then
     write_status "error" "failed to create backup directory: $BACKUP_DIR" false 73
     emit_status
@@ -1823,6 +2067,20 @@ cmd_backup() {
   EXTERNAL_DATA_ROOT=""
   EXTERNAL_DATA_ENTRY=""
   if [ -d "$DATA_ROOT_CANON" ] && ! path_is_inside "$DATA_ROOT_CANON" "$TAVERN_CANON"; then
+    if path_is_inside "$TAVERN_CANON" "$DATA_ROOT_CANON"; then
+      safe_remove_backup_temp_dir "$manifest_dir"
+      write_status "error" "configured dataRoot points to a parent directory of SillyTavern; backup is blocked to avoid archiving unrelated files" false 73
+      cat "$STATUS_FILE"
+      printf "\n==== SillyTavern backup ====\n"
+      printf "kind=%s\n" "$BACKUP_KIND"
+      printf "archive=%s\n" "$archive"
+      printf "source=%s\n" "$TAVERN_CANON"
+      printf "dataRoot=%s\n" "$DATA_ROOT_CANON"
+      printf "error=configured dataRoot is broader than the current SillyTavern directory\n"
+      printf "notice=请先把 config.yaml 里的 dataRoot 改回当前酒馆目录里的 data 子目录，或改到一个独立目录后再备份。\n"
+      printf "==== end SillyTavern backup ====\n"
+      return 73
+    fi
     EXTERNAL_DATA_ROOT="$DATA_ROOT_CANON"
     EXTERNAL_DATA_ENTRY="$(basename "$DATA_ROOT_CANON")"
     record_expected "external-dataRoot" "$EXTERNAL_DATA_ROOT" "$EXTERNAL_DATA_ENTRY"
@@ -1945,9 +2203,6 @@ cmd_backup() {
     fi
   fi
   [ -n "${size:-}" ] && printf "size=%s\n" "$size"
-  if [ "$BACKUP_DIR" = "$STATE_DIR/backups/sd" ] || [ "$BACKUP_DIR" = "$STATE_DIR/backups/zd" ] || [ "$BACKUP_DIR" = "$STATE_DIR/backups" ]; then
-    printf "notice=Termux storage is not available. Run termux-setup-storage if you want backups in Android Downloads.\n"
-  fi
   printf "\n==== verified important paths ====\n"
   if [ -s "$expected_file" ]; then
     cat "$expected_file"
@@ -1968,15 +2223,13 @@ cmd_backup() {
 
 cmd_backup_list() {
   write_command "backup-list"
-  MANUAL_BACKUP_DIR="$(backup_dir manual)"
-  AUTO_BACKUP_DIR="$(backup_dir auto)"
-  PRIVATE_BACKUP_DIR="$STATE_DIR/backups"
+  MANUAL_BACKUP_DIR="$(backup_dir manual || true)"
+  AUTO_BACKUP_DIR="$(backup_dir auto || true)"
   write_status "backup-list" "SillyTavern backup directories listed" "$(tavern_running_value)" 0
   cat "$STATUS_FILE"
   printf "\n==== SillyTavern backups ====\n"
   printf "manualDir=%s\n" "$MANUAL_BACKUP_DIR"
   printf "autoDir=%s\n" "$AUTO_BACKUP_DIR"
-  printf "privateDir=%s\n" "$PRIVATE_BACKUP_DIR"
   seen_dirs="|"
   for dir in $(backup_library_dirs); do
     dir_key="$(canonical_existing_path "$dir")"
@@ -2821,6 +3074,166 @@ cmd_restore() {
   printf "==== end SillyTavern restore ====\n"
 }
 
+cmd_migrate_dir() {
+  write_command "migrate-dir"
+  target="${1:-}"
+  if [ -z "$target" ]; then
+    write_status "error" "No target directory was provided for migration" false 64
+    emit_status
+    return 64
+  fi
+
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before migrating its directory" true 77
+    emit_status
+    return 77
+  fi
+
+  if [ ! -d "$TAVERN_DIR" ]; then
+    collect_tavern_dir_candidates
+    write_tavern_dir_error
+    cat "$STATUS_FILE"
+    emit_tavern_dir_candidates
+    return "$(missing_tavern_dir_exit_code)"
+  fi
+
+  target="$(expand_launcher_path "$target")"
+  source_canon="$(canonical_existing_path "$TAVERN_DIR")"
+  target_canon="$(canonical_existing_path "$target")"
+  if [ "$source_canon" = "$target_canon" ]; then
+    write_status "error" "Migration target matches the current SillyTavern directory" false 64
+    emit_status
+    return 64
+  fi
+  if path_is_inside "$target" "$TAVERN_DIR" || path_is_inside "$TAVERN_DIR" "$target"; then
+    write_status "error" "Migration target cannot contain the current SillyTavern directory, and the current directory cannot contain the target" false 73
+    emit_status
+    return 73
+  fi
+
+  target_parent="$(dirname "$target")"
+  if ! mkdir -p "$target_parent"; then
+    write_status "error" "Failed to create the migration target parent directory" false 73
+    emit_status
+    return 73
+  fi
+
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  error_file="$STATE_DIR/migrate-error.log"
+  rm -f "$error_file"
+  : > "$error_file"
+  replaced_dir="none"
+  if [ -e "$target" ]; then
+    replaced_dir="$target.lukoa-before-migrate-$stamp"
+    if ! mv "$target" "$replaced_dir" 2>>"$error_file"; then
+      write_status "error" "Failed to move the existing target directory aside before migration" false 74
+      cat "$STATUS_FILE"
+      printf "\n==== SillyTavern directory migration ====\n"
+      printf "migrated.from=%s\n" "$TAVERN_DIR"
+      printf "migrated.to=%s\n" "$target"
+      printf "replaced.previous=%s\n" "$target"
+      printf "==== migration error ====\n"
+      cat "$error_file" 2>/dev/null || true
+      printf "==== end SillyTavern directory migration ====\n"
+      return 74
+    fi
+  fi
+
+  if ! mv "$TAVERN_DIR" "$target" 2>>"$error_file"; then
+    [ "$replaced_dir" != "none" ] && [ -e "$replaced_dir" ] && mv "$replaced_dir" "$target" 2>/dev/null || true
+    write_status "error" "Failed to place SillyTavern at the migration target; the original target was restored if possible" false 74
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern directory migration ====\n"
+    printf "migrated.from=%s\n" "$TAVERN_DIR"
+    printf "migrated.to=%s\n" "$target"
+    printf "replaced.previous=%s\n" "$replaced_dir"
+    printf "==== migration error ====\n"
+    cat "$error_file" 2>/dev/null || true
+    printf "==== end SillyTavern directory migration ====\n"
+    return 74
+  fi
+
+  write_status "migrated" "SillyTavern directory migrated successfully" false 0
+  cat "$STATUS_FILE"
+  printf "\n==== SillyTavern directory migration ====\n"
+  printf "migrated.from=%s\n" "$TAVERN_DIR"
+  printf "migrated.to=%s\n" "$target"
+  printf "replaced.previous=%s\n" "$replaced_dir"
+  printf "notice=If the target had old files, they were moved aside before this migration.\n"
+  printf "==== end SillyTavern directory migration ====\n"
+}
+
+cmd_delete_managed_profile_dir() {
+  write_command "delete-managed-profile-dir"
+  if [ "${TAVERN_PROFILE_ID:-main}" = "main" ]; then
+    write_status "error" "Main profile directory cannot be deleted by this command" false 73
+    emit_status
+    return 73
+  fi
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before deleting this profile directory" true 77
+    emit_status
+    return 77
+  fi
+
+  expected_dir="$(launcher_managed_profile_dir "${TAVERN_PROFILE_ID:-main}")"
+  expected_dir="$(expand_launcher_path "$expected_dir")"
+  current_canon="$(canonical_existing_path "$TAVERN_DIR")"
+  expected_canon="$(canonical_existing_path "$expected_dir")"
+  if [ "$current_canon" != "$expected_canon" ]; then
+    write_status "error" "Only launcher-managed default profile directories can be deleted with the instance" false 73
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "current.profileDir=%s\n" "$TAVERN_DIR"
+    printf "expected.profileDir=%s\n" "$expected_dir"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 73
+  fi
+  if ! path_is_inside "$expected_dir" "$LAUNCHER_TAVERN_ROOT_DIR"; then
+    write_status "error" "Refusing to delete a directory outside the launcher-managed root" false 73
+    emit_status
+    return 73
+  fi
+
+  existed=0
+  if [ ! -e "$expected_dir" ]; then
+    write_status "deleted-profile-dir" "Launcher-managed profile directory was already missing" false 0
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "deleted.profileDir=%s\n" "$expected_dir"
+    printf "deleted.existed=%s\n" "$existed"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 0
+  fi
+
+  existed=1
+  parent="$(dirname "$expected_dir")"
+  base="$(basename "$expected_dir")"
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  staging_dir="$parent/$base.lukoa-delete-$stamp"
+  if ! mv "$expected_dir" "$staging_dir"; then
+    write_status "error" "Failed to move the launcher-managed profile directory aside before deletion" false 74
+    emit_status
+    return 74
+  fi
+  if ! rm -rf "$staging_dir"; then
+    write_status "error" "The profile directory was moved aside, but final deletion failed; remove it manually before trying again" false 74
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern managed profile delete ====\n"
+    printf "deleted.profileDir=%s\n" "$expected_dir"
+    printf "deleted.staging=%s\n" "$staging_dir"
+    printf "==== end SillyTavern managed profile delete ====\n"
+    return 74
+  fi
+
+  write_status "deleted-profile-dir" "Launcher-managed profile directory deleted successfully" false 0
+  cat "$STATUS_FILE"
+  printf "\n==== SillyTavern managed profile delete ====\n"
+  printf "deleted.profileDir=%s\n" "$expected_dir"
+  printf "deleted.existed=%s\n" "$existed"
+  printf "==== end SillyTavern managed profile delete ====\n"
+}
+
 cmd_restart() {
   old_quiet="${LUKOA_QUIET:-0}"
   LUKOA_QUIET=1
@@ -2832,6 +3245,408 @@ cmd_restart() {
     return "$stop_code"
   fi
   cmd_start
+}
+
+repair_require_stopped() {
+  if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "error" "Please stop SillyTavern before running this repair" true 77
+    emit_status
+    return 77
+  fi
+  return 0
+}
+
+cmd_repair_dependencies() {
+  write_command "repair-dependencies"
+  repair_require_stopped || return "$?"
+  [ -f "$TAVERN_DIR/package.json" ] || {
+    write_status "error" "SillyTavern package.json was not found" false 66
+    emit_status
+    return 66
+  }
+  command -v npm >/dev/null 2>&1 || {
+    write_status "error" "npm command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  old_modules="$TAVERN_DIR/node_modules"
+  recovery_modules="$TAVERN_DIR/node_modules.lukoa-before-repair-$stamp"
+  moved=false
+  if [ -d "$old_modules" ]; then
+    mv "$old_modules" "$recovery_modules" || {
+      write_status "error" "Failed to preserve the current node_modules directory" false 74
+      emit_status
+      return 74
+    }
+    moved=true
+  fi
+  cd "$TAVERN_DIR" || return 74
+  if npm install; then
+    [ "$moved" = true ] && rm -rf "$recovery_modules" 2>/dev/null || true
+    write_status "repaired-dependencies" "SillyTavern dependencies were reinstalled" false 0
+    emit_status
+    printf "repair.dependencies.registry=%s\n" "${NPM_REGISTRY:-default}"
+    return 0
+  fi
+  failed_modules="$TAVERN_DIR/node_modules.lukoa-failed-repair-$stamp"
+  if [ -e "$old_modules" ]; then
+    mv "$old_modules" "$failed_modules" 2>/dev/null || rm -rf "$old_modules" 2>/dev/null || true
+  fi
+  restored=false
+  if [ "$moved" = true ] && mv "$recovery_modules" "$old_modules" 2>/dev/null; then
+    restored=true
+  fi
+  write_status "error" "npm install failed; previous dependencies were restored when possible" false 74
+  emit_status
+  printf "repair.dependencies.restored=%s\n" "$restored"
+  [ -e "$failed_modules" ] && printf "repair.dependencies.failedDirectory=%s\n" "$failed_modules"
+  return 74
+}
+
+cmd_reset_theme() {
+  write_command "reset-theme"
+  repair_require_stopped || return "$?"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  settings_candidates="$(find "$TAVERN_DIR/data" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
+  settings_count="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | wc -l | tr -d ' ')"
+  [ "$settings_count" = "1" ] || {
+    write_status "error" "Theme reset requires exactly one SillyTavern user settings file" false 73
+    emit_status
+    printf "repair.theme.candidateCount=%s\n" "${settings_count:-0}"
+    printf "%s\n" "$settings_candidates" | sed '/^$/d;s/^/repair.theme.candidate=/'
+    return 73
+  }
+  settings_file="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | head -n 1)"
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$settings_file.lukoa-before-theme-reset-$stamp"
+  cp "$settings_file" "$backup_file" || return 74
+  if SETTINGS_FILE="$settings_file" node <<'NODE'
+const fs = require('fs');
+const path = process.env.SETTINGS_FILE;
+let value;
+try { value = JSON.parse(fs.readFileSync(path, 'utf8')); } catch (_) { process.exit(2); }
+let changed = false;
+function visit(node) {
+  if (!node || typeof node !== 'object') return;
+  for (const key of Object.keys(node)) {
+    if (/^(theme|theme_name|themeName)$/i.test(key) && typeof node[key] === 'string') {
+      node[key] = 'Dark Lite'; changed = true;
+    } else visit(node[key]);
+  }
+}
+visit(value);
+if (!changed) process.exit(3);
+fs.writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
+NODE
+  then
+    write_status "reset-theme" "SillyTavern theme was reset to Dark Lite" false 0
+    emit_status
+    printf "repair.theme.file=%s\nrepair.theme.backup=%s\n" "$settings_file" "$backup_file"
+    return 0
+  fi
+  cp "$backup_file" "$settings_file" 2>/dev/null || true
+  write_status "error" "The settings file did not contain a compatible theme field; no changes were kept" false 65
+  emit_status
+  return 65
+}
+
+cmd_node_memory_set() {
+  write_command "node-memory-set"
+  repair_require_stopped || return "$?"
+  memory="${1:-}"
+  case "$memory" in 2048|4096|6144) ;; *)
+    write_status "error" "Unsupported Node.js memory limit" false 64
+    emit_status
+    return 64
+  esac
+  printf "LUKOA_NODE_MEMORY_MB='%s'\n" "$memory" > "$NODE_MEMORY_FILE" || return 74
+  write_status "node-memory" "Node.js memory limit was saved" false 0
+  emit_status
+  printf "node.memory.mb=%s\nnode.memory.file=%s\n" "$memory" "$NODE_MEMORY_FILE"
+}
+
+emit_upload_limit_status() {
+  reason="${1:-manual}"
+  command -v node >/dev/null 2>&1 || return 69
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || return 66
+  result="$(UPLOAD_LIMIT_FILE="$target" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+let source;
+try { source = fs.readFileSync(file, 'utf8'); } catch (_) { process.exit(66); }
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+process.stdout.write(matches[0][1]);
+NODE
+)"
+  code="$?"
+  [ "$code" -eq 0 ] || return "$code"
+  printf "\n==== SillyTavern upload limit ====\n"
+  printf "uploadLimit.status=compatible\n"
+  printf "uploadLimit.reason=%s\n" "$reason"
+  printf "uploadLimit.file=%s\n" "$target"
+  printf "uploadLimit.currentMb=%s\n" "$result"
+  if [ -f "$UPLOAD_LIMIT_STATE_FILE" ]; then
+    IFS='|' read -r recorded_file previous_mb applied_mb backup_file recorded_commit < "$UPLOAD_LIMIT_STATE_FILE" || true
+    printf "uploadLimit.recordedPreviousMb=%s\n" "${previous_mb:-unknown}"
+    printf "uploadLimit.recordedAppliedMb=%s\n" "${applied_mb:-unknown}"
+    printf "uploadLimit.backupFile=%s\n" "${backup_file:-unknown}"
+    printf "uploadLimit.recordedCommit=%s\n" "${recorded_commit:-unknown}"
+    if [ "${applied_mb:-}" = "$result" ]; then
+      printf "uploadLimit.patchState=active\n"
+    else
+      printf "uploadLimit.patchState=changed-or-overwritten\n"
+    fi
+  else
+    printf "uploadLimit.patchState=not-managed\n"
+  fi
+  printf "==== end SillyTavern upload limit ====\n"
+}
+
+upload_limit_prepare_update() {
+  upload_limit_reapply=""
+  [ -f "$UPLOAD_LIMIT_STATE_FILE" ] || return 0
+  command -v node >/dev/null 2>&1 || return 69
+  IFS='|' read -r recorded_file previous_mb applied_mb backup_file recorded_commit < "$UPLOAD_LIMIT_STATE_FILE" || return 73
+  target="$TAVERN_DIR/src/server-main.js"
+  [ "$recorded_file" = "$target" ] || return 73
+  [ -f "$target" ] && [ -f "$backup_file" ] || return 73
+  if ! UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_BACKUP="$backup_file" UPLOAD_LIMIT_PREVIOUS="$previous_mb" UPLOAD_LIMIT_APPLIED="$applied_mb" node <<'NODE'
+const fs = require('fs');
+const current = fs.readFileSync(process.env.UPLOAD_LIMIT_FILE, 'utf8');
+const backup = fs.readFileSync(process.env.UPLOAD_LIMIT_BACKUP, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...current.matchAll(pattern)];
+if (matches.length !== 1 || matches[0][1] !== process.env.UPLOAD_LIMIT_APPLIED) process.exit(73);
+const restoredExpression = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${process.env.UPLOAD_LIMIT_PREVIOUS}`);
+const restored = current.slice(0, matches[0].index) + restoredExpression + current.slice(matches[0].index + matches[0][0].length);
+if (restored !== backup) process.exit(73);
+NODE
+  then
+    return 73
+  fi
+  cp "$backup_file" "$target" || return 74
+  upload_limit_reapply="$applied_mb"
+  return 0
+}
+
+upload_limit_reapply_after_update() {
+  limit="${1:-}"
+  command -v node >/dev/null 2>&1 || return 69
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || return 66
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$target.lukoa-before-upload-limit-$stamp"
+  cp "$target" "$backup_file" || return 74
+  previous="$(UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_MB="$limit" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+const source = fs.readFileSync(file, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+const replacement = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${process.env.UPLOAD_LIMIT_MB}`);
+const updated = source.slice(0, matches[0].index) + replacement + source.slice(matches[0].index + matches[0][0].length);
+fs.writeFileSync(file, updated);
+process.stdout.write(matches[0][1]);
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    cp "$backup_file" "$target" 2>/dev/null || true
+    rm -f "$backup_file"
+    return "$code"
+  fi
+  commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  printf "%s|%s|%s|%s|%s\n" "$target" "$previous" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
+  prune_upload_limit_backups "$backup_file"
+}
+
+prune_upload_limit_backups() {
+  keep_file="${1:-}"
+  for candidate in "$TAVERN_DIR"/src/server-main.js.lukoa-before-upload-limit-*; do
+    [ -f "$candidate" ] || continue
+    [ "$candidate" = "$keep_file" ] && continue
+    rm -f "$candidate" 2>/dev/null || true
+  done
+}
+
+cmd_upload_limit_status() {
+  write_command "upload-limit-status"
+  if emit_upload_limit_status "manual-check" >/dev/null; then
+    write_status "upload-limit-status" "SillyTavern upload limit was identified" "$(tavern_running_value)" 0
+    cat "$STATUS_FILE"
+    emit_upload_limit_status "manual-check"
+    return 0
+  fi
+  code="$?"
+  write_status "error" "This SillyTavern version does not contain exactly one compatible upload limit target" "$(tavern_running_value)" "$code"
+  emit_status
+  return "$code"
+}
+
+cmd_upload_limit_set() {
+  write_command "upload-limit-set"
+  repair_require_stopped || return "$?"
+  limit="${1:-}"
+  case "$limit" in 500|1024|2048) ;; *)
+    write_status "error" "Unsupported upload limit" false 64
+    emit_status
+    return 64
+  esac
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || {
+    write_status "error" "SillyTavern upload middleware file was not found" false 66
+    emit_status
+    return 66
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$target.lukoa-before-upload-limit-$stamp"
+  cp "$target" "$backup_file" || {
+    write_status "error" "Failed to back up the upload middleware file" false 74
+    emit_status
+    return 74
+  }
+  result="$(UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_MB="$limit" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+const limit = Number(process.env.UPLOAD_LIMIT_MB);
+const source = fs.readFileSync(file, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const matches = [...source.matchAll(pattern)];
+if (matches.length !== 1) process.exit(matches.length === 0 ? 65 : 73);
+const previous = Number(matches[0][1]);
+const replacement = matches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${limit}`);
+const updated = source.slice(0, matches[0].index) + replacement + source.slice(matches[0].index + matches[0][0].length);
+const temp = `${file}.lukoa-upload-limit-${process.pid}.tmp`;
+fs.writeFileSync(temp, updated);
+fs.renameSync(temp, file);
+process.stdout.write(String(previous));
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    cp "$backup_file" "$target" 2>/dev/null || true
+    rm -f "$backup_file"
+    write_status "error" "Upload limit target was not uniquely recognized; no changes were kept" false "$code"
+    emit_status
+    return "$code"
+  fi
+  commit="$(cd "$TAVERN_DIR" && git rev-parse --short HEAD 2>/dev/null || printf unknown)"
+  printf "%s|%s|%s|%s|%s\n" "$target" "$result" "$limit" "$backup_file" "$commit" > "$UPLOAD_LIMIT_STATE_FILE"
+  prune_upload_limit_backups "$backup_file"
+  write_status "upload-limit-set" "SillyTavern upload limit was updated" false 0
+  cat "$STATUS_FILE"
+  emit_upload_limit_status "after-set"
+}
+
+run_tavern_user_action() {
+  action="${1:-list}"
+  payload="${2:-}"
+  repair_require_stopped || return "$?"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  [ -f "$TAVERN_DIR/src/users.js" ] || {
+    write_status "error" "This SillyTavern version does not provide the compatible user module" false 65
+    emit_status
+    return 65
+  }
+  data_root="$(resolve_tavern_data_root)"
+  output="$(cd "$TAVERN_DIR" && LUKOA_USER_ACTION="$action" LUKOA_USER_PAYLOAD="$payload" LUKOA_USER_DATA_ROOT="$data_root" LUKOA_USER_CONFIG_FILE="$TAVERN_DIR/config.yaml" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+import storage from 'node-persist';
+import { pathToFileURL } from 'node:url';
+
+const action = process.env.LUKOA_USER_ACTION || 'list';
+const dataRoot = path.resolve(process.env.LUKOA_USER_DATA_ROOT || 'data');
+const configFile = path.resolve(process.env.LUKOA_USER_CONFIG_FILE || 'config.yaml');
+const decode = value => Buffer.from(value, 'base64url').toString('utf8');
+const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
+const parts = (process.env.LUKOA_USER_PAYLOAD || '').split('.').filter(Boolean).map(decode);
+globalThis.DATA_ROOT = dataRoot;
+const util = await import(pathToFileURL(path.resolve('src/util.js')).href);
+util.setConfigFilePath(configFile);
+const users = await import(pathToFileURL(path.resolve('src/users.js')).href);
+await users.initUserStorage(dataRoot);
+
+async function records() {
+  let handles = await users.getAllUserHandles();
+  if (!handles.includes('default-user')) handles.unshift('default-user');
+  const values = await Promise.all(handles.map(async handle => {
+    const stored = await storage.getItem(users.toKey(handle));
+    const profile = stored || { handle, name: handle === 'default-user' ? 'User' : handle, admin: handle === 'default-user', enabled: true };
+    const root = users.getUserDirectories(handle).root;
+    let size = 0;
+    if (fs.existsSync(root)) {
+      const stack = [root];
+      while (stack.length) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+          const child = path.join(current, entry.name);
+          if (entry.isSymbolicLink()) continue;
+          if (entry.isDirectory()) stack.push(child);
+          else if (entry.isFile()) size += fs.statSync(child).size;
+        }
+      }
+    }
+    return { ...profile, root, exists: fs.existsSync(root), kb: Math.ceil(size / 1024) };
+  }));
+  return values.sort((a, b) => Number(a.created || 0) - Number(b.created || 0));
+}
+
+if (action === 'create') {
+  const [handle, name] = parts;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(handle || '') || !name || name.length > 80) process.exit(64);
+  const handles = await users.getAllUserHandles();
+  if (handles.includes(handle)) process.exit(73);
+  const salt = users.getPasswordSalt();
+  await storage.setItem(users.toKey(handle), { handle, name, created: Date.now(), password: '', salt, admin: false, enabled: true });
+  try {
+    await users.ensurePublicDirectoriesExist();
+    const content = await import(pathToFileURL(path.resolve('src/endpoints/content-manager.js')).href);
+    await content.checkForNewContent([users.getUserDirectories(handle)], [content.CONTENT_TYPES.SETTINGS]);
+  } catch (error) {
+    await storage.removeItem(users.toKey(handle));
+    throw error;
+  }
+} else if (action === 'delete') {
+  const [handle] = parts;
+  if (!handle || handle === 'default-user') process.exit(73);
+  const all = await records();
+  const target = all.find(user => user.handle === handle);
+  if (!target) process.exit(66);
+  if (target.admin && target.enabled && all.filter(user => user.admin && user.enabled).length <= 1) process.exit(73);
+  await storage.removeItem(users.toKey(handle));
+}
+
+const result = await records();
+console.log('==== SillyTavern users ====');
+for (const user of result) {
+  console.log(`user.record=${encode(user.handle)}|${encode(user.name)}|${!!user.admin}|${!!user.enabled}|${!!user.exists}|${user.kb}`);
+}
+console.log('==== end SillyTavern users ====');
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "SillyTavern user operation failed or was blocked by a safety rule" false "$code"
+    emit_status
+    return "$code"
+  fi
+  write_status "users-$action" "SillyTavern user operation completed" false 0
+  cat "$STATUS_FILE"
+  printf "%s\n" "$output"
 }
 
 main() {
@@ -2847,6 +3662,34 @@ main() {
     doctor|tavern-doctor)
       cmd_doctor
       ;;
+    repair-dependencies|tavern-repair-dependencies)
+      cmd_repair_dependencies
+      ;;
+    reset-theme|tavern-reset-theme)
+      cmd_reset_theme
+      ;;
+    node-memory-set|tavern-node-memory-set)
+      shift
+      cmd_node_memory_set "$@"
+      ;;
+    upload-limit-status|tavern-upload-limit-status)
+      cmd_upload_limit_status
+      ;;
+    upload-limit-set|tavern-upload-limit-set)
+      shift
+      cmd_upload_limit_set "$@"
+      ;;
+    users-list|tavern-users-list)
+      run_tavern_user_action list ""
+      ;;
+    user-create|tavern-user-create)
+      shift
+      run_tavern_user_action create "${1:-}"
+      ;;
+    user-delete|tavern-user-delete)
+      shift
+      run_tavern_user_action delete "${1:-}"
+      ;;
     log|logs|tail)
       cmd_log
       ;;
@@ -2861,6 +3704,9 @@ main() {
       ;;
     stop)
       cmd_stop
+      ;;
+    force-cleanup|tavern-force-cleanup)
+      cmd_force_cleanup
       ;;
     restart)
       cmd_restart
@@ -2917,6 +3763,13 @@ main() {
     restore|tavern-restore)
       shift
       cmd_restore "$@"
+      ;;
+    migrate-dir|tavern-migrate-dir)
+      shift
+      cmd_migrate_dir "$@"
+      ;;
+    delete-managed-profile-dir|tavern-delete-managed-profile-dir)
+      cmd_delete_managed_profile_dir
       ;;
     *)
       write_status "error" "unknown command: $command" false 64

@@ -1,6 +1,10 @@
 package moe.lukoa.launcher
 
 import android.content.Context
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 
 object AutoBackupRetentionManager {
     fun enforceConfiguredLimit(
@@ -10,6 +14,9 @@ object AutoBackupRetentionManager {
         val appContext = context.applicationContext
         val config = LauncherStateStore(appContext).readAutoBackupConfig()
         if (!config.enabled) {
+            return BackupLibraryFiles.listLibraryArchives(appContext)
+        }
+        if (AutoBackupOperationLockPolicy.shouldDeferRetention(OperationLockStore.active(appContext))) {
             return BackupLibraryFiles.listLibraryArchives(appContext)
         }
 
@@ -30,12 +37,25 @@ object AutoBackupRetentionManager {
         return result.remainingPaths
     }
 
-    fun maybePruneAfterTermuxResult(
+    fun enqueueAfterTermuxResult(
         context: Context,
         result: TermuxCommandResult,
     ) {
         if (!isSuccessfulAutoBackupResult(result)) return
-        enforceConfiguredLimit(context, reason = "termux-auto-backup")
+        val appContext = context.applicationContext
+        val request = OneTimeWorkRequestBuilder<AutoBackupRetentionWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putString(AutoBackupRetentionWorker.KEY_REASON, "termux-auto-backup")
+                    .build(),
+            )
+            .addTag(WORK_TAG)
+            .build()
+        WorkManager.getInstance(appContext).enqueueUniqueWork(
+            "$WORK_NAME_PREFIX${result.stableKey.hashCode()}",
+            ExistingWorkPolicy.KEEP,
+            request,
+        )
     }
 
     private fun isSuccessfulAutoBackupResult(result: TermuxCommandResult): Boolean {
@@ -45,4 +65,7 @@ object AutoBackupRetentionManager {
             output.contains("kind=auto") &&
             output.contains("archive=")
     }
+
+    private const val WORK_NAME_PREFIX = "lukoa_auto_backup_retention_"
+    private const val WORK_TAG = "lukoa_auto_backup_retention"
 }

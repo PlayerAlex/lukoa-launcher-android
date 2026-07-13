@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
     private var termuxWakeInProgress = false
     private var termuxWakeScheduled = false
     private var lastTermuxWakeAt = 0L
+    private var lastResumeTermuxWakeAt = 0L
+    private var hasCompletedInitialResume = false
     private var pendingBackupImportCallback: ((ExternalBackupImportResult) -> Unit)? = null
     private var pendingBackupExportRequest: PendingBackupExportRequest? = null
     private val backupFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -97,13 +99,14 @@ class MainActivity : ComponentActivity() {
         if (isTermuxInstalled) {
             requestRunCommandPermissionIfNeeded()
         }
-        val isProcessColdStart = !LauncherProcessState.started
+        val isFreshTaskLaunch = LauncherLaunchSessionPolicy.isFreshTaskLaunch(
+            hasSavedInstanceState = savedInstanceState != null,
+        )
         val loadResult = stateStore.load(
             isTermuxInstalled = isTermuxInstalled,
-            allowColdStartFallback = isProcessColdStart,
+            allowColdStartFallback = isFreshTaskLaunch,
         )
         val initialState = loadResult.state
-        LauncherProcessState.started = true
         stateStore.armColdStartClearFallback()
         val versionInfo = VersionBackupManager.versionInfo(applicationContext)
         val githubRepository = githubUpdateStore.loadRepository()
@@ -143,12 +146,16 @@ class MainActivity : ComponentActivity() {
                     initialAllFilesAccessGranted = allFilesAccessGranted,
                     initialInstallUnknownAppsGranted = installUnknownAppsGranted,
                     startupRefreshSignal = startupRefreshSignal,
+                    discardInitialRuntimeLogSnapshot = loadResult.displayLogsCleared,
                     onPersistState = stateStore::save,
                     onCommand = { command, update ->
                         controller.handleCommand(lifecycleScope, command, update)
                     },
                     onLatestTermuxResult = {
                         controller.latestTermuxResultDisplay()
+                    },
+                    onRecentTermuxResults = {
+                        controller.recentTermuxResultDisplays()
                     },
                     onRefreshLogs = { updateTermuxLog ->
                         controller.refreshLogSnapshot(lifecycleScope, updateTermuxLog)
@@ -201,11 +208,11 @@ class MainActivity : ComponentActivity() {
                     onOpenUnknownAppSourcesSettings = ::openUnknownAppSourcesSettings,
                     onCopyText = ::copyTextToClipboard,
                     onOpenExternalUrl = ::openExternalUrl,
-                    onExportLog = { summary, status, termuxLog, appLog, mode, update ->
-                        controller.exportLog(summary, status, termuxLog, appLog, mode, update)
+                    onExportLog = { state, mode, update ->
+                        controller.exportLog(lifecycleScope, state, mode, update)
                     },
                     onExportDiagnostic = { snapshot, update ->
-                        controller.exportDiagnostic(snapshot, update)
+                        controller.exportDiagnostic(lifecycleScope, snapshot, update)
                     },
                     onExportBackup = { state, update ->
                         controller.exportBackup(state, update)
@@ -255,6 +262,9 @@ class MainActivity : ComponentActivity() {
                     onOpenGithubRelease = { updateInfo ->
                         githubUpdateManager.openReleasePage(updateInfo)
                     },
+                    onOpenGithubRepositoryReleases = { repository ->
+                        githubUpdateManager.openRepositoryReleasesPage(repository)
+                    },
                 )
             }
         }
@@ -273,6 +283,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideStatusBar()
+        maybeWakeTermuxAfterForegroundResume()
+        hasCompletedInitialResume = true
     }
 
     override fun onDestroy() {
@@ -305,6 +317,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun maybeWakeTermuxAfterForegroundResume() {
+        if (!::runner.isInitialized || !::stateStore.isInitialized) return
+        val termuxInstalled = runner.isTermuxInstalled()
+        val now = System.currentTimeMillis()
+        val shouldWake = TermuxWakePolicy.shouldWakeOnForegroundResume(
+            hasCompletedInitialResume = hasCompletedInitialResume,
+            termuxInstalled = termuxInstalled,
+            runCommandPermissionGranted = termuxInstalled && runner.hasRunCommandPermission(),
+            termuxBackgroundRunPermissionGranted = termuxInstalled &&
+                BackgroundRunAccess.isTermuxGranted(applicationContext),
+            wakeInProgress = termuxWakeInProgress,
+            wakeScheduled = termuxWakeScheduled,
+            nowMillis = now,
+            lastWakeAtMillis = lastTermuxWakeAt,
+            lastResumeWakeAtMillis = lastResumeTermuxWakeAt,
+            wakeCooldownMs = TERMUX_WAKE_COOLDOWN_MS,
+            resumeWakeCooldownMs = TERMUX_RESUME_WAKE_COOLDOWN_MS,
+        )
+        if (!shouldWake) return
+
+        lastResumeTermuxWakeAt = now
+        scheduleAutoWakeTermux(stateStore.readTermuxReturnDelayMs())
+    }
+
     private fun scheduleAutoWakeTermux(returnDelayMs: Long) {
         if (!::controller.isInitialized || termuxWakeInProgress || termuxWakeScheduled) return
         val now = System.currentTimeMillis()
@@ -318,29 +354,61 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun wakeTermuxWithReturn(auto: Boolean, returnDelayMs: Long): Boolean {
-        if (!::controller.isInitialized) return false
-        if (!runner.isTermuxInstalled()) return false
+    private fun wakeTermuxWithReturn(auto: Boolean, returnDelayMs: Long): TermuxWakeResult {
+        if (!::controller.isInitialized) {
+            return TermuxWakeResult(
+                ok = false,
+                message = "启动器还在准备 Termux 控制器，请稍后再试。",
+            )
+        }
+        if (!runner.isTermuxInstalled()) {
+            return TermuxWakeResult(
+                ok = false,
+                message = "唤醒失败：没找到 Termux，请先安装并打开一次。",
+            )
+        }
         val now = System.currentTimeMillis()
         if (termuxWakeInProgress || termuxWakeScheduled || now - lastTermuxWakeAt < TERMUX_WAKE_COOLDOWN_MS) {
-            return true
+            return TermuxWakeResult(
+                ok = true,
+                message = "刚刚已经安排过一次 Termux 唤醒，避免重复跳转。",
+            )
         }
-        if (!stateStore.claimTermuxWakeSlot(now)) {
+        if (stateStore.hasRecentTermuxWake(now)) {
             lastTermuxWakeAt = now
-            return true
+            return TermuxWakeResult(
+                ok = true,
+                message = "刚刚已经触发过 Termux 唤醒，稍等几秒再试。",
+            )
         }
 
         termuxWakeInProgress = true
-        lastTermuxWakeAt = now
         val woke = controller.wakeTermuxThenReturn(lifecycleScope, returnDelayMs)
-        lifecycleScope.launch {
-            delay(TERMUX_WAKE_GUARD_MS)
+        if (woke) {
+            lastTermuxWakeAt = now
+            stateStore.recordTermuxWake(now)
+            lifecycleScope.launch {
+                delay(TERMUX_WAKE_GUARD_MS)
+                termuxWakeInProgress = false
+            }
+        } else {
             termuxWakeInProgress = false
         }
-        if (!woke) {
-            termuxWakeInProgress = false
+        return if (woke) {
+            TermuxWakeResult(
+                ok = true,
+                message = if (auto) {
+                    "已自动唤醒 Termux，稍后会回到启动器。"
+                } else {
+                    "已唤醒 Termux，稍后会自动回到启动器。"
+                },
+            )
+        } else {
+            TermuxWakeResult(
+                ok = false,
+                message = "唤醒失败：系统没有成功打开 Termux，请手动打开 Termux。",
+            )
         }
-        return woke
     }
 
     private fun pickExternalBackup(callback: (ExternalBackupImportResult) -> Unit) {
@@ -413,7 +481,7 @@ class MainActivity : ComponentActivity() {
         callback(
             BackupExportDestinationResult(
                 ok = false,
-                message = "读不到备份源文件。请确认备份还在 Download/lukoa/backups/sd 或 zd。",
+                message = "读不到备份源文件。请确认备份还在 Download/LukoaLauncher/backups/sd 或 zd。",
             ),
         )
         return false
@@ -605,14 +673,12 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val REQUEST_RUN_COMMAND_PERMISSION = 4001
-        const val TERMUX_WAKE_COOLDOWN_MS = 12_000L
+        const val TERMUX_WAKE_COOLDOWN_MS = TermuxWakePolicy.DEFAULT_WAKE_COOLDOWN_MS
+        const val TERMUX_RESUME_WAKE_COOLDOWN_MS = TermuxWakePolicy.DEFAULT_RESUME_WAKE_COOLDOWN_MS
         const val TERMUX_WAKE_GUARD_MS = 4_000L
     }
 }
 
-private object LauncherProcessState {
-    var started: Boolean = false
-}
 
 private data class PendingBackupExportRequest(
     val sourcePath: String,

@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,7 +72,7 @@ class PendingLauncherTaskSupportTest {
             ok = true,
             output = """
                 ==== SillyTavern backup ====
-                archive=/data/data/com.termux/files/home/.local/state/lukoa-launcher/backups/sd/safe.tar.gz
+                archive=/storage/emulated/0/Download/LukoaLauncher/backups/sd/safe.tar.gz
             """.trimIndent(),
         )
 
@@ -103,5 +104,95 @@ class PendingLauncherTaskSupportTest {
         assertTrue(result.message.contains("自动安全备份已保留"))
         assertTrue(result.refreshTargets.backupList)
         assertTrue(result.refreshTargets.startupState)
+    }
+
+    @Test
+    fun `latest result ignores same command from another profile`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 1L,
+            profileId = "profile-2",
+        )
+        val latest = TermuxResultDisplay(
+            key = "k3",
+            command = "tavern-restore",
+            ok = true,
+            output = """{"profileId":"main"}""",
+            timeMillis = 2L,
+            profileId = "main",
+        )
+
+        assertNull(PendingLauncherTaskSupport.latestResult(task, listOf(latest)))
+    }
+
+    @Test
+    fun `latest result accepts matching runtime state dir for pending profile`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 1L,
+            profileId = "profile-2",
+        )
+        val latest = TermuxResultDisplay(
+            key = "k4",
+            command = "tavern-restore",
+            ok = true,
+            output = "runtime_state_dir=/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
+            timeMillis = 2L,
+            runtimeStateDir = "/data/data/com.termux/files/home/.local/state/lukoa-launcher/profiles/profile-2",
+        )
+
+        assertEquals(latest, PendingLauncherTaskSupport.latestResult(task, listOf(latest)))
+    }
+
+    @Test
+    fun `latest result ignores matching command received before task started`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.ManualBackup,
+            commandName = "tavern-backup",
+            detail = "正在创建酒馆备份",
+            startedAtMillis = 100L,
+        )
+        val stale = TermuxResultDisplay(
+            key = "stale",
+            command = "tavern-backup",
+            output = "archive=/old.tar.gz",
+            ok = true,
+            timeMillis = 99L,
+        )
+
+        assertNull(PendingLauncherTaskSupport.latestResult(task, listOf(stale)))
+    }
+
+    @Test
+    fun `latest result searches history past unrelated newest result`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在应用酒馆备份",
+            startedAtMillis = 100L,
+        )
+        val unrelated = TermuxResultDisplay(
+            key = "newest",
+            command = "status",
+            output = "running=false",
+            ok = true,
+            timeMillis = 120L,
+        )
+        val matching = TermuxResultDisplay(
+            key = "matching",
+            command = "tavern-restore",
+            output = "restore.completed=1",
+            ok = true,
+            timeMillis = 110L,
+        )
+
+        assertEquals(
+            matching,
+            PendingLauncherTaskSupport.latestResult(task, listOf(unrelated, matching)),
+        )
     }
 }
