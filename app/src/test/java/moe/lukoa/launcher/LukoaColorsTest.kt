@@ -12,4 +12,9 @@ class LukoaColorsTest {
         assertEquals(LukoaColors.Accent, LukoaColors.Info)
         assertEquals(LukoaColors.AccentSoft, LukoaColors.InfoSoft)
     }
+
+    @Test
+    fun stopAction_keepsPreviousSoftRed() {
+        assertEquals(Color(0xFFFB7185), LukoaColors.Stop)
+    }
 }

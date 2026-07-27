@@ -28,6 +28,9 @@ object LukoaColors {
     val Danger = Color(0xFFEF4444)
     val DangerSoft = Color(0xFF3B1518)
 
+    // 停止酒馆沿用旧版更柔和的红色，与数据危险操作分开。
+    val Stop = Color(0xFFFB7185)
+
     // 终端黑洞
     val Terminal = Color(0xFF080A0C)
 }

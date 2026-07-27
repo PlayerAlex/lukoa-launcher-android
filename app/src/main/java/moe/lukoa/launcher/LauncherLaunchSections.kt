@@ -69,7 +69,7 @@ fun TavernControlSection(
         else -> "启动酒馆"
     }
     val primaryColor = when {
-        shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Danger
+        shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
         else -> LukoaColors.Accent
     }
     SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Accent) {
