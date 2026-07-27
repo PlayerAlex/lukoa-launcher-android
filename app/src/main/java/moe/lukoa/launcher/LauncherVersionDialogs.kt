@@ -57,9 +57,9 @@ fun TavernVersionActionConfirmDialog(
 ) {
     RiskyActionDialogScaffold(
         title = confirmation.kind.dialogTitle,
-        titleTone = ActionTone.Warning,
+        titleTone = ActionTone.Safe,
         confirmText = confirmation.kind.confirmLabel,
-        confirmTone = ActionTone.Warning,
+        confirmTone = ActionTone.Safe,
         confirmEnabled = !actionsLocked,
         onConfirm = onConfirm,
         onDismiss = onDismiss,

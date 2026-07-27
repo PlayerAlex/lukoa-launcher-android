@@ -131,7 +131,7 @@ fun VersionManagementSection(
                     if (tavernVersionInfo.hasLocalChanges) {
                         Text(
                             text = "酒馆源码有改动，先处理后再更新或回退。",
-                            color = LukoaColors.Danger,
+                            color = LukoaColors.Amber,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -168,7 +168,7 @@ fun VersionManagementSection(
                     InfoPopoverButton(
                         contentDescription = "查看目标版本说明",
                         title = "目标版本与切换",
-                        body = "先读取当前下载源的官方版本列表，再选择目标版本。更新会切到较新的版本，回退会切到较旧版本；酒馆未安装时，所选版本会供启动页安装使用。",
+                        body = "先读取可用版本，再选择想使用的版本。比当前版本新的是更新，比当前版本旧的是回退。酒馆还没安装时，这个选择会用于首次安装。",
                     )
                 },
             ) {
@@ -216,7 +216,7 @@ fun VersionManagementSection(
                     SecondaryActionButton(
                         text = "更新",
                         enabled = updateEnabled,
-                        accentColor = LukoaColors.Amber,
+                        accentColor = LukoaColors.Accent,
                         modifier = Modifier
                             .weight(1f),
                         onClick = onTavernUpdate,
@@ -224,7 +224,7 @@ fun VersionManagementSection(
                     SecondaryActionButton(
                         text = "回退",
                         enabled = rollbackEnabled,
-                        accentColor = LukoaColors.Amber,
+                        accentColor = LukoaColors.Accent,
                         modifier = Modifier
                             .weight(1f),
                         onClick = onTavernRollback,
@@ -258,7 +258,7 @@ private fun VersionOverviewCard(
     when {
         tavernVersionInfo.hasLocalChanges -> {
             statusText = "本地已修改"
-            statusColor = LukoaColors.Danger
+            statusColor = LukoaColors.Amber
         }
         tavernVersionInfo.hasData -> {
             statusText = "就绪"
@@ -358,7 +358,7 @@ private fun VersionOperationStatusCard(
     when {
         actionState.instanceActive -> {
             statusText = "先停止当前实例"
-            statusColor = LukoaColors.Danger
+            statusColor = LukoaColors.Amber
         }
         currentVersionInfo.notInstalled -> {
             statusText = "先安装酒馆"
@@ -370,7 +370,7 @@ private fun VersionOperationStatusCard(
         }
         currentVersionInfo.hasLocalChanges -> {
             statusText = "源码有本地改动"
-            statusColor = LukoaColors.Danger
+            statusColor = LukoaColors.Amber
         }
         selectedVersion == null -> {
             statusText = "先选目标版本"
@@ -614,7 +614,7 @@ private fun OfficialVersionChooser(
             )
             Text(
                 text = selectedVersion?.label ?: "未选择",
-                color = if (selectedVersion == null) LukoaColors.Muted else LukoaColors.Amber,
+                color = if (selectedVersion == null) LukoaColors.Muted else LukoaColors.Accent,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -755,7 +755,7 @@ private fun CustomVersionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
+        titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = { Text("自定义酒馆版本") },
         text = {
@@ -779,12 +779,12 @@ private fun CustomVersionDialog(
                         focusedContainerColor = LukoaColors.SurfaceAlt,
                         unfocusedContainerColor = LukoaColors.SurfaceAlt,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Amber,
+                        focusedBorderColor = LukoaColors.Accent,
                         unfocusedBorderColor = LukoaColors.Line,
                         disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Amber,
+                        focusedLabelColor = LukoaColors.Accent,
                         unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Amber,
+                        cursorColor = LukoaColors.Accent,
                     ),
                 )
                 if (!valid && value.isNotBlank()) {
@@ -800,12 +800,12 @@ private fun CustomVersionDialog(
             SecondaryActionButton(
                 text = "使用这个版本",
                 enabled = valid,
-                accentColor = LukoaColors.Amber,
+                accentColor = LukoaColors.Accent,
                 onClick = onConfirm,
             )
         },
         dismissButton = {
-            SecondaryActionButton("取消", true, LukoaColors.Amber, onClick = onDismiss)
+            SecondaryActionButton("取消", true, LukoaColors.Accent, onClick = onDismiss)
         },
     )
 }

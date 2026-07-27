@@ -39,7 +39,6 @@ private enum class BackupSectionView {
     Quick,
     Auto,
     Library,
-    Safety,
 }
 
 @Composable
@@ -83,11 +82,6 @@ fun BackupSection(
             label = "备份库",
             description = "查看和管理手动、自动备份。",
         ),
-        SectionSwitchOption(
-            value = BackupSectionView.Safety,
-            label = "数据安全",
-            description = "查看覆盖与删除风险。",
-        ),
     )
 
     if (showCopyPathDialog) {
@@ -128,7 +122,7 @@ fun BackupSection(
                     InfoPopoverButton(
                         contentDescription = "查看备份内容说明",
                         title = "备份内容",
-                        body = "会备份角色、聊天、世界书、插件/扩展、配置和密钥文件。不会备份 node_modules、Git 历史和缓存。应用备份会覆盖当前酒馆数据，重要操作前建议先生成备份。",
+                        body = "备份会保存角色、聊天、世界书、插件、设置和密钥。可以重新下载的程序依赖、版本记录和缓存不会保存。应用备份会替换当前酒馆里的对应数据，所以更新、回退或恢复前最好先手动备份一次。",
                     )
                 },
             ) {
@@ -179,7 +173,7 @@ fun BackupSection(
                     InfoPopoverButton(
                         contentDescription = "查看自动备份说明",
                         title = "自动备份",
-                        body = "自动备份保存在 Download/LukoaLauncher/backups/zd，只会按保留数量清理最旧的自动备份。大更新、迁移手机或应用外部备份前，仍建议手动生成一次备份。",
+                        body = "自动备份会保存在手机的自动备份文件夹中。达到保留数量后，只删除最旧的自动备份。更新、换手机或恢复外部备份前，仍建议手动备份一次。",
                     )
                 },
             ) {
@@ -203,7 +197,7 @@ fun BackupSection(
                             text = if (autoBackupEnabled) {
                                 "每 ${formatBackupInterval(autoBackupIntervalMinutes)} 一次，最多保留 ${autoBackupKeepCount} 个，只清理最旧的自动备份。"
                             } else {
-                                "开启后会把备份放进 Download/LukoaLauncher/backups/zd。"
+                                "开启后会把备份放进手机的自动备份文件夹。"
                             },
                             color = if (autoBackupEnabled) LukoaColors.Text else LukoaColors.Muted,
                             style = MaterialTheme.typography.bodySmall,
@@ -217,7 +211,7 @@ fun BackupSection(
                     SecondaryActionButton(
                         text = if (autoBackupEnabled) "关闭自动备份" else "开启自动备份",
                         enabled = !actionsLocked,
-                        accentColor = if (autoBackupEnabled) LukoaColors.Danger else LukoaColors.Accent,
+                        accentColor = LukoaColors.Accent,
                         modifier = Modifier.weight(1f),
                         onClick = onToggleAutoBackup,
                     )
@@ -238,7 +232,7 @@ fun BackupSection(
                     InfoPopoverButton(
                         contentDescription = "查看备份库说明",
                         title = "备份库",
-                        body = "导入会把外部备份复制到手动备份库 sd，不会立刻覆盖酒馆。导出会打开文件管理器，由你选择保存位置；只有“应用”才会覆盖当前酒馆数据。",
+                        body = "导入只会把外部备份复制到备份库，不会马上改动酒馆。导出会让你选择保存位置。只有点“应用”并确认后，才会用备份内容替换当前酒馆数据。",
                     )
                 },
             ) {
@@ -268,25 +262,6 @@ fun BackupSection(
                 )
             }
 
-            BackupSectionView.Safety -> SectionPanel(
-                title = "数据安全",
-                accentColor = LukoaColors.Danger,
-                headerAction = {
-                    InfoPopoverButton(
-                        contentDescription = "查看数据安全说明",
-                        title = "数据安全",
-                        body = "导入到备份库只复制备份文件；导出只保存一份副本；删除只删除选中的备份包。应用备份会覆盖当前酒馆目录，更新、回退或安装插件前建议先手动生成备份。",
-                        accentColor = LukoaColors.Danger,
-                    )
-                },
-            ) {
-                Text(
-                    text = "应用备份会覆盖当前酒馆数据，请先停止酒馆并确认目标实例。",
-                    color = LukoaColors.Amber,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
         }
     }
 }
@@ -515,7 +490,7 @@ private fun BackupRecordLine(
             )
             Text(
                 text = backupLocationLabel(path),
-                color = LukoaColors.Amber,
+                color = LukoaColors.Accent,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -553,7 +528,7 @@ private fun BackupRecordLine(
                 BackupActionButton(
                     text = "重命名",
                     enabled = !actionsLocked,
-                    accentColor = LukoaColors.Amber,
+                    accentColor = LukoaColors.Accent,
                     modifier = Modifier.weight(1f),
                     onClick = onRename,
                 )
@@ -685,7 +660,7 @@ fun RenameBackupDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
+        titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = {
             SettingsDialogTitle(
@@ -697,7 +672,7 @@ fun RenameBackupDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = archivePath.substringAfterLast('/'),
-                    color = LukoaColors.Amber,
+                    color = LukoaColors.Accent,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -718,12 +693,12 @@ fun RenameBackupDialog(
                         focusedContainerColor = LukoaColors.SurfaceAlt,
                         unfocusedContainerColor = LukoaColors.SurfaceAlt,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Amber,
+                        focusedBorderColor = LukoaColors.Accent,
                         unfocusedBorderColor = LukoaColors.Line,
                         disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Amber,
+                        focusedLabelColor = LukoaColors.Accent,
                         unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Amber,
+                        cursorColor = LukoaColors.Accent,
                     ),
                 )
                 if (!valid) {
@@ -739,12 +714,12 @@ fun RenameBackupDialog(
             DialogActionButton(
                 text = "重命名",
                 enabled = valid,
-                tone = ActionTone.Warning,
+                tone = ActionTone.Safe,
                 onClick = onConfirm,
             )
         },
         dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Warning, onClick = onDismiss)
+            DialogActionButton("取消", tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }

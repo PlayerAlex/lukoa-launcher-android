@@ -37,7 +37,7 @@ fun RepairToolsSection(
     val uploadStatusText = uploadLimitStatus.currentMegabytes?.let(TavernUploadLimitPolicy::label)
         ?: if (uploadLimitStatus.checking) "检查中…" else "尚未读取"
     val uploadStatusTone = when {
-        uploadLimitStatus.checking -> LukoaColors.Amber
+        uploadLimitStatus.checking -> LukoaColors.Accent
         uploadLimitStatus.currentMegabytes != null -> LukoaColors.Accent
         else -> LukoaColors.Muted
     }
@@ -57,7 +57,7 @@ fun RepairToolsSection(
 
     SectionPanel(
         title = "修复工具",
-        accentColor = LukoaColors.Amber,
+        accentColor = LukoaColors.Accent,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -76,36 +76,37 @@ fun RepairToolsSection(
                 InfoPopoverButton(
                     contentDescription = "查看修复工具说明",
                     title = "修复工具",
-                    body = "这里集中提供环境体检、依赖与主题修复、Node.js 内存、上传限制和诊断日志。所有修改只作用于当前实例，并保留确认步骤和可恢复副本。",
-                    accentColor = LukoaColors.Amber,
+                    body = "这里可以检查运行环境、重新下载缺失的程序依赖、修复主题、调整内存和上传大小，并导出排错信息。所有操作只影响当前实例；会改文件的操作仍会先让你确认。",
                 )
             }
         },
     ) {
         leadingContent?.invoke()
-        Text(
-            text = when {
-                actionsLocked -> "当前有其他任务正在处理，设置会在任务结束后自动恢复。"
-                tavernRunning -> "检测到酒馆正在运行。体检、检查上传限制和诊断仍可使用；修改类操作需要先停止酒馆。"
-                else -> "当前实例已停止，修改类操作可用。"
-            },
-            color = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (actionsLocked || tavernRunning) {
+            Text(
+                text = if (actionsLocked) {
+                    "当前有其他任务正在处理，设置会在任务结束后恢复。"
+                } else {
+                    "酒馆正在运行；修改类操作需要先停止酒馆。"
+                },
+                color = LukoaColors.Amber,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         SettingsSectionDivider()
         SettingsSubsection(
             title = "常用修复",
-            detail = "适合依赖缺失或错误主题导致网页打不开的情况；执行前会再次确认。",
+            detail = "网页打不开、安装失败或主题损坏时可尝试。重新下载依赖会先保留旧文件，修复主题会保存一份原文件；执行前都会再次确认。",
         ) {
             SecondaryActionButton(
                 text = "修复 npm 依赖",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Amber,
+                accentColor = LukoaColors.Accent,
                 onClick = {
                     confirmation = RepairConfirmation(
                         "重新安装依赖",
-                        "旧的 node_modules 会先被移到带时间戳的恢复目录。只有 npm install 成功后才会清理旧副本。此操作可能需要数分钟。",
+                        "旧的程序依赖文件会先移到带时间的恢复文件夹。只有重新下载成功后才会清理旧副本。这个过程可能需要几分钟。",
                         onRepairDependencies,
                     )
                 },
@@ -127,7 +128,7 @@ fun RepairToolsSection(
         SettingsSectionDivider()
         SettingsSubsection(
             title = "Node.js 内存上限",
-            detail = "按当前实例保存，不直接改动 start.sh；低内存设备不建议选择过高。",
+            detail = "决定酒馆最多能使用多少运行内存，只影响当前实例。手机内存较小时建议选 2GB 或 4GB；设置过高可能被系统强制关闭。",
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(2048, 4096, 6144).forEach { memory ->
@@ -139,7 +140,7 @@ fun RepairToolsSection(
                         onClick = {
                             confirmation = RepairConfirmation(
                                 "设置 ${memory / 1024}GB 内存上限",
-                                "启动器会写入独立环境配置，不直接改动 start.sh。低内存设备设置过高可能导致系统杀掉 Termux。",
+                                "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本。手机内存不足时，设置过高可能导致系统关闭 Termux。",
                             ) { onSetNodeMemory(memory) }
                         },
                     )
@@ -154,7 +155,7 @@ fun RepairToolsSection(
         SettingsSectionDivider()
         SettingsSubsection(
             title = "聊天记录上传限制",
-            detail = "大文件会增加 Termux 内存和处理时间；1GB 以上更容易被系统杀后台。",
+            detail = "决定一次最多能导入多大的聊天记录。文件越大，处理越慢、占用内存越多；超过 1GB 更容易被系统中断。",
             statusText = uploadStatusText,
             statusTone = uploadStatusTone,
             statusActive = uploadLimitStatus.currentMegabytes != null || uploadLimitStatus.checking,
@@ -196,7 +197,7 @@ fun RepairToolsSection(
                             val label = TavernUploadLimitPolicy.label(limit)
                             confirmation = RepairConfirmation(
                                 "设置上传限制为 $label",
-                                "只会修改当前实例中已识别的 SillyTavern 上传中间件。修改前会备份源文件并记录原值；如果版本结构不匹配，将拒绝修改。设置较大限制可能导致内存占用显著增加。",
+                                "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
                             ) { onSetUploadLimit(limit) }
                         },
                     )

@@ -111,7 +111,7 @@ fun TermuxStoragePermissionDialog(
             }
         },
         dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Warning, onClick = onDismiss)
+            DialogActionButton("取消", tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }

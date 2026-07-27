@@ -131,7 +131,7 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
     }
     val elapsedText = formatBusyElapsed(elapsedSeconds)
     val detail = busyDetailFor(label, elapsedSeconds)
-    SectionPanel(title = "正在处理", accentColor = LukoaColors.Amber) {
+    SectionPanel(title = "正在处理", accentColor = LukoaColors.Accent) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -148,8 +148,8 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
             StatusPill(
                 text = elapsedText,
                 active = true,
-                toneColor = LukoaColors.Amber,
-                activeBackground = LukoaColors.AmberSoft,
+                toneColor = LukoaColors.Accent,
+                activeBackground = LukoaColors.AccentSoft,
             )
         }
         Text(

@@ -165,7 +165,7 @@ fun ClearLogDangerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Danger,
+        titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = { Text("确认清除日志") },
         text = {
@@ -192,11 +192,11 @@ fun ClearLogDangerDialog(
                         unfocusedTextColor = LukoaColors.Text,
                         focusedContainerColor = LukoaColors.SurfaceAlt,
                         unfocusedContainerColor = LukoaColors.SurfaceAlt,
-                        focusedBorderColor = LukoaColors.Danger,
+                        focusedBorderColor = LukoaColors.Accent,
                         unfocusedBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Danger,
+                        focusedLabelColor = LukoaColors.Accent,
                         unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Danger,
+                        cursorColor = LukoaColors.Accent,
                     ),
                 )
             }
@@ -205,14 +205,14 @@ fun ClearLogDangerDialog(
             DialogActionButton(
                 text = "确认清除",
                 enabled = confirmText.trim() == "清除",
-                tone = ActionTone.Danger,
+                tone = ActionTone.Safe,
                 onClick = onConfirm,
             )
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DialogActionButton("返回", tone = ActionTone.Danger, onClick = onBack)
-                DialogActionButton("取消", tone = ActionTone.Danger, onClick = onDismiss)
+                DialogActionButton("返回", tone = ActionTone.Neutral, onClick = onBack)
+                DialogActionButton("取消", tone = ActionTone.Neutral, onClick = onDismiss)
             }
         },
     )

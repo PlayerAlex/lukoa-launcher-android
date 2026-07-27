@@ -66,14 +66,13 @@ fun TavernUserManagementSection(
                         else -> "${state.users.size} 位用户"
                     },
                     active = actionsLocked || state.loading || state.users.isNotEmpty(),
-                    toneColor = if (actionsLocked || state.loading) LukoaColors.Amber else LukoaColors.Info,
-                    activeBackground = if (actionsLocked || state.loading) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
+                    toneColor = if (actionsLocked) LukoaColors.Amber else LukoaColors.Info,
+                    activeBackground = if (actionsLocked) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看用户管理说明",
                     title = "用户管理",
-                    body = "这里管理当前实例里的 SillyTavern 登录账户，不是启动器多实例。读取、新增或删除用户前需要先停止酒馆。",
-                    accentColor = LukoaColors.Info,
+                    body = "这里管理当前这套酒馆的登录用户。它和启动器里的多实例无关。为了避免文件被同时修改，读取、新增或删除用户前需要先停止酒馆。",
                 )
             }
         },
@@ -84,6 +83,8 @@ fun TavernUserManagementSection(
                 detail = when {
                     actionsLocked -> "当前有其他任务正在处理，用户操作暂时不可用。"
                     tavernRunning -> "酒馆正在运行，请先停止后再读取或修改用户。"
+                    state.message == "尚未读取当前酒馆的用户。" -> null
+                    state.message.startsWith("已读取") -> null
                     else -> state.message
                 },
                 value = instanceLabel,
@@ -187,10 +188,20 @@ private fun UserInputDialog(
     val nameError = TavernUserCommandCodec.validateName(name.trim())
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = {
+            SettingsDialogTitle(
+                title = title,
+                infoText = "登录标识是登录时输入的英文短名，也用于区分这个用户的数据文件夹；显示名称是页面里看到的昵称。登录标识创建后不能在启动器里修改。",
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("登录标识是登录 SillyTavern 时使用的英文短名，例如 xiaoming；它也会成为 data/登录标识 数据目录名。它不是页面显示昵称。SillyTavern 官方没有提供修改登录标识的接口，创建后不能在启动器里重命名，请确认无误。")
+                Text(
+                    text = "登录标识创建后不能在启动器中重命名。",
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(handleLabel) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } })
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(nameLabel) }, isError = nameError != null, supportingText = { nameError?.let { e -> Text(e) } })
             }

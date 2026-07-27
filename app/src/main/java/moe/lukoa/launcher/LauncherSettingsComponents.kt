@@ -82,7 +82,7 @@ internal fun SettingsEntryDivider() {
 @Composable
 internal fun SettingsEntryRow(
     title: String,
-    detail: String,
+    detail: String? = null,
     value: String? = null,
     valueColor: Color = LukoaColors.Text,
     valueLayout: SettingsValueLayout = SettingsValueLayout.Trailing,
@@ -136,13 +136,15 @@ internal fun SettingsEntryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = detail,
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (!detail.isNullOrBlank()) {
+                Text(
+                    text = detail,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (valueLayout == SettingsValueLayout.Trailing && value != null) {
             SettingsTrailingValue(
@@ -244,7 +246,6 @@ internal fun SettingsSubsection(
                 contentDescription = "查看$title 说明",
                 title = title,
                 body = detail,
-                accentColor = statusTone,
             )
         }
         content()

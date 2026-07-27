@@ -11,7 +11,7 @@ fun LukoaTheme(content: @Composable () -> Unit) {
         colorScheme = darkColorScheme(
             primary = LukoaColors.Accent,
             onPrimary = LukoaColors.Background,
-            secondary = LukoaColors.Amber,
+            secondary = LukoaColors.Info,
             onSecondary = LukoaColors.Background,
             background = LukoaColors.Background,
             onBackground = LukoaColors.Text,

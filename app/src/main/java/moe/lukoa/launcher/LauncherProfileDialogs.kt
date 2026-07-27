@@ -57,9 +57,9 @@ fun DeleteTavernProfileConfirmDialog(
 ) {
     RiskyActionDialogScaffold(
         title = "确认删除实例",
-        titleTone = ActionTone.Warning,
+        titleTone = ActionTone.Danger,
         confirmText = "确认删除实例",
-        confirmTone = ActionTone.Warning,
+        confirmTone = ActionTone.Danger,
         confirmEnabled = !actionsLocked,
         onConfirm = onConfirm,
         onDismiss = onDismiss,
@@ -95,9 +95,20 @@ fun DeleteTavernProfileConfirmDialog(
         }
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            color = if (confirmation.deletesProfileDirectory) {
+                LukoaColors.Danger.copy(alpha = 0.08f)
+            } else {
+                LukoaColors.Amber.copy(alpha = 0.08f)
+            },
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+            border = BorderStroke(
+                1.dp,
+                if (confirmation.deletesProfileDirectory) {
+                    LukoaColors.Danger.copy(alpha = 0.28f)
+                } else {
+                    LukoaColors.Amber.copy(alpha = 0.28f)
+                },
+            ),
         ) {
             Text(
                 text = if (confirmation.deletesProfileDirectory) {

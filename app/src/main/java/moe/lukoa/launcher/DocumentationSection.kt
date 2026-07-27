@@ -9,14 +9,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,7 +47,7 @@ private enum class DocCategory(val label: String, val title: String) {
     Version("更新", "安装、更新与回退"),
     Api("API", "API 与报错"),
     Role("角色", "角色、预设与上下文"),
-    Backup("备份", "数据安全"),
+    Backup("备份", "备份与恢复"),
     Troubleshooting("排错", "排错思路"),
 }
 
@@ -66,7 +65,33 @@ fun DocumentationSection(
         onDispose { onPagerLockChange(false) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionPanel(title = "文档导航", accentColor = LukoaColors.Accent) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.46f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "文档目录",
+                        color = LukoaColors.Text,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "${DocCategory.entries.size} 章",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -99,9 +124,10 @@ fun DocumentationSection(
                     )
                 }
             }
+            }
         }
 
-        DocCategory.entries.forEach { category ->
+        DocCategory.entries.forEachIndexed { index, category ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -109,7 +135,10 @@ fun DocumentationSection(
                         sectionWindowPositions[category] = coordinates.positionInWindow().y
                     },
             ) {
-                SectionPanel(title = category.title, accentColor = LukoaColors.Accent) {
+                DocChapterPanel(
+                    number = index + 1,
+                    title = category.title,
+                ) {
                     when (category) {
                         DocCategory.NewUser -> NewUserDocs()
                         DocCategory.Launch -> LaunchDocs()
@@ -203,7 +232,7 @@ private fun VersionDocs() {
     DocTopicCard(
         title = "安装、更新和回退的区别",
         body = "安装用于当前实例还没有酒馆时；更新把已安装酒馆切到较新的官方版本；回退把它切到较旧版本。版本页管理的是 SillyTavern，不是启动器本身。\n\n启动器自身更新在设置页处理。",
-        accentColor = LukoaColors.Amber,
+        accentColor = LukoaColors.Accent,
     )
     DocTopicCard(
         title = "更新或回退前检查",
@@ -324,20 +353,70 @@ private fun DocNavChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val color = if (selected) LukoaColors.Accent else LukoaColors.Muted
+    val color = if (selected) LukoaColors.Accent else LukoaColors.Text
     Surface(
         modifier = Modifier.clickable(onClick = rememberFeedbackClick(onClick)),
-        color = if (selected) LukoaColors.Accent.copy(alpha = 0.12f) else LukoaColors.SurfaceAlt.copy(alpha = 0.5f),
+        color = if (selected) LukoaColors.AccentSoft else Color.Transparent,
         shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, if (selected) LukoaColors.Accent.copy(alpha = 0.3f) else Color.Transparent),
+        border = BorderStroke(
+            1.dp,
+            if (selected) LukoaColors.Accent.copy(alpha = 0.36f) else LukoaColors.Line.copy(alpha = 0.48f),
+        ),
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             color = color,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+
+@Composable
+private fun DocChapterPanel(
+    number: Int,
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.46f)),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    color = LukoaColors.AccentSoft,
+                    shape = LukoaCapsuleShape,
+                ) {
+                    Text(
+                        text = number.toString().padStart(2, '0'),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = LukoaColors.Accent,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Text(
+                    text = title,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.38f))
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                content()
+            }
+        }
     }
 }
 
@@ -347,37 +426,32 @@ private fun DocTopicCard(
     body: String,
     accentColor: Color,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(16.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .padding(top = 4.dp)
-                    .width(4.dp)
-                    .height(18.dp)
-                    .background(accentColor, RoundedCornerShape(2.dp))
+                    .padding(top = 7.dp)
+                    .background(accentColor, RoundedCornerShape(50))
+                    .padding(3.dp),
             )
-            Spacer(modifier = Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
                     text = title,
                     color = LukoaColors.Text,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = body,
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 22.sp
+                    lineHeight = 21.sp,
                 )
             }
         }

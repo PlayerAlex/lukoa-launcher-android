@@ -188,9 +188,7 @@ class LauncherSettingsUiTest {
                 ) {
                     InstanceManagementPanel(
                         termuxReturnDelayMs = 600L,
-                        tavernMirrorConfig = TavernMirrorConfig(),
                         tavernPathConfig = pathConfig,
-                        activePathInfo = TavernProfilePathPolicy.describe(pathConfig.activeProfile),
                         mirrorProbeStatus = TavernMirrorProbeStatus(),
                         permissionNotice = PermissionStatusNotice(
                             title = "权限基本就绪",
@@ -207,6 +205,13 @@ class LauncherSettingsUiTest {
             }
         }
         advancePastClickDebounce()
+
+        composeRule.onNodeWithText("选择、新增或删除酒馆实例；删除托管分身前会再次确认。")
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("每个实例使用不同端口，避免启动冲突。")
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("唤醒 Termux 后，自动返回启动器前等待多久。")
+            .assertDoesNotExist()
 
         composeRule.onNode(hasText("当前实例") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("酒馆路径") and hasClickAction()).performScrollTo().performClick()

@@ -28,8 +28,8 @@ internal fun UpdateChannelSelectorCard(
     enabled: Boolean,
     onSelectChannel: (GithubReleaseChannel) -> Unit,
 ) {
-    val channelColor = if (channel == GithubReleaseChannel.Test) LukoaColors.Amber else LukoaColors.Accent
-    val channelBackground = if (channel == GithubReleaseChannel.Test) LukoaColors.AmberSoft else LukoaColors.AccentSoft
+    val channelColor = LukoaColors.Accent
+    val channelBackground = LukoaColors.AccentSoft
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -72,7 +72,7 @@ internal fun UpdateChannelSelectorCard(
                 DialogActionButton(
                     text = GithubReleaseChannel.Test.label,
                     enabled = enabled && channel != GithubReleaseChannel.Test,
-                    tone = if (channel == GithubReleaseChannel.Test) ActionTone.Neutral else ActionTone.Warning,
+                    tone = if (channel == GithubReleaseChannel.Test) ActionTone.Neutral else ActionTone.Safe,
                     modifier = Modifier.weight(1f),
                     onClick = { onSelectChannel(GithubReleaseChannel.Test) },
                 )
@@ -97,7 +97,7 @@ fun TermuxWakeDelayDialog(
         title = {
             SettingsDialogTitle(
                 title = "Termux 唤醒返回",
-                infoText = "设置从启动器跳到 Termux 后，等待多久再自动返回。部分手机唤醒较慢，时间过短可能导致命令还没送达就切回。",
+                infoText = "从启动器打开 Termux 执行操作后，等待多久再自动回到启动器。手机反应较慢时可以适当增加，避免命令还没收到就返回。",
             )
         },
         text = {
@@ -170,7 +170,7 @@ fun PermissionCenterDialog(
         title = {
             SettingsDialogTitle(
                 title = "权限与授权",
-                infoText = "这里集中检查启动器调用 Termux、后台运行、文件访问和安装更新所需的授权。优先处理标记为“待处理”的项目。",
+                infoText = "这里检查启动器正常控制 Termux 和访问备份所需的系统权限。显示“待处理”时，按对应按钮完成授权即可；已经显示“已准备”的项目不用处理。",
             )
         },
         text = {
@@ -211,7 +211,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "RUN_COMMAND 权限",
                     active = runCommandPermissionGranted,
-                    description = "让启动器能把命令发给 Termux。没开这个，启动、停止、安装这些按钮都不会真的跑进 Termux。",
+                    description = "允许启动器把启动、停止、安装等操作交给 Termux 执行。没有它，这些按钮会被系统拦住。",
                     detail = if (runCommandPermissionGranted) {
                         "当前已允许。按钮发出的命令可以正常尝试进入 Termux。"
                     } else {
@@ -225,7 +225,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "Termux 外部调用",
                     active = termuxExternalAppsReady,
-                    description = "让 Termux 接受来自启动器的外部命令。没开这个，Termux 会直接拒绝调用。",
+                    description = "允许 Termux 接收启动器发来的操作。没有开启时，Termux 会拒绝启动器的请求。",
                     detail = if (termuxExternalAppsReady) {
                         "当前已允许外部调用。"
                     } else {
@@ -239,7 +239,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "后台运行权限",
                     active = backgroundRunPermissionGranted,
-                    description = "主要影响自动备份和长任务。没放行时，切后台后可能要你重新回到启动器，它才继续跑。",
+                    description = "让启动器切到后台后仍能完成自动备份和耗时操作。未允许时，任务可能暂停，需要回到启动器才能继续。",
                     detail = if (backgroundRunPermissionGranted) {
                         "当前系统已放行后台运行。"
                     } else {
@@ -251,7 +251,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "Termux 后台常驻",
                     active = termuxBackgroundRunPermissionGranted,
-                    description = "部分手机会单独限制 Termux 的后台存活。没放行时，长任务、前台日志和自动备份更容易被系统打断。",
+                    description = "让 Termux 在屏幕关闭或切到其他应用后继续工作。未允许时，长任务和自动备份可能被手机中断。",
                     detail = if (termuxBackgroundRunPermissionGranted) {
                         "当前已检测到 Termux 基本不受省电限制。"
                     } else {
@@ -263,7 +263,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "文件管理权限",
                     active = allFilesAccessGranted,
-                    description = "导入备份、导出备份、复制备份时会用到。没开这个，文件管理器虽然能弹出来，但真正复制可能失败。",
+                    description = "让启动器读取和复制你选择的备份文件。未允许时，文件管理器可以打开，但导入或导出可能失败。",
                     detail = if (allFilesAccessGranted) {
                         "当前已允许。"
                     } else {
@@ -275,7 +275,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "安装未知来源应用",
                     active = installUnknownAppsGranted,
-                    description = "只在更新启动器 APK 时会用到。没开这个，你能检测到新版本，但安装步骤过不去。",
+                    description = "只在安装启动器更新包时使用。未允许时，可以检查到新版本，但系统不会让你安装。",
                     detail = if (installUnknownAppsGranted) {
                         "当前已允许安装启动器新版本。"
                     } else {
@@ -287,7 +287,7 @@ fun PermissionCenterDialog(
                 PermissionDetailCard(
                     title = "Termux 存储权限",
                     active = !termuxStoragePermissionBlocked,
-                    description = "应用备份到酒馆时，Termux 需要能读到 Download 里的备份文件。这个权限不是给启动器，是给 Termux。",
+                    description = "让 Termux 读取手机 Download 文件夹中的备份。它只在应用备份时需要，并且要在 Termux 里授权。",
                     detail = if (termuxStoragePermissionBlocked) {
                         "最近一次检测到 Termux 存储权限缺失。点下面的引导去 Termux 授权。"
                     } else {
@@ -361,14 +361,15 @@ private fun PermissionDetailCard(
                     contentDescription = "查看$title 说明",
                     title = title,
                     body = description,
-                    accentColor = accentColor,
                 )
             }
-            Text(
-                text = detail,
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            if (!active) {
+                Text(
+                    text = detail,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),

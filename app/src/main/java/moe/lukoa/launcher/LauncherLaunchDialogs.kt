@@ -165,8 +165,9 @@ fun StartPreflightConfirmDialog(
                 DialogActionButton(
                     text = action.label,
                     tone = when (action.type) {
-                        TavernStartPreflightActionType.PrepareTermuxEnvironment,
-                        TavernStartPreflightActionType.ForceCleanupDetectedProcess -> ActionTone.Warning
+                        TavernStartPreflightActionType.PrepareTermuxEnvironment -> ActionTone.Safe
+
+                        TavernStartPreflightActionType.ForceCleanupDetectedProcess -> ActionTone.Danger
 
                         TavernStartPreflightActionType.DownloadTermux,
                         TavernStartPreflightActionType.RequestRunPermission,

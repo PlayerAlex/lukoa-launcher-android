@@ -110,14 +110,13 @@ fun InfoPopoverButton(
     title: String,
     body: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = LukoaColors.Muted,
 ) {
     var expanded by remember(title, body) { mutableStateOf(false) }
 
     Box(modifier = modifier) {
         InfoIconButton(
             contentDescription = contentDescription,
-            accentColor = accentColor,
+            accentColor = LukoaColors.Muted,
             onClick = { expanded = true },
         )
         DropdownMenu(

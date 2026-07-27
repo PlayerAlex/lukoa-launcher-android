@@ -77,7 +77,7 @@ fun TavernControlSection(
             statusText = statusText,
             statusDetail = statusDetail,
             statusActive = tavernRunning || tavernStarting || actionInProgress,
-            statusTone = if (tavernRunning) LukoaColors.Danger else LukoaColors.Accent,
+            statusTone = LukoaColors.Accent,
             wakeEnabled = !actionInProgress && wakeEnabled,
             onWake = wakeClick,
         )
@@ -175,7 +175,7 @@ private fun TavernControlStatusCard(
                     text = statusText,
                     active = statusActive,
                     toneColor = if (statusActive) statusTone else LukoaColors.Muted,
-                    activeBackground = if (statusTone == LukoaColors.Danger) LukoaColors.DangerSoft else LukoaColors.AccentSoft,
+                    activeBackground = LukoaColors.AccentSoft,
                 )
             }
             SecondaryActionButton(

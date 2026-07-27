@@ -221,7 +221,7 @@ internal fun GithubUpdateStatusCard(
         }
         githubUpdateState.checking -> {
             statusText = "正在检查"
-            statusColor = LukoaColors.Amber
+            statusColor = LukoaColors.Accent
         }
         githubUpdateState.hasUpdate -> {
             statusText = "发现新版本"

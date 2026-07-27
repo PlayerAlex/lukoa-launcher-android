@@ -122,7 +122,7 @@ internal fun MirrorSettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "切换下载源",
-                infoText = "酒馆 Git 源和 npm 源用于安装、更新与回退；Termux 包源用于安装系统依赖。它们互不替代，可以分别调整。",
+                infoText = "下载源决定安装或更新时从哪里下载文件。酒馆程序、程序依赖和 Termux 工具各用一类地址，可以分别设置；网络慢或下载失败时再切换。",
             )
         },
         text = {
@@ -141,7 +141,7 @@ internal fun MirrorSettingsDialog(
                 )
                 MirrorSubsection(
                     title = "酒馆下载源",
-                    description = "安装、更新、回退酒馆时使用。国内网络优先用加速源。",
+                    description = "这里设置酒馆程序和所需依赖的下载地址。国内网络可先试“国内推荐”；如果下载正常，不需要修改。",
                 ) {
                     MirrorTextField(
                         value = tavernRepoInput,
@@ -194,7 +194,7 @@ internal fun MirrorSettingsDialog(
 
                 MirrorSubsection(
                     title = "Termux 包源",
-                    description = "先填入准备使用的源，确认后再应用到 Termux。",
+                    description = "这里设置 Termux 安装工具时使用的下载地址。先选择或填写地址，再点“应用到 Termux”才会生效。",
                 ) {
                     MirrorInfoLine(
                         label = "当前",
@@ -253,7 +253,7 @@ internal fun MirrorSettingsDialog(
                         )
                     }
                     Text(
-                        text = "点“应用到 Termux”才会真正切换包源并刷新 apt。",
+                        text = "点“应用到 Termux”后才会真正切换下载地址并更新软件列表。",
                         color = LukoaColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )

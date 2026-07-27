@@ -39,7 +39,7 @@ fun ManualBackupConfirmDialog(
         title = {
             SettingsDialogTitle(
                 title = "生成备份",
-                infoText = "手动备份保存在 Download/LukoaLauncher/backups/sd，包含酒馆、聊天、角色、插件、配置和密钥。留空名称会自动使用 sd-时间.tar.gz。",
+                infoText = "手动备份会保存在手机的手动备份文件夹中，包含聊天、角色、世界书、插件、设置和密钥。名称留空时会按当前时间自动命名。",
             )
         },
         text = {
@@ -59,12 +59,12 @@ fun ManualBackupConfirmDialog(
                         focusedContainerColor = LukoaColors.SurfaceAlt,
                         unfocusedContainerColor = LukoaColors.SurfaceAlt,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Amber,
+                        focusedBorderColor = LukoaColors.Accent,
                         unfocusedBorderColor = LukoaColors.Line,
                         disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Amber,
+                        focusedLabelColor = LukoaColors.Accent,
                         unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Amber,
+                        cursorColor = LukoaColors.Accent,
                     ),
                 )
                 if (!nameOk) {
@@ -111,7 +111,7 @@ fun AutoBackupSettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "自动备份设置",
-                infoText = "间隔可设为 10 分钟到 12 小时。超过保留数量后，只会清理 Download/LukoaLauncher/backups/zd 中最旧的自动备份。",
+                infoText = "备份间隔可设为 10 分钟到 12 小时。达到保留数量后，只删除最旧的自动备份，不会删除手动备份。",
             )
         },
         text = {
@@ -142,7 +142,7 @@ fun AutoBackupSettingsDialog(
             SecondaryActionButton(
                 text = "完成",
                 enabled = true,
-                accentColor = LukoaColors.Amber,
+                accentColor = LukoaColors.Accent,
                 onClick = onDismiss,
             )
         },
@@ -283,7 +283,7 @@ fun ApplyBackupPathDialog(
         title = {
             SettingsDialogTitle(
                 title = "选择要应用的备份",
-                infoText = "通常直接在备份库中点“应用”即可；这里用于手动填写备份文件的完整路径。下一步仍会显示覆盖确认。",
+                infoText = "通常直接在备份库中点“应用”即可。只有需要使用其他位置的备份时，才在这里填写完整文件路径；下一步仍会让你确认是否覆盖当前数据。",
             )
         },
         text = {
@@ -328,7 +328,7 @@ fun ApplyBackupPathDialog(
             )
         },
         dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Danger, onClick = onDismiss)
+            DialogActionButton("取消", tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }
@@ -360,7 +360,7 @@ fun ApplyBackupPreviewLoadingDialog(
         },
         confirmButton = {},
         dismissButton = {
-            DialogActionButton("取消读取", tone = ActionTone.Danger, onClick = onDismiss)
+            DialogActionButton("取消读取", tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }
@@ -472,7 +472,7 @@ fun DeleteBackupConfirmDialog(
             )
         },
         dismissButton = {
-            DialogActionButton("取消", tone = ActionTone.Danger, onClick = onDismiss)
+            DialogActionButton("取消", tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
 }

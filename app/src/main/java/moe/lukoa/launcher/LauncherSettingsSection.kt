@@ -326,9 +326,7 @@ fun SettingsSection(
         )
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
-            tavernMirrorConfig = tavernMirrorConfig,
             tavernPathConfig = tavernPathConfig,
-            activePathInfo = activePathInfo,
             mirrorProbeStatus = mirrorProbeStatus,
             permissionNotice = permissionNotice,
             onOpenProfileManagement = { showProfileManagementDialog = true },
@@ -360,7 +358,6 @@ fun SettingsSection(
                 SettingsEntryGroup {
                     SettingsEntryRow(
                         title = "一键体检",
-                        detail = "检查权限、路径、网络与酒馆环境，并给出下一步处理建议。",
                         value = settingsHealthSummaryText(healthCheckReport),
                         valueColor = settingsHealthSummaryTone(healthCheckReport),
                         valueAsPill = true,
@@ -402,13 +399,6 @@ internal fun LauncherUpdateSettingsPanel(
         currentVersion = currentLauncherVersion,
         latest = githubUpdateState.latest,
     )
-    val versionDetail = when {
-        githubUpdateState.downloading -> "正在下载更新，请稍候。"
-        githubUpdateState.checking -> "正在检查${githubUpdateState.channel.label}更新。"
-        githubUpdateState.hasUpdate -> "发现新版，点击这一行可查看安装说明。"
-        githubUpdateState.latest != null -> "当前已经是所选通道的最新版本。"
-        else -> githubUpdateState.message
-    }
     val updateStatusText = when {
         githubUpdateState.downloading -> "下载中"
         githubUpdateState.checking -> "检查中"
@@ -417,7 +407,7 @@ internal fun LauncherUpdateSettingsPanel(
         else -> "未检查"
     }
     val updateStatusTone = when {
-        githubUpdateState.checking -> LukoaColors.Amber
+        githubUpdateState.checking -> LukoaColors.Accent
         githubUpdateState.hasUpdate || githubUpdateState.downloading -> LukoaColors.Accent
         else -> LukoaColors.Muted
     }
@@ -439,7 +429,7 @@ internal fun LauncherUpdateSettingsPanel(
                 InfoPopoverButton(
                     contentDescription = "查看启动器更新说明",
                     title = "启动器更新",
-                    body = "这里只管理启动器自身版本、更新仓库和稳定版/测试版通道。SillyTavern 的版本更新与回退仍在“版本”页。",
+                    body = "这里更新的是露科亚启动器本身。要更新或回退 SillyTavern，请前往“版本”页。稳定版更稳，测试版会更早收到新功能。",
                 )
             }
         },
@@ -447,7 +437,6 @@ internal fun LauncherUpdateSettingsPanel(
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前版本",
-                detail = versionDetail,
                 value = versionSummary,
                 valueColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else LukoaColors.Text,
                 valueLayout = SettingsValueLayout.Supporting,
@@ -458,7 +447,6 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "修改仓库地址",
-                detail = "点击后可修改启动器检查和下载更新所使用的 GitHub 仓库。",
                 value = repository,
                 valueLayout = SettingsValueLayout.Supporting,
                 enabled = !updateLocked,
@@ -467,13 +455,8 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "更新通道",
-                detail = githubUpdateState.channel.description,
                 value = githubUpdateState.channel.label,
-                valueColor = if (githubUpdateState.channel == GithubReleaseChannel.Test) {
-                    LukoaColors.Amber
-                } else {
-                    LukoaColors.Accent
-                },
+                valueColor = LukoaColors.Accent,
                 valueAsPill = true,
                 enabled = !updateLocked,
                 onClick = onOpenUpdateChannelSettings,
@@ -508,9 +491,7 @@ internal fun LauncherUpdateSettingsPanel(
 @Composable
 internal fun InstanceManagementPanel(
     termuxReturnDelayMs: Long,
-    tavernMirrorConfig: TavernMirrorConfig,
     tavernPathConfig: TavernPathConfig,
-    activePathInfo: TavernProfilePathInfo,
     mirrorProbeStatus: TavernMirrorProbeStatus,
     permissionNotice: PermissionStatusNotice,
     onOpenProfileManagement: () -> Unit,
@@ -538,8 +519,7 @@ internal fun InstanceManagementPanel(
                 InfoPopoverButton(
                     contentDescription = "查看实例管理说明",
                     title = "实例管理",
-                    body = "在这里管理当前实例的目录、端口、下载源、Termux 唤醒等待和权限。切换实例后，启动、版本读取和备份都会使用新实例。",
-                    accentColor = LukoaColors.Info,
+                    body = "一个实例就是一套独立的酒馆目录和设置。切换实例后，启动、版本、备份和用户管理都会使用你选中的那一套。端口是浏览器连接它时使用的编号。",
                 )
             }
         },
@@ -547,7 +527,6 @@ internal fun InstanceManagementPanel(
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
-                detail = "选择、新增或删除酒馆实例；删除托管分身前会再次确认。",
                 value = tavernPathConfig.activeProfileLabel,
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
@@ -557,7 +536,6 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "酒馆路径",
-                detail = activePathInfo.kind.label,
                 value = tavernPathConfig.displayTavernDir,
                 valueLayout = SettingsValueLayout.Supporting,
                 onClick = onOpenDirectorySettings,
@@ -565,7 +543,6 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "实例端口",
-                detail = "每个实例使用不同端口，避免启动冲突。",
                 value = tavernPathConfig.normalizedPort.toString(),
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
@@ -574,7 +551,6 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "网络与镜像源",
-                detail = "Git：${tavernMirrorConfig.repoLabel} · npm：${tavernMirrorConfig.npmLabel}",
                 value = mirrorProbeStatus.overallLevel.label(),
                 valueColor = mirrorTone,
                 valueAsPill = true,
@@ -583,7 +559,6 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "唤醒延迟",
-                detail = "唤醒 Termux 后，自动返回启动器前等待多久。",
                 value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
                 valueColor = LukoaColors.Accent,
                 valueAsPill = true,
@@ -592,7 +567,6 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "权限中心",
-                detail = permissionNotice.detail,
                 value = if (permissionNotice.pendingItems.isEmpty()) {
                     "已就绪"
                 } else {
@@ -620,7 +594,7 @@ private fun RepairDiagnosticsContent(
     SettingsSectionDivider()
     SettingsSubsection(
         title = "诊断与日志",
-        detail = "导出的诊断日志适合排查问题；清除日志只会清空页面显示，不会删除后台归档。",
+        detail = "导出诊断信息可用于排查问题。清除日志只会清空当前页面显示；“强制清理”用于残留进程，可能中断正在运行的任务。",
     ) {
         SecondaryActionButton(
             text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),

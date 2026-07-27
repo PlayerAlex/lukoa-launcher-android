@@ -100,8 +100,8 @@ fun Header(
                                 .background(
                                     color = when {
                                         tavernRunning -> LukoaColors.Accent
-                                        tavernStarting -> LukoaColors.Amber
-                                        else -> LukoaColors.Danger
+                                        tavernStarting -> LukoaColors.Accent
+                                        else -> LukoaColors.Dim
                                     },
                                     shape = RoundedCornerShape(5.dp),
                                 ),
@@ -114,7 +114,7 @@ fun Header(
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
                 color = if (showVersionUpdateBadge) {
-                    LukoaColors.DangerSoft.copy(alpha = 0.55f)
+                    LukoaColors.AccentSoft.copy(alpha = 0.72f)
                 } else {
                     LukoaColors.SurfaceAlt
                 },
@@ -122,7 +122,7 @@ fun Header(
                 border = BorderStroke(
                     1.dp,
                     if (showVersionUpdateBadge) {
-                        LukoaColors.Danger.copy(alpha = 0.5f)
+                        LukoaColors.Accent.copy(alpha = 0.5f)
                     } else {
                         LukoaColors.Line
                     },
@@ -144,7 +144,7 @@ fun Header(
                             modifier = Modifier
                                 .size(8.dp)
                                 .background(
-                                    color = LukoaColors.Danger,
+                                    color = LukoaColors.Accent,
                                     shape = RoundedCornerShape(4.dp),
                                 ),
                         )
@@ -400,8 +400,8 @@ fun LogPanel(
                     StatusPill(
                         text = if (followLatest) "追踪最新" else "已暂停",
                         active = followLatest,
-                        toneColor = if (followLatest) LukoaColors.Accent else LukoaColors.Amber,
-                        activeBackground = if (followLatest) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
+                        toneColor = if (followLatest) LukoaColors.Accent else LukoaColors.Muted,
+                        activeBackground = if (followLatest) LukoaColors.AccentSoft else LukoaColors.SurfaceAlt,
                     )
                 }
             }

@@ -35,7 +35,7 @@ internal fun TavernProfileManagementDialog(
         title = {
             SettingsDialogTitle(
                 title = "实例管理",
-                infoText = "在这里选择当前酒馆实例，或新增、删除分身实例。每个实例的目录和端口需要返回设置页后分别修改。",
+                infoText = "一个实例就是一套独立的酒馆目录和设置。在这里可以切换、新建或删除实例；目录和端口需要回到设置页分别调整。",
             )
         },
         text = {
@@ -90,7 +90,7 @@ internal fun TavernProfileManagementDialog(
                     DialogActionButton(
                         text = "删除当前实例",
                         enabled = !actionsLocked && tavernPathConfig.canRemoveActiveProfile,
-                        tone = ActionTone.Warning,
+                        tone = ActionTone.Danger,
                         modifier = Modifier.weight(1f),
                         onClick = onRemoveCurrentProfile,
                     )
@@ -150,7 +150,7 @@ internal fun TavernDirectorySettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "酒馆路径",
-                infoText = "这里修改${tavernPathConfig.activeProfileLabel}使用的酒馆目录，实例端口不会跟着变化。托管目录由启动器按实例分配；传统默认目录是 ~/SillyTavern；自定义目录由你自己填写和管理。",
+                infoText = "酒馆路径是这套实例保存程序和数据的位置。修改路径不会改变端口。“托管目录”由启动器安排，“默认目录”是 ~/SillyTavern，自定义目录由你自己选择。",
             )
         },
         text = {
@@ -279,7 +279,7 @@ internal fun TavernPortSettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "实例端口",
-                infoText = "这里只修改${tavernPathConfig.activeProfileLabel}的端口，酒馆目录不会跟着变化。每个实例需要使用不同端口，避免启动冲突。",
+                infoText = "端口是浏览器连接这套酒馆时使用的编号。多个实例必须使用不同编号。修改端口不会移动酒馆文件。",
             )
         },
         text = {
@@ -357,7 +357,7 @@ internal fun LauncherRepositorySettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "更新仓库",
-                infoText = "这里设置启动器检查和下载更新使用的 GitHub 仓库，格式为“用户名/仓库名”。酒馆下载源不受影响。",
+                infoText = "这里决定启动器从哪个 GitHub 项目检查和下载自己的更新，填写“用户名/仓库名”。它不会改变 SillyTavern 的下载地址。",
             )
         },
         text = {
@@ -423,7 +423,7 @@ internal fun LauncherUpdateChannelDialog(
         title = {
             SettingsDialogTitle(
                 title = "更新通道",
-                infoText = "稳定版只接收正式 Release，适合大多数人；测试版还会接收 GitHub pre-release。切换后会立即重新检查更新，并清除旧通道里已忽略的版本提示，不会改变仓库地址。",
+                infoText = "稳定版只接收正式更新，适合大多数人；测试版会更早收到新功能，但可能不够稳定。切换后会立即重新检查，不会改变更新仓库。",
             )
         },
         text = {

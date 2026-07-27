@@ -50,14 +50,14 @@ class LauncherComposeUiTest {
 
         composeRule.onNodeWithText("新手上手").assertExists()
         composeRule.onNodeWithText("多实例与设置").assertExists()
-        composeRule.onNodeWithText("数据安全").assertExists()
+        composeRule.onNodeWithText("备份与恢复").assertExists()
         advancePastClickDebounce()
         composeRule.onNode(hasText("更新") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("安装、更新与回退").assertIsDisplayed()
         composeRule.onNodeWithText("新手上手").assertExists()
-        composeRule.onNodeWithText("数据安全").assertExists()
+        composeRule.onNodeWithText("备份与恢复").assertExists()
     }
 
     @Test
@@ -123,6 +123,8 @@ class LauncherComposeUiTest {
             }
         }
         advancePastClickDebounce()
+
+        composeRule.onNodeWithText("数据安全").assertDoesNotExist()
 
         composeRule.onNode(hasText("备份库") and hasClickAction())
             .performScrollTo()
