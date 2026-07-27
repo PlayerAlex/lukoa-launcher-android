@@ -12,9 +12,9 @@ object LukoaColors {
     val Muted = Color(0xFFA3B1C6)
     val Dim = Color(0xFF6E7A8F)
 
-    // 正常状态与可执行操作统一使用绿色。
-    val Accent = Color(0xFF22C55E)
-    val AccentSoft = Color(0xFF12351F)
+    // 正常状态与可执行操作统一使用原有的薄荷青绿色。
+    val Accent = Color(0xFF2DD4BF)
+    val AccentSoft = Color(0xFF0E332E)
 
     // 普通信息沿用正常绿色，不再引入额外的粉色语义。
     val Info = Accent
