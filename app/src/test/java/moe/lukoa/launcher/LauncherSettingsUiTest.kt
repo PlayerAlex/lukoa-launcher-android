@@ -86,12 +86,14 @@ class LauncherSettingsUiTest {
 
     @Test
     fun launcherUpdateSettingsPanel_dispatchesUpdateActions() {
-        var openSettingsCount = 0
+        var openRepositorySettingsCount = 0
+        var openUpdateChannelSettingsCount = 0
         var installUpdateCount = 0
         var checkUpdateCount = 0
         var openReleaseCount = 0
         setUpdatePanelContent(
-            onOpenSettings = { openSettingsCount += 1 },
+            onOpenRepositorySettings = { openRepositorySettingsCount += 1 },
+            onOpenUpdateChannelSettings = { openUpdateChannelSettingsCount += 1 },
             onInstallUpdate = { installUpdateCount += 1 },
             onCheckUpdate = { checkUpdateCount += 1 },
             onOpenRelease = { openReleaseCount += 1 },
@@ -99,6 +101,9 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
 
         composeRule.onNode(hasText("修改仓库地址") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNode(hasText("更新通道") and hasClickAction())
             .performScrollTo()
             .performClick()
         composeRule.onNode(
@@ -114,7 +119,8 @@ class LauncherSettingsUiTest {
             .performClick()
 
         composeRule.runOnIdle {
-            assertEquals(1, openSettingsCount)
+            assertEquals(1, openRepositorySettingsCount)
+            assertEquals(1, openUpdateChannelSettingsCount)
             assertEquals(1, installUpdateCount)
             assertEquals(1, checkUpdateCount)
             assertEquals(1, openReleaseCount)
@@ -141,7 +147,9 @@ class LauncherSettingsUiTest {
 
     @Test
     fun instanceManagementPanel_dispatchesEachSettingsEntry() {
-        var pathCount = 0
+        var profileCount = 0
+        var directoryCount = 0
+        var portCount = 0
         var mirrorCount = 0
         var wakeCount = 0
         var permissionCount = 0
@@ -164,7 +172,9 @@ class LauncherSettingsUiTest {
                             title = "权限基本就绪",
                             detail = "当前权限基本就绪。",
                         ),
-                        onOpenPathSettings = { pathCount += 1 },
+                        onOpenProfileManagement = { profileCount += 1 },
+                        onOpenDirectorySettings = { directoryCount += 1 },
+                        onOpenPortSettings = { portCount += 1 },
                         onOpenMirrorSettings = { mirrorCount += 1 },
                         onOpenWakeDelaySettings = { wakeCount += 1 },
                         onOpenPermissionCenter = { permissionCount += 1 },
@@ -174,13 +184,17 @@ class LauncherSettingsUiTest {
         }
         advancePastClickDebounce()
 
+        composeRule.onNode(hasText("当前实例") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("酒馆路径") and hasClickAction()).performScrollTo().performClick()
+        composeRule.onNode(hasText("实例端口") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("网络与镜像源") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("唤醒延迟") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("权限中心") and hasClickAction()).performScrollTo().performClick()
 
         composeRule.runOnIdle {
-            assertEquals(1, pathCount)
+            assertEquals(1, profileCount)
+            assertEquals(1, directoryCount)
+            assertEquals(1, portCount)
             assertEquals(1, mirrorCount)
             assertEquals(1, wakeCount)
             assertEquals(1, permissionCount)
@@ -296,7 +310,8 @@ class LauncherSettingsUiTest {
 
     private fun setUpdatePanelContent(
         latest: GithubUpdateInfo? = updateInfo(isNewer = true),
-        onOpenSettings: () -> Unit = {},
+        onOpenRepositorySettings: () -> Unit = {},
+        onOpenUpdateChannelSettings: () -> Unit = {},
         onInstallUpdate: () -> Unit = {},
         onCheckUpdate: () -> Unit = {},
         onOpenRelease: () -> Unit = {},
@@ -317,7 +332,8 @@ class LauncherSettingsUiTest {
                             latest = latest,
                             message = "发现新版本。",
                         ),
-                        onOpenSettings = onOpenSettings,
+                        onOpenRepositorySettings = onOpenRepositorySettings,
+                        onOpenUpdateChannelSettings = onOpenUpdateChannelSettings,
                         onCheckUpdate = onCheckUpdate,
                         onInstallUpdate = onInstallUpdate,
                         onOpenRelease = onOpenRelease,

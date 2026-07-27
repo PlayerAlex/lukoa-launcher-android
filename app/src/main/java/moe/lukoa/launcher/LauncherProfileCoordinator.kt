@@ -18,7 +18,6 @@ class LauncherProfileCoordinator(
     private val onCommand: (String, LauncherUpdate) -> Unit,
     private val onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     private val onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
-    private val onRestoreDefaultTavernPath: () -> TavernPathSaveResult,
     private val onCheckTavernMirror: (TavernMirrorConfig, (TavernMirrorProbeStatus) -> Unit) -> Unit,
     private val onTavernRepoChanged: (String) -> Unit,
 ) {
@@ -54,20 +53,32 @@ class LauncherProfileCoordinator(
         )
     }
 
-    fun saveTavernPathConfig(
-        path: String = pathState.pathInput,
-        portText: String = pathState.portInput,
-    ) {
-        val safePort = LauncherPathSettingsPolicy.resolvePort(portText, pathState.config.normalizedPort)
-        val nextConfig = pathState.config.withUpdatedActiveProfile(
-            tavernDir = path.trim(),
-            port = safePort,
+    fun saveTavernDirectory() {
+        val result = onSaveTavernPathConfig(
+            pathState.config.withUpdatedActiveProfilePathOnly(pathState.pathInput.trim()),
         )
-        val result = onSaveTavernPathConfig(nextConfig)
         pathState.applySaveResult(result)
         if (result.saved) {
             refreshActiveProfileState(
-                "${result.config.activeProfileLabel}已保存，后续启动、停止、版本读取和备份都会使用这个目录和端口。",
+                "${result.config.activeProfileLabel}的酒馆路径已保存，端口 ${result.config.normalizedPort} 保持不变。",
+            )
+        } else {
+            statusUpdate(result.message, "", false)
+        }
+    }
+
+    fun saveTavernPort() {
+        val safePort = LauncherPathSettingsPolicy.resolvePort(
+            pathState.portInput,
+            pathState.config.normalizedPort,
+        )
+        val result = onSaveTavernPathConfig(
+            pathState.config.withUpdatedActiveProfilePortOnly(safePort),
+        )
+        pathState.applySaveResult(result)
+        if (result.saved) {
+            refreshActiveProfileState(
+                "${result.config.activeProfileLabel}的端口已保存为 ${result.config.normalizedPort}，酒馆路径保持不变。",
             )
         } else {
             statusUpdate(result.message, "", false)
@@ -96,11 +107,29 @@ class LauncherProfileCoordinator(
         }
     }
 
-    fun restoreDefaultTavernPath() {
-        val result = onRestoreDefaultTavernPath()
+    fun restoreDefaultTavernDirectory() {
+        val result = onSaveTavernPathConfig(
+            pathState.config.restoreActiveProfileDefaultPathOnly(),
+        )
         pathState.applySaveResult(result)
         if (result.saved) {
-            refreshActiveProfileState("已恢复${result.config.activeProfileLabel}的默认路径和默认端口。")
+            refreshActiveProfileState(
+                "已恢复${result.config.activeProfileLabel}的默认路径，端口 ${result.config.normalizedPort} 保持不变。",
+            )
+        } else {
+            statusUpdate(result.message, "", false)
+        }
+    }
+
+    fun restoreDefaultTavernPort() {
+        val result = onSaveTavernPathConfig(
+            pathState.config.restoreActiveProfileDefaultPortOnly(),
+        )
+        pathState.applySaveResult(result)
+        if (result.saved) {
+            refreshActiveProfileState(
+                "已恢复${result.config.activeProfileLabel}的默认端口 ${result.config.normalizedPort}，酒馆路径保持不变。",
+            )
         } else {
             statusUpdate(result.message, "", false)
         }

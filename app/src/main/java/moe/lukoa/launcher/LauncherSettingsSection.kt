@@ -61,8 +61,10 @@ fun SettingsSection(
     onMigrateToTraditionalTavernPath: () -> Unit,
     onMigrateToCustomTavernPath: () -> Unit,
     onCustomTermuxRepoInputChange: (String) -> Unit,
-    onSaveTavernPath: () -> Unit,
-    onRestoreDefaultTavernPath: () -> Unit,
+    onSaveTavernDirectory: () -> Unit,
+    onRestoreDefaultTavernDirectory: () -> Unit,
+    onSaveTavernPort: () -> Unit,
+    onRestoreDefaultTavernPort: () -> Unit,
     onSaveTavernMirror: () -> Unit,
     onUseOfficialMirror: () -> Unit,
     onUseGithubProxyMirror: () -> Unit,
@@ -116,49 +118,85 @@ fun SettingsSection(
         termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
     )
     val activePathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
-    var showPathSettingsDialog by remember { mutableStateOf(false) }
+    var showProfileManagementDialog by remember { mutableStateOf(false) }
+    var showDirectorySettingsDialog by remember { mutableStateOf(false) }
+    var showPortSettingsDialog by remember { mutableStateOf(false) }
     var showPermissionCenterDialog by remember { mutableStateOf(false) }
-    var showUpdateSettingsDialog by remember { mutableStateOf(false) }
+    var showRepositorySettingsDialog by remember { mutableStateOf(false) }
+    var showUpdateChannelDialog by remember { mutableStateOf(false) }
     var showWakeDelayDialog by remember { mutableStateOf(false) }
     var showMirrorSettingsDialog by remember { mutableStateOf(false) }
     var showHealthDialog by remember { mutableStateOf(false) }
 
-    if (showPathSettingsDialog) {
+    if (showProfileManagementDialog) {
+        key(
+            tavernPathConfig.activeProfile.id,
+            tavernPathConfig.availableProfiles.size,
+        ) {
+            TavernProfileManagementDialog(
+                tavernPathConfig = tavernPathConfig,
+                currentPathInfo = activePathInfo,
+                actionsLocked = actionsLocked,
+                onSelectProfile = { profileId ->
+                    onSelectTavernProfile(profileId)
+                    showProfileManagementDialog = true
+                },
+                onAddProfile = onAddTavernProfile,
+                onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
+                onDismiss = { showProfileManagementDialog = false },
+            )
+        }
+    }
+
+    if (showDirectorySettingsDialog) {
         key(
             tavernPathConfig.activeProfile.id,
             activePathInfo.currentPath,
-            tavernPathConfig.activeProfile.normalizedPort,
         ) {
-            TavernPathSettingsDialog(
+            TavernDirectorySettingsDialog(
                 tavernPathConfig = tavernPathConfig,
                 currentPathInfo = activePathInfo,
                 tavernPathInput = tavernPathInput,
-                tavernPortInput = tavernPortInput,
                 tavernPathError = tavernPathError,
-                tavernPortError = tavernPortError,
                 displayPathPreview = TavernPathNormalizer.toDisplayPath(
                     TavernPathNormalizer.normalize(tavernPathInput),
                 ),
                 actionsLocked = actionsLocked,
                 onPathChange = onTavernPathInputChange,
-                onPortChange = onTavernPortInputChange,
-                onSelectProfile = { profileId ->
-                    onSelectTavernProfile(profileId)
-                    showPathSettingsDialog = true
-                },
-                onAddProfile = onAddTavernProfile,
-                onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
                 onMigrateToManagedPath = onMigrateToManagedTavernPath,
                 onMigrateToTraditionalPath = onMigrateToTraditionalTavernPath,
                 onMigrateToCustomPath = onMigrateToCustomTavernPath,
                 onSave = {
-                    onSaveTavernPath()
-                    if (tavernPathError == null && tavernPortError == null) {
-                        showPathSettingsDialog = false
+                    onSaveTavernDirectory()
+                    if (tavernPathError == null) {
+                        showDirectorySettingsDialog = false
                     }
                 },
-                onRestoreDefault = onRestoreDefaultTavernPath,
-                onDismiss = { showPathSettingsDialog = false },
+                onRestoreDefault = onRestoreDefaultTavernDirectory,
+                onDismiss = { showDirectorySettingsDialog = false },
+            )
+        }
+    }
+
+    if (showPortSettingsDialog) {
+        key(
+            tavernPathConfig.activeProfile.id,
+            tavernPathConfig.activeProfile.normalizedPort,
+        ) {
+            TavernPortSettingsDialog(
+                tavernPathConfig = tavernPathConfig,
+                tavernPortInput = tavernPortInput,
+                tavernPortError = tavernPortError,
+                actionsLocked = actionsLocked,
+                onPortChange = onTavernPortInputChange,
+                onSave = {
+                    onSaveTavernPort()
+                    if (tavernPortError == null) {
+                        showPortSettingsDialog = false
+                    }
+                },
+                onRestoreDefault = onRestoreDefaultTavernPort,
+                onDismiss = { showPortSettingsDialog = false },
             )
         }
     }
@@ -186,15 +224,22 @@ fun SettingsSection(
         )
     }
 
-    if (showUpdateSettingsDialog) {
-        LauncherUpdateSettingsDialog(
+    if (showRepositorySettingsDialog) {
+        LauncherRepositorySettingsDialog(
             repositoryInput = repositoryInput,
             githubUpdateState = githubUpdateState,
             onRepositoryInputChange = onRepositoryInputChange,
             onSaveRepository = onSaveRepository,
             onRestoreDefaultRepository = onRestoreDefaultRepository,
+            onDismiss = { showRepositorySettingsDialog = false },
+        )
+    }
+
+    if (showUpdateChannelDialog) {
+        LauncherUpdateChannelDialog(
+            githubUpdateState = githubUpdateState,
             onSaveUpdateChannel = onSaveUpdateChannel,
-            onDismiss = { showUpdateSettingsDialog = false },
+            onDismiss = { showUpdateChannelDialog = false },
         )
     }
 
@@ -272,7 +317,8 @@ fun SettingsSection(
             currentLauncherVersion = currentLauncherVersion,
             repositoryInput = repositoryInput,
             githubUpdateState = githubUpdateState,
-            onOpenSettings = { showUpdateSettingsDialog = true },
+            onOpenRepositorySettings = { showRepositorySettingsDialog = true },
+            onOpenUpdateChannelSettings = { showUpdateChannelDialog = true },
             onCheckUpdate = onCheckUpdate,
             onInstallUpdate = onInstallUpdate,
             onOpenRelease = onOpenRelease,
@@ -284,7 +330,9 @@ fun SettingsSection(
             activePathInfo = activePathInfo,
             mirrorProbeStatus = mirrorProbeStatus,
             permissionNotice = permissionNotice,
-            onOpenPathSettings = { showPathSettingsDialog = true },
+            onOpenProfileManagement = { showProfileManagementDialog = true },
+            onOpenDirectorySettings = { showDirectorySettingsDialog = true },
+            onOpenPortSettings = { showPortSettingsDialog = true },
             onOpenMirrorSettings = { showMirrorSettingsDialog = true },
             onOpenWakeDelaySettings = { showWakeDelayDialog = true },
             onOpenPermissionCenter = { showPermissionCenterDialog = true },
@@ -337,7 +385,8 @@ internal fun LauncherUpdateSettingsPanel(
     currentLauncherVersion: String,
     repositoryInput: String,
     githubUpdateState: GithubUpdateUiState,
-    onOpenSettings: () -> Unit,
+    onOpenRepositorySettings: () -> Unit,
+    onOpenUpdateChannelSettings: () -> Unit,
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
@@ -403,7 +452,7 @@ internal fun LauncherUpdateSettingsPanel(
                 value = repository,
                 valueLayout = SettingsValueLayout.Supporting,
                 enabled = !updateLocked,
-                onClick = onOpenSettings,
+                onClick = onOpenRepositorySettings,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -417,7 +466,7 @@ internal fun LauncherUpdateSettingsPanel(
                 },
                 valueAsPill = true,
                 enabled = !updateLocked,
-                onClick = onOpenSettings,
+                onClick = onOpenUpdateChannelSettings,
             )
         }
         Row(
@@ -454,7 +503,9 @@ internal fun InstanceManagementPanel(
     activePathInfo: TavernProfilePathInfo,
     mirrorProbeStatus: TavernMirrorProbeStatus,
     permissionNotice: PermissionStatusNotice,
-    onOpenPathSettings: () -> Unit,
+    onOpenProfileManagement: () -> Unit,
+    onOpenDirectorySettings: () -> Unit,
+    onOpenPortSettings: () -> Unit,
     onOpenMirrorSettings: () -> Unit,
     onOpenWakeDelaySettings: () -> Unit,
     onOpenPermissionCenter: () -> Unit,
@@ -481,7 +532,7 @@ internal fun InstanceManagementPanel(
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
                 highlightColor = LukoaColors.Info,
-                onClick = onOpenPathSettings,
+                onClick = onOpenProfileManagement,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -489,7 +540,7 @@ internal fun InstanceManagementPanel(
                 detail = activePathInfo.kind.label,
                 value = tavernPathConfig.displayTavernDir,
                 valueLayout = SettingsValueLayout.Supporting,
-                onClick = onOpenPathSettings,
+                onClick = onOpenDirectorySettings,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -498,7 +549,7 @@ internal fun InstanceManagementPanel(
                 value = tavernPathConfig.normalizedPort.toString(),
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
-                onClick = onOpenPathSettings,
+                onClick = onOpenPortSettings,
             )
             SettingsEntryDivider()
             SettingsEntryRow(

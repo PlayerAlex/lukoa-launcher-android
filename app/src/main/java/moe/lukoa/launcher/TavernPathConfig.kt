@@ -103,6 +103,15 @@ data class TavernPathConfig(
         )
     }
 
+    fun withUpdatedActiveProfilePortOnly(
+        port: Int,
+    ): TavernPathConfig {
+        return withUpdatedActiveProfile(
+            tavernDir = activeProfile.tavernDir,
+            port = port,
+        )
+    }
+
     fun withUpdatedProfile(
         profileId: String,
         tavernDir: String? = null,
@@ -131,6 +140,16 @@ data class TavernPathConfig(
             port = defaults.port,
             name = activeProfile.name.ifBlank { defaults.name },
         )
+    }
+
+    fun restoreActiveProfileDefaultPathOnly(): TavernPathConfig {
+        val defaults = TavernProfileDefaults.profileForId(activeProfile.id)
+        return withUpdatedActiveProfilePathOnly(defaults.tavernDir)
+    }
+
+    fun restoreActiveProfileDefaultPortOnly(): TavernPathConfig {
+        val defaults = TavernProfileDefaults.profileForId(activeProfile.id)
+        return withUpdatedActiveProfilePortOnly(defaults.port)
     }
 
     fun addSuggestedProfile(makeActive: Boolean = true): TavernPathConfig {

@@ -60,6 +60,51 @@ class TavernPathConfigTest {
     }
 
     @Test
+    fun `updating active profile port only keeps saved path`() {
+        val config = TavernPathConfig()
+            .addSuggestedProfile()
+            .withUpdatedActiveProfile(
+                tavernDir = "~/custom-clone",
+                port = 9005,
+            )
+
+        val updated = config.withUpdatedActiveProfilePortOnly(port = 9010)
+
+        assertEquals("~/custom-clone", updated.activeProfile.tavernDir)
+        assertEquals(9010, updated.activeProfile.port)
+    }
+
+    @Test
+    fun `restoring active profile path only keeps saved port`() {
+        val config = TavernPathConfig()
+            .addSuggestedProfile()
+            .withUpdatedActiveProfile(
+                tavernDir = "~/custom-clone",
+                port = 9005,
+            )
+
+        val restored = config.restoreActiveProfileDefaultPathOnly()
+
+        assertEquals("~/LukoaLauncher/SillyTavern2", restored.activeProfile.tavernDir)
+        assertEquals(9005, restored.activeProfile.port)
+    }
+
+    @Test
+    fun `restoring active profile port only keeps saved path`() {
+        val config = TavernPathConfig()
+            .addSuggestedProfile()
+            .withUpdatedActiveProfile(
+                tavernDir = "~/custom-clone",
+                port = 9005,
+            )
+
+        val restored = config.restoreActiveProfileDefaultPortOnly()
+
+        assertEquals("~/custom-clone", restored.activeProfile.tavernDir)
+        assertEquals(8001, restored.activeProfile.port)
+    }
+
+    @Test
     fun `remove active profile falls back to remaining profile`() {
         val config = TavernPathConfig()
             .addSuggestedProfile()

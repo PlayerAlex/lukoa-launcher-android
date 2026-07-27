@@ -108,7 +108,6 @@ fun LukoaLauncherScreen(
     onOpenBackupExportLocation: (String) -> Boolean,
     onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
-    onRestoreDefaultTavernPath: () -> TavernPathSaveResult,
     onSaveGithubRepository: (String) -> GithubRepositorySaveResult,
     onSaveGithubUpdateChannel: (GithubReleaseChannel) -> GithubUpdateChannelSaveResult,
     onIgnoreGithubUpdate: (String) -> Unit,
@@ -1584,7 +1583,6 @@ fun LukoaLauncherScreen(
             onCommand = onCommand,
             onSaveTavernMirrorConfig = onSaveTavernMirrorConfig,
             onSaveTavernPathConfig = onSaveTavernPathConfig,
-            onRestoreDefaultTavernPath = onRestoreDefaultTavernPath,
             onCheckTavernMirror = onCheckTavernMirror,
             onTavernRepoChanged = { repoUrl ->
                 officialVersions = TavernOfficialVersions()
@@ -2023,11 +2021,15 @@ fun LukoaLauncherScreen(
 
     fun saveTavernMirrorConfig() = profileCoordinator.saveTavernMirrorConfig()
 
-    fun saveTavernPathConfig() = profileCoordinator.saveTavernPathConfig()
+    fun saveTavernDirectory() = profileCoordinator.saveTavernDirectory()
+
+    fun saveTavernPort() = profileCoordinator.saveTavernPort()
 
     fun chooseDetectedTavernDirectory(path: String) = profileCoordinator.chooseDetectedTavernDirectory(path)
 
-    fun restoreDefaultTavernPath() = profileCoordinator.restoreDefaultTavernPath()
+    fun restoreDefaultTavernDirectory() = profileCoordinator.restoreDefaultTavernDirectory()
+
+    fun restoreDefaultTavernPort() = profileCoordinator.restoreDefaultTavernPort()
 
     fun selectTavernProfile(profileId: String) = profileCoordinator.selectTavernProfile(profileId)
 
@@ -3526,8 +3528,10 @@ fun LukoaLauncherScreen(
                             onMigrateToTraditionalTavernPath = ::requestMigrateToTraditionalTavernPath,
                             onMigrateToCustomTavernPath = ::openCustomTavernPathMigrationDialog,
                             onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
-                            onSaveTavernPath = { saveTavernPathConfig() },
-                            onRestoreDefaultTavernPath = ::restoreDefaultTavernPath,
+                            onSaveTavernDirectory = ::saveTavernDirectory,
+                            onRestoreDefaultTavernDirectory = ::restoreDefaultTavernDirectory,
+                            onSaveTavernPort = ::saveTavernPort,
+                            onRestoreDefaultTavernPort = ::restoreDefaultTavernPort,
                             onSaveTavernMirror = { saveTavernMirrorConfig() },
                             onUseOfficialMirror = ::useOfficialTavernMirror,
                             onUseGithubProxyMirror = ::useGithubProxyTavernMirror,

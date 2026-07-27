@@ -225,7 +225,6 @@ class MainActivity : ComponentActivity() {
                     onOpenBackupExportLocation = ::openBackupExportLocation,
                     onSaveTavernMirrorConfig = tavernMirrorStore::save,
                     onSaveTavernPathConfig = tavernPathStore::save,
-                    onRestoreDefaultTavernPath = tavernPathStore::restoreDefault,
                     onSaveGithubRepository = githubUpdateStore::saveRepository,
                     onSaveGithubUpdateChannel = githubUpdateStore::saveChannel,
                     onIgnoreGithubUpdate = githubUpdateStore::ignoreUpdateTag,
