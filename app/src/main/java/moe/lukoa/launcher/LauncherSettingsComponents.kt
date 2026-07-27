@@ -35,12 +35,25 @@ internal enum class SettingsValueLayout {
 }
 
 @Composable
-internal fun SettingsSectionIntro(text: String) {
-    Text(
-        text = text,
-        color = LukoaColors.Muted,
-        style = MaterialTheme.typography.bodySmall,
-    )
+internal fun SettingsDialogTitle(
+    title: String,
+    infoText: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+        )
+        InfoPopoverButton(
+            contentDescription = "$title 说明",
+            title = title,
+            body = infoText,
+        )
+    }
 }
 
 @Composable
@@ -227,12 +240,13 @@ internal fun SettingsSubsection(
                     activeBackground = statusTone.copy(alpha = 0.16f),
                 )
             }
+            InfoPopoverButton(
+                contentDescription = "查看$title 说明",
+                title = title,
+                body = detail,
+                accentColor = statusTone,
+            )
         }
-        Text(
-            text = detail,
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
         content()
     }
 }

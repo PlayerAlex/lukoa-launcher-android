@@ -32,7 +32,12 @@ internal fun TavernProfileManagementDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("实例管理") },
+        title = {
+            SettingsDialogTitle(
+                title = "实例管理",
+                infoText = "在这里选择当前酒馆实例，或新增、删除分身实例。每个实例的目录和端口需要返回设置页后分别修改。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -41,11 +46,6 @@ internal fun TavernProfileManagementDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只负责选择、新增和删除酒馆实例。路径与端口请返回设置页后分别修改。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 MiniInfoLine("当前实例", tavernPathConfig.activeProfileLabel)
                 MiniInfoLine("实例数量", "${tavernPathConfig.availableProfiles.size}")
                 MiniInfoLine("当前路径", tavernPathConfig.displayTavernDir)
@@ -147,7 +147,12 @@ internal fun TavernDirectorySettingsDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("酒馆路径") },
+        title = {
+            SettingsDialogTitle(
+                title = "酒馆路径",
+                infoText = "这里修改${tavernPathConfig.activeProfileLabel}使用的酒馆目录，实例端口不会跟着变化。托管目录由启动器按实例分配；传统默认目录是 ~/SillyTavern；自定义目录由你自己填写和管理。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -156,11 +161,6 @@ internal fun TavernDirectorySettingsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只修改${tavernPathConfig.activeProfileLabel}的目录，实例端口不会跟着变化。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 Text(
                     text = "“保存路径”只会修改启动器配置，不会搬动文件；迁移按钮才会真的移动酒馆目录。",
                     color = LukoaColors.Amber,
@@ -187,23 +187,6 @@ internal fun TavernDirectorySettingsDialog(
                     colors = lukoaTextFieldColors(),
                 )
                 MiniInfoLine("路径预览", displayPathPreview)
-                Text(
-                    text = when (currentPathInfo.kind) {
-                        TavernProfilePathKind.LauncherManaged -> {
-                            "当前实例正在使用启动器托管目录。"
-                        }
-
-                        TavernProfilePathKind.TraditionalDefault -> {
-                            "当前实例仍在使用传统默认目录 ~/SillyTavern，可以继续使用或迁到托管目录。"
-                        }
-
-                        TavernProfilePathKind.Custom -> {
-                            "当前实例使用自定义目录。删除实例时不会自动删除这个目录。"
-                        }
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 tavernPathError?.let { error ->
                     Text(
                         text = error,
@@ -293,17 +276,17 @@ internal fun TavernPortSettingsDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("实例端口") },
+        title = {
+            SettingsDialogTitle(
+                title = "实例端口",
+                infoText = "这里只修改${tavernPathConfig.activeProfileLabel}的端口，酒馆目录不会跟着变化。每个实例需要使用不同端口，避免启动冲突。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只修改${tavernPathConfig.activeProfileLabel}的端口，酒馆目录不会跟着变化。每个实例需要使用不同端口。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 MiniInfoLine("当前已保存", tavernPathConfig.normalizedPort.toString())
                 MiniInfoLine("此实例默认端口", defaultPort.toString())
                 OutlinedTextField(
@@ -371,17 +354,17 @@ internal fun LauncherRepositorySettingsDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("更新仓库") },
+        title = {
+            SettingsDialogTitle(
+                title = "更新仓库",
+                infoText = "这里设置启动器检查和下载更新使用的 GitHub 仓库，格式为“用户名/仓库名”。酒馆下载源不受影响。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只设置启动器检查和下载更新使用的 GitHub 仓库。酒馆下载源不受影响。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 OutlinedTextField(
                     value = repositoryInput,
                     onValueChange = onRepositoryInputChange,
@@ -437,17 +420,17 @@ internal fun LauncherUpdateChannelDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("更新通道") },
+        title = {
+            SettingsDialogTitle(
+                title = "更新通道",
+                infoText = "稳定版只接收正式 Release，适合大多数人；测试版还会接收 GitHub pre-release。切换后会立即重新检查更新，并清除旧通道里已忽略的版本提示，不会改变仓库地址。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只选择启动器接收稳定版还是测试版，不会改变 GitHub 仓库地址。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 UpdateChannelSelectorCard(
                     channel = githubUpdateState.channel,
                     enabled = !updateLocked,

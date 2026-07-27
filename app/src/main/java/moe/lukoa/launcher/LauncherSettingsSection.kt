@@ -16,6 +16,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -425,15 +426,24 @@ internal fun LauncherUpdateSettingsPanel(
         title = "启动器更新",
         accentColor = LukoaColors.Accent,
         headerAction = {
-            StatusPill(
-                text = updateStatusText,
-                active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
-                toneColor = updateStatusTone,
-                activeBackground = updateStatusTone.copy(alpha = 0.16f),
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = updateStatusText,
+                    active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
+                    toneColor = updateStatusTone,
+                    activeBackground = updateStatusTone.copy(alpha = 0.16f),
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看启动器更新说明",
+                    title = "启动器更新",
+                    body = "这里只管理启动器自身版本、更新仓库和稳定版/测试版通道。SillyTavern 的版本更新与回退仍在“版本”页。",
+                )
+            }
         },
     ) {
-        SettingsSectionIntro("管理启动器自身的版本、更新仓库和稳定版/测试版通道。")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前版本",
@@ -515,15 +525,25 @@ internal fun InstanceManagementPanel(
         title = "实例管理",
         accentColor = LukoaColors.Info,
         headerAction = {
-            StatusPill(
-                text = "端口 ${tavernPathConfig.normalizedPort}",
-                active = true,
-                toneColor = LukoaColors.Info,
-                activeBackground = LukoaColors.InfoSoft,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = "端口 ${tavernPathConfig.normalizedPort}",
+                    active = true,
+                    toneColor = LukoaColors.Info,
+                    activeBackground = LukoaColors.InfoSoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看实例管理说明",
+                    title = "实例管理",
+                    body = "在这里管理当前实例的目录、端口、下载源、Termux 唤醒等待和权限。切换实例后，启动、版本读取和备份都会使用新实例。",
+                    accentColor = LukoaColors.Info,
+                )
+            }
         },
     ) {
-        SettingsSectionIntro("管理当前实例的目录、端口、下载来源、唤醒等待和权限。")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",

@@ -119,7 +119,12 @@ internal fun MirrorSettingsDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Text,
         textContentColor = LukoaColors.Text,
-        title = { Text("切换下载源") },
+        title = {
+            SettingsDialogTitle(
+                title = "切换下载源",
+                infoText = "酒馆 Git 源和 npm 源用于安装、更新与回退；Termux 包源用于安装系统依赖。它们互不替代，可以分别调整。",
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -368,17 +373,24 @@ private fun MirrorSubsection(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = title,
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = description,
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看$title 说明",
+                    title = title,
+                    body = description,
+                )
+            }
             content()
         }
     }

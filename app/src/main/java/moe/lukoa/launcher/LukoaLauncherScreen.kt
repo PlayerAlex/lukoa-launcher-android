@@ -3325,6 +3325,7 @@ fun LukoaLauncherScreen(
 
                     when (tab) {
                         LauncherTab.Docs -> DocumentationSection(
+                            pageScrollState = pageScrollState,
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Version -> VersionManagementSection(

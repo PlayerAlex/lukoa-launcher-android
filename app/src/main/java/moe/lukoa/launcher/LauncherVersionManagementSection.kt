@@ -161,17 +161,17 @@ fun VersionManagementSection(
                 }
             }
 
-            VersionPageView.Target -> SectionPanel(title = "目标版本与切换", accentColor = LukoaColors.Accent) {
-                Text(
-                    text = when {
-                        tavernVersionInfo.hasData -> "先读取列表，再选目标版本。"
-                        tavernVersionInfo.notInstalled -> "酒馆未安装，也可以先读取官方版本给安装使用。"
-                        else -> "可以先读取官方版本；更新或回退前再检测当前版本。"
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-
+            VersionPageView.Target -> SectionPanel(
+                title = "目标版本与切换",
+                accentColor = LukoaColors.Accent,
+                headerAction = {
+                    InfoPopoverButton(
+                        contentDescription = "查看目标版本说明",
+                        title = "目标版本与切换",
+                        body = "先读取当前下载源的官方版本列表，再选择目标版本。更新会切到较新的版本，回退会切到较旧版本；酒馆未安装时，所选版本会供启动页安装使用。",
+                    )
+                },
+            ) {
                 OfficialVersionChooser(
                     title = "官方版本下拉框",
                     officialVersions = versionManagementChoices,

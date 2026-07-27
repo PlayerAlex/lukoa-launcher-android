@@ -34,6 +34,33 @@ class LauncherComposeUiTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun documentationNavigation_scrollsLongPageWithoutHidingOtherSections() {
+        composeRule.setContent {
+            LukoaTheme {
+                val pageScrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(pageScrollState),
+                ) {
+                    DocumentationSection(pageScrollState = pageScrollState)
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("新手上手").assertExists()
+        composeRule.onNodeWithText("多实例与设置").assertExists()
+        composeRule.onNodeWithText("数据安全").assertExists()
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("更新") and hasClickAction()).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("安装、更新与回退").assertIsDisplayed()
+        composeRule.onNodeWithText("新手上手").assertExists()
+        composeRule.onNodeWithText("数据安全").assertExists()
+    }
+
+    @Test
     fun bottomNavigation_selectingBackupUpdatesSelectedTab() {
         var selectedByCallback: LauncherTab? = null
 

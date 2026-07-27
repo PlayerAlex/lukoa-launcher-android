@@ -58,20 +58,6 @@ internal fun UpdateChannelSelectorCard(
                     activeBackground = channelBackground,
                 )
             }
-            Text(
-                text = channel.description,
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                text = if (channel == GithubReleaseChannel.Test) {
-                    "测试版会包含 GitHub pre-release。遇到问题时，随时切回稳定版即可。"
-                } else {
-                    "稳定版只接收正式 Release，适合大多数人。"
-                },
-                color = if (channel == GithubReleaseChannel.Test) LukoaColors.Amber else LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -91,11 +77,6 @@ internal fun UpdateChannelSelectorCard(
                     onClick = { onSelectChannel(GithubReleaseChannel.Test) },
                 )
             }
-            Text(
-                text = "切换后会立刻重新检查，并清掉旧通道里已忽略的版本红点。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
     }
 }
@@ -114,18 +95,16 @@ fun TermuxWakeDelayDialog(
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = {
-            Text("Termux 唤醒返回")
+            SettingsDialogTitle(
+                title = "Termux 唤醒返回",
+                infoText = "设置从启动器跳到 Termux 后，等待多久再自动返回。部分手机唤醒较慢，时间过短可能导致命令还没送达就切回。",
+            )
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "这里只管从启动器跳去 Termux 后，要等多久再自动切回来。时间太短时，某些手机可能还没来得及唤醒完成。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 BackupStepper(
                     label = "返回等待",
                     value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
@@ -189,7 +168,10 @@ fun PermissionCenterDialog(
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
         title = {
-            Text("权限与授权")
+            SettingsDialogTitle(
+                title = "权限与授权",
+                infoText = "这里集中检查启动器调用 Termux、后台运行、文件访问和安装更新所需的授权。优先处理标记为“待处理”的项目。",
+            )
         },
         text = {
             Column(
@@ -199,15 +181,14 @@ fun PermissionCenterDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = if (termuxInstalled) {
-                        "这里把启动器会用到的权限都集中写清楚了。看不懂时，优先把没准备好的项目逐个补齐。"
-                    } else {
-                        "你还没装 Termux。先装好 Termux，再回来处理下面这些权限。"
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (!termuxInstalled) {
+                    Text(
+                        text = "你还没装 Termux。先装好 Termux，再回来处理下面这些权限。",
+                        color = LukoaColors.Amber,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -360,7 +341,8 @@ private fun PermissionDetailCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 Text(
                     text = title,
@@ -375,12 +357,13 @@ private fun PermissionDetailCard(
                     toneColor = if (active) LukoaColors.Accent else LukoaColors.Amber,
                     activeBackground = if (active) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
                 )
+                InfoPopoverButton(
+                    contentDescription = "查看$title 说明",
+                    title = title,
+                    body = description,
+                    accentColor = accentColor,
+                )
             }
-            Text(
-                text = description,
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.bodySmall,
-            )
             Text(
                 text = detail,
                 color = LukoaColors.Muted,

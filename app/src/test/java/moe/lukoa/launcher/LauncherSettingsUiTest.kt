@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -29,6 +30,29 @@ import java.time.Duration
 class LauncherSettingsUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun infoPopover_initiallyHiddenAndOpensLightweightExplanation() {
+        composeRule.setContent {
+            LukoaTheme {
+                InfoPopoverButton(
+                    contentDescription = "查看测试说明",
+                    title = "轻量说明",
+                    body = "这段说明只在点击感叹号后出现。",
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("这段说明只在点击感叹号后出现。")
+            .assertDoesNotExist()
+        advancePastClickDebounce()
+        composeRule.onNodeWithContentDescription("查看测试说明")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText("轻量说明").assertExists()
+        composeRule.onNodeWithText("这段说明只在点击感叹号后出现。")
+            .assertExists()
+    }
 
     @Test
     fun launcherVersionSummary_withoutCheckResult_keepsCurrentVersion() {

@@ -36,20 +36,14 @@ fun ManualBackupConfirmDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.Text,
-        title = { Text("生成备份") },
+        title = {
+            SettingsDialogTitle(
+                title = "生成备份",
+                infoText = "手动备份保存在 Download/LukoaLauncher/backups/sd，包含酒馆、聊天、角色、插件、配置和密钥。留空名称会自动使用 sd-时间.tar.gz。",
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "会生成到 Download/LukoaLauncher/backups/sd，包含酒馆、聊天、角色、插件、配置和密钥。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = "填了名字就按这个名字保存；不填会生成 sd-时间.tar.gz。自动备份会进 zd 文件夹。",
-                    color = LukoaColors.Amber,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
                 OutlinedTextField(
                     value = backupName,
                     onValueChange = onBackupNameChange,
@@ -114,11 +108,16 @@ fun AutoBackupSettingsDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Text,
         textContentColor = LukoaColors.Text,
-        title = { Text("自动备份设置") },
+        title = {
+            SettingsDialogTitle(
+                title = "自动备份设置",
+                infoText = "间隔可设为 10 分钟到 12 小时。超过保留数量后，只会清理 Download/LukoaLauncher/backups/zd 中最旧的自动备份。",
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = if (enabled) "自动备份已开启。这里调间隔和保留数量。" else "自动备份未开启。回到备份页点开启。",
+                    text = if (enabled) "自动备份已开启" else "自动备份未开启，请回到备份页开启。",
                     color = if (enabled) LukoaColors.Accent else LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
@@ -136,11 +135,6 @@ fun AutoBackupSettingsDialog(
                     enabled = !actionsLocked,
                     onDecrease = onDecreaseKeep,
                     onIncrease = onIncreaseKeep,
-                )
-                Text(
-                    text = "间隔范围 10 分钟到 12 小时。只清理 Download/LukoaLauncher/backups/zd 里最旧的自动备份。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
@@ -286,14 +280,14 @@ fun ApplyBackupPathDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Danger,
         textContentColor = LukoaColors.Text,
-        title = { Text("选择要应用的备份") },
+        title = {
+            SettingsDialogTitle(
+                title = "选择要应用的备份",
+                infoText = "通常直接在备份库中点“应用”即可；这里用于手动填写备份文件的完整路径。下一步仍会显示覆盖确认。",
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "建议在备份列表里点“应用”。这里也可以手动填路径。",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 OutlinedTextField(
                     value = path,
                     onValueChange = onPathChange,

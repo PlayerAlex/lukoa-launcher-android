@@ -14,13 +14,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -97,6 +100,48 @@ fun InfoIconButton(
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
             )
+        }
+    }
+}
+
+@Composable
+fun InfoPopoverButton(
+    contentDescription: String,
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    accentColor: Color = LukoaColors.Muted,
+) {
+    var expanded by remember(title, body) { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        InfoIconButton(
+            contentDescription = contentDescription,
+            accentColor = accentColor,
+            onClick = { expanded = true },
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 220.dp, max = 300.dp),
+            containerColor = LukoaColors.Surface,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = title,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = body,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

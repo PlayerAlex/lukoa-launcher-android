@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -24,19 +25,27 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 
 private enum class DocCategory(val label: String, val title: String) {
     NewUser("新手", "新手上手"),
-    Launch("启动", "启动与 Termux"),
+    Launch("启动", "启动与运行"),
+    Instance("实例", "多实例与设置"),
+    Version("更新", "安装、更新与回退"),
     Api("API", "API 与报错"),
     Role("角色", "角色、预设与上下文"),
     Backup("备份", "数据安全"),
@@ -46,9 +55,13 @@ private enum class DocCategory(val label: String, val title: String) {
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DocumentationSection(
+    pageScrollState: ScrollState,
     onPagerLockChange: (Boolean) -> Unit = {},
 ) {
     var selectedCategory by remember { mutableStateOf(DocCategory.NewUser) }
+    val sectionWindowPositions = remember { mutableMapOf<DocCategory, Float>() }
+    val sectionTopOffsetPx = with(LocalDensity.current) { 56.dp.toPx() }
+    val coroutineScope = rememberCoroutineScope()
     DisposableEffect(onPagerLockChange) {
         onDispose { onPagerLockChange(false) }
     }
@@ -73,25 +86,41 @@ fun DocumentationSection(
                     DocNavChip(
                         text = category.label,
                         selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
+                        onClick = {
+                            selectedCategory = category
+                            coroutineScope.launch {
+                                val sectionWindowY = sectionWindowPositions[category] ?: return@launch
+                                val targetScroll = (
+                                    pageScrollState.value + sectionWindowY - sectionTopOffsetPx
+                                    ).roundToInt().coerceAtLeast(0)
+                                pageScrollState.animateScrollTo(targetScroll)
+                            }
+                        },
                     )
                 }
             }
-            Text(
-                text = "遇到问题先看对应分类，不用从头翻。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
 
-        SectionPanel(title = selectedCategory.title, accentColor = LukoaColors.Accent) {
-            when (selectedCategory) {
-                DocCategory.NewUser -> NewUserDocs()
-                DocCategory.Launch -> LaunchDocs()
-                DocCategory.Api -> ApiDocs()
-                DocCategory.Role -> RoleDocs()
-                DocCategory.Backup -> BackupDocs()
-                DocCategory.Troubleshooting -> TroubleshootingDocs()
+        DocCategory.entries.forEach { category ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coordinates ->
+                        sectionWindowPositions[category] = coordinates.positionInWindow().y
+                    },
+            ) {
+                SectionPanel(title = category.title, accentColor = LukoaColors.Accent) {
+                    when (category) {
+                        DocCategory.NewUser -> NewUserDocs()
+                        DocCategory.Launch -> LaunchDocs()
+                        DocCategory.Instance -> InstanceDocs()
+                        DocCategory.Version -> VersionDocs()
+                        DocCategory.Api -> ApiDocs()
+                        DocCategory.Role -> RoleDocs()
+                        DocCategory.Backup -> BackupDocs()
+                        DocCategory.Troubleshooting -> TroubleshootingDocs()
+                    }
+                }
             }
         }
     }
@@ -114,6 +143,11 @@ private fun NewUserDocs() {
         body = "RUN_COMMAND 是 Android 允许启动器调用 Termux 的权限。没有它，按钮看起来能点，但命令不会进 Termux。\n\n如果看到缺少权限，按引导复制命令到 Termux 执行，再回启动器重新检测。",
         accentColor = LukoaColors.Accent,
     )
+    DocTopicCard(
+        title = "权限处理顺序",
+        body = "先确认 Termux 已安装并打开过一次，再处理 RUN_COMMAND 和 Termux 外部调用。需要自动备份或长任务时，再放行启动器与 Termux 的后台运行；导入、导出和应用备份时再检查文件权限。\n\n设置页的权限中心会标出仍需处理的项目，不必一次猜完所有系统开关。",
+        accentColor = LukoaColors.Accent,
+    )
 }
 
 @Composable
@@ -129,9 +163,57 @@ private fun LaunchDocs() {
         accentColor = LukoaColors.Accent,
     )
     DocTopicCard(
+        title = "启动中和运行中不一样",
+        body = "启动中表示命令已经发出，但酒馆端口还没有确认可用；运行中才表示网页服务已经能连接。\n\n启动中请先等，不要连续点启动。长时间不结束时，再检查 Termux 前台日志和端口占用。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
+        title = "普通停止与强制清理",
+        body = "普通停止只结束当前实例对应的酒馆进程，日常优先使用。强制清理用于状态卡住、端口残留或普通停止无效时，会更广泛地检查残留进程。\n\n不确定时先普通停止；只有启动器明确建议或端口一直被占用，再到修复工具使用强制清理。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
         title = "国内网络和镜像源",
         body = "GitHub、npm、Termux 包源都可能在国内卡住。设置页可以切换酒馆 Git 源、npm 源和 Termux 包源。\n\n不确定用哪个时，酒馆下载源选国内推荐，Termux 包源选清华源。",
         accentColor = LukoaColors.Accent,
+    )
+}
+
+@Composable
+private fun InstanceDocs() {
+    DocTopicCard(
+        title = "路径、端口和实例的关系",
+        body = "每个实例都有自己的酒馆目录和端口。目录决定使用哪套程序与数据，端口决定浏览器访问哪个服务；改目录不会自动改端口，改端口也不会移动文件。\n\n多个实例必须使用不同端口，否则后启动的实例会因为端口占用而失败。",
+        accentColor = LukoaColors.Info,
+    )
+    DocTopicCard(
+        title = "切换实例会影响什么",
+        body = "切换后，启动、停止、版本读取、更新回退、用户管理和备份恢复都会针对新实例。操作前先看设置页显示的当前实例、目录和端口。\n\n备份包不会自动区分你心里想操作哪个实例，应用前务必再次确认目标实例。",
+        accentColor = LukoaColors.Info,
+    )
+    DocTopicCard(
+        title = "托管目录与自定义目录",
+        body = "托管目录由启动器按实例分配，适合大多数人；传统默认目录是 ~/SillyTavern；自定义目录适合已经有现成安装或明确知道路径的人。\n\n保存路径只修改配置，不会搬文件。需要移动数据时必须使用迁移功能，并先做备份。",
+        accentColor = LukoaColors.Info,
+    )
+}
+
+@Composable
+private fun VersionDocs() {
+    DocTopicCard(
+        title = "安装、更新和回退的区别",
+        body = "安装用于当前实例还没有酒馆时；更新把已安装酒馆切到较新的官方版本；回退把它切到较旧版本。版本页管理的是 SillyTavern，不是启动器本身。\n\n启动器自身更新在设置页处理。",
+        accentColor = LukoaColors.Amber,
+    )
+    DocTopicCard(
+        title = "更新或回退前检查",
+        body = "先停止酒馆，确认当前实例和目标版本，再检查是否有本地源码改动。启动器会在执行前创建安全备份，但重要数据仍建议额外做一次手动备份。\n\n如果版本列表来自旧下载源，先刷新列表再选择。",
+        accentColor = LukoaColors.Amber,
+    )
+    DocTopicCard(
+        title = "本地改动为什么会阻止切换",
+        body = "手动修改酒馆源码或部分插件直接改动程序文件后，Git 可能无法安全切换版本。强行继续可能覆盖你的修改或让程序处于混合状态。\n\n先根据版本页列出的文件处理改动，确认干净后再更新或回退。",
+        accentColor = LukoaColors.Amber,
     )
 }
 
@@ -190,6 +272,16 @@ private fun BackupDocs() {
         body = "应用备份会把选中的备份恢复到当前酒馆目录。恢复后，当前数据可能被覆盖。\n\n如果只是想留一份文件，点导出；如果要把外部备份放进备份库，点导入到备份库。",
         accentColor = LukoaColors.Accent,
     )
+    DocTopicCard(
+        title = "导入、导出和应用的区别",
+        body = "导入只是把外部备份复制进启动器的手动备份库；导出是把备份库里的文件另存到你选择的位置；应用才会把备份内容恢复到当前酒馆目录。\n\n想留文件就导出，想加入备份库就导入，只有确认要覆盖当前数据时才应用。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
+        title = "迁移到新手机",
+        body = "旧手机先停止酒馆并生成手动备份，再把备份导出到可靠位置。新手机安装启动器与 Termux、完成权限和环境准备后，把备份导入备份库，确认目标实例再应用。\n\n恢复后先读取酒馆版本和用户，再尝试启动；旧手机的数据先不要急着删除。",
+        accentColor = LukoaColors.Accent,
+    )
 }
 
 @Composable
@@ -207,6 +299,21 @@ private fun TroubleshootingDocs() {
     DocTopicCard(
         title = "区分酒馆问题和模型问题",
         body = "网页能打开但发消息报错，通常是 API、模型、额度、代理或预设问题。网页打不开，才优先怀疑酒馆没启动、端口占用或 Termux 没跑起来。\n\n简单判断：先看启动页状态，再看 Termux 前台回传。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
+        title = "一键体检的使用顺序",
+        body = "先在设置页运行一键体检，根据失败项目执行主操作，再重新体检。环境、权限或路径问题没有解决前，不要反复安装或更新。\n\n体检通过但仍打不开网页时，再看 Termux 前台回传、端口和诊断日志。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
+        title = "端口占用怎么排查",
+        body = "先确认是否有另一个实例或旧进程正在使用同一端口。普通停止后重新检测；仍占用时，再使用修复工具里的强制清理建议。\n\n如果两个实例配置了相同端口，给其中一个改成未使用的端口，再重新启动。",
+        accentColor = LukoaColors.Accent,
+    )
+    DocTopicCard(
+        title = "反馈问题前准备什么",
+        body = "记录当时操作的实例、按钮和报错时间，保留 Termux 前台完整错误，并从设置页导出诊断日志。\n\n不要只截最后一行，也不要公开 API Key、账号密码或私人文件内容。",
         accentColor = LukoaColors.Accent,
     )
 }

@@ -54,20 +54,30 @@ fun TavernUserManagementSection(
         title = "用户管理",
         accentColor = LukoaColors.Info,
         headerAction = {
-            StatusPill(
-                text = when {
-                    actionsLocked -> "当前忙碌"
-                    state.loading -> "读取中"
-                    state.users.isEmpty() -> "未读取"
-                    else -> "${state.users.size} 位用户"
-                },
-                active = actionsLocked || state.loading || state.users.isNotEmpty(),
-                toneColor = if (actionsLocked || state.loading) LukoaColors.Amber else LukoaColors.Info,
-                activeBackground = if (actionsLocked || state.loading) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = when {
+                        actionsLocked -> "当前忙碌"
+                        state.loading -> "读取中"
+                        state.users.isEmpty() -> "未读取"
+                        else -> "${state.users.size} 位用户"
+                    },
+                    active = actionsLocked || state.loading || state.users.isNotEmpty(),
+                    toneColor = if (actionsLocked || state.loading) LukoaColors.Amber else LukoaColors.Info,
+                    activeBackground = if (actionsLocked || state.loading) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看用户管理说明",
+                    title = "用户管理",
+                    body = "这里管理当前实例里的 SillyTavern 登录账户，不是启动器多实例。读取、新增或删除用户前需要先停止酒馆。",
+                    accentColor = LukoaColors.Info,
+                )
+            }
         },
     ) {
-        SettingsSectionIntro("管理当前实例里的 SillyTavern 登录账户；这里不是启动器多实例。")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",

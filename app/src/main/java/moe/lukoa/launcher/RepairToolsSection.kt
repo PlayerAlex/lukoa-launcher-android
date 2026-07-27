@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -58,25 +59,35 @@ fun RepairToolsSection(
         title = "修复工具",
         accentColor = LukoaColors.Amber,
         headerAction = {
-            StatusPill(
-                text = when {
-                    actionsLocked -> "当前忙碌"
-                    tavernRunning -> "运行中锁定"
-                    else -> "可使用"
-                },
-                active = true,
-                toneColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Accent,
-                activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AmberSoft else LukoaColors.AccentSoft,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = when {
+                        actionsLocked -> "当前忙碌"
+                        tavernRunning -> "运行中锁定"
+                        else -> "可使用"
+                    },
+                    active = true,
+                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Accent,
+                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AmberSoft else LukoaColors.AccentSoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看修复工具说明",
+                    title = "修复工具",
+                    body = "这里集中提供环境体检、依赖与主题修复、Node.js 内存、上传限制和诊断日志。所有修改只作用于当前实例，并保留确认步骤和可恢复副本。",
+                    accentColor = LukoaColors.Amber,
+                )
+            }
         },
     ) {
-        SettingsSectionIntro("集中处理环境体检、常用修复、内存、上传限制和诊断日志。")
         leadingContent?.invoke()
         Text(
             text = when {
                 actionsLocked -> "当前有其他任务正在处理，设置会在任务结束后自动恢复。"
                 tavernRunning -> "检测到酒馆正在运行。体检、检查上传限制和诊断仍可使用；修改类操作需要先停止酒馆。"
-                else -> "所有修改只作用于当前实例，并会继续保留原有确认与恢复副本。"
+                else -> "当前实例已停止，修改类操作可用。"
             },
             color = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Muted,
             style = MaterialTheme.typography.bodySmall,
@@ -134,6 +145,11 @@ fun RepairToolsSection(
                     )
                 }
             }
+            Text(
+                text = "低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。",
+                color = LukoaColors.Amber,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         SettingsSectionDivider()
         SettingsSubsection(
@@ -150,6 +166,11 @@ fun RepairToolsSection(
                 } else {
                     LukoaColors.Muted
                 },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "1GB 以上会明显增加内存压力，更容易被系统结束后台。",
+                color = LukoaColors.Amber,
                 style = MaterialTheme.typography.bodySmall,
             )
             SecondaryActionButton(
