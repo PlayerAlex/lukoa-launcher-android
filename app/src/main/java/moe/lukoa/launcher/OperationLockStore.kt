@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 
@@ -61,6 +62,7 @@ object OperationLockStore {
     private const val KEY_OWNER_TOKEN = "owner_token"
     private val storeLock = Any()
 
+    @SuppressLint("ApplySharedPref")
     fun acquire(
         context: Context,
         label: String,
@@ -80,8 +82,7 @@ object OperationLockStore {
                 .putLong(KEY_STARTED_AT, startedAtMillis)
                 .putLong(KEY_UNTIL, safeUntil)
                 .putString(KEY_OWNER_TOKEN, ownerToken.trim())
-                .apply()
-            true
+                .commit()
         }
     }
 

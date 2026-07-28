@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import android.annotation.SuppressLint
 import android.content.Context
 import org.json.JSONObject
 
@@ -34,11 +35,12 @@ object PendingLauncherTaskStore {
     private const val PREFS = "lukoa_pending_launcher_task"
     private const val KEY_TASK = "task"
 
-    fun save(context: Context, task: PendingLauncherTask) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    @SuppressLint("ApplySharedPref")
+    fun save(context: Context, task: PendingLauncherTask): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_TASK, encode(task))
-            .apply()
+            .commit()
     }
 
     fun load(context: Context): PendingLauncherTask? {
@@ -51,11 +53,12 @@ object PendingLauncherTaskStore {
         }.getOrNull()
     }
 
-    fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    @SuppressLint("ApplySharedPref")
+    fun clear(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_TASK)
-            .apply()
+            .commit()
     }
 
     private fun encode(task: PendingLauncherTask): String {

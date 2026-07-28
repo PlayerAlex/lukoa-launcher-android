@@ -40,6 +40,7 @@ data class LauncherHealthReport(
     val items: List<LauncherHealthItem> = emptyList(),
     val errorCount: Int = 0,
     val warningCount: Int = 0,
+    val unknownCount: Int = 0,
     val primaryAction: LauncherHealthAction? = null,
     val doctorReport: TavernDoctorReport? = null,
 ) {
@@ -177,6 +178,17 @@ object LauncherHealthCheck {
                         level = LauncherHealthLevel.Error,
                     )
 
+                    listOf(
+                        doctorReport.gitAvailable,
+                        doctorReport.nodeAvailable,
+                        doctorReport.npmAvailable,
+                        doctorReport.curlAvailable,
+                    ).any { it == null } -> LauncherHealthItem(
+                        title = "Termux 环境",
+                        detail = "这次只读到部分工具状态，暂时不能确认环境是否完整。请重新体检。",
+                        level = LauncherHealthLevel.Unknown,
+                    )
+
                     doctorReport.curlAvailable == false -> LauncherHealthItem(
                         title = "Termux 环境",
                         detail = "git、node、npm 已有，但缺少 curl。网页状态检测会不够准。",
@@ -234,6 +246,17 @@ object LauncherHealthCheck {
                         title = "酒馆路径",
                         detail = "当前目录不是 Git 仓库，后续更新和回退会失败。",
                         level = LauncherHealthLevel.Error,
+                    )
+
+                    listOf(
+                        doctorReport.tavernDirExists,
+                        doctorReport.packageJsonExists,
+                        doctorReport.startEntryExists,
+                        doctorReport.gitRepo,
+                    ).any { it == null } -> LauncherHealthItem(
+                        title = "酒馆路径",
+                        detail = "这次只读到部分目录信息，暂时不能确认它是不是完整的酒馆目录。请重新体检。",
+                        level = LauncherHealthLevel.Unknown,
                     )
 
                     else -> LauncherHealthItem(
@@ -308,10 +331,18 @@ object LauncherHealthCheck {
                         level = LauncherHealthLevel.Warning,
                     )
 
-                    else -> LauncherHealthItem(
+                    doctorReport.processDetected == false &&
+                        doctorReport.portListening == false &&
+                        doctorReport.portConflict == false -> LauncherHealthItem(
                         title = "运行与端口",
                         detail = "当前未运行，端口 ${doctorReport.port} 看起来是空闲的。",
                         level = LauncherHealthLevel.Good,
+                    )
+
+                    else -> LauncherHealthItem(
+                        title = "运行与端口",
+                        detail = "这次只读到部分运行状态，暂时不能确认端口是否空闲。请重新体检后再启动。",
+                        level = LauncherHealthLevel.Unknown,
                     )
                 },
             )
@@ -352,6 +383,7 @@ object LauncherHealthCheck {
 
         val errorCount = items.count { it.level == LauncherHealthLevel.Error }
         val warningCount = items.count { it.level == LauncherHealthLevel.Warning }
+        val unknownCount = items.count { it.level == LauncherHealthLevel.Unknown }
         val primaryAction = choosePrimaryAction(
             termuxInstalled = termuxInstalled,
             runCommandPermissionGranted = runCommandPermissionGranted,
@@ -378,6 +410,9 @@ object LauncherHealthCheck {
 
             pathProblem -> "先确认酒馆目录" to "当前路径不像完整的 SillyTavern 根目录。"
             doctorReport?.portConflict == true -> "先处理端口占用" to "酒馆端口已经被别的进程占用，先关闭占用端口的进程或重启 Termux/手机后再启动。"
+            errorCount == 0 && warningCount == 0 && unknownCount > 0 ->
+                "体检结果未完整读到" to "还有 $unknownCount 项没有确认，不能判断环境是否正常。请检查 Termux 后重新体检。"
+
             errorCount == 0 && warningCount == 0 -> "当前环境基本正常" to "启动、版本管理和镜像源检查都没有发现明显问题。"
             errorCount == 0 -> "有提醒项，启动前建议看一眼" to "当前没有致命问题，但还有 $warningCount 个提醒项。"
             else -> "发现 $errorCount 个需要先处理的问题" to "先修最上面的优先项，再重新体检一次。"
@@ -390,6 +425,7 @@ object LauncherHealthCheck {
             items = items,
             errorCount = errorCount,
             warningCount = warningCount,
+            unknownCount = unknownCount,
             primaryAction = primaryAction,
             doctorReport = doctorReport,
         )

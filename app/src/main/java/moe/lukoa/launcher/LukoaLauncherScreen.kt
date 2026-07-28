@@ -402,16 +402,18 @@ fun LukoaLauncherScreen(
     fun rememberPendingLauncherTask(
         task: PendingLauncherTask,
         showDialog: Boolean = false,
-    ) {
+    ): Boolean {
+        if (!PendingLauncherTaskStore.save(context, task)) return false
         pendingLauncherTask = task
         showPendingTaskDialog = showDialog
-        PendingLauncherTaskStore.save(context, task)
+        return true
     }
 
-    fun clearPendingLauncherTask() {
-        pendingLauncherTask = null
+    fun clearPendingLauncherTask(): Boolean {
         showPendingTaskDialog = false
-        PendingLauncherTaskStore.clear(context)
+        if (!PendingLauncherTaskStore.clear(context)) return false
+        pendingLauncherTask = null
+        return true
     }
 
     suspend fun recoverPendingManualBackup(task: PendingLauncherTask): PendingManualBackupRecoveryResult? {
@@ -666,6 +668,12 @@ fun LukoaLauncherScreen(
             availableVersions = officialVersions,
             currentSelection = customSelection,
         )
+        uploadLimitStatus = TavernUploadLimitStatus(
+            message = "酒馆配置已更新，请重新检查当前聊天文件大小。",
+        )
+        tavernUserState = TavernUserManagementState(
+            message = "酒馆配置已更新，请重新读取当前目录的用户。",
+        )
         healthCheckReport = null
         showStopConfirmDialog = false
         pendingStartPreflight = null
@@ -779,6 +787,13 @@ fun LukoaLauncherScreen(
 
     fun syncTermuxResult(display: TermuxResultDisplay) {
         if (display.output.isBlank()) return
+        if (
+            !TavernTermuxResultProfileScope.matches(
+                profileId = tavernPathConfig.activeProfile.id,
+                result = display,
+                requireMetadata = false,
+            )
+        ) return
         val displayTermuxOutput = extractTermuxDisplayContent(display.output).commandText
         if (displayTermuxOutput.isBlank()) return
         val newStatus = "已同步 Termux：${display.command}"
@@ -833,7 +848,17 @@ fun LukoaLauncherScreen(
             text.contains("等待 selftest")
     }
 
-    fun releaseBusy() {
+    fun isBusyOperationActive(operationToken: Int): Boolean {
+        return LauncherOperationCallbackGuard.isCurrent(
+            expectedToken = operationToken,
+            currentToken = busyToken,
+            operationActive = busyLabel != null,
+        )
+    }
+
+    fun releaseBusy(expectedToken: Int? = null) {
+        if (expectedToken != null && !isBusyOperationActive(expectedToken)) return
+        busyToken += 1
         busyLabel = null
         busyStartedAtMillis = 0L
         restoredOperationLockActive = false
@@ -858,17 +883,17 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun beginBusy(label: String, timeoutMs: Long = 18000L): Boolean {
+    fun beginBusy(label: String, timeoutMs: Long = 18000L): Int? {
         val currentLabel = busyLabel
         if (currentLabel != null) {
             update("正在处理：$currentLabel。请等一下。", "", false)
-            return false
+            return null
         }
 
         if (!OperationLockStore.acquire(context, label, timeoutMs)) {
             val activeLabel = OperationLockStore.activeLabel(context) ?: "其他操作"
             update("正在处理：$activeLabel。请等一下。", "", false)
-            return false
+            return null
         }
         busyLabel = label
         busyStartedAtMillis = SystemClock.elapsedRealtime()
@@ -883,7 +908,7 @@ fun LukoaLauncherScreen(
                 if (busyToken != token || busyLabel == null) return@launch
                 if (recovered != null) {
                     clearPendingLauncherTask()
-                    releaseBusy()
+                    releaseBusy(token)
                     val nextBackupHistory = BackupHistoryReducer.sanitize(
                         listOf(recovered.archivePath) + backupHistory,
                     )
@@ -897,11 +922,11 @@ fun LukoaLauncherScreen(
                     )
                     return@launch
                 }
-                releaseBusy()
+                releaseBusy(token)
                 update("没收到 Termux 返回，按钮已恢复。", "", false)
             }
         }
-        return true
+        return token
     }
 
     LaunchedEffect(initialRestoredOperationLock) {
@@ -924,11 +949,12 @@ fun LukoaLauncherScreen(
         allowRunningInference: Boolean = true,
         action: (LauncherUpdate) -> Unit,
     ) {
-        if (!beginBusy(label, timeoutMs)) return
-        action { newStatus, termuxOutput, ok ->
+        val operationToken = beginBusy(label, timeoutMs) ?: return
+        action guardedUpdate@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@guardedUpdate
             update(newStatus, termuxOutput, ok, allowRunningInference)
             if (!isTransientStatus(newStatus)) {
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
@@ -940,13 +966,23 @@ fun LukoaLauncherScreen(
         allowRunningInference: Boolean = false,
         action: (LauncherUpdate) -> Unit,
     ) {
-        if (!beginBusy(label, timeoutMs)) return
-        rememberPendingLauncherTask(task)
-        action { newStatus, termuxOutput, ok ->
+        val operationToken = beginBusy(label, timeoutMs) ?: return
+        if (!rememberPendingLauncherTask(task)) {
+            releaseBusy(operationToken)
+            update(
+                "无法保存${task.title}的等待记录。为防止任务失去跟踪，这次没有执行。请重试。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+            return
+        }
+        action guardedUpdate@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@guardedUpdate
             update(newStatus, termuxOutput, ok, allowRunningInference)
             if (!isTransientStatus(newStatus)) {
                 clearPendingLauncherTask()
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
@@ -1269,12 +1305,11 @@ fun LukoaLauncherScreen(
             "tavern-backup-manual",
             PendingLauncherTaskSupport.buildSafetyBackupLabel(safetyBackupPrefix),
         )
-        if (!beginBusy(
-                busyText,
-                TermuxCommandTimeoutPolicy.chainedOperationLockMillis("tavern-backup-manual", baseCommand),
-            )
-        ) return
-        rememberPendingLauncherTask(
+        val operationToken = beginBusy(
+            busyText,
+            TermuxCommandTimeoutPolicy.chainedOperationLockMillis("tavern-backup-manual", baseCommand),
+        ) ?: return
+        if (!rememberPendingLauncherTask(
             PendingLauncherTask(
                 kind = taskKind,
                 commandName = "tavern-backup",
@@ -1283,9 +1318,19 @@ fun LukoaLauncherScreen(
                 targetLabel = targetLabel,
                 profileId = tavernPathConfig.activeProfile.id,
             ),
-        )
+        )) {
+            releaseBusy(operationToken)
+            update(
+                "无法保存${taskTitle}的等待记录。为防止任务失去跟踪，这次没有执行。请重试。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+            return
+        }
         update("正在自动创建安全备份，完成后才会继续${taskTitle}。", "", false, allowRunningInference = false)
-        onCommand(safetyBackupCommand) { backupStatus, backupOutput, backupOk ->
+        onCommand(safetyBackupCommand) backupCallback@{ backupStatus, backupOutput, backupOk ->
+            if (!isBusyOperationActive(operationToken)) return@backupCallback
             val backupFinished = !isTransientStatus(backupStatus)
             val backupStatusText = if (backupFinished && !backupOk) {
                 "$backupStatus\n这次${taskTitle}没有开始。"
@@ -1293,25 +1338,25 @@ fun LukoaLauncherScreen(
                 backupStatus
             }
             update(backupStatusText, backupOutput, backupOk, allowRunningInference = false)
-            if (!backupFinished) return@onCommand
+            if (!backupFinished) return@backupCallback
             if (!backupOk) {
                 clearPendingLauncherTask()
-                releaseBusy()
-                return@onCommand
+                releaseBusy(operationToken)
+                return@backupCallback
             }
             val safetyBackupPath = BackupHistoryReducer.extractCreatedBackupArchive(backupOutput, backupOk).orEmpty()
             if (safetyBackupPath.isBlank()) {
                 clearPendingLauncherTask()
-                releaseBusy()
+                releaseBusy(operationToken)
                 update(
                     "自动安全备份已完成，但没有读到备份路径。为稳妥起见，这次没有开始${taskTitle}。",
                     backupOutput,
                     false,
                     allowRunningInference = false,
                 )
-                return@onCommand
+                return@backupCallback
             }
-            rememberPendingLauncherTask(
+            if (!rememberPendingLauncherTask(
                 PendingLauncherTask(
                     kind = taskKind,
                     commandName = baseCommand,
@@ -1321,8 +1366,18 @@ fun LukoaLauncherScreen(
                     safetyBackupPath = safetyBackupPath,
                     profileId = tavernPathConfig.activeProfile.id,
                 ),
-            )
-            onCommand(command) { newStatus, termuxOutput, ok ->
+            )) {
+                releaseBusy(operationToken)
+                update(
+                    "自动安全备份已完成，但启动器无法保存后续${taskTitle}的等待记录。为稳妥起见，这次没有继续${taskTitle}。",
+                    backupOutput,
+                    false,
+                    allowRunningInference = false,
+                )
+                return@backupCallback
+            }
+            onCommand(command) taskCallback@{ newStatus, termuxOutput, ok ->
+                if (!isBusyOperationActive(operationToken)) return@taskCallback
                 val finished = !isTransientStatus(newStatus)
                 val statusWithBackupPath = if (finished) {
                     buildString {
@@ -1342,7 +1397,7 @@ fun LukoaLauncherScreen(
                 update(statusWithBackupPath, termuxOutput, ok, allowRunningInference = false)
                 if (finished) {
                     clearPendingLauncherTask()
-                    releaseBusy()
+                    releaseBusy(operationToken)
                 }
             }
         }
@@ -1425,7 +1480,8 @@ fun LukoaLauncherScreen(
             showBackgroundRunPermissionDialog = { showBackgroundRunPermissionDialog = true },
             activeOperationLabel = { busyLabel ?: OperationLockStore.activeLabel(context) },
             beginBusy = ::beginBusy,
-            releaseBusy = ::releaseBusy,
+            isOperationActive = ::isBusyOperationActive,
+            releaseBusy = { operationToken -> releaseBusy(operationToken) },
             isActionInProgress = { busyLabel != null },
             blockIfPendingTaskExists = ::blockIfPendingTaskExists,
             runGuardedCommand = { label, timeoutMs, allowRunningInference, command ->
@@ -1550,9 +1606,19 @@ fun LukoaLauncherScreen(
         timeoutMs: Long,
         command: String,
     ) {
-        if (!beginBusy(label, timeoutMs)) return
-        rememberPendingLauncherTask(task)
-        onCommand(command) { newStatus, termuxOutput, ok ->
+        val operationToken = beginBusy(label, timeoutMs) ?: return
+        if (!rememberPendingLauncherTask(task)) {
+            releaseBusy(operationToken)
+            update(
+                "无法保存${task.title}的等待记录。为防止任务失去跟踪，这次没有执行。请重试。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+            return
+        }
+        onCommand(command) commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             val finalResult = if (isTransientStatus(newStatus)) {
                 null
             } else {
@@ -1566,7 +1632,7 @@ fun LukoaLauncherScreen(
             )
             if (!isTransientStatus(newStatus)) {
                 clearPendingLauncherTask()
-                releaseBusy()
+                releaseBusy(operationToken)
                 finalResult?.let { resolved ->
                     runPendingTaskFollowUpRefresh(
                         refreshTargets = resolved.refreshTargets,
@@ -1588,7 +1654,8 @@ fun LukoaLauncherScreen(
             blockIfPendingTaskExists = ::blockIfPendingTaskExists,
             runProfileMutationPendingCommand = ::runProfileMutationPendingCommand,
             beginBusy = ::beginBusy,
-            releaseBusy = ::releaseBusy,
+            isOperationActive = ::isBusyOperationActive,
+            releaseBusy = { operationToken -> releaseBusy(operationToken) },
             isTransientStatus = ::isTransientStatus,
             isActionInProgress = { busyLabel != null },
             isTavernRunning = { tavernRunning },
@@ -1614,38 +1681,35 @@ fun LukoaLauncherScreen(
             update("请先准备好 Termux。", "", false, allowRunningInference = false)
             return
         }
-        if (!beginBusy(
-                "检测酒馆安装",
-                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-version"),
-            )
-        ) return
+        val operationToken = beginBusy(
+            "检测酒馆安装",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-version"),
+        ) ?: return
         tavernVersionCheckInFlight = true
-        val token = busyToken
         scope.launch {
             delay(20_000L)
-            if (busyToken == token && tavernVersionCheckInFlight) {
+            if (isBusyOperationActive(operationToken) && tavernVersionCheckInFlight) {
                 tavernVersionCheckInFlight = false
             }
         }
-        onCommand("tavern-version") { newStatus, termuxOutput, ok ->
+        onCommand("tavern-version") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             update(newStatus, termuxOutput, ok, allowRunningInference = false)
             if (!isTransientStatus(newStatus)) {
                 tavernVersionCheckInFlight = false
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
 
     fun refreshOfficialVersions() {
-        if (!beginBusy(
-                "读取官方版本",
-                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-official-versions"),
-            )
-        ) return
-        val requestToken = busyToken
+        val operationToken = beginBusy(
+            "读取官方版本",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-official-versions"),
+        ) ?: return
         update("正在读取官方版本列表。", "", false, allowRunningInference = false)
         onFetchOfficialTavernVersions(tavernMirrorConfig) { result ->
-            if (busyToken != requestToken) {
+            if (!isBusyOperationActive(operationToken)) {
                 return@onFetchOfficialTavernVersions
             }
             if (result.ok && result.versions.hasData) {
@@ -1654,7 +1718,7 @@ fun LukoaLauncherScreen(
             } else {
                 update(result.message, "", false, allowRunningInference = false)
             }
-            releaseBusy()
+            releaseBusy(operationToken)
         }
     }
 
@@ -1730,7 +1794,9 @@ fun LukoaLauncherScreen(
         request: PendingTavernInstallRequest,
         probeStatus: TavernMirrorProbeStatus,
         versions: TavernOfficialVersions,
+        operationToken: Int,
     ) {
+        if (!isBusyOperationActive(operationToken)) return
         val result = TavernInstallPreflight.evaluate(
             request = request,
             officialVersions = versions,
@@ -1738,12 +1804,12 @@ fun LukoaLauncherScreen(
         )
         when {
             !result.ok -> {
-                releaseBusy()
+                releaseBusy(operationToken)
                 update(result.blockingMessage ?: "安装前检查失败。", "", false, allowRunningInference = false)
             }
 
             result.confirmation != null -> {
-                releaseBusy()
+                releaseBusy(operationToken)
                 pendingInstallRiskRequest = request
                 installRiskConfirmation = result.confirmation
                 showInstallRiskDialog = true
@@ -1751,15 +1817,14 @@ fun LukoaLauncherScreen(
             }
 
             else -> {
-                releaseBusy()
+                releaseBusy(operationToken)
                 queueInstallTask(request)
             }
         }
     }
 
     fun requestInstallPreflight(request: PendingTavernInstallRequest) {
-        if (!beginBusy("安装前检查", 60000L)) return
-        val requestToken = busyToken
+        val operationToken = beginBusy("安装前检查", 60000L) ?: return
         val requestMirrorConfig = TavernMirrorConfig(
             repoUrl = request.repoUrl,
             npmRegistry = tavernMirrorConfig.normalizedNpmRegistry,
@@ -1769,7 +1834,7 @@ fun LukoaLauncherScreen(
                 TavernMirrorProbeStatus.signatureOf(tavernMirrorConfig)
 
         fun isRequestActive(): Boolean {
-            return busyToken == requestToken && busyLabel != null
+            return isBusyOperationActive(operationToken)
         }
 
         fun finishWithVersions(
@@ -1777,7 +1842,7 @@ fun LukoaLauncherScreen(
             versions: TavernOfficialVersions,
         ) {
             if (!isRequestActive()) return
-            finishInstallPreflight(request, probeStatus, versions)
+            finishInstallPreflight(request, probeStatus, versions, operationToken)
         }
 
         fun fetchVersions(probeStatus: TavernMirrorProbeStatus) {
@@ -1790,7 +1855,7 @@ fun LukoaLauncherScreen(
             onFetchOfficialTavernVersions(requestMirrorConfig) { result ->
                 if (!isRequestActive()) return@onFetchOfficialTavernVersions
                 if (!result.ok || !result.versions.hasData) {
-                    releaseBusy()
+                    releaseBusy(operationToken)
                     update(result.message, "", false, allowRunningInference = false)
                     return@onFetchOfficialTavernVersions
                 }
@@ -2316,11 +2381,10 @@ fun LukoaLauncherScreen(
     }
 
     fun executePrepareTermuxEnvironment(configPolicy: AptConfigPolicy) {
-        if (!beginBusy(
-                "准备 Termux 环境",
-                TermuxCommandTimeoutPolicy.operationLockMillis("termux-bootstrap"),
-            )
-        ) return
+        val operationToken = beginBusy(
+            "准备 Termux 环境",
+            TermuxCommandTimeoutPolicy.operationLockMillis("termux-bootstrap"),
+        ) ?: return
         update(
             "正在准备 Termux 环境。",
             """
@@ -2332,13 +2396,14 @@ fun LukoaLauncherScreen(
             false,
             allowRunningInference = false,
         )
-        onCommand("termux-bootstrap::${configPolicy.wireValue}") { newStatus, termuxOutput, ok ->
+        onCommand("termux-bootstrap::${configPolicy.wireValue}") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             update(newStatus, termuxOutput, ok, allowRunningInference = false)
             if (!isTransientStatus(newStatus)) {
                 if (ok) {
                     termuxBootstrapCompleted = true
                 }
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
@@ -2348,31 +2413,32 @@ fun LukoaLauncherScreen(
             update("正在体检，等这次完成再点。", "", false, allowRunningInference = false)
             return
         }
-        if (!beginBusy("一键体检", 45_000L)) return
+        val operationToken = beginBusy("一键体检", 45_000L) ?: return
         healthCheckInFlight = true
         healthCheckToken += 1
-        val token = healthCheckToken
+        val requestToken = healthCheckToken
 
         scope.launch {
             delay(45_000L)
-            if (healthCheckInFlight && healthCheckToken == token) {
+            if (healthCheckInFlight && healthCheckToken == requestToken) {
                 healthCheckToken += 1
                 healthCheckInFlight = false
-                releaseBusy()
+                releaseBusy(operationToken)
                 update("体检超时，请重试一次。", "", false, allowRunningInference = false)
             }
         }
 
         fun finishHealthCheck(doctorReport: TavernDoctorReport?, mirrorStatus: TavernMirrorProbeStatus) {
-            if (healthCheckToken != token) return
+            if (healthCheckToken != requestToken || !isBusyOperationActive(operationToken)) return
             val report = buildHealthCheckReport(
                 doctorReport = doctorReport,
                 mirrorStatus = mirrorStatus,
             )
             healthCheckReport = report
             healthCheckInFlight = false
-            releaseBusy()
-            val ok = report.errorCount == 0
+            releaseBusy(operationToken)
+            val complete = report.unknownCount == 0
+            val ok = report.errorCount == 0 && complete
             val message = if (ok && report.warningCount == 0) {
                 "体检已完成：当前环境基本正常。"
             } else {
@@ -2390,7 +2456,7 @@ fun LukoaLauncherScreen(
         }
 
         onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
-            if (healthCheckToken != token) return@onCommand
+            if (healthCheckToken != requestToken || !isBusyOperationActive(operationToken)) return@onCommand
             if (isTransientStatus(newStatus) && termuxOutput.isBlank()) {
                 update(newStatus, termuxOutput, ok, allowRunningInference = false)
                 return@onCommand
@@ -2399,7 +2465,7 @@ fun LukoaLauncherScreen(
             val doctorReport = TavernDoctorParser.parse(termuxOutput)
             mirrorProbeStatus = TavernMirrorProbeStatus.checking(tavernMirrorConfig)
             onCheckTavernMirror(tavernMirrorConfig) { mirrorResult ->
-                if (healthCheckToken != token) return@onCheckTavernMirror
+                if (healthCheckToken != requestToken || !isBusyOperationActive(operationToken)) return@onCheckTavernMirror
                 mirrorProbeStatus = mirrorResult
                 finishHealthCheck(doctorReport, mirrorResult)
             }
@@ -2624,15 +2690,16 @@ fun LukoaLauncherScreen(
             update("酒馆正在启动中，请稍等。", "", false)
             return
         }
-        if (!beginBusy("启动酒馆", 15000L)) return
+        val operationToken = beginBusy("启动酒馆", 15000L) ?: return
 
         showStopConfirmDialog = false
-        onForegroundStart { newStatus, termuxOutput, ok ->
+        onForegroundStart startCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@startCallback
             update(newStatus, termuxOutput, ok)
             if (isTransientStatus(newStatus)) {
-                return@onForegroundStart
+                return@startCallback
             }
-            releaseBusy()
+            releaseBusy(operationToken)
             if (ok) {
                 tavernStarting = true
                 tavernRunning = false
@@ -2689,16 +2756,16 @@ fun LukoaLauncherScreen(
             continueStartAfterFirstGuideIfNeeded()
             return
         }
-        if (!beginBusy(
-                "启动前预检",
-                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-doctor"),
-            )
-        ) return
+        val operationToken = beginBusy(
+            "启动前预检",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-doctor"),
+        ) ?: return
 
-        onCommand("tavern-doctor") { newStatus, termuxOutput, ok ->
+        onCommand("tavern-doctor") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             if (isTransientStatus(newStatus) && termuxOutput.isBlank()) {
                 update(newStatus, termuxOutput, ok, allowRunningInference = false)
-                return@onCommand
+                return@commandCallback
             }
             update(newStatus, termuxOutput, ok, allowRunningInference = false)
             val doctorReport = TavernDoctorParser.parse(termuxOutput)
@@ -2710,11 +2777,11 @@ fun LukoaLauncherScreen(
                 doctorReport = doctorReport,
                 activeProfile = tavernPathConfig.activeProfile,
             )
-            releaseBusy()
+            releaseBusy(operationToken)
             if (!preflight.ok) {
                 pendingStartPreflight = preflight
                 update(preflight.summary, "", false, allowRunningInference = false)
-                return@onCommand
+                return@commandCallback
             }
             pendingStartPreflight = null
             continueStartAfterFirstGuideIfNeeded()
@@ -2847,14 +2914,14 @@ fun LukoaLauncherScreen(
 
     fun confirmStopTavern() {
         showStopConfirmDialog = false
-        if (!beginBusy(
-                "停止酒馆",
-                TermuxCommandTimeoutPolicy.operationLockMillis("stop"),
-            )
-        ) return
+        val operationToken = beginBusy(
+            "停止酒馆",
+            TermuxCommandTimeoutPolicy.operationLockMillis("stop"),
+        ) ?: return
         tavernStarting = false
         launchAttemptToken += 1
-        onCommand("stop") { newStatus, termuxOutput, ok ->
+        onCommand("stop") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             update(newStatus, termuxOutput, ok)
             val stopResult = "$newStatus\n$termuxOutput"
             if (ok && inferTavernRunning(stopResult) == false) {
@@ -2862,7 +2929,7 @@ fun LukoaLauncherScreen(
                 tavernStarting = false
             }
             if (!isTransientStatus(newStatus)) {
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
@@ -2870,14 +2937,14 @@ fun LukoaLauncherScreen(
     fun confirmForceCleanupDialog() {
         val confirmation = pendingTavernForceCleanupConfirmation ?: return
         dismissForceCleanupDialog()
-        if (!beginBusy(
-                confirmation.suggestion.buttonLabel,
-                TermuxCommandTimeoutPolicy.operationLockMillis("tavern-force-cleanup"),
-            )
-        ) return
+        val operationToken = beginBusy(
+            confirmation.suggestion.buttonLabel,
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-force-cleanup"),
+        ) ?: return
         tavernStarting = false
         launchAttemptToken += 1
-        onCommand("tavern-force-cleanup") { newStatus, termuxOutput, ok ->
+        onCommand("tavern-force-cleanup") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isBusyOperationActive(operationToken)) return@commandCallback
             update(newStatus, termuxOutput, ok)
             val cleanupResult = "$newStatus\n$termuxOutput"
             if (ok && inferTavernRunning(cleanupResult) == false) {
@@ -2885,7 +2952,7 @@ fun LukoaLauncherScreen(
                 tavernStarting = false
             }
             if (!isTransientStatus(newStatus)) {
-                releaseBusy()
+                releaseBusy(operationToken)
             }
         }
     }
@@ -3476,9 +3543,10 @@ fun LukoaLauncherScreen(
                                     else -> null
                                 },
                                 onWakeTermux = {
-                                    if (beginBusy("唤醒 Termux", 6000L)) {
+                                    beginBusy("唤醒 Termux", 6000L)?.let { operationToken ->
                                         val result = onWakeTermux(termuxReturnDelayMs)
-                                        releaseBusy()
+                                        if (!isBusyOperationActive(operationToken)) return@let
+                                        releaseBusy(operationToken)
                                         update(
                                             result.message,
                                             "",

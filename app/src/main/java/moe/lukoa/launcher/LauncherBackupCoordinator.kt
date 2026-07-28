@@ -23,8 +23,9 @@ class LauncherBackupCoordinator(
     private val isBackgroundRunPermissionGranted: () -> Boolean,
     private val showBackgroundRunPermissionDialog: () -> Unit,
     private val activeOperationLabel: () -> String?,
-    private val beginBusy: (String, Long) -> Boolean,
-    private val releaseBusy: () -> Unit,
+    private val beginBusy: (String, Long) -> Int?,
+    private val isOperationActive: (Int) -> Boolean,
+    private val releaseBusy: (Int) -> Unit,
     private val isActionInProgress: () -> Boolean,
     private val blockIfPendingTaskExists: (String) -> Boolean,
     private val runGuardedCommand: (String, Long, Boolean, (LauncherUpdate) -> Unit) -> Unit,
@@ -505,7 +506,7 @@ class LauncherBackupCoordinator(
         label: String,
         operation: () -> Pair<List<String>, String>,
     ) {
-        if (!beginBusy(label, LOCAL_BACKUP_OPERATION_TIMEOUT_MILLIS)) return
+        val operationToken = beginBusy(label, LOCAL_BACKUP_OPERATION_TIMEOUT_MILLIS) ?: return
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
@@ -517,7 +518,8 @@ class LauncherBackupCoordinator(
                     )
                 }
             }
-            releaseBusy()
+            if (!isOperationActive(operationToken)) return@launch
+            releaseBusy(operationToken)
             result.onSuccess { snapshot ->
                 persistBackupHistory(snapshot.paths)
                 state.backupArchiveDetails = snapshot.archiveDetails

@@ -7,8 +7,9 @@ class LauncherProfileCoordinator(
     private val refreshActiveProfileState: (String) -> Unit,
     private val blockIfPendingTaskExists: (String) -> Boolean,
     private val runProfileMutationPendingCommand: (PendingLauncherTask, String, Long, String) -> Unit,
-    private val beginBusy: (String, Long) -> Boolean,
-    private val releaseBusy: () -> Unit,
+    private val beginBusy: (String, Long) -> Int?,
+    private val isOperationActive: (Int) -> Boolean,
+    private val releaseBusy: (Int) -> Unit,
     private val isTransientStatus: (String) -> Boolean,
     private val isActionInProgress: () -> Boolean,
     private val isTavernRunning: () -> Boolean,
@@ -325,11 +326,15 @@ class LauncherProfileCoordinator(
 
     fun readTermuxPackageMirrorStatus() {
         if (!canRunTermuxMirrorAction("读取 Termux 包源")) return
-        if (!beginBusy("读取 Termux 包源", TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-status"))) return
+        val operationToken = beginBusy(
+            "读取 Termux 包源",
+            TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-status"),
+        ) ?: return
         statusUpdate("正在读取当前 Termux 包源。", "", false)
-        onCommand("termux-repo-status") { newStatus, termuxOutput, ok ->
+        onCommand("termux-repo-status") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isOperationActive(operationToken)) return@commandCallback
             statusUpdate(newStatus, termuxOutput, ok)
-            if (!isTransientStatus(newStatus)) releaseBusy()
+            if (!isTransientStatus(newStatus)) releaseBusy(operationToken)
         }
     }
 
@@ -340,12 +345,16 @@ class LauncherProfileCoordinator(
             return
         }
         if (!canRunTermuxMirrorAction("切换 Termux 包源")) return
-        if (!beginBusy("切换自定义 Termux 包源", TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-custom"))) return
+        val operationToken = beginBusy(
+            "切换自定义 Termux 包源",
+            TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-custom"),
+        ) ?: return
         mirrorState.customTermuxRepoInput = url
         statusUpdate("正在切换自定义 Termux 包源。", "", false)
-        onCommand("termux-repo-custom::$url") { newStatus, termuxOutput, ok ->
+        onCommand("termux-repo-custom::$url") commandCallback@{ newStatus, termuxOutput, ok ->
+            if (!isOperationActive(operationToken)) return@commandCallback
             statusUpdate(newStatus, termuxOutput, ok)
-            if (!isTransientStatus(newStatus)) releaseBusy()
+            if (!isTransientStatus(newStatus)) releaseBusy(operationToken)
         }
     }
 

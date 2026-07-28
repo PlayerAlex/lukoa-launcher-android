@@ -674,6 +674,7 @@ private fun settingsHealthSummaryText(report: LauncherHealthReport?): String {
         effectiveReport == null -> "未体检"
         effectiveReport.errorCount > 0 -> "${effectiveReport.errorCount} 个问题"
         effectiveReport.warningCount > 0 -> "${effectiveReport.warningCount} 个提醒"
+        effectiveReport.unknownCount > 0 -> "${effectiveReport.unknownCount} 项未确认"
         else -> "基本正常"
     }
 }
@@ -684,6 +685,7 @@ private fun settingsHealthSummaryTone(report: LauncherHealthReport?): Color {
         effectiveReport == null -> LukoaColors.Muted
         effectiveReport.errorCount > 0 -> LukoaColors.Danger
         effectiveReport.warningCount > 0 -> LukoaColors.Amber
+        effectiveReport.unknownCount > 0 -> LukoaColors.Muted
         else -> LukoaColors.Accent
     }
 }

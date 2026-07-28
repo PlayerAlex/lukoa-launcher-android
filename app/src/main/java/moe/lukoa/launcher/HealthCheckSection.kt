@@ -168,6 +168,7 @@ private fun summaryPillText(report: LauncherHealthReport?): String {
     return when {
         report.errorCount > 0 -> "${report.errorCount} 个问题"
         report.warningCount > 0 -> "${report.warningCount} 个提醒"
+        report.unknownCount > 0 -> "${report.unknownCount} 项未确认"
         else -> "正常"
     }
 }
@@ -177,6 +178,7 @@ private fun summaryTone(report: LauncherHealthReport?): Color {
         report == null -> LukoaColors.Muted
         report.errorCount > 0 -> LukoaColors.Danger
         report.warningCount > 0 -> LukoaColors.Amber
+        report.unknownCount > 0 -> LukoaColors.Muted
         else -> LukoaColors.Accent
     }
 }

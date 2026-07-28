@@ -7,6 +7,68 @@ import org.junit.Test
 
 class LauncherHealthCheckTest {
     @Test
+    fun `health check never reports normal while results remain unknown`() {
+        val report = LauncherHealthCheck.build(
+            checkedAtMillis = 1L,
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            backgroundRunPermissionGranted = true,
+            termuxBackgroundRunPermissionGranted = true,
+            allFilesAccessGranted = true,
+            installUnknownAppsGranted = true,
+            termuxStoragePermissionBlocked = false,
+            tavernRunning = false,
+            mirrorProbeStatus = TavernMirrorProbeStatus(),
+            doctorReport = null,
+        )
+
+        assertTrue(report.unknownCount > 0)
+        assertEquals("体检结果未完整读到", report.summaryTitle)
+        assertTrue(report.summaryDetail.contains("不能判断环境是否正常"))
+    }
+
+    @Test
+    fun `partial doctor output stays unknown instead of becoming healthy`() {
+        val healthyProbeItem = MirrorProbeItemStatus(
+            level = MirrorProbeLevel.Healthy,
+            message = "正常",
+        )
+        val report = LauncherHealthCheck.build(
+            checkedAtMillis = 1L,
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            backgroundRunPermissionGranted = true,
+            termuxBackgroundRunPermissionGranted = true,
+            allFilesAccessGranted = true,
+            installUnknownAppsGranted = true,
+            termuxStoragePermissionBlocked = false,
+            tavernRunning = false,
+            mirrorProbeStatus = TavernMirrorProbeStatus(
+                checkedAtMillis = 1L,
+                repoStatus = healthyProbeItem,
+                versionStatus = healthyProbeItem,
+                npmStatus = healthyProbeItem,
+            ),
+            doctorReport = TavernDoctorReport(
+                tavernDir = "~/SillyTavern",
+                termuxRepoLabel = "官方源",
+                termuxRepoUri = "https://packages.termux.dev/apt/termux-main",
+                summaryLevel = TavernDoctorLevel.Unknown,
+                summaryMessage = "只返回了部分字段",
+            ),
+        )
+
+        assertEquals("体检结果未完整读到", report.summaryTitle)
+        assertTrue(report.unknownCount >= 3)
+        assertEquals(
+            LauncherHealthLevel.Unknown,
+            report.items.first { it.title == "运行与端口" }.level,
+        )
+    }
+
+    @Test
     fun `health check points to termux background permission when it is the remaining blocker`() {
         val report = LauncherHealthCheck.build(
             checkedAtMillis = 1L,

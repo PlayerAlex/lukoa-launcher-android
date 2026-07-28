@@ -62,3 +62,23 @@ object TavernRuntimeStateProfileKey {
         return normalizedRuntimeDir.endsWith("/profiles/${sanitize(profileId)}")
     }
 }
+
+object TavernTermuxResultProfileScope {
+    fun matches(
+        profileId: String,
+        result: TermuxResultDisplay,
+        requireMetadata: Boolean,
+    ): Boolean {
+        if (profileId.isBlank()) return true
+        val hasMetadata = result.profileId.isNotBlank() || result.runtimeStateDir.isNotBlank()
+        if (!hasMetadata) return !requireMetadata
+        if (result.profileId.isNotBlank() && result.profileId != profileId) return false
+        if (
+            result.runtimeStateDir.isNotBlank() &&
+            !TavernRuntimeStateProfileKey.matchesRuntimeStateDir(profileId, result.runtimeStateDir)
+        ) {
+            return false
+        }
+        return true
+    }
+}

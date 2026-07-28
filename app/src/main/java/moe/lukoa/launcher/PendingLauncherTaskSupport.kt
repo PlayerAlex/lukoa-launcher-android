@@ -151,19 +151,11 @@ object PendingLauncherTaskSupport {
         task: PendingLauncherTask,
         latest: TermuxResultDisplay,
     ): Boolean {
-        if (task.profileId.isBlank()) return true
-        val hasMetadata = latest.profileId.isNotBlank() || latest.runtimeStateDir.isNotBlank()
-        if (!hasMetadata) return false
-        if (latest.profileId.isNotBlank() && latest.profileId != task.profileId) {
-            return false
-        }
-        if (
-            latest.runtimeStateDir.isNotBlank() &&
-            !TavernRuntimeStateProfileKey.matchesRuntimeStateDir(task.profileId, latest.runtimeStateDir)
-        ) {
-            return false
-        }
-        return true
+        return TavernTermuxResultProfileScope.matches(
+            profileId = task.profileId,
+            result = latest,
+            requireMetadata = true,
+        )
     }
 
     private fun refreshTargetsForKind(kind: PendingLauncherTaskKind): PendingTaskRefreshTargets {
