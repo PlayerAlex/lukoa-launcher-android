@@ -30,10 +30,16 @@ fun RepairToolsSection(
     onSetNodeMemory: (Int) -> Unit,
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
+    onShowHint: (String) -> Unit = {},
     leadingContent: (@Composable () -> Unit)? = null,
     extraContent: (@Composable () -> Unit)? = null,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
+    val mutationUnavailableHint = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再试。"
+        tavernRunning -> "酒馆正在运行，请先停止酒馆再修改这项设置。"
+        else -> null
+    }
     val uploadStatusText = uploadLimitStatus.currentMegabytes?.let(TavernUploadLimitPolicy::label)
         ?: if (uploadLimitStatus.checking) "检查中…" else "尚未读取"
     val uploadStatusTone = when {
@@ -82,27 +88,18 @@ fun RepairToolsSection(
         },
     ) {
         leadingContent?.invoke()
-        if (actionsLocked || tavernRunning) {
-            Text(
-                text = if (actionsLocked) {
-                    "当前有其他任务正在处理，设置会在任务结束后恢复。"
-                } else {
-                    "酒馆正在运行；修改类操作需要先停止酒馆。"
-                },
-                color = LukoaColors.Amber,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
         SettingsSectionDivider()
         SettingsSubsection(
             title = "常用修复",
             detail = "网页打不开、安装失败或主题损坏时可尝试。重新下载依赖会先保留旧文件，修复主题会保存一份原文件；执行前都会再次确认。",
         ) {
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = "修复 npm 依赖",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
                 accentColor = LukoaColors.Accent,
+                unavailableHint = mutationUnavailableHint,
+                onShowHint = onShowHint,
                 onClick = {
                     confirmation = RepairConfirmation(
                         "重新安装依赖",
@@ -111,11 +108,13 @@ fun RepairToolsSection(
                     )
                 },
             )
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = "网页打不开时重置主题",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
                 accentColor = LukoaColors.Info,
+                unavailableHint = mutationUnavailableHint,
+                onShowHint = onShowHint,
                 onClick = {
                     confirmation = RepairConfirmation(
                         "重置网页主题",
@@ -132,11 +131,13 @@ fun RepairToolsSection(
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(2048, 4096, 6144).forEach { memory ->
-                    SecondaryActionButton(
+                    SettingsFeedbackActionButton(
                         text = "${memory / 1024}GB",
                         modifier = Modifier.weight(1f),
                         enabled = !actionsLocked && !tavernRunning,
-                        accentColor = if (memory >= 6144) LukoaColors.Amber else LukoaColors.Accent,
+                        accentColor = LukoaColors.Accent,
+                        unavailableHint = mutationUnavailableHint,
+                        onShowHint = onShowHint,
                         onClick = {
                             confirmation = RepairConfirmation(
                                 "设置 ${memory / 1024}GB 内存上限",
@@ -146,11 +147,6 @@ fun RepairToolsSection(
                     )
                 }
             }
-            Text(
-                text = "低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。",
-                color = LukoaColors.Amber,
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
         SettingsSectionDivider()
         SettingsSubsection(
@@ -169,30 +165,29 @@ fun RepairToolsSection(
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
-            Text(
-                text = "1GB 以上会明显增加内存压力，更容易被系统结束后台。",
-                color = LukoaColors.Amber,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = if (uploadLimitStatus.checking) "检查中..." else "重新检查当前限制",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !uploadLimitStatus.checking,
                 accentColor = LukoaColors.Accent,
+                unavailableHint = when {
+                    actionsLocked -> mutationUnavailableHint
+                    uploadLimitStatus.checking -> "正在检查当前上传限制，请稍等。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
                 onClick = onCheckUploadLimit,
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
                     val current = uploadLimitStatus.currentMegabytes == limit
-                    SecondaryActionButton(
+                    SettingsFeedbackActionButton(
                         text = TavernUploadLimitPolicy.label(limit),
                         modifier = Modifier.weight(1f),
                         enabled = !actionsLocked && !tavernRunning,
-                        accentColor = when {
-                            current -> LukoaColors.Accent
-                            limit >= 2048 -> LukoaColors.Amber
-                            else -> LukoaColors.Info
-                        },
+                        accentColor = if (current) LukoaColors.Accent else LukoaColors.Info,
+                        unavailableHint = mutationUnavailableHint,
+                        onShowHint = onShowHint,
                         onClick = {
                             val label = TavernUploadLimitPolicy.label(limit)
                             confirmation = RepairConfirmation(

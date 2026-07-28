@@ -170,6 +170,27 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun launcherUpdateSettingsPanel_withoutNewVersion_explainsVersionRowTap() {
+        val hints = mutableListOf<String>()
+        setUpdatePanelContent(
+            latest = updateInfo(isNewer = false),
+            onShowHint = hints::add,
+        )
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("0.9.3-beta3") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "当前没有待安装的新版本，可以点下方“检查更新”重新检查。",
+                hints.last(),
+            )
+        }
+    }
+
+    @Test
     fun instanceManagementPanel_dispatchesEachSettingsEntry() {
         var profileCount = 0
         var directoryCount = 0
@@ -232,6 +253,7 @@ class LauncherSettingsUiTest {
 
     @Test
     fun userAndRepairSections_runningDisablesMutationsButKeepsInspection() {
+        val hints = mutableListOf<String>()
         composeRule.setContent {
             LukoaTheme {
                 Column(
@@ -247,6 +269,7 @@ class LauncherSettingsUiTest {
                         onRefresh = {},
                         onCreate = { _, _ -> },
                         onDelete = {},
+                        onShowHint = hints::add,
                     )
                     RepairToolsSection(
                         actionsLocked = false,
@@ -257,6 +280,7 @@ class LauncherSettingsUiTest {
                         onSetNodeMemory = {},
                         onCheckUploadLimit = {},
                         onSetUploadLimit = {},
+                        onShowHint = hints::add,
                     )
                 }
             }
@@ -267,6 +291,18 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("重新检查当前限制").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithText("酒馆正在运行；修改类操作需要先停止酒馆。")
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。")
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("1GB 以上会明显增加内存压力，更容易被系统结束后台。")
+            .assertDoesNotExist()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("读取用户").performScrollTo().performClick()
+        composeRule.runOnIdle {
+            assertEquals("酒馆正在运行，请先停止酒馆再管理用户。", hints.last())
+        }
     }
 
     @Test
@@ -344,6 +380,7 @@ class LauncherSettingsUiTest {
         onInstallUpdate: () -> Unit = {},
         onCheckUpdate: () -> Unit = {},
         onOpenRelease: () -> Unit = {},
+        onShowHint: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             LukoaTheme {
@@ -366,6 +403,7 @@ class LauncherSettingsUiTest {
                         onCheckUpdate = onCheckUpdate,
                         onInstallUpdate = onInstallUpdate,
                         onOpenRelease = onOpenRelease,
+                        onShowHint = onShowHint,
                     )
                 }
             }

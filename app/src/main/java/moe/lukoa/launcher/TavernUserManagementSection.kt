@@ -31,9 +31,15 @@ fun TavernUserManagementSection(
     onRefresh: () -> Unit,
     onCreate: (String, String) -> Unit,
     onDelete: (String) -> Unit,
+    onShowHint: (String) -> Unit = {},
 ) {
     var createDialog by remember { mutableStateOf(false) }
     var deleteUser by remember { mutableStateOf<TavernUserRecord?>(null) }
+    val userActionsUnavailableHint = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再试。"
+        tavernRunning -> "酒馆正在运行，请先停止酒馆再管理用户。"
+        else -> null
+    }
     if (createDialog) {
         UserInputDialog("新增酒馆用户", "登录标识", "显示名称", onDismiss = { createDialog = false }) { handle, name ->
             createDialog = false
@@ -61,13 +67,14 @@ fun TavernUserManagementSection(
                 StatusPill(
                     text = when {
                         actionsLocked -> "当前忙碌"
+                        tavernRunning -> "运行中锁定"
                         state.loading -> "读取中"
                         state.users.isEmpty() -> "未读取"
                         else -> "${state.users.size} 位用户"
                     },
                     active = actionsLocked || state.loading || state.users.isNotEmpty(),
-                    toneColor = if (actionsLocked) LukoaColors.Amber else LukoaColors.Info,
-                    activeBackground = if (actionsLocked) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
+                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
+                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看用户管理说明",
@@ -88,24 +95,31 @@ fun TavernUserManagementSection(
                     else -> state.message
                 },
                 value = instanceLabel,
-                valueColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
+                valueColor = LukoaColors.Info,
                 valueAsPill = true,
-                highlightColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
+                highlightColor = LukoaColors.Info,
             )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = if (state.loading) "读取中..." else "读取用户",
                 modifier = Modifier.weight(1f),
                 enabled = !actionsLocked && !state.loading && !tavernRunning,
                 accentColor = LukoaColors.Info,
+                unavailableHint = when {
+                    state.loading -> "正在读取用户，请稍等。"
+                    else -> userActionsUnavailableHint
+                },
+                onShowHint = onShowHint,
                 onClick = onRefresh,
             )
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = "新增用户",
                 modifier = Modifier.weight(1f),
                 enabled = !actionsLocked && !tavernRunning,
                 accentColor = LukoaColors.Accent,
+                unavailableHint = userActionsUnavailableHint,
+                onShowHint = onShowHint,
                 onClick = { createDialog = true },
             )
         }
@@ -115,6 +129,12 @@ fun TavernUserManagementSection(
                     TavernUserRow(
                         user = user,
                         deleteEnabled = !actionsLocked && !tavernRunning && user.handle != "default-user",
+                        deleteUnavailableHint = when {
+                            actionsLocked || tavernRunning -> userActionsUnavailableHint
+                            user.handle == "default-user" -> "默认用户不能删除。"
+                            else -> null
+                        },
+                        onShowHint = onShowHint,
                         onDelete = { deleteUser = user },
                     )
                     if (index < state.users.lastIndex) {
@@ -130,6 +150,8 @@ fun TavernUserManagementSection(
 private fun TavernUserRow(
     user: TavernUserRecord,
     deleteEnabled: Boolean,
+    deleteUnavailableHint: String?,
+    onShowHint: (String) -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -164,11 +186,13 @@ private fun TavernUserRow(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = "删除",
             modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
             enabled = deleteEnabled,
             accentColor = LukoaColors.Danger,
+            unavailableHint = deleteUnavailableHint,
+            onShowHint = onShowHint,
             onClick = onDelete,
         )
     }
@@ -196,12 +220,6 @@ private fun UserInputDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "登录标识创建后不能在启动器中重命名。",
-                    color = LukoaColors.Amber,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
                 OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(handleLabel) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } })
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(nameLabel) }, isError = nameError != null, supportingText = { nameError?.let { e -> Text(e) } })
             }

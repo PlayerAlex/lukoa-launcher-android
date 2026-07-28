@@ -105,6 +105,7 @@ fun SettingsSection(
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
 ) {
+    val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
     val tavernPortError = LauncherInputGuards.validateTavernPort(tavernPortInput.trim())
     val termuxExternalAppsReady = termuxInstalled && !termuxExternalAppsBlocked
@@ -323,6 +324,7 @@ fun SettingsSection(
             onCheckUpdate = onCheckUpdate,
             onInstallUpdate = onInstallUpdate,
             onOpenRelease = onOpenRelease,
+            onShowHint = showHint,
         )
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
@@ -344,6 +346,7 @@ fun SettingsSection(
             onRefresh = onRefreshTavernUsers,
             onCreate = onCreateTavernUser,
             onDelete = onDeleteTavernUser,
+            onShowHint = showHint,
         )
         RepairToolsSection(
             actionsLocked = actionsLocked,
@@ -354,6 +357,7 @@ fun SettingsSection(
             onSetNodeMemory = onSetNodeMemory,
             onCheckUploadLimit = onCheckUploadLimit,
             onSetUploadLimit = onSetUploadLimit,
+            onShowHint = showHint,
             leadingContent = {
                 SettingsEntryGroup {
                     SettingsEntryRow(
@@ -372,6 +376,7 @@ fun SettingsSection(
                     onForceCleanup = onForceCleanup,
                     onClearLogs = onClearLogs,
                     onExportDiagnostic = onExportDiagnostic,
+                    onShowHint = showHint,
                 )
             },
         )
@@ -388,6 +393,7 @@ internal fun LauncherUpdateSettingsPanel(
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
+    onShowHint: (String) -> Unit = {},
 ) {
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
     val repository = githubUpdateState.repository.ifBlank {
@@ -443,6 +449,13 @@ internal fun LauncherUpdateSettingsPanel(
                 highlightColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else null,
                 enabled = !updateLocked,
                 onClick = if (githubUpdateState.hasUpdate) onInstallUpdate else null,
+                unavailableHint = when {
+                    githubUpdateState.downloading -> "正在下载启动器更新，请稍等。"
+                    githubUpdateState.checking -> "正在检查启动器更新，请稍等。"
+                    !githubUpdateState.hasUpdate -> "当前没有待安装的新版本，可以点下方“检查更新”重新检查。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -451,6 +464,8 @@ internal fun LauncherUpdateSettingsPanel(
                 valueLayout = SettingsValueLayout.Supporting,
                 enabled = !updateLocked,
                 onClick = onOpenRepositorySettings,
+                unavailableHint = if (updateLocked) "更新任务正在进行，完成后才能修改仓库地址。" else null,
+                onShowHint = onShowHint,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -460,13 +475,15 @@ internal fun LauncherUpdateSettingsPanel(
                 valueAsPill = true,
                 enabled = !updateLocked,
                 onClick = onOpenUpdateChannelSettings,
+                unavailableHint = if (updateLocked) "更新任务正在进行，完成后才能切换更新通道。" else null,
+                onShowHint = onShowHint,
             )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = when {
                     githubUpdateState.checking -> "检查中..."
                     githubUpdateState.downloading -> "下载中..."
@@ -475,13 +492,25 @@ internal fun LauncherUpdateSettingsPanel(
                 enabled = !updateLocked,
                 accentColor = LukoaColors.Accent,
                 modifier = Modifier.weight(1f),
+                unavailableHint = when {
+                    githubUpdateState.downloading -> "正在下载启动器更新，请稍等。"
+                    githubUpdateState.checking -> "正在检查启动器更新，请稍等。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
                 onClick = onCheckUpdate,
             )
-            SecondaryActionButton(
+            SettingsFeedbackActionButton(
                 text = "打开发布页",
                 enabled = !updateLocked && releasePageAvailable,
                 accentColor = LukoaColors.Accent,
                 modifier = Modifier.weight(1f),
+                unavailableHint = when {
+                    updateLocked -> "更新任务正在进行，请稍等。"
+                    !releasePageAvailable -> "请先设置有效的启动器仓库地址，再打开发布页。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
                 onClick = onOpenRelease,
             )
         }
@@ -590,36 +619,39 @@ private fun RepairDiagnosticsContent(
     onForceCleanup: () -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
+    onShowHint: (String) -> Unit,
 ) {
+    val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     SettingsSectionDivider()
     SettingsSubsection(
         title = "诊断与日志",
-        detail = "导出诊断信息可用于排查问题。清除日志只会清空当前页面显示；“强制清理”用于残留进程，可能中断正在运行的任务。",
+        detail = "导出诊断信息可用于排查问题。清除日志只会清空当前页面显示；“强制清理”用于残留进程，可能中断正在运行的任务。\n${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
     ) {
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
             enabled = !actionsLocked,
             accentColor = LukoaColors.Danger,
             modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
             onClick = onForceCleanup,
         )
-        Text(
-            text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
-            color = LukoaColors.Amber,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = "清除日志",
             enabled = !actionsLocked,
             accentColor = LukoaColors.Accent,
             modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
             onClick = onClearLogs,
         )
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = "导出诊断日志",
             enabled = !actionsLocked,
             accentColor = LukoaColors.Accent,
             modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
             onClick = onExportDiagnostic,
         )
     }

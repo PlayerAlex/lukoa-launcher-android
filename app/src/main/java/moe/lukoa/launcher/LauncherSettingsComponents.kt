@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -90,11 +91,20 @@ internal fun SettingsEntryRow(
     highlightColor: Color? = null,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
+    unavailableHint: String? = null,
+    onShowHint: ((String) -> Unit)? = null,
 ) {
-    val feedbackClick = rememberFeedbackClick(onClick ?: {})
-    val interactionModifier = if (onClick != null) {
+    val canShowUnavailableHint = !unavailableHint.isNullOrBlank() && onShowHint != null
+    val hasInteraction = (enabled && onClick != null) || canShowUnavailableHint
+    val feedbackClick = rememberFeedbackClick(onClick = {
+        if (enabled && onClick != null) {
+            onClick()
+        } else if (canShowUnavailableHint) {
+            onShowHint(unavailableHint.orEmpty())
+        }
+    })
+    val interactionModifier = if (hasInteraction) {
         Modifier.clickable(
-            enabled = enabled,
             role = Role.Button,
             onClick = feedbackClick,
         )
@@ -110,7 +120,9 @@ internal fun SettingsEntryRow(
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .then(backgroundModifier)
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                if (!enabled) disabled()
+            }
             .then(interactionModifier)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -162,6 +174,34 @@ internal fun SettingsEntryRow(
             )
         }
     }
+}
+
+@Composable
+internal fun SettingsFeedbackActionButton(
+    text: String,
+    enabled: Boolean,
+    accentColor: Color,
+    unavailableHint: String?,
+    onShowHint: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val canShowUnavailableHint = !enabled && !unavailableHint.isNullOrBlank()
+    SecondaryActionButton(
+        text = text,
+        enabled = enabled || canShowUnavailableHint,
+        accentColor = if (enabled) accentColor else LukoaColors.Dim,
+        modifier = modifier.semantics {
+            if (!enabled) disabled()
+        },
+        onClick = {
+            if (enabled) {
+                onClick()
+            } else if (canShowUnavailableHint) {
+                onShowHint(unavailableHint.orEmpty())
+            }
+        },
+    )
 }
 
 @Composable
