@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,12 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -129,61 +132,73 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
     } else {
         0
     }
-    val elapsedText = formatBusyElapsed(elapsedSeconds)
-    val detail = busyDetailFor(label, elapsedSeconds)
-    SectionPanel(title = "正在处理", accentColor = LukoaColors.Accent) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    val elapsedText = BusyPanelPresentationResolver.formatElapsed(elapsedSeconds)
+    val presentation = BusyPanelPresentationResolver.resolve(label, elapsedSeconds)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.AccentSoft.copy(alpha = 0.42f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.34f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(8.dp)
+                            .height(8.dp)
+                            .background(LukoaColors.Accent, RoundedCornerShape(4.dp)),
+                    )
+                    Text(
+                        text = "命令执行中",
+                        color = LukoaColors.Accent,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                StatusPill(
+                    text = elapsedText,
+                    active = true,
+                    toneColor = LukoaColors.Accent,
+                    activeBackground = LukoaColors.SurfaceAlt,
+                )
+            }
             Text(
                 text = label,
-                modifier = Modifier.weight(1f),
                 color = LukoaColors.Text,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            StatusPill(
-                text = elapsedText,
-                active = true,
-                toneColor = LukoaColors.Accent,
-                activeBackground = LukoaColors.AccentSoft,
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp),
+                color = LukoaColors.Accent,
+                trackColor = LukoaColors.SurfaceAlt,
+            )
+            Text(
+                text = presentation.activityText,
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = presentation.helperText,
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
-        Text(
-            text = detail,
-            color = LukoaColors.Text,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "按钮已锁定，别重复点。完成后会显示 Termux 完整返回。",
-            color = LukoaColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-private fun formatBusyElapsed(seconds: Int): String {
-    val minutes = seconds / 60
-    val rest = seconds % 60
-    return if (minutes > 0) {
-        "%d:%02d".format(minutes, rest)
-    } else {
-        "${rest}s"
-    }
-}
-
-private fun busyDetailFor(label: String, seconds: Int): String {
-    if (!label.contains("准备 Termux 环境")) {
-        return "Termux 正在处理这个操作。"
-    }
-    return when {
-        seconds < 20 -> "已发送命令，正在连接 Termux 包源。"
-        seconds < 90 -> "可能正在执行 apt update 或升级基础包。"
-        seconds < 240 -> "可能正在安装 git、node、npm，首次安装会比较久。"
-        else -> "仍在等待 Termux 回传。只要按钮还锁着，就说明启动器还在等结果。"
     }
 }

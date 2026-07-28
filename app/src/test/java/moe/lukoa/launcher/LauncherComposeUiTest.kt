@@ -88,10 +88,63 @@ class LauncherComposeUiTest {
     }
 
     @Test
+    fun quickStartGuide_focusesOnOneNextStepAndShowsVerticalProgress() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    QuickStartGuideSection(
+                        termuxInstalled = false,
+                        runCommandPermissionGranted = false,
+                        externalAppsBlocked = false,
+                        tavernInstallDetected = null,
+                        tavernVersionChecking = false,
+                        termuxSetupRecommended = false,
+                        officialVersions = TavernOfficialVersions(),
+                        selectedVersion = null,
+                        mirrorRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
+                        commandText = "allow-external-apps=true",
+                        actionsLocked = false,
+                        onOpenTermuxDownload = {},
+                        onOpenTermuxGithub = {},
+                        onRecheckTermux = {},
+                        onRequestPermission = {},
+                        onOpenPermissionSettings = {},
+                        onCopyPermissionCommand = {},
+                        onOpenTermux = {},
+                        onRecheckPermission = {},
+                        onPrepareTermux = {},
+                        onCheckTavern = {},
+                        onShowInstall = {},
+                        onRefreshOfficialVersions = {},
+                        onSelectVersion = {},
+                        onUseRecommendedVersion = {},
+                        onInstallTavern = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("第一次使用").assertExists()
+        composeRule.onNodeWithText("露科亚安装向导").assertDoesNotExist()
+        composeRule.onNodeWithText("已完成 0/4").assertExists()
+        composeRule.onNodeWithText("现在只做这一项").assertExists()
+        composeRule.onNodeWithText("安装并打开一次 Termux").assertIsDisplayed()
+        composeRule.onNodeWithText("安装 Termux").assertExists()
+        composeRule.onNodeWithText("连接 Termux").assertExists()
+        composeRule.onNodeWithText("准备运行环境").assertExists()
+        composeRule.onNodeWithText("确认并安装酒馆").assertExists()
+    }
+
+    @Test
     fun backupLibrary_riskyRecordActionsPassExactArchivePath() {
         val archivePath =
             "/storage/emulated/0/Download/LukoaLauncher/backups/sd/sd-ui-test.tar.gz"
         var appliedPath: String? = null
+        var renamedPath: String? = null
         var deletedPath: String? = null
 
         composeRule.setContent {
@@ -115,7 +168,7 @@ class LauncherComposeUiTest {
                         onOpenAutoBackupSettings = {},
                         onApplyBackup = { appliedPath = it },
                         onCopyBackup = {},
-                        onRenameBackup = {},
+                        onRenameBackup = { renamedPath = it },
                         onDeleteBackup = { deletedPath = it },
                         onExportBackup = {},
                         onImportBackup = {},
@@ -134,6 +187,10 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("sd-ui-test.tar.gz")
             .performScrollTo()
             .assertIsDisplayed()
+        composeRule.onNode(hasText("重命名") and hasClickAction())
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
         composeRule.onNode(hasText("应用并覆盖") and hasClickAction())
             .performScrollTo()
             .performClick()
@@ -143,6 +200,7 @@ class LauncherComposeUiTest {
 
         composeRule.runOnIdle {
             assertEquals(archivePath, appliedPath)
+            assertEquals(archivePath, renamedPath)
             assertEquals(archivePath, deletedPath)
         }
     }

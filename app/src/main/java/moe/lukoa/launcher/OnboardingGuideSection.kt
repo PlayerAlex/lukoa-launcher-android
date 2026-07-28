@@ -72,8 +72,8 @@ fun QuickStartGuideSection(
     val current = when {
         !termuxInstalled -> WizardAction(
             step = "第 1 步",
-            title = "先把 Termux 装好",
-            detail = "点下载，装好后打开 Termux 一次，再回来检测。",
+            title = "安装并打开一次 Termux",
+            detail = "先安装 Termux。安装完成后必须打开一次，让它做好初始准备，再回来重新检测。",
             primaryText = "下载 Termux",
             primaryEnabled = !actionsLocked,
             primary = onOpenTermuxDownload,
@@ -85,8 +85,8 @@ fun QuickStartGuideSection(
         )
         termuxInstalled && !runCommandPermissionGranted -> WizardAction(
             step = "第 2 步",
-            title = "允许启动器调用 Termux",
-            detail = "先点请求权限。没弹窗就点权限设置。",
+            title = "允许启动器发送任务",
+            detail = "先请求系统权限；如果手机没有弹出授权窗口，再打开权限设置手动允许。",
             primaryText = "请求系统权限",
             primaryEnabled = !actionsLocked,
             primary = onRequestPermission,
@@ -99,7 +99,7 @@ fun QuickStartGuideSection(
         externalAppsBlocked -> WizardAction(
             step = "第 2 步",
             title = "打开 Termux 外部调用",
-            detail = "复制命令，打开 Termux 粘贴执行一次。",
+            detail = "复制下面的命令，打开 Termux 粘贴并回车。完成后回到这里重新检测。",
             primaryText = "复制权限命令",
             primaryEnabled = !actionsLocked,
             primary = onCopyPermissionCommand,
@@ -113,7 +113,7 @@ fun QuickStartGuideSection(
         termuxSetupRecommended -> WizardAction(
             step = "第 3 步",
             title = "准备 Termux 环境",
-            detail = "Termux 上次安装可能没收尾。点这里自动修一下。",
+            detail = "启动器会自动安装酒馆需要的基础工具。第一次准备可能需要几分钟。",
             primaryText = "准备 Termux 环境",
             primaryEnabled = !actionsLocked,
             primary = onPrepareTermux,
@@ -125,8 +125,8 @@ fun QuickStartGuideSection(
         )
         tavernInstallDetected == null -> WizardAction(
             step = "第 4 步",
-            title = "看看手机里有没有酒馆",
-            detail = "老用户点检测；第一次用就直接进入安装。",
+            title = "确认手机里有没有酒馆",
+            detail = "以前安装过酒馆就先检测；第一次使用可以直接进入安装。",
             primaryText = if (tavernVersionChecking) "检测中..." else "检测本机酒馆",
             primaryEnabled = !actionsLocked && !tavernVersionChecking,
             primary = onCheckTavern,
@@ -139,7 +139,7 @@ fun QuickStartGuideSection(
         tavernInstallDetected == false -> WizardAction(
             step = "第 4 步",
             title = "安装酒馆",
-            detail = "默认安装 release 稳定分支。装完回到本页，直接点“启动酒馆”就行。",
+            detail = "默认稳定版适合大多数人。安装通常需要 5–10 分钟，完成后就能启动酒馆。",
             primaryText = "安装 ${effectiveSelectedVersion.label}",
             primaryEnabled = !actionsLocked,
             primary = onInstallTavern,
@@ -165,12 +165,35 @@ fun QuickStartGuideSection(
         )
     }
 
-    SectionPanel(title = "露科亚安装向导", accentColor = LukoaColors.Accent) {
+    val completedSteps = (stepIndex - 1).coerceIn(0, 4)
+
+    SectionPanel(
+        title = "第一次使用",
+        accentColor = LukoaColors.Accent,
+        headerAction = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = "已完成 $completedSteps/4",
+                    active = completedSteps > 0,
+                    toneColor = LukoaColors.Accent,
+                    activeBackground = LukoaColors.AccentSoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看第一次使用说明",
+                    title = "第一次使用",
+                    body = "这里每次只推荐下一步，按绿色主按钮继续即可；灰色按钮用于重新检测或打开备用入口。\n酒馆会安装到设置里的当前实例路径，默认是 ~/SillyTavern。安装通常需要 5–10 分钟，期间保持 Termux 可以在后台运行。\n不知道版本怎么选时使用默认稳定版。完成安装后，回到启动页点击“启动酒馆”。",
+                )
+            }
+        },
+    ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.AccentSoft.copy(alpha = 0.72f),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, current.tone.copy(alpha = 0.58f)),
+            color = LukoaColors.SurfaceAlt,
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, current.tone.copy(alpha = 0.48f)),
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
@@ -181,27 +204,47 @@ fun QuickStartGuideSection(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    StepStamp(text = current.step, color = current.tone)
+                    Surface(
+                        color = LukoaColors.AccentSoft,
+                        shape = LukoaCapsuleShape,
+                        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.42f)),
+                    ) {
+                        Text(
+                            text = current.step,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            color = LukoaColors.Accent,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
                         Text(
+                            text = "现在只做这一项",
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
                             text = current.title,
                             color = LukoaColors.Text,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = current.detail,
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+
+                Text(
+                    text = current.detail,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                if (current.commandText.isNotBlank()) {
+                    CommandSnippet(text = current.commandText)
                 }
 
                 SecondaryActionButton(
@@ -212,56 +255,16 @@ fun QuickStartGuideSection(
                     onClick = current.primary,
                 )
 
-                if (tavernInstallDetected == false) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "不懂版本就直接装默认稳定版。",
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "安装通常会持续 5-10 分钟，这是正常的，等待即可。",
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Text(
-                            text = "默认会装到设置里的酒馆路径；没改过的话就是 ~/LukoaLauncher/SillyTavern。",
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Text(
-                            text = "安装完成后，回到上方酒馆控制，点一次“启动酒馆”即可。",
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Text(
-                            text = "第一次启动前，启动器会按你的手机类型再提醒一次：非 iQOO 先把 Termux 挂小窗，iQOO 先给 Termux 开后台。",
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-
                 if (current.secondary.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        current.secondary.take(2).forEach { action ->
-                            SecondaryActionButton(
-                                text = action.text,
-                                enabled = action.enabled,
-                                accentColor = LukoaColors.Accent,
-                                modifier = Modifier.weight(1f),
-                                onClick = action.onClick,
-                            )
-                        }
+                    current.secondary.take(2).forEach { action ->
+                        SecondaryActionButton(
+                            text = action.text,
+                            enabled = action.enabled,
+                            accentColor = LukoaColors.Accent,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = action.onClick,
+                        )
                     }
-                }
-
-                if (current.commandText.isNotBlank()) {
-                    CommandSnippet(text = current.commandText)
                 }
 
                 if (tavernInstallDetected == false && !termuxSetupRecommended && officialVersions.hasData) {
@@ -273,24 +276,29 @@ fun QuickStartGuideSection(
                         onSelectVersion = onSelectVersion,
                     )
                 }
+
+                if (actionsLocked) {
+                    Text(
+                        text = "这一步正在执行，完成后按钮会自动恢复，不需要重复点击。",
+                        color = LukoaColors.Text,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            WizardStepChip("1", "Termux", stepIndex > 1, stepIndex == 1, Modifier.weight(1f))
-            WizardStepChip("2", "权限", stepIndex > 2, stepIndex == 2, Modifier.weight(1f))
-            WizardStepChip("3", "环境", stepIndex > 3, stepIndex == 3, Modifier.weight(1f))
-            WizardStepChip("4", "酒馆", stepIndex > 4, stepIndex == 4, Modifier.weight(1f))
-        }
-
         Text(
-            text = if (actionsLocked) "正在执行上一步，等按钮恢复再继续。" else "按绿色按钮继续；不确定就不要点别的。",
-            color = if (actionsLocked) LukoaColors.Amber else LukoaColors.Muted,
+            text = "准备进度",
+            color = LukoaColors.Text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        OnboardingProgressList(currentStep = stepIndex)
+        Text(
+            text = "完成这 4 步后，新手指引会自动收起。",
+            color = LukoaColors.Muted,
             style = MaterialTheme.typography.bodySmall,
-            fontWeight = if (actionsLocked) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
 }
@@ -314,67 +322,81 @@ private data class WizardSecondaryAction(
 )
 
 @Composable
-private fun StepStamp(text: String, color: Color) {
+private fun OnboardingProgressList(currentStep: Int) {
+    val steps = listOf(
+        "安装 Termux",
+        "连接 Termux",
+        "准备运行环境",
+        "确认并安装酒馆",
+    )
     Surface(
-        color = color.copy(alpha = 0.14f),
-        shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt.copy(alpha = 0.58f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = color,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-        )
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            steps.forEachIndexed { index, label ->
+                val number = index + 1
+                val done = number < currentStep
+                val current = number == currentStep
+                OnboardingProgressRow(
+                    number = number,
+                    label = label,
+                    done = done,
+                    current = current,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun WizardStepChip(
-    number: String,
+private fun OnboardingProgressRow(
+    number: Int,
     label: String,
     done: Boolean,
     current: Boolean,
-    modifier: Modifier = Modifier,
 ) {
-    val tone = when {
-        done || current -> LukoaColors.Accent
-        else -> LukoaColors.Muted
-    }
-    val background = when {
-        done -> LukoaColors.AccentSoft
-        current -> LukoaColors.SurfaceAlt
-        else -> LukoaColors.Surface
-    }
-    Surface(
-        modifier = modifier.heightIn(min = 46.dp),
-        color = background,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (done || current) tone.copy(alpha = 0.5f) else LukoaColors.Line),
+    val tone = if (done || current) LukoaColors.Accent else LukoaColors.Muted
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+        Surface(
+            color = if (done || current) LukoaColors.AccentSoft else LukoaColors.Surface,
+            shape = LukoaCapsuleShape,
+            border = BorderStroke(1.dp, tone.copy(alpha = if (done || current) 0.48f else 0.28f)),
         ) {
             Text(
-                text = if (done) "✓" else number,
+                text = if (done) "✓" else number.toString(),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 color = tone,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-            )
-            Text(
-                text = label,
-                color = if (done || current) LukoaColors.Text else LukoaColors.Muted,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold,
             )
         }
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            color = if (done || current) LukoaColors.Text else LukoaColors.Muted,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
+        )
+        Text(
+            text = when {
+                done -> "已完成"
+                current -> "当前"
+                else -> "稍后"
+            },
+            color = tone,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (done || current) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }
 

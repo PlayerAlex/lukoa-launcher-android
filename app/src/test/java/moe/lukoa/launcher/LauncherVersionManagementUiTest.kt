@@ -75,8 +75,41 @@ class LauncherVersionManagementUiTest {
         composeRule.runOnIdle { assertEquals(1, rollbackCount) }
     }
 
+    @Test
+    fun versionPage_localChangesShowsWhereAndHowToRestore() {
+        val target = versionChoice("1.14.0")
+        setVersionPageContent(
+            target = target,
+            currentInfo = TavernVersionInfo(
+                hasData = true,
+                directory = "~/SillyTavern",
+                packageVersion = "1.13.0",
+                branch = "release",
+                commit = "abcdef123456",
+                describe = "1.13.0",
+                localChanges = "1",
+                changedFilesPreview = " M public/index.html",
+            ),
+        )
+
+        composeRule.onNodeWithText("检测到本地修改").assertIsDisplayed()
+        composeRule.onNodeWithText("修改位置：~/SillyTavern").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("检测到的文件").assertIsDisplayed()
+    }
+
     private fun setVersionPageContent(
         target: TavernVersionChoice,
+        currentInfo: TavernVersionInfo = TavernVersionInfo(
+            hasData = true,
+            directory = "~/SillyTavern",
+            packageVersion = "1.13.0",
+            branch = "release",
+            commit = "abcdef123456",
+            describe = "1.13.0",
+        ),
         onUpdate: () -> Unit = {},
         onRollback: () -> Unit = {},
     ) {
@@ -91,14 +124,7 @@ class LauncherVersionManagementUiTest {
                         actionsLocked = false,
                         tavernRunning = false,
                         tavernStarting = false,
-                        tavernVersionInfo = TavernVersionInfo(
-                            hasData = true,
-                            directory = "~/SillyTavern",
-                            packageVersion = "1.13.0",
-                            branch = "release",
-                            commit = "abcdef123456",
-                            describe = "1.13.0",
-                        ),
+                        tavernVersionInfo = currentInfo,
                         officialVersions = TavernOfficialVersions(
                             stable = listOf(target),
                         ),

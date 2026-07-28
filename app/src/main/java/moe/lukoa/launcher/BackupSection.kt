@@ -638,14 +638,14 @@ private fun BackupRecordLine(
                     modifier = Modifier.weight(1f),
                     onClick = onCopy,
                 )
-                BackupActionButton(
-                    text = "重命名",
-                    enabled = !actionsLocked,
-                    accentColor = LukoaColors.Accent,
-                    modifier = Modifier.weight(1f),
-                    onClick = onRename,
-                )
             }
+            BackupActionButton(
+                text = "重命名",
+                enabled = !actionsLocked,
+                accentColor = LukoaColors.Accent,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onRename,
+            )
             BackupActionRow {
                 BackupActionButton(
                     text = "应用并覆盖",

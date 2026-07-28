@@ -133,7 +133,7 @@ private fun CurrentVersionSection(
                 InfoPopoverButton(
                     contentDescription = "查看当前安装说明",
                     title = "当前安装",
-                    body = "这里显示当前这套 SillyTavern 酒馆安装的版本和位置。\n“本地已修改”表示程序文件与原版本不完全一样。为了避免覆盖这些文件，启动器会暂时阻止更新和回退。\n提交号、Git 描述和回退点属于排错信息，普通使用时不用查看。",
+                    body = "这里显示当前这套 SillyTavern 酒馆安装的版本和位置。\n“本地已修改”表示酒馆目录里的程序文件被改过。启动器会在提示中写出修改所在目录和恢复后的检查步骤。\n提交号、Git 描述和回退点属于排错信息，普通使用时不用查看。",
                 )
             }
         },
@@ -152,7 +152,10 @@ private fun CurrentVersionSection(
                 VersionInfoLine("酒馆位置", tavernVersionInfo.directory.ifBlank { "未读取" })
 
                 if (tavernVersionInfo.hasLocalChanges) {
-                    LocalChangesNotice(tavernVersionInfo.changedFilesPreview)
+                    LocalChangesNotice(
+                        directory = tavernVersionInfo.directory,
+                        changedFilesPreview = tavernVersionInfo.changedFilesPreview,
+                    )
                 }
 
                 SecondaryActionButton(
@@ -218,7 +221,11 @@ private fun CurrentVersionSection(
 }
 
 @Composable
-private fun LocalChangesNotice(changedFilesPreview: String) {
+private fun LocalChangesNotice(
+    directory: String,
+    changedFilesPreview: String,
+) {
+    val location = directory.ifBlank { "上方“酒馆位置”显示的目录" }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.AmberSoft.copy(alpha = 0.82f),
@@ -229,18 +236,42 @@ private fun LocalChangesNotice(changedFilesPreview: String) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "检测到本地修改",
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看恢复本地修改的方法",
+                    title = "怎样恢复原文件",
+                    body = "先到备份页生成一份手动备份，再打开 Termux，进入提示里的酒馆目录，用 Git 恢复你改过的程序文件。\n启动器不会自动还原，因为自动处理可能删除你想保留的修改。不会使用 Git 时，不要直接删除文件，可以先导出诊断日志寻求帮助。\n恢复完成后回到版本页，点击“重新检测当前版本”。",
+                )
+            }
             Text(
-                text = "检测到本地修改",
-                color = LukoaColors.Amber,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
+                text = "修改位置：$location",
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "为避免覆盖这些文件，更新和回退已暂时锁定。不确定怎么处理时，先生成一份手动备份。",
+                text = "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
                 color = LukoaColors.Text,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (changedFilesPreview.isNotBlank()) {
+                Text(
+                    text = "检测到的文件",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     text = changedFilesPreview,
                     color = LukoaColors.Muted,
