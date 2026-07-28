@@ -3469,6 +3469,7 @@ fun LukoaLauncherScreen(
                             )
                         }
                         LauncherTab.Backup -> BackupSection(
+                            activeInstanceLabel = tavernPathConfig.activeProfileLabel,
                             actionsLocked = actionInProgress || backupUiState.applyBackupPreviewRequest != null,
                             backupListRefreshing = backupUiState.backupListRefreshing,
                             autoBackupEnabled = autoBackupEnabled,
@@ -3486,7 +3487,6 @@ fun LukoaLauncherScreen(
                             onExportBackup = backupCoordinator::exportBackupArchive,
                             onImportBackup = backupCoordinator::pickAndImportExternalBackup,
                             onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
-                            onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Settings -> SettingsSection(
                             termuxReturnDelayMs = termuxReturnDelayMs,

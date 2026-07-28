@@ -88,10 +88,11 @@ class LauncherComposeUiTest {
     }
 
     @Test
-    fun backupLibrary_applyingRecordPassesExactArchivePath() {
+    fun backupLibrary_riskyRecordActionsPassExactArchivePath() {
         val archivePath =
             "/storage/emulated/0/Download/LukoaLauncher/backups/sd/sd-ui-test.tar.gz"
         var appliedPath: String? = null
+        var deletedPath: String? = null
 
         composeRule.setContent {
             LukoaTheme {
@@ -101,6 +102,7 @@ class LauncherComposeUiTest {
                         .verticalScroll(rememberScrollState()),
                 ) {
                     BackupSection(
+                        activeInstanceLabel = "主实例",
                         actionsLocked = false,
                         backupListRefreshing = false,
                         autoBackupEnabled = false,
@@ -114,7 +116,7 @@ class LauncherComposeUiTest {
                         onApplyBackup = { appliedPath = it },
                         onCopyBackup = {},
                         onRenameBackup = {},
-                        onDeleteBackup = {},
+                        onDeleteBackup = { deletedPath = it },
                         onExportBackup = {},
                         onImportBackup = {},
                         onCopyBackupLibraryPath = {},
@@ -125,19 +127,23 @@ class LauncherComposeUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("数据安全").assertDoesNotExist()
-
-        composeRule.onNode(hasText("备份库") and hasClickAction())
-            .performScrollTo()
-            .performClick()
+        composeRule.onNodeWithText("备份分区").assertDoesNotExist()
+        composeRule.onNodeWithText("快速操作").assertExists()
+        composeRule.onNodeWithText("修改自动规则").assertExists()
+        composeRule.onNodeWithText("备份库").assertExists()
         composeRule.onNodeWithText("sd-ui-test.tar.gz")
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNode(hasText("应用") and hasClickAction())
+        composeRule.onNode(hasText("应用并覆盖") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNode(hasText("删除") and hasClickAction())
             .performScrollTo()
             .performClick()
 
         composeRule.runOnIdle {
             assertEquals(archivePath, appliedPath)
+            assertEquals(archivePath, deletedPath)
         }
     }
 

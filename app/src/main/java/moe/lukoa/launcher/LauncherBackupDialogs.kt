@@ -4,13 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -110,17 +113,18 @@ fun AutoBackupSettingsDialog(
         textContentColor = LukoaColors.Text,
         title = {
             SettingsDialogTitle(
-                title = "自动备份设置",
-                infoText = "备份间隔决定多久自动保存一次，可设为 10 分钟到 12 小时。\n保留数量决定最多留下几份自动备份；超过后只删除最旧的自动备份，不会删除手动备份。\n不知道怎么选时，保持默认值即可。",
+                title = "自动备份规则",
+                infoText = "备份间隔决定多久自动保存一次，可设为 10 分钟到 12 小时。\n保留数量决定最多留下几份自动备份；超过后只清理最旧的自动备份，不会删除手动备份。\n不知道怎么选时，保持当前规则即可。",
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = if (enabled) "自动备份已开启" else "自动备份未开启，请回到备份页开启。",
-                    color = if (enabled) LukoaColors.Accent else LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
+                StatusPill(
+                    text = if (enabled) "自动备份已开启" else "自动备份未开启",
+                    active = enabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    toneColor = if (enabled) LukoaColors.Accent else LukoaColors.Muted,
+                    activeBackground = LukoaColors.AccentSoft,
                 )
                 AutoBackupIntervalPanel(
                     intervalMinutes = intervalMinutes,
@@ -169,34 +173,41 @@ private fun AutoBackupIntervalPanel(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "备份间隔",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "每 ${formatBackupInterval(intervalMinutes)} 一次",
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "备份间隔",
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "每 ${formatBackupInterval(intervalMinutes)} 一次",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AutoBackupAdjustButton("--", enabled, Modifier.weight(1f), onDecreaseLarge)
-                AutoBackupAdjustButton("-", enabled, Modifier.weight(1f), onDecrease)
-                AutoBackupAdjustButton("+", enabled, Modifier.weight(1f), onIncrease)
-                AutoBackupAdjustButton("++", enabled, Modifier.weight(1f), onIncreaseLarge)
+                AutoBackupAdjustButton("少 10 分钟", enabled, Modifier.weight(1f), onDecrease)
+                AutoBackupAdjustButton("多 10 分钟", enabled, Modifier.weight(1f), onIncrease)
             }
-            Text(
-                text = "- / + 调 10 分钟，-- / ++ 调 1 小时。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AutoBackupAdjustButton("少 1 小时", enabled, Modifier.weight(1f), onDecreaseLarge)
+                AutoBackupAdjustButton("多 1 小时", enabled, Modifier.weight(1f), onIncreaseLarge)
+            }
         }
     }
 }
@@ -223,28 +234,27 @@ private fun AutoBackupKeepPanel(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "保留数量",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "$keepCount 个",
-                        color = LukoaColors.Text,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                AutoBackupAdjustButton("-", enabled, Modifier.weight(0.5f), onDecrease)
-                AutoBackupAdjustButton("+", enabled, Modifier.weight(0.5f), onIncrease)
+                Text(
+                    text = "保留数量",
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "$keepCount 份",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
             }
-            Text(
-                text = "超过这个数量后，从最旧的自动备份开始删除。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AutoBackupAdjustButton("少 1 份", enabled, Modifier.weight(1f), onDecrease)
+                AutoBackupAdjustButton("多 1 份", enabled, Modifier.weight(1f), onIncrease)
+            }
         }
     }
 }
@@ -256,13 +266,32 @@ private fun AutoBackupAdjustButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    SecondaryActionButton(
-        text = text,
+    val feedbackClick = rememberFeedbackClick(onClick)
+    OutlinedButton(
+        onClick = feedbackClick,
         enabled = enabled,
-        accentColor = LukoaColors.Accent,
-        modifier = modifier.height(38.dp),
-        onClick = onClick,
-    )
+        modifier = modifier.height(40.dp),
+        shape = LukoaCapsuleShape,
+        border = BorderStroke(
+            1.dp,
+            if (enabled) LukoaColors.Accent.copy(alpha = 0.3f) else LukoaColors.Line.copy(alpha = 0.3f),
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (enabled) LukoaColors.Accent.copy(alpha = 0.05f) else LukoaColors.SurfaceAlt,
+            contentColor = if (enabled) LukoaColors.Accent else LukoaColors.Dim,
+            disabledContainerColor = LukoaColors.SurfaceAlt,
+            disabledContentColor = LukoaColors.Dim,
+        ),
+    ) {
+        Text(
+            text = text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
 }
 
 @Composable
