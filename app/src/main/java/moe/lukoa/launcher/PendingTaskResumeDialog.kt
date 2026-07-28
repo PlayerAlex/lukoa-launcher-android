@@ -38,6 +38,7 @@ fun PendingTaskResumeDialog(
     onDismiss: () -> Unit,
 ) {
     var confirmAbandon by remember(task.kind, task.startedAtMillis) { mutableStateOf(false) }
+    val taskMayStillBeRunning = !activeLockLabel.isNullOrBlank()
 
     if (confirmAbandon) {
         PendingTaskAbandonDialog(
@@ -56,12 +57,18 @@ fun PendingTaskResumeDialog(
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Text,
         textContentColor = LukoaColors.Text,
-        title = { Text("上次操作需要确认") },
+        title = {
+            Text(if (taskMayStillBeRunning) "任务跟踪已中断" else "上次操作需要确认")
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PendingTaskStateHeader(activeLockLabel = activeLockLabel)
                 Text(
-                    text = "启动器没有收到上次操作的最终结果。这不代表操作失败，也不会自动再执行一次。\n推荐先检查结果：只会查找已有返回并刷新状态。",
+                    text = if (taskMayStillBeRunning) {
+                        "启动器重新打开后，无法继续实时跟踪这次操作。Termux 里的任务可能仍在执行，这不代表任务失败，也不会自动重做。\n推荐先检查结果：只会查找已有返回并刷新状态。"
+                    } else {
+                        "启动器没有收到上次操作的最终结果。这不代表操作失败，也不会自动再执行一次。\n推荐先检查结果：只会查找已有返回并刷新状态。"
+                    },
                     color = LukoaColors.Text,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -96,10 +103,12 @@ fun PendingTaskResumeDialog(
 @Composable
 fun PendingTaskNoticePanel(
     task: PendingLauncherTask,
+    activeLockLabel: String?,
     onContinueCheck: () -> Unit,
     onAbandon: () -> Unit,
 ) {
     var confirmAbandon by remember(task.kind, task.startedAtMillis) { mutableStateOf(false) }
+    val taskMayStillBeRunning = !activeLockLabel.isNullOrBlank()
 
     if (confirmAbandon) {
         PendingTaskAbandonDialog(
@@ -159,7 +168,11 @@ fun PendingTaskNoticePanel(
             }
 
             Text(
-                text = "等待时间已经结束，但启动器还没收到最终结果。先检查已有结果；不会重新执行${task.title}。",
+                text = if (taskMayStillBeRunning) {
+                    "启动器已重新打开，Termux 里的任务可能仍在执行。先检查已有结果；不会重新执行${task.title}。"
+                } else {
+                    "等待时间已经结束，但启动器还没收到最终结果。先检查已有结果；不会重新执行${task.title}。"
+                },
                 color = LukoaColors.Text,
                 style = MaterialTheme.typography.bodySmall,
             )

@@ -11,11 +11,33 @@ data class PendingTaskResolveResult(
     val refreshTargets: PendingTaskRefreshTargets = PendingTaskRefreshTargets(),
 )
 
+data class PendingTaskUiVisibility(
+    val showRecoveryUi: Boolean,
+    val showBusyUi: Boolean,
+)
+
 object PendingLauncherTaskSupport {
+    fun uiVisibility(
+        task: PendingLauncherTask?,
+        operationActive: Boolean,
+        operationRestored: Boolean,
+    ): PendingTaskUiVisibility {
+        val showRecoveryUi = task != null && (!operationActive || operationRestored)
+        return PendingTaskUiVisibility(
+            showRecoveryUi = showRecoveryUi,
+            showBusyUi = operationActive && !showRecoveryUi,
+        )
+    }
+
     fun shouldShowRecoveryUi(
         task: PendingLauncherTask?,
         operationActive: Boolean,
-    ): Boolean = task != null && !operationActive
+        operationRestored: Boolean = false,
+    ): Boolean = uiVisibility(
+        task = task,
+        operationActive = operationActive,
+        operationRestored = operationRestored,
+    ).showRecoveryUi
 
     fun selectedVersionTargetLabel(selectedVersion: TavernVersionChoice?): String {
         return selectedVersion?.label?.trim().orEmpty()

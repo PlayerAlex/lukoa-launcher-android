@@ -301,14 +301,18 @@ fun LukoaLauncherScreen(
             PendingLauncherTaskSupport.shouldShowRecoveryUi(
                 task = initialPendingLauncherTask,
                 operationActive = initialRestoredOperationLock != null,
+                operationRestored = initialRestoredOperationLock != null,
             ),
         )
     }
     val actionInProgress = busyLabel != null
-    val pendingTaskNeedsRecovery = PendingLauncherTaskSupport.shouldShowRecoveryUi(
+    val pendingTaskUiVisibility = PendingLauncherTaskSupport.uiVisibility(
         task = pendingLauncherTask,
         operationActive = actionInProgress,
+        operationRestored = restoredOperationLockActive,
     )
+    val pendingTaskNeedsRecovery = pendingTaskUiVisibility.showRecoveryUi
+    val showBusyOperationPanel = pendingTaskUiVisibility.showBusyUi
     val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
     val scope = rememberCoroutineScope()
     val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
@@ -3332,7 +3336,7 @@ fun LukoaLauncherScreen(
                     )
 
                     if (tab != LauncherTab.Launch) {
-                        if (busyLabel != null) {
+                        if (showBusyOperationPanel) {
                             BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                         }
                         pendingLauncherTask
@@ -3340,6 +3344,7 @@ fun LukoaLauncherScreen(
                             ?.let { task ->
                                 PendingTaskNoticePanel(
                                     task = task,
+                                    activeLockLabel = busyLabel,
                                     onContinueCheck = ::continuePendingLauncherTask,
                                     onAbandon = ::abandonPendingLauncherTask,
                                 )
@@ -3389,7 +3394,7 @@ fun LukoaLauncherScreen(
                                 tavernStarting = tavernStarting,
                                 syncActive = termuxInstalled && runCommandPermissionGranted,
                             )
-                            if (busyLabel != null) {
+                            if (showBusyOperationPanel) {
                                 BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                             } else {
                                 pendingLauncherTask
@@ -3397,6 +3402,7 @@ fun LukoaLauncherScreen(
                                     ?.let { task ->
                                         PendingTaskNoticePanel(
                                             task = task,
+                                            activeLockLabel = busyLabel,
                                             onContinueCheck = ::continuePendingLauncherTask,
                                             onAbandon = ::abandonPendingLauncherTask,
                                         )

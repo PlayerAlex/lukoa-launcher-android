@@ -8,7 +8,7 @@ import org.junit.Test
 
 class PendingLauncherTaskSupportTest {
     @Test
-    fun `active operation keeps pending task in running state instead of recovery ui`() {
+    fun `live operation keeps pending task in running state instead of recovery ui`() {
         val task = PendingLauncherTask(
             kind = PendingLauncherTaskKind.ManualBackup,
             commandName = "tavern-backup",
@@ -16,9 +16,45 @@ class PendingLauncherTaskSupportTest {
             startedAtMillis = 1L,
         )
 
-        assertFalse(PendingLauncherTaskSupport.shouldShowRecoveryUi(task, operationActive = true))
-        assertTrue(PendingLauncherTaskSupport.shouldShowRecoveryUi(task, operationActive = false))
-        assertFalse(PendingLauncherTaskSupport.shouldShowRecoveryUi(null, operationActive = false))
+        val visibility = PendingLauncherTaskSupport.uiVisibility(
+            task = task,
+            operationActive = true,
+            operationRestored = false,
+        )
+
+        assertFalse(visibility.showRecoveryUi)
+        assertTrue(visibility.showBusyUi)
+    }
+
+    @Test
+    fun `restored operation shows interruption recovery instead of endless busy ui`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.ManualBackup,
+            commandName = "tavern-backup",
+            detail = "正在创建酒馆备份",
+            startedAtMillis = 1L,
+        )
+
+        val visibility = PendingLauncherTaskSupport.uiVisibility(
+            task = task,
+            operationActive = true,
+            operationRestored = true,
+        )
+
+        assertTrue(visibility.showRecoveryUi)
+        assertFalse(visibility.showBusyUi)
+    }
+
+    @Test
+    fun `restored operation without pending task keeps normal busy ui`() {
+        val visibility = PendingLauncherTaskSupport.uiVisibility(
+            task = null,
+            operationActive = true,
+            operationRestored = true,
+        )
+
+        assertFalse(visibility.showRecoveryUi)
+        assertTrue(visibility.showBusyUi)
     }
 
     @Test

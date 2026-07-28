@@ -37,10 +37,10 @@ class PendingTaskResumeUiTest {
             }
         }
 
-        composeRule.onNodeWithText("上次操作需要确认").assertIsDisplayed()
+        composeRule.onNodeWithText("任务跟踪已中断").assertIsDisplayed()
         composeRule.onNodeWithText("检测到上次任务没收尾").assertDoesNotExist()
         composeRule.onNodeWithText(
-            "启动器没有收到上次操作的最终结果。这不代表操作失败，也不会自动再执行一次。\n推荐先检查结果：只会查找已有返回并刷新状态。",
+            "启动器重新打开后，无法继续实时跟踪这次操作。Termux 里的任务可能仍在执行，这不代表任务失败，也不会自动重做。\n推荐先检查结果：只会查找已有返回并刷新状态。",
         ).assertIsDisplayed()
 
         advancePastClickDebounce()
@@ -60,6 +60,7 @@ class PendingTaskResumeUiTest {
                 Column {
                     PendingTaskNoticePanel(
                         task = pendingTask(),
+                        activeLockLabel = "正在应用酒馆备份",
                         onContinueCheck = {},
                         onAbandon = {},
                     )
@@ -71,6 +72,9 @@ class PendingTaskResumeUiTest {
         composeRule.onNodeWithText("应用酒馆备份 ·", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("检查上次操作的结果").assertIsDisplayed()
         composeRule.onNodeWithText("不再跟踪这次操作").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "启动器已重新打开，Termux 里的任务可能仍在执行。先检查已有结果；不会重新执行应用酒馆备份。",
+        ).assertIsDisplayed()
         composeRule.onNodeWithText("检测到未完成任务").assertDoesNotExist()
     }
 
