@@ -82,16 +82,22 @@ fun RepairToolsSection(
                 InfoPopoverButton(
                     contentDescription = "查看修复工具说明",
                     title = "修复工具",
-                    body = "这里可以检查运行环境、重新下载缺失的程序依赖、修复主题、调整内存和上传大小，并导出排错信息。所有操作只影响当前实例；会改文件的操作仍会先让你确认。",
+                    body = "不知道问题在哪里时，先点“一键体检”。它只查看当前状态，不会修改酒馆文件。\n酒馆安装中断或启动时报缺少文件，可以尝试“修复 npm 依赖”；只有网页因为主题设置损坏而打不开时，才重置主题。\n内存和聊天文件大小一般保持常用值即可。所有会修改文件的操作都会再次确认，而且只影响当前实例。",
                 )
             }
         },
     ) {
-        leadingContent?.invoke()
-        SettingsSectionDivider()
+        if (leadingContent != null) {
+            SettingsSubsection(
+                title = "先检查问题",
+                detail = "不知道问题在哪里时，先点“一键体检”。它会检查当前实例的安装、权限、下载源和运行环境，不会修改酒馆文件。检查完成后再按结果处理。",
+            ) {
+                leadingContent()
+            }
+        }
         SettingsSubsection(
             title = "常用修复",
-            detail = "网页打不开、安装失败或主题损坏时可尝试。重新下载依赖会先保留旧文件，修复主题会保存一份原文件；执行前都会再次确认。",
+            detail = "酒馆安装中断、启动时报缺少文件或依赖错误时，可以重新下载依赖。只有酒馆网页因为主题设置损坏而打不开时，才重置主题。两项都会先保留旧文件并再次确认。",
         ) {
             SettingsFeedbackActionButton(
                 text = "修复 npm 依赖",
@@ -124,10 +130,9 @@ fun RepairToolsSection(
                 },
             )
         }
-        SettingsSectionDivider()
         SettingsSubsection(
-            title = "Node.js 内存上限",
-            detail = "决定酒馆最多能使用多少运行内存，只影响当前实例。手机内存较小时建议选 2GB 或 4GB；设置过高可能被系统强制关闭。",
+            title = "酒馆运行内存",
+            detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；只有手机内存充足且酒馆明确提示内存不足时才选 6GB。设置过高反而可能让系统关闭 Termux。",
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(2048, 4096, 6144).forEach { memory ->
@@ -148,35 +153,28 @@ fun RepairToolsSection(
                 }
             }
         }
-        SettingsSectionDivider()
         SettingsSubsection(
-            title = "聊天记录上传限制",
-            detail = "决定一次最多能导入多大的聊天记录。文件越大，处理越慢、占用内存越多；超过 1GB 更容易被系统中断。",
-            statusText = uploadStatusText,
-            statusTone = uploadStatusTone,
-            statusActive = uploadLimitStatus.currentMegabytes != null || uploadLimitStatus.checking,
+            title = "聊天文件大小",
+            detail = "这里限制一次最多能导入多大的聊天记录文件，不是全部聊天记录的总容量。一般保持 500MB 就够用；只有文件确实超过限制时才选 1GB 或 2GB。数值越大，导入时占用的内存越多。",
         ) {
-            Text(
-                text = uploadLimitStatus.message,
-                color = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
+            SettingsEntryRow(
+                title = "当前上传限制",
+                detail = uploadLimitStatus.message,
+                value = uploadStatusText,
+                valueColor = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
                     LukoaColors.Amber
                 } else {
-                    LukoaColors.Muted
+                    uploadStatusTone
                 },
-                style = MaterialTheme.typography.bodySmall,
-            )
-            SettingsFeedbackActionButton(
-                text = if (uploadLimitStatus.checking) "检查中..." else "重新检查当前限制",
-                modifier = Modifier.fillMaxWidth(),
+                valueAsPill = true,
                 enabled = !actionsLocked && !uploadLimitStatus.checking,
-                accentColor = LukoaColors.Accent,
+                onClick = onCheckUploadLimit,
                 unavailableHint = when {
                     actionsLocked -> mutationUnavailableHint
                     uploadLimitStatus.checking -> "正在检查当前上传限制，请稍等。"
                     else -> null
                 },
                 onShowHint = onShowHint,
-                onClick = onCheckUploadLimit,
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->

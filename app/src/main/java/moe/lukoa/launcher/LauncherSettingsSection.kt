@@ -359,15 +359,14 @@ fun SettingsSection(
             onSetUploadLimit = onSetUploadLimit,
             onShowHint = showHint,
             leadingContent = {
-                SettingsEntryGroup {
-                    SettingsEntryRow(
-                        title = "一键体检",
-                        value = settingsHealthSummaryText(healthCheckReport),
-                        valueColor = settingsHealthSummaryTone(healthCheckReport),
-                        valueAsPill = true,
-                        onClick = { showHealthDialog = true },
-                    )
-                }
+                SettingsEntryRow(
+                    title = "一键体检",
+                    detail = "检查当前实例的安装、权限和运行环境。",
+                    value = settingsHealthSummaryText(healthCheckReport),
+                    valueColor = settingsHealthSummaryTone(healthCheckReport),
+                    valueAsPill = true,
+                    onClick = { showHealthDialog = true },
+                )
             },
             extraContent = {
                 RepairDiagnosticsContent(
@@ -430,12 +429,12 @@ internal fun LauncherUpdateSettingsPanel(
                     text = updateStatusText,
                     active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
                     toneColor = updateStatusTone,
-                    activeBackground = updateStatusTone.copy(alpha = 0.16f),
+                    activeBackground = LukoaColors.AccentSoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看启动器更新说明",
                     title = "启动器更新",
-                    body = "这里更新的是露科亚启动器本身。要更新或回退 SillyTavern，请前往“版本”页。稳定版更稳，测试版会更早收到新功能。",
+                    body = "这里更新的是露科亚启动器本身，不是 SillyTavern 酒馆。\n点“检查更新”只会查询新版本；发现新版后，你再决定是否下载安装。\n大多数人选稳定版；想提前体验新功能时再选测试版。酒馆的更新和回退请到“版本”页。",
                 )
             }
         },
@@ -548,7 +547,7 @@ internal fun InstanceManagementPanel(
                 InfoPopoverButton(
                     contentDescription = "查看实例管理说明",
                     title = "实例管理",
-                    body = "一个实例就是一套独立的酒馆目录和设置。切换实例后，启动、版本、备份和用户管理都会使用你选中的那一套。端口是浏览器连接它时使用的编号。",
+                    body = "“实例”可以理解为一套单独的酒馆：它有自己的文件夹、端口和设置。\n切换实例后，启动、版本、备份和用户管理都会改为操作你刚选中的那一套。\n如果你只有一套酒馆，保持当前实例即可，不需要另外新建。",
                 )
             }
         },
@@ -622,11 +621,33 @@ private fun RepairDiagnosticsContent(
     onShowHint: (String) -> Unit,
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    SettingsSectionDivider()
     SettingsSubsection(
         title = "诊断与日志",
-        detail = "导出诊断信息可用于排查问题。清除日志只会清空当前页面显示；“强制清理”用于残留进程，可能中断正在运行的任务。\n${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
+        detail = "“导出诊断日志”会生成一份排错文件，不会修改酒馆数据。“清除页面日志”只清空启动器里当前显示的记录。\n“强制清理”会结束当前实例可能残留的进程，普通停止无效或端口被占用时才使用。${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SettingsFeedbackActionButton(
+                text = "导出诊断日志",
+                enabled = !actionsLocked,
+                accentColor = LukoaColors.Accent,
+                modifier = Modifier.weight(1f),
+                unavailableHint = lockedHint,
+                onShowHint = onShowHint,
+                onClick = onExportDiagnostic,
+            )
+            SettingsFeedbackActionButton(
+                text = "清除页面日志",
+                enabled = !actionsLocked,
+                accentColor = LukoaColors.Accent,
+                modifier = Modifier.weight(1f),
+                unavailableHint = lockedHint,
+                onShowHint = onShowHint,
+                onClick = onClearLogs,
+            )
+        }
         SettingsFeedbackActionButton(
             text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
             enabled = !actionsLocked,
@@ -635,24 +656,6 @@ private fun RepairDiagnosticsContent(
             unavailableHint = lockedHint,
             onShowHint = onShowHint,
             onClick = onForceCleanup,
-        )
-        SettingsFeedbackActionButton(
-            text = "清除日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onClearLogs,
-        )
-        SettingsFeedbackActionButton(
-            text = "导出诊断日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onExportDiagnostic,
         )
     }
 }

@@ -290,7 +290,7 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("新增用户").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
-        composeRule.onNodeWithText("重新检查当前限制").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithText("当前上传限制").performScrollTo().assertIsEnabled()
         composeRule.onNodeWithText("酒馆正在运行；修改类操作需要先停止酒馆。")
             .assertDoesNotExist()
         composeRule.onNodeWithText("低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。")

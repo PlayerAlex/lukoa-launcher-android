@@ -161,7 +161,7 @@ internal fun SettingsEntryRow(
         if (valueLayout == SettingsValueLayout.Trailing && value != null) {
             SettingsTrailingValue(
                 value = value,
-                color = if (enabled) valueColor else LukoaColors.Dim,
+                color = if (enabled || valueAsPill) valueColor else LukoaColors.Dim,
                 asPill = valueAsPill,
             )
         }
@@ -288,6 +288,17 @@ internal fun SettingsSubsection(
                 body = detail,
             )
         }
-        content()
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface.copy(alpha = 0.58f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.30f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                content = content,
+            )
+        }
     }
 }

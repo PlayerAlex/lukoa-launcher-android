@@ -35,7 +35,7 @@ internal fun TavernProfileManagementDialog(
         title = {
             SettingsDialogTitle(
                 title = "实例管理",
-                infoText = "一个实例就是一套独立的酒馆目录和设置。在这里可以切换、新建或删除实例；目录和端口需要回到设置页分别调整。",
+                infoText = "一个实例就是一套单独的酒馆，它有自己的文件夹、端口和设置。\n切换实例后，启动器里的启动、版本、备份和用户管理都会操作你选中的那一套。\n如果你只有一套酒馆，保持当前实例即可。目录和端口可以回到设置页单独调整。",
             )
         },
         text = {
@@ -150,7 +150,7 @@ internal fun TavernDirectorySettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "酒馆路径",
-                infoText = "酒馆路径是这套实例保存程序和数据的位置。修改路径不会改变端口。“托管目录”由启动器安排，“默认目录”是 ~/SillyTavern，自定义目录由你自己选择。",
+                infoText = "酒馆路径就是这套酒馆文件所在的文件夹。大多数人保持默认的 ~/SillyTavern 即可。\n只保存新路径不会自动搬动原来的文件。需要搬家时，请使用页面里的“迁移”按钮。\n“托管目录”由启动器安排位置；“自定义目录”只适合已经知道文件放在哪里的用户。",
             )
         },
         text = {
@@ -279,7 +279,7 @@ internal fun TavernPortSettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "实例端口",
-                infoText = "端口是浏览器连接这套酒馆时使用的编号。多个实例必须使用不同编号。修改端口不会移动酒馆文件。",
+                infoText = "端口是浏览器连接这套酒馆时使用的编号。只有提示端口冲突，或你有多套酒馆时才需要修改。\n每套实例必须使用不同端口；不知道填什么时使用“恢复默认”。修改端口不会移动酒馆文件。",
             )
         },
         text = {
@@ -357,7 +357,7 @@ internal fun LauncherRepositorySettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "更新仓库",
-                infoText = "这里决定启动器从哪个 GitHub 项目检查和下载自己的更新，填写“用户名/仓库名”。它不会改变 SillyTavern 的下载地址。",
+                infoText = "这里决定露科亚启动器从哪个 GitHub 项目检查和下载自己的更新，不是酒馆的下载地址。\n大多数用户不需要修改。只有你明确要使用其他人发布的启动器版本时，才填写对方的“用户名/仓库名”。\n地址填错时只会检查不到启动器更新，不会改动 SillyTavern。",
             )
         },
         text = {
@@ -423,7 +423,7 @@ internal fun LauncherUpdateChannelDialog(
         title = {
             SettingsDialogTitle(
                 title = "更新通道",
-                infoText = "稳定版只接收正式更新，适合大多数人；测试版会更早收到新功能，但可能不够稳定。切换后会立即重新检查，不会改变更新仓库。",
+                infoText = "稳定版只接收正式更新，适合大多数用户。\n测试版会更早收到新功能，也可能遇到还没修好的问题。只有愿意帮忙体验和反馈时再选择。\n切换后只会重新检查启动器更新，不会修改酒馆版本或更新仓库。",
             )
         },
         text = {

@@ -108,7 +108,17 @@ fun VersionManagementSection(
         )
 
         when (selectedView) {
-            VersionPageView.Current -> SectionPanel(title = "当前安装信息", accentColor = LukoaColors.Accent) {
+            VersionPageView.Current -> SectionPanel(
+                title = "当前安装信息",
+                accentColor = LukoaColors.Accent,
+                headerAction = {
+                    InfoPopoverButton(
+                        contentDescription = "查看当前安装信息说明",
+                        title = "当前安装信息",
+                        body = "这里显示当前酒馆的版本、分支和文件位置。\n“本地已修改”表示酒馆的程序文件和原版本不完全一样，可能是你手动改过，也可能是插件改过。\n为了避免覆盖这些文件，启动器会暂时阻止更新和回退。不确定怎么处理时，先做一份手动备份，再查看下方列出的文件。",
+                    )
+                },
+            ) {
                 Text(
                     text = tavernVersionInfo.displayVersion,
                     color = when {
@@ -168,7 +178,7 @@ fun VersionManagementSection(
                     InfoPopoverButton(
                         contentDescription = "查看目标版本说明",
                         title = "目标版本与切换",
-                        body = "先读取可用版本，再选择想使用的版本。比当前版本新的是更新，比当前版本旧的是回退。酒馆还没安装时，这个选择会用于首次安装。",
+                        body = "先点“读取官方版本”，再选择你想使用的版本。\n目标比当前新时是更新，比当前旧时是回退；酒馆还没安装时，这个选择会用于首次安装。\n执行前会先创建安全备份，只切换酒馆程序版本，不会主动删除聊天、角色、世界书或插件数据。",
                     )
                 },
             ) {
@@ -231,15 +241,13 @@ fun VersionManagementSection(
                     )
                 }
 
-                Text(
-                    text = if (tavernVersionInfo.notInstalled) {
-                        "未安装时不能更新或回退，先安装酒馆。"
-                    } else {
-                        "执行前会先自动创建一份安全备份，只切换程序版本，不删聊天、角色、世界书和插件。"
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (tavernVersionInfo.notInstalled) {
+                    Text(
+                        text = "未安装时不能更新或回退，请先回启动页安装酒馆。",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }
@@ -255,22 +263,27 @@ private fun VersionOverviewCard(
 ) {
     val statusText: String
     val statusColor: Color
+    val statusBackground: Color
     when {
         tavernVersionInfo.hasLocalChanges -> {
             statusText = "本地已修改"
             statusColor = LukoaColors.Amber
+            statusBackground = LukoaColors.AmberSoft
         }
         tavernVersionInfo.hasData -> {
             statusText = "就绪"
             statusColor = LukoaColors.Accent
+            statusBackground = LukoaColors.AccentSoft
         }
         tavernVersionInfo.notInstalled -> {
             statusText = "未安装"
             statusColor = LukoaColors.Amber
+            statusBackground = LukoaColors.AmberSoft
         }
         else -> {
             statusText = "检测中"
             statusColor = LukoaColors.Muted
+            statusBackground = LukoaColors.SurfaceAlt
         }
     }
 
@@ -298,9 +311,9 @@ private fun VersionOverviewCard(
                 )
                 StatusPill(
                     text = statusText,
-                    active = statusColor != LukoaColors.Muted,
+                    active = true,
                     toneColor = statusColor,
-                    activeBackground = statusColor.copy(alpha = 0.15f),
+                    activeBackground = statusBackground,
                 )
             }
 

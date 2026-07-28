@@ -122,7 +122,7 @@ fun InfoPopoverButton(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.widthIn(min = 220.dp, max = 300.dp),
+            modifier = Modifier.widthIn(min = 240.dp, max = 320.dp),
             containerColor = LukoaColors.Surface,
         ) {
             Column(
@@ -135,11 +135,16 @@ fun InfoPopoverButton(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
-                    text = body,
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                body.lineSequence()
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .forEach { paragraph ->
+                        Text(
+                            text = paragraph,
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
             }
         }
     }
@@ -356,14 +361,17 @@ fun StatusPill(
     activeBackground: Color = LukoaColors.AccentSoft,
 ) {
     val shape = RoundedCornerShape(999.dp)
-    val background = if (active) activeBackground else LukoaColors.SurfaceAlt
+    val background = resolvedStatusPillBackground(
+        active = active,
+        requestedBackground = if (active) activeBackground else LukoaColors.SurfaceAlt,
+    )
     val contentColor = if (active) toneColor else LukoaColors.Muted
     val borderColor = if (active) toneColor.copy(alpha = 0.3f) else Color.Transparent
     Surface(
         modifier = modifier
             .heightIn(min = 32.dp)
             .border(1.dp, borderColor, shape),
-        color = if (active) background.copy(alpha = 0.8f) else background.copy(alpha = 0.5f),
+        color = background,
         shape = shape,
     ) {
         Text(
@@ -377,6 +385,18 @@ fun StatusPill(
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+internal fun resolvedStatusPillBackground(
+    active: Boolean,
+    requestedBackground: Color,
+): Color {
+    val alpha = if (active) {
+        (requestedBackground.alpha * 0.82f).coerceIn(0.12f, 0.82f)
+    } else {
+        requestedBackground.alpha * 0.5f
+    }
+    return requestedBackground.copy(alpha = alpha)
 }
 
 @Composable

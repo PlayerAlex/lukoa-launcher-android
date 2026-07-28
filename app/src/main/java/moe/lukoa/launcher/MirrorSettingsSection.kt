@@ -122,7 +122,7 @@ internal fun MirrorSettingsDialog(
         title = {
             SettingsDialogTitle(
                 title = "切换下载源",
-                infoText = "下载源决定安装或更新时从哪里下载文件。酒馆程序、程序依赖和 Termux 工具各用一类地址，可以分别设置；网络慢或下载失败时再切换。",
+                infoText = "下载源决定安装或更新时从哪里下载文件。能正常下载时不需要修改。\n酒馆程序、程序依赖和 Termux 工具使用不同地址，可以分别设置。下载很慢或反复失败时，再尝试“国内推荐”或其他可用地址。\n切换下载源不会删除已经安装的酒馆和聊天数据。",
             )
         },
         text = {
@@ -141,7 +141,7 @@ internal fun MirrorSettingsDialog(
                 )
                 MirrorSubsection(
                     title = "酒馆下载源",
-                    description = "这里设置酒馆程序和所需依赖的下载地址。国内网络可先试“国内推荐”；如果下载正常，不需要修改。",
+                    description = "这里设置酒馆程序和运行所需文件的下载地址。\n如果现在能正常安装和更新，请保持不变。下载慢或失败时，国内网络可以先试“国内推荐”；需要恢复时选“官方源”。",
                 ) {
                     MirrorTextField(
                         value = tavernRepoInput,
@@ -194,7 +194,7 @@ internal fun MirrorSettingsDialog(
 
                 MirrorSubsection(
                     title = "Termux 包源",
-                    description = "这里设置 Termux 安装工具时使用的下载地址。先选择或填写地址，再点“应用到 Termux”才会生效。",
+                    description = "这里设置 Termux 下载 Node.js、Git 等工具时使用的地址。酒馆能正常安装时不需要修改。\n按钮“填入清华源”或“填入官方源”只会先填写地址，最后还要点“应用到 Termux”才会真正切换。",
                 ) {
                     MirrorInfoLine(
                         label = "当前",

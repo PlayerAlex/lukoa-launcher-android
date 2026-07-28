@@ -97,7 +97,7 @@ fun TermuxWakeDelayDialog(
         title = {
             SettingsDialogTitle(
                 title = "Termux 唤醒返回",
-                infoText = "从启动器打开 Termux 执行操作后，等待多久再自动回到启动器。手机反应较慢时可以适当增加，避免命令还没收到就返回。",
+                infoText = "启动器打开 Termux 执行操作后，会自动切回启动器。这里决定切回前要等多久。\n大多数手机保持默认值即可。如果经常打开 Termux 后没有开始执行命令，可以把等待时间调长一点。\n它只影响切回速度，不会让安装或备份本身变快。",
             )
         },
         text = {
@@ -170,7 +170,7 @@ fun PermissionCenterDialog(
         title = {
             SettingsDialogTitle(
                 title = "权限与授权",
-                infoText = "这里检查启动器正常控制 Termux 和访问备份所需的系统权限。显示“待处理”时，按对应按钮完成授权即可；已经显示“已准备”的项目不用处理。",
+                infoText = "这里检查启动器控制 Termux、后台运行和读写备份所需的系统权限。\n显示“已准备”的项目不用处理；显示“待处理”时，点对应按钮，再按手机页面的提示完成授权。\n启动器只会带你前往系统设置，是否允许仍由你确认。",
             )
         },
         text = {
