@@ -59,9 +59,9 @@ object PendingLauncherTaskSupport {
 
     fun waitingMessage(task: PendingLauncherTask): String {
         return if (isSafetyBackupStage(task)) {
-            "还没读到上次${task.title}前自动安全备份的最终回传。如果 Termux 还在跑，稍后再点一次“继续检查”。"
+            "还没读到上次${task.title}前自动安全备份的最终结果。如果 Termux 还在运行，稍后再点一次“检查上次操作的结果”。"
         } else {
-            "还没读到上次${task.title}的最终回传。已经先帮你重新检查相关状态；如果 Termux 还在跑，稍后再点一次“继续检查”。"
+            "还没读到上次${task.title}的最终结果。已经先刷新相关状态；如果 Termux 还在运行，稍后再点一次“检查上次操作的结果”。"
         }
     }
 
@@ -69,7 +69,7 @@ object PendingLauncherTaskSupport {
         task: PendingLauncherTask,
         actionName: String,
     ): String {
-        return "检测到上次${task.title}还没收尾。为了避免把${actionName}和旧任务状态混在一起，请先继续检查或放弃那次任务。"
+        return "上次${task.title}的结果还没确认。为了避免把${actionName}和旧任务混在一起，请先检查上次操作的结果，或确认不再跟踪。"
     }
 
     fun resolveLatestResult(

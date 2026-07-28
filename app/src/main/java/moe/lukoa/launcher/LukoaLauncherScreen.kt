@@ -2498,11 +2498,21 @@ fun LukoaLauncherScreen(
         clearPendingLauncherTask()
         releaseBusy()
         update(
-            "已放弃记录这次未完成任务。不会删除已经生成的备份和现有文件。",
+            "已不再跟踪这次操作。启动器没有停止 Termux，也没有删除酒馆、备份或已经生成的文件。",
             "",
             true,
             allowRunningInference = false,
         )
+    }
+
+    fun resetUploadLimitToVersionDefault() {
+        runGuarded(
+            "恢复默认聊天文件大小",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-reset"),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
+            onCommand("tavern-upload-limit-reset", guardedUpdate)
+        }
     }
 
     fun runHealthCheckPrimaryAction() {
@@ -3348,6 +3358,8 @@ fun LukoaLauncherScreen(
                             },
                             onTavernUpdate = ::requestTavernUpdate,
                             onTavernRollback = ::requestTavernRollback,
+                            uploadLimitStatus = uploadLimitStatus,
+                            onResetUploadLimit = ::resetUploadLimitToVersionDefault,
                         )
                         LauncherTab.Launch -> {
                             val launchPermissionReminder = PermissionStatusSummary.launchReminder(
@@ -3656,6 +3668,7 @@ fun LukoaLauncherScreen(
                                     onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
                                 }
                             },
+                            onResetUploadLimit = ::resetUploadLimitToVersionDefault,
                             onRefreshTavernUsers = {
                                 runGuarded("读取酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-users-list"), allowRunningInference = false) { guardedUpdate ->
                                     tavernUserState = tavernUserState.copy(loading = true, message = "正在读取用户…")

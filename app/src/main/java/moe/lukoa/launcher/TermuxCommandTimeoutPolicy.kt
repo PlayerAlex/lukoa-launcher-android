@@ -33,6 +33,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-node-memory" to 60_000L,
         "tavern-upload-limit-status" to 60_000L,
         "tavern-upload-limit-set" to 60_000L,
+        "tavern-upload-limit-reset" to 60_000L,
         "tavern-users-list" to 60_000L,
         "tavern-user-create" to 2 * 60_000L,
         "tavern-user-delete" to 60_000L,

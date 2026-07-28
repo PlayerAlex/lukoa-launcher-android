@@ -67,6 +67,8 @@ fun VersionManagementSection(
     onTavernVersion: () -> Unit,
     onTavernUpdate: () -> Unit,
     onTavernRollback: () -> Unit,
+    uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
+    onResetUploadLimit: () -> Unit = {},
 ) {
     val actionState = TavernVersionActionGuards.evaluate(
         current = tavernVersionInfo,
@@ -85,6 +87,9 @@ fun VersionManagementSection(
         CurrentVersionSection(
             tavernVersionInfo = tavernVersionInfo,
             actionsLocked = actionsLocked,
+            tavernRunning = tavernRunning || tavernStarting,
+            uploadLimitStatus = uploadLimitStatus,
+            onResetUploadLimit = onResetUploadLimit,
             onRefreshCurrentVersion = onTavernVersion,
         )
         TargetVersionSection(
@@ -111,6 +116,9 @@ fun VersionManagementSection(
 private fun CurrentVersionSection(
     tavernVersionInfo: TavernVersionInfo,
     actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    uploadLimitStatus: TavernUploadLimitStatus,
+    onResetUploadLimit: () -> Unit,
     onRefreshCurrentVersion: () -> Unit,
 ) {
     var showTechnicalDetails by remember { mutableStateOf(false) }
@@ -155,6 +163,13 @@ private fun CurrentVersionSection(
                     LocalChangesNotice(
                         directory = tavernVersionInfo.directory,
                         changedFilesPreview = tavernVersionInfo.changedFilesPreview,
+                        likelyUploadLimitChange = TavernLocalChangesGuidance.isLikelyUploadLimitChange(
+                            versionInfo = tavernVersionInfo,
+                            uploadLimitStatus = uploadLimitStatus,
+                        ),
+                        actionsLocked = actionsLocked,
+                        tavernRunning = tavernRunning,
+                        onResetUploadLimit = onResetUploadLimit,
                     )
                 }
 
@@ -224,8 +239,41 @@ private fun CurrentVersionSection(
 private fun LocalChangesNotice(
     directory: String,
     changedFilesPreview: String,
+    likelyUploadLimitChange: Boolean,
+    actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    onResetUploadLimit: () -> Unit,
 ) {
+    var confirmUploadLimitReset by remember { mutableStateOf(false) }
     val location = directory.ifBlank { "上方“酒馆位置”显示的目录" }
+    if (confirmUploadLimitReset) {
+        AlertDialog(
+            onDismissRequest = { confirmUploadLimitReset = false },
+            containerColor = LukoaColors.Surface,
+            title = { Text("恢复聊天文件大小默认值") },
+            text = {
+                Text(
+                    text = "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件。",
+                    color = LukoaColors.Text,
+                )
+            },
+            confirmButton = {
+                DialogActionButton(
+                    text = "确认恢复默认值",
+                    tone = ActionTone.Safe,
+                    onClick = {
+                        confirmUploadLimitReset = false
+                        onResetUploadLimit()
+                    },
+                )
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmUploadLimitReset = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.AmberSoft.copy(alpha = 0.82f),
@@ -251,7 +299,11 @@ private fun LocalChangesNotice(
                 InfoPopoverButton(
                     contentDescription = "查看恢复本地修改的方法",
                     title = "怎样恢复原文件",
-                    body = "先到备份页生成一份手动备份，再打开 Termux，进入提示里的酒馆目录，用 Git 恢复你改过的程序文件。\n启动器不会自动还原，因为自动处理可能删除你想保留的修改。不会使用 Git 时，不要直接删除文件，可以先导出诊断日志寻求帮助。\n恢复完成后回到版本页，点击“重新检测当前版本”。",
+                    body = if (likelyUploadLimitChange) {
+                        "启动器检测到聊天文件大小相关的程序文件被修改。这通常是你在设置里选择过 500MB、1GB 或 2GB。\n准备更新或回退时，先停止酒馆，再点击这里的“恢复聊天文件大小默认值”。启动器只恢复这一个数值，不会覆盖同一文件里的其他修改。\n如果恢复后仍显示本地修改，说明还有其他文件被改过，再按文件列表处理。"
+                    } else {
+                        "先到备份页生成一份手动备份，再打开 Termux，进入提示里的酒馆目录，用 Git 恢复你改过的程序文件。\n启动器不会自动还原不认识的文件，因为自动处理可能删除你想保留的修改。不会使用 Git 时，不要直接删除文件，可以先导出诊断日志寻求帮助。\n恢复完成后回到版本页，点击“重新检测当前版本”。"
+                    },
                 )
             }
             Text(
@@ -260,11 +312,38 @@ private fun LocalChangesNotice(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            if (likelyUploadLimitChange) {
+                Text(
+                    text = "这很可能是你在“设置 → 修复工具 → 聊天文件大小”中修改过数值。要更新或回退，请先恢复当前酒馆版本的默认值。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                SecondaryActionButton(
+                    text = "恢复聊天文件大小默认值",
+                    enabled = !actionsLocked && !tavernRunning,
+                    accentColor = LukoaColors.Accent,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { confirmUploadLimitReset = true },
+                )
+                if (actionsLocked || tavernRunning) {
+                    Text(
+                        text = if (tavernRunning) {
+                            "酒馆正在运行，请先停止酒馆再恢复默认值。"
+                        } else {
+                            "当前有其他任务正在处理，完成后再恢复默认值。"
+                        },
+                        color = LukoaColors.Amber,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            } else {
+                Text(
+                    text = "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             if (changedFilesPreview.isNotBlank()) {
                 Text(
                     text = "检测到的文件",

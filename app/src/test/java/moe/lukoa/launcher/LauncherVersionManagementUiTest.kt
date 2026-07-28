@@ -100,6 +100,39 @@ class LauncherVersionManagementUiTest {
         composeRule.onNodeWithText("检测到的文件").assertIsDisplayed()
     }
 
+    @Test
+    fun versionPage_uploadLimitChangeOffersSafeDefaultRestore() {
+        var resetCount = 0
+        val target = versionChoice("1.14.0")
+        setVersionPageContent(
+            target = target,
+            currentInfo = TavernVersionInfo(
+                hasData = true,
+                directory = "~/SillyTavern",
+                packageVersion = "1.13.0",
+                branch = "release",
+                localChanges = "1",
+                changedFilesPreview = " M src/server-main.js",
+            ),
+            uploadLimitStatus = TavernUploadLimitStatus(
+                currentMegabytes = 1024,
+                patchState = TavernUploadLimitPatchState.Active,
+            ),
+            onResetUploadLimit = { resetCount += 1 },
+        )
+
+        composeRule.onNodeWithText(
+            "这很可能是你在“设置 → 修复工具 → 聊天文件大小”中修改过数值。要更新或回退，请先恢复当前酒馆版本的默认值。",
+        ).assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("恢复聊天文件大小默认值")
+            .performScrollTo()
+            .performClick()
+        composeRule.runOnIdle { assertEquals(0, resetCount) }
+        composeRule.onNodeWithText("确认恢复默认值").performClick()
+        composeRule.runOnIdle { assertEquals(1, resetCount) }
+    }
+
     private fun setVersionPageContent(
         target: TavernVersionChoice,
         currentInfo: TavernVersionInfo = TavernVersionInfo(
@@ -110,6 +143,8 @@ class LauncherVersionManagementUiTest {
             commit = "abcdef123456",
             describe = "1.13.0",
         ),
+        uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
+        onResetUploadLimit: () -> Unit = {},
         onUpdate: () -> Unit = {},
         onRollback: () -> Unit = {},
     ) {
@@ -135,6 +170,8 @@ class LauncherVersionManagementUiTest {
                         onTavernVersion = {},
                         onTavernUpdate = onUpdate,
                         onTavernRollback = onRollback,
+                        uploadLimitStatus = uploadLimitStatus,
+                        onResetUploadLimit = onResetUploadLimit,
                     )
                 }
             }

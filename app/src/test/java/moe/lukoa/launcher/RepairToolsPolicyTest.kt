@@ -12,6 +12,7 @@ class RepairToolsPolicyTest {
         assertEquals(60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-node-memory"))
         assertEquals(60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-upload-limit-status"))
         assertEquals(60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-upload-limit-set"))
+        assertEquals(60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-upload-limit-reset"))
         assertTrue(TermuxCommandTimeoutPolicy.hasExplicitTimeout("tavern-repair-dependencies"))
     }
 

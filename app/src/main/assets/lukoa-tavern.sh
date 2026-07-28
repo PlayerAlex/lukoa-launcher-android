@@ -1676,6 +1676,7 @@ cmd_version() {
   printf "\n==== SillyTavern version ====\n"
   emit_git_version_info
   printf "==== end SillyTavern version ====\n"
+  emit_upload_limit_status "version-check" || true
 }
 
 backup_relative_dir_for_kind() {
@@ -3547,6 +3548,84 @@ NODE
   emit_upload_limit_status "after-set"
 }
 
+cmd_upload_limit_reset() {
+  write_command "upload-limit-reset"
+  repair_require_stopped || return "$?"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  target="$TAVERN_DIR/src/server-main.js"
+  [ -f "$target" ] || {
+    write_status "error" "SillyTavern upload middleware file was not found" false 66
+    emit_status
+    return 66
+  }
+  [ -d "$TAVERN_DIR/.git" ] || {
+    write_status "error" "SillyTavern directory is not a git repository" false 65
+    emit_status
+    return 65
+  }
+  baseline_file="$RUNTIME_STATE_DIR/upload-limit-default-$$.js"
+  if ! (cd "$TAVERN_DIR" && git show HEAD:src/server-main.js) > "$baseline_file" 2>/dev/null; then
+    rm -f "$baseline_file"
+    write_status "error" "The default upload limit could not be read from the current SillyTavern version" false 65
+    emit_status
+    return 65
+  fi
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  backup_file="$target.lukoa-before-upload-limit-reset-$stamp"
+  cp "$target" "$backup_file" || {
+    rm -f "$baseline_file"
+    write_status "error" "Failed to back up the upload middleware file" false 74
+    emit_status
+    return 74
+  }
+  result="$(UPLOAD_LIMIT_FILE="$target" UPLOAD_LIMIT_BASELINE="$baseline_file" node <<'NODE'
+const fs = require('fs');
+const file = process.env.UPLOAD_LIMIT_FILE;
+const baselineFile = process.env.UPLOAD_LIMIT_BASELINE;
+const current = fs.readFileSync(file, 'utf8');
+const baseline = fs.readFileSync(baselineFile, 'utf8');
+const pattern = /limits\s*:\s*\{\s*fieldSize\s*:\s*(\d+)\s*\*\s*1024\s*\*\s*1024\s*\}/g;
+const currentMatches = [...current.matchAll(pattern)];
+const baselineMatches = [...baseline.matchAll(pattern)];
+if (currentMatches.length !== 1 || baselineMatches.length !== 1) {
+  process.exit(currentMatches.length === 0 || baselineMatches.length === 0 ? 65 : 73);
+}
+const previous = currentMatches[0][1];
+const original = baselineMatches[0][1];
+const replacement = currentMatches[0][0].replace(/fieldSize\s*:\s*\d+/, `fieldSize: ${original}`);
+const updated = current.slice(0, currentMatches[0].index) + replacement + current.slice(currentMatches[0].index + currentMatches[0][0].length);
+const temp = `${file}.lukoa-upload-limit-reset-${process.pid}.tmp`;
+fs.writeFileSync(temp, updated);
+fs.renameSync(temp, file);
+process.stdout.write(`${previous}|${original}`);
+NODE
+)"
+  code="$?"
+  rm -f "$baseline_file"
+  if [ "$code" -ne 0 ]; then
+    cp "$backup_file" "$target" 2>/dev/null || true
+    rm -f "$backup_file"
+    write_status "error" "The default upload limit could not be restored safely; no changes were kept" false "$code"
+    emit_status
+    return "$code"
+  fi
+  rm -f "$UPLOAD_LIMIT_STATE_FILE"
+  prune_upload_limit_backups "$backup_file"
+  previous="${result%%|*}"
+  restored="${result#*|}"
+  write_status "upload-limit-reset" "SillyTavern upload limit was restored to the version default" false 0
+  cat "$STATUS_FILE"
+  printf "uploadLimit.resetPreviousMb=%s\nuploadLimit.resetDefaultMb=%s\nuploadLimit.resetBackup=%s\n" "$previous" "$restored" "$backup_file"
+  emit_upload_limit_status "after-reset"
+  printf "\n==== SillyTavern version ====\n"
+  (cd "$TAVERN_DIR" && emit_git_version_info)
+  printf "==== end SillyTavern version ====\n"
+}
+
 run_tavern_user_action() {
   action="${1:-list}"
   payload="${2:-}"
@@ -3678,6 +3757,9 @@ main() {
     upload-limit-set|tavern-upload-limit-set)
       shift
       cmd_upload_limit_set "$@"
+      ;;
+    upload-limit-reset|tavern-upload-limit-reset)
+      cmd_upload_limit_reset
       ;;
     users-list|tavern-users-list)
       run_tavern_user_action list ""

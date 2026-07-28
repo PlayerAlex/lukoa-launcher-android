@@ -85,6 +85,7 @@ class TavernController(
             "tavern-node-memory" -> runner.runTavernNodeMemory(parsed.argument)
             "tavern-upload-limit-status" -> runner.runTavernUploadLimitStatus()
             "tavern-upload-limit-set" -> runner.runTavernUploadLimitSet(parsed.argument)
+            "tavern-upload-limit-reset" -> runner.runTavernUploadLimitReset()
             "tavern-users-list" -> runner.runTavernUsersList()
             "tavern-user-create" -> runner.runTavernUserCreate(parsed.argument)
             "tavern-user-delete" -> runner.runTavernUserDelete(parsed.argument)
@@ -343,6 +344,7 @@ class TavernController(
             "tavern-node-memory" -> "正在设置 Node.js 内存上限。"
             "tavern-upload-limit-status" -> "正在识别当前聊天记录上传限制。"
             "tavern-upload-limit-set" -> "正在修改聊天记录上传限制。"
+            "tavern-upload-limit-reset" -> "正在恢复当前酒馆版本的默认聊天文件大小。"
             "tavern-users-list" -> "正在读取当前酒馆用户。"
             "tavern-user-create" -> "正在创建酒馆用户。"
             "tavern-user-delete" -> "正在删除用户账户并保留数据目录。"
@@ -388,6 +390,7 @@ class TavernController(
             "tavern-node-memory" -> if (ok) "Node.js 内存上限已保存。" else "设置 Node.js 内存上限失败。"
             "tavern-upload-limit-status" -> if (ok) "上传限制已检查，请查看操作反馈中的当前值。" else "无法识别当前版本的上传限制。"
             "tavern-upload-limit-set" -> if (ok) "上传限制已修改，重启酒馆后生效。" else "修改上传限制失败，源文件未被强行改动。"
+            "tavern-upload-limit-reset" -> if (ok) "聊天文件大小已恢复为当前酒馆版本的默认值。" else "恢复默认聊天文件大小失败，原文件已尽量保留。"
             "tavern-users-list" -> if (ok) "酒馆用户已读取。" else "读取酒馆用户失败。"
             "tavern-user-create" -> if (ok) "酒馆用户已创建。" else "创建酒馆用户失败。"
             "tavern-user-delete" -> if (ok) "用户账户已删除，数据目录仍然保留。" else "删除用户账户失败。"

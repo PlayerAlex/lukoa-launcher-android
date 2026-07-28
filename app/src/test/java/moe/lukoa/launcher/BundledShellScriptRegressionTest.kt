@@ -30,6 +30,14 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `upload limit reset reads version default and preserves unrelated file changes`() {
+        assertTrue(script.contains("cmd_upload_limit_reset"))
+        assertTrue(script.contains("git show HEAD:src/server-main.js"))
+        assertTrue(script.contains("current.slice(0, currentMatches[0].index)"))
+        assertTrue(script.contains("upload-limit-reset|tavern-upload-limit-reset"))
+    }
+
+    @Test
     fun `user management uses SillyTavern storage module and protects data`() {
         assertTrue(script.contains("util.setConfigFilePath(configFile)"))
         assertTrue(script.indexOf("util.setConfigFilePath(configFile)") < script.indexOf("await import(pathToFileURL(path.resolve('src/users.js')).href)"))

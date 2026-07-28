@@ -1,17 +1,26 @@
 package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,70 +37,59 @@ fun PendingTaskResumeDialog(
     onAbandon: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var confirmAbandon by remember(task.kind, task.startedAtMillis) { mutableStateOf(false) }
+
+    if (confirmAbandon) {
+        PendingTaskAbandonDialog(
+            task = task,
+            onConfirm = {
+                confirmAbandon = false
+                onAbandon()
+            },
+            onDismiss = { confirmAbandon = false },
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
+        titleContentColor = LukoaColors.Text,
         textContentColor = LukoaColors.Text,
-        title = {
-            Text("检测到上次任务没收尾")
-        },
+        title = { Text("上次操作需要确认") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PendingTaskStateHeader(activeLockLabel = activeLockLabel)
                 Text(
-                    text = "上次正在${task.title}，这次可以直接继续检查结果，或者放弃这次任务记录。",
+                    text = "启动器没有收到上次操作的最终结果。这不代表操作失败，也不会自动再执行一次。\n推荐先检查结果：只会查找已有返回并刷新状态。",
                     color = LukoaColors.Text,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = LukoaColors.SurfaceAlt,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        PendingTaskInfoLine("任务", task.title)
-                        task.detail.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("阶段", it) }
-                        task.targetLabel.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("目标", it) }
-                        PendingTaskInfoLine("开始时间", formatPendingTaskTime(task.startedAtMillis))
-                        task.safetyBackupPath.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("安全备份", it) }
-                        task.archivePath.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("备份包", it) }
-                    }
-                }
-                activeLockLabel?.takeIf { it.isNotBlank() }?.let {
-                    Surface(
-                        color = LukoaColors.AmberSoft,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.35f)),
-                    ) {
-                        Text(
-                            text = "系统里还记着一个进行中的步骤：$it。Termux 可能还在继续跑，先点“继续检查”最稳。",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            color = LukoaColors.Amber,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
+                PendingTaskSummaryCard(task = task)
             }
         },
         confirmButton = {
-            DialogActionButton(
-                text = "继续检查",
-                tone = ActionTone.Safe,
-                onClick = onContinueCheck,
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ToneActionButton(
+                    text = "检查上次操作的结果",
+                    enabled = true,
+                    tone = ActionTone.Safe,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onContinueCheck,
+                )
+                ToneActionButton(
+                    text = "不再跟踪这次操作",
+                    enabled = true,
+                    tone = ActionTone.Warning,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { confirmAbandon = true },
+                )
+            }
         },
-        dismissButton = {
-            DialogActionButton(
-                text = "放弃本次任务",
-                tone = ActionTone.Warning,
-                onClick = onAbandon,
-            )
-        },
+        dismissButton = {},
     )
 }
 
@@ -103,73 +101,217 @@ fun PendingTaskNoticePanel(
     onContinueCheck: () -> Unit,
     onAbandon: () -> Unit,
 ) {
-    SectionPanel(
-        title = "检测到未完成任务",
-        accentColor = LukoaColors.Amber,
-    ) {
-        Text(
-            text = "上次正在${task.title}。如果刚才把弹窗关掉了，也可以直接在这里继续检查或放弃记录。",
-            color = LukoaColors.Text,
-            style = MaterialTheme.typography.bodyMedium,
+    var confirmAbandon by remember(task.kind, task.startedAtMillis) { mutableStateOf(false) }
+
+    if (confirmAbandon) {
+        PendingTaskAbandonDialog(
+            task = task,
+            onConfirm = {
+                confirmAbandon = false
+                onAbandon()
+            },
+            onDismiss = { confirmAbandon = false },
         )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt.copy(alpha = 0.54f),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.34f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                PendingTaskInfoLine("任务", task.title)
-                task.detail.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("阶段", it) }
-                task.targetLabel.takeIf { it.isNotBlank() }?.let { PendingTaskInfoLine("目标", it) }
-                PendingTaskInfoLine("开始时间", formatPendingTaskTime(task.startedAtMillis))
-            }
-        }
-        activeLockLabel?.takeIf { it.isNotBlank() }?.let {
-            Surface(
-                color = LukoaColors.AmberSoft,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.35f)),
-            ) {
+                Box(
+                    modifier = Modifier
+                        .width(8.dp)
+                        .height(8.dp)
+                        .background(LukoaColors.Amber, RoundedCornerShape(4.dp)),
+                )
                 Text(
-                    text = "系统里还记着一个进行中的步骤：$it。先点“继续检查”更稳。",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    color = LukoaColors.Amber,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
+                    text = "有一项操作需要确认",
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看未完成操作详情",
+                    title = task.title,
+                    body = pendingTaskDetails(task),
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+
+            PendingTaskSummaryCard(task = task)
+            Text(
+                text = "建议先检查结果。这个按钮不会重复执行${task.title}，只会查找已有结果并刷新相关页面。",
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
             ToneActionButton(
-                text = "继续检查",
+                text = "检查上次操作的结果",
                 enabled = !actionsLocked,
                 tone = ActionTone.Safe,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 onClick = onContinueCheck,
             )
             ToneActionButton(
-                text = "放弃记录",
+                text = "不再跟踪这次操作",
                 enabled = !actionsLocked,
                 tone = ActionTone.Warning,
-                modifier = Modifier.weight(1f),
-                onClick = onAbandon,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { confirmAbandon = true },
             )
         }
     }
 }
 
 @Composable
-private fun PendingTaskInfoLine(label: String, value: String) {
+private fun PendingTaskStateHeader(activeLockLabel: String?) {
+    val taskMayBeRunning = !activeLockLabel.isNullOrBlank()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (taskMayBeRunning) LukoaColors.AmberSoft else LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            1.dp,
+            if (taskMayBeRunning) LukoaColors.Amber.copy(alpha = 0.35f) else LukoaColors.Line.copy(alpha = 0.4f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (taskMayBeRunning) "任务可能仍在执行" else "任务结果尚未确认",
+                modifier = Modifier.weight(1f),
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            StatusPill(
+                text = if (taskMayBeRunning) "先检查" else "待确认",
+                active = taskMayBeRunning,
+                toneColor = if (taskMayBeRunning) LukoaColors.Amber else LukoaColors.Muted,
+                activeBackground = if (taskMayBeRunning) LukoaColors.SurfaceAlt else LukoaColors.Surface,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PendingTaskSummaryCard(
+    task: PendingLauncherTask,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = task.title,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (task.safetyBackupPath.isNotBlank() || task.archivePath.isNotBlank()) {
+                    InfoPopoverButton(
+                        contentDescription = "查看任务相关文件",
+                        title = "任务相关文件",
+                        body = buildString {
+                            task.safetyBackupPath.takeIf(String::isNotBlank)?.let { append("安全备份：$it") }
+                            task.archivePath.takeIf(String::isNotBlank)?.let {
+                                if (isNotEmpty()) append('\n')
+                                append("备份包：$it")
+                            }
+                        },
+                    )
+                }
+            }
+            task.detail.takeIf(String::isNotBlank)?.let { detail ->
+                Text(
+                    text = detail,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            task.targetLabel.takeIf(String::isNotBlank)?.let { PendingTaskInfoLine("目标", it) }
+            PendingTaskInfoLine("开始时间", formatPendingTaskTime(task.startedAtMillis))
+        }
+    }
+}
+
+@Composable
+private fun PendingTaskAbandonDialog(
+    task: PendingLauncherTask,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Surface,
+        title = { Text("确认不再跟踪？") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "这只会删除启动器保存的“${task.title}”等待记录，不会停止 Termux，也不会删除酒馆、备份或已经生成的文件。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "如果 Termux 仍在执行，清除记录后启动器将无法继续阻止重复操作。只有确认任务已经结束时才使用。",
+                    color = LukoaColors.Amber,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                text = "确认不再跟踪",
+                tone = ActionTone.Warning,
+                onClick = onConfirm,
+            )
+        },
+        dismissButton = {
+            DialogActionButton(
+                text = "返回检查结果",
+                tone = ActionTone.Safe,
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+private fun PendingTaskInfoLine(
+    label: String,
+    value: String,
+    maxLines: Int = 1,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = label,
@@ -178,14 +320,24 @@ private fun PendingTaskInfoLine(label: String, value: String) {
         )
         Text(
             text = value,
-            modifier = Modifier.padding(start = 12.dp),
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
             color = LukoaColors.Text,
             style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+private fun pendingTaskDetails(task: PendingLauncherTask): String = buildString {
+    append("开始时间：${formatPendingTaskTime(task.startedAtMillis)}")
+    task.detail.takeIf(String::isNotBlank)?.let { append("\n当前记录：$it") }
+    task.targetLabel.takeIf(String::isNotBlank)?.let { append("\n目标：$it") }
+    task.safetyBackupPath.takeIf(String::isNotBlank)?.let { append("\n安全备份：$it") }
+    task.archivePath.takeIf(String::isNotBlank)?.let { append("\n备份包：$it") }
 }
 
 private fun formatPendingTaskTime(timeMillis: Long): String {

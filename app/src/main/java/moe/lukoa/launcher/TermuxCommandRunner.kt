@@ -238,6 +238,14 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernUploadLimitReset(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-upload-limit-reset-direct",
+        scriptCommand = "upload-limit-reset",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-upload-limit-reset",
+        background = false,
+    )
+
     fun runTavernUsersList(): CommandDispatch = runBundledScriptCommand(
         command = "tavern-users-list-direct",
         scriptCommand = "users-list",

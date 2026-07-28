@@ -97,6 +97,7 @@ fun SettingsSection(
     onSetNodeMemory: (Int) -> Unit,
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
+    onResetUploadLimit: () -> Unit,
     onRefreshTavernUsers: () -> Unit,
     onCreateTavernUser: (String, String) -> Unit,
     onDeleteTavernUser: (String) -> Unit,
@@ -357,6 +358,7 @@ fun SettingsSection(
             onSetNodeMemory = onSetNodeMemory,
             onCheckUploadLimit = onCheckUploadLimit,
             onSetUploadLimit = onSetUploadLimit,
+            onResetUploadLimit = onResetUploadLimit,
             onShowHint = showHint,
             leadingContent = {
                 SettingsEntryRow(

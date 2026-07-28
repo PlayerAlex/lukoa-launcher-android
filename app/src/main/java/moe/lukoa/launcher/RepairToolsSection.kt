@@ -30,6 +30,7 @@ fun RepairToolsSection(
     onSetNodeMemory: (Int) -> Unit,
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
+    onResetUploadLimit: () -> Unit = {},
     onShowHint: (String) -> Unit = {},
     leadingContent: (@Composable () -> Unit)? = null,
     extraContent: (@Composable () -> Unit)? = null,
@@ -155,7 +156,7 @@ fun RepairToolsSection(
         }
         SettingsSubsection(
             title = "聊天文件大小",
-            detail = "这里限制一次最多能导入多大的聊天记录文件，不是全部聊天记录的总容量。一般保持 500MB 就够用；只有文件确实超过限制时才选 1GB 或 2GB。数值越大，导入时占用的内存越多。",
+            detail = "这里限制一次最多能导入多大的聊天记录文件。选择 500MB、1GB 或 2GB 会修改酒馆程序文件，因此版本页会显示本地修改；准备更新或回退前，请用下方按钮恢复当前酒馆版本的默认值。",
         ) {
             SettingsEntryRow(
                 title = "当前上传限制",
@@ -196,6 +197,25 @@ fun RepairToolsSection(
                     )
                 }
             }
+            SettingsFeedbackActionButton(
+                text = "恢复酒馆默认值",
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !actionsLocked && !tavernRunning && uploadLimitStatus.currentMegabytes != null,
+                accentColor = LukoaColors.Accent,
+                unavailableHint = when {
+                    mutationUnavailableHint != null -> mutationUnavailableHint
+                    uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
+                onClick = {
+                    confirmation = RepairConfirmation(
+                        "恢复聊天文件大小默认值",
+                        "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件；完成后，版本页会重新判断本地修改。",
+                        onResetUploadLimit,
+                    )
+                },
+            )
         }
         extraContent?.invoke()
     }

@@ -337,6 +337,43 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun repairSection_restoresUploadLimitDefaultOnlyAfterConfirmation() {
+        var resetCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    RepairToolsSection(
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        uploadLimitStatus = TavernUploadLimitStatus(
+                            currentMegabytes = 1024,
+                            patchState = TavernUploadLimitPatchState.Active,
+                        ),
+                        onRepairDependencies = {},
+                        onResetTheme = {},
+                        onSetNodeMemory = {},
+                        onCheckUploadLimit = {},
+                        onSetUploadLimit = {},
+                        onResetUploadLimit = { resetCount += 1 },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("恢复酒馆默认值")
+            .performScrollTo()
+            .performClick()
+        composeRule.runOnIdle { assertEquals(0, resetCount) }
+        composeRule.onNodeWithText("确认执行").performClick()
+        composeRule.runOnIdle { assertEquals(1, resetCount) }
+    }
+
+    @Test
     fun userSection_defaultUserDeleteRemainsDisabled() {
         composeRule.setContent {
             LukoaTheme {
