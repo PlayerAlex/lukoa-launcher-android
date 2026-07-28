@@ -60,8 +60,6 @@ class PendingTaskResumeUiTest {
                 Column {
                     PendingTaskNoticePanel(
                         task = pendingTask(),
-                        activeLockLabel = null,
-                        actionsLocked = false,
                         onContinueCheck = {},
                         onAbandon = {},
                     )
@@ -69,7 +67,8 @@ class PendingTaskResumeUiTest {
             }
         }
 
-        composeRule.onNodeWithText("有一项操作需要确认").assertIsDisplayed()
+        composeRule.onNodeWithText("上次操作等待确认").assertIsDisplayed()
+        composeRule.onNodeWithText("应用酒馆备份 ·", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("检查上次操作的结果").assertIsDisplayed()
         composeRule.onNodeWithText("不再跟踪这次操作").assertIsDisplayed()
         composeRule.onNodeWithText("检测到未完成任务").assertDoesNotExist()

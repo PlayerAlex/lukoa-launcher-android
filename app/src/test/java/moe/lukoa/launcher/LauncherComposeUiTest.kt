@@ -162,6 +162,14 @@ class LauncherComposeUiTest {
                         autoBackupIntervalMinutes = 60,
                         autoBackupKeepCount = 5,
                         backupHistory = listOf(archivePath),
+                        backupArchiveDetails = mapOf(
+                            archivePath to BackupLibraryArchiveDetails(
+                                fileName = "sd-ui-test.tar.gz",
+                                termuxReadablePath = archivePath,
+                                size = 2_048L,
+                                modifiedAtMillis = 1_700_000_000_000L,
+                            ),
+                        ),
                         onCreateManualBackup = {},
                         onToggleAutoBackup = {},
                         onRefreshBackups = {},
@@ -187,6 +195,8 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("sd-ui-test.tar.gz")
             .performScrollTo()
             .assertIsDisplayed()
+        composeRule.onNodeWithText("2.0 KB").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(archivePath).performScrollTo().assertIsDisplayed()
         composeRule.onNode(hasText("重命名") and hasClickAction())
             .performScrollTo()
             .assertIsDisplayed()

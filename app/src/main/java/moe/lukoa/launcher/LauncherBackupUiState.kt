@@ -15,6 +15,7 @@ class LauncherBackupUiState(initialState: LauncherUiState) {
     )
     var autoBackupKeepCount by mutableIntStateOf(initialState.autoBackupKeepCount.coerceIn(1, 50))
     var backupHistory by mutableStateOf(initialState.backupHistory)
+    var backupArchiveDetails by mutableStateOf<Map<String, BackupLibraryArchiveDetails>>(emptyMap())
     var backupListRefreshing by mutableStateOf(false)
 
     var showManualBackupDialog by mutableStateOf(false)

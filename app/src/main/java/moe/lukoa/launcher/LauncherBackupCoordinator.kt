@@ -154,14 +154,17 @@ class LauncherBackupCoordinator(
         scope.launch {
             val startedAt = SystemClock.elapsedRealtime()
             val result = withContext(Dispatchers.IO) {
-                runCatching { readLocalBackupLibrary() }
+                runCatching { readLocalBackupLibrarySnapshot() }
             }
             val elapsed = SystemClock.elapsedRealtime() - startedAt
             val safeMinimumDisplayMillis = minimumDisplayMillis.coerceAtLeast(0L)
             if (elapsed < safeMinimumDisplayMillis) {
                 delay(safeMinimumDisplayMillis - elapsed)
             }
-            result.onSuccess { paths -> persistBackupHistory(paths) }.onFailure { error ->
+            result.onSuccess { snapshot ->
+                persistBackupHistory(snapshot.paths)
+                state.backupArchiveDetails = snapshot.archiveDetails
+            }.onFailure { error ->
                 statusUpdate(
                     "刷新备份库失败：${error.message ?: error.javaClass.simpleName}",
                     "",
@@ -479,17 +482,46 @@ class LauncherBackupCoordinator(
         )
     }
 
+    private fun readLocalBackupLibrarySnapshot(): BackupLibrarySnapshot {
+        val paths = readLocalBackupLibrary()
+        return BackupLibrarySnapshot(
+            paths = paths,
+            archiveDetails = readBackupArchiveDetails(paths),
+        )
+    }
+
+    private fun readBackupArchiveDetails(paths: List<String>): Map<String, BackupLibraryArchiveDetails> {
+        val requestedPaths = paths
+            .map { it.trim().replace('\\', '/').lowercase() }
+            .toSet()
+        return BackupLibraryFiles.listLibraryArchiveDetails(appContext)
+            .filter { details ->
+                details.termuxReadablePath.trim().replace('\\', '/').lowercase() in requestedPaths
+            }
+            .associateBy { it.termuxReadablePath }
+    }
+
     private fun runLocalBackupLibraryOperation(
         label: String,
         operation: () -> Pair<List<String>, String>,
     ) {
         if (!beginBusy(label, LOCAL_BACKUP_OPERATION_TIMEOUT_MILLIS)) return
         scope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { operation() } }
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (paths, message) = operation()
+                    BackupLibraryOperationSnapshot(
+                        paths = paths,
+                        archiveDetails = readBackupArchiveDetails(paths),
+                        message = message,
+                    )
+                }
+            }
             releaseBusy()
-            result.onSuccess { (paths, message) ->
-                persistBackupHistory(paths)
-                statusUpdate(message, "", true)
+            result.onSuccess { snapshot ->
+                persistBackupHistory(snapshot.paths)
+                state.backupArchiveDetails = snapshot.archiveDetails
+                statusUpdate(snapshot.message, "", true)
             }.onFailure { error ->
                 statusUpdate("$label 失败：${error.message ?: error.javaClass.simpleName}", "", false)
             }
@@ -519,6 +551,17 @@ class LauncherBackupCoordinator(
         const val LOCAL_BACKUP_OPERATION_TIMEOUT_MILLIS = 30 * 60 * 1000L
     }
 }
+
+private data class BackupLibrarySnapshot(
+    val paths: List<String>,
+    val archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+)
+
+private data class BackupLibraryOperationSnapshot(
+    val paths: List<String>,
+    val archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    val message: String,
+)
 
 private fun isSharedStorageBackupPath(path: String): Boolean {
     val normalized = path.trim().replace('\\', '/').lowercase()

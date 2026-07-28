@@ -12,6 +12,11 @@ data class PendingTaskResolveResult(
 )
 
 object PendingLauncherTaskSupport {
+    fun shouldShowRecoveryUi(
+        task: PendingLauncherTask?,
+        operationActive: Boolean,
+    ): Boolean = task != null && !operationActive
+
     fun selectedVersionTargetLabel(selectedVersion: TavernVersionChoice?): String {
         return selectedVersion?.label?.trim().orEmpty()
             .ifBlank { selectedVersion?.target?.trim().orEmpty() }

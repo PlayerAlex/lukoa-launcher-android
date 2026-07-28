@@ -43,6 +43,7 @@ fun BackupSection(
     autoBackupIntervalMinutes: Int,
     autoBackupKeepCount: Int,
     backupHistory: List<String>,
+    backupArchiveDetails: Map<String, BackupLibraryArchiveDetails> = emptyMap(),
     onCreateManualBackup: () -> Unit,
     onToggleAutoBackup: () -> Unit,
     onRefreshBackups: () -> Unit,
@@ -101,6 +102,7 @@ fun BackupSection(
         BackupLibrarySection(
             manualBackups = manualBackups,
             autoBackups = autoBackups,
+            backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
@@ -263,6 +265,7 @@ private fun BackupAutomaticSection(
 private fun BackupLibrarySection(
     manualBackups: List<String>,
     autoBackups: List<String>,
+    backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
     actionsLocked: Boolean,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
@@ -296,6 +299,7 @@ private fun BackupLibrarySection(
             title = "手动备份",
             emptyText = "还没有手动备份，可以先在上方生成一份。",
             backups = manualBackups,
+            backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
@@ -307,6 +311,7 @@ private fun BackupLibrarySection(
             title = "自动备份",
             emptyText = "还没有自动备份。开启后会按设定时间生成。",
             backups = autoBackups,
+            backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
@@ -506,6 +511,7 @@ private fun BackupLibraryGroup(
     title: String,
     emptyText: String,
     backups: List<String>,
+    backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
     actionsLocked: Boolean,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
@@ -553,6 +559,7 @@ private fun BackupLibraryGroup(
             visibleBackups.forEach { path ->
                 BackupRecordLine(
                     path = path,
+                    sizeBytes = findBackupArchiveDetails(backupArchiveDetails, path)?.size,
                     backupType = title,
                     actionsLocked = actionsLocked,
                     onApply = { onApplyBackup(path) },
@@ -582,6 +589,7 @@ private fun BackupLibraryGroup(
 @Composable
 private fun BackupRecordLine(
     path: String,
+    sizeBytes: Long?,
     backupType: String,
     actionsLocked: Boolean,
     onApply: () -> Unit,
@@ -623,6 +631,46 @@ private fun BackupRecordLine(
                     activeBackground = LukoaColors.AccentSoft,
                 )
             }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = LukoaColors.Surface,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.32f)),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "文件大小",
+                            modifier = Modifier.weight(1f),
+                            color = LukoaColors.Muted,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Text(
+                            text = sizeBytes?.let(::formatBackupRestorePreviewSize) ?: "正在读取…",
+                            color = LukoaColors.Text,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Text(
+                        text = "文件地址",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        text = path,
+                        color = LukoaColors.Text,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             BackupActionRow {
                 BackupActionButton(
                     text = "导出",
@@ -663,6 +711,17 @@ private fun BackupRecordLine(
                 )
             }
         }
+    }
+}
+
+private fun findBackupArchiveDetails(
+    archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    path: String,
+): BackupLibraryArchiveDetails? {
+    archiveDetails[path]?.let { return it }
+    val normalizedPath = path.trim().replace('\\', '/')
+    return archiveDetails.values.firstOrNull { details ->
+        details.termuxReadablePath.trim().replace('\\', '/').equals(normalizedPath, ignoreCase = true)
     }
 }
 

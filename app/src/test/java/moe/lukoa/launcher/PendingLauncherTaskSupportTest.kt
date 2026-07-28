@@ -8,6 +8,20 @@ import org.junit.Test
 
 class PendingLauncherTaskSupportTest {
     @Test
+    fun `active operation keeps pending task in running state instead of recovery ui`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.ManualBackup,
+            commandName = "tavern-backup",
+            detail = "正在创建酒馆备份",
+            startedAtMillis = 1L,
+        )
+
+        assertFalse(PendingLauncherTaskSupport.shouldShowRecoveryUi(task, operationActive = true))
+        assertTrue(PendingLauncherTaskSupport.shouldShowRecoveryUi(task, operationActive = false))
+        assertFalse(PendingLauncherTaskSupport.shouldShowRecoveryUi(null, operationActive = false))
+    }
+
+    @Test
     fun `default tab maps backup and restore to backup tab`() {
         assertEquals(
             LauncherTab.Backup,

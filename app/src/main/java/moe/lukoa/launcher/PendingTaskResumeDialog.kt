@@ -96,8 +96,6 @@ fun PendingTaskResumeDialog(
 @Composable
 fun PendingTaskNoticePanel(
     task: PendingLauncherTask,
-    activeLockLabel: String?,
-    actionsLocked: Boolean,
     onContinueCheck: () -> Unit,
     onAbandon: () -> Unit,
 ) {
@@ -116,7 +114,7 @@ fun PendingTaskNoticePanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.54f),
+        color = LukoaColors.AmberSoft.copy(alpha = 0.4f),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.34f)),
     ) {
@@ -135,13 +133,24 @@ fun PendingTaskNoticePanel(
                         .height(8.dp)
                         .background(LukoaColors.Amber, RoundedCornerShape(4.dp)),
                 )
-                Text(
-                    text = "有一项操作需要确认",
+                Column(
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "上次操作等待确认",
+                        color = LukoaColors.Text,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "${task.title} · ${formatPendingTaskTime(task.startedAtMillis)}",
+                        color = LukoaColors.Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 InfoPopoverButton(
                     contentDescription = "查看未完成操作详情",
                     title = task.title,
@@ -149,22 +158,21 @@ fun PendingTaskNoticePanel(
                 )
             }
 
-            PendingTaskSummaryCard(task = task)
             Text(
-                text = "建议先检查结果。这个按钮不会重复执行${task.title}，只会查找已有结果并刷新相关页面。",
+                text = "等待时间已经结束，但启动器还没收到最终结果。先检查已有结果；不会重新执行${task.title}。",
                 color = LukoaColors.Text,
                 style = MaterialTheme.typography.bodySmall,
             )
             ToneActionButton(
                 text = "检查上次操作的结果",
-                enabled = !actionsLocked,
+                enabled = true,
                 tone = ActionTone.Safe,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onContinueCheck,
             )
             ToneActionButton(
                 text = "不再跟踪这次操作",
-                enabled = !actionsLocked,
+                enabled = true,
                 tone = ActionTone.Warning,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { confirmAbandon = true },

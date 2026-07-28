@@ -296,8 +296,19 @@ fun LukoaLauncherScreen(
     }
     val initialPendingLauncherTask = remember { PendingLauncherTaskStore.load(context) }
     var pendingLauncherTask by remember { mutableStateOf(initialPendingLauncherTask) }
-    var showPendingTaskDialog by remember { mutableStateOf(initialPendingLauncherTask != null) }
+    var showPendingTaskDialog by remember {
+        mutableStateOf(
+            PendingLauncherTaskSupport.shouldShowRecoveryUi(
+                task = initialPendingLauncherTask,
+                operationActive = initialRestoredOperationLock != null,
+            ),
+        )
+    }
     val actionInProgress = busyLabel != null
+    val pendingTaskNeedsRecovery = PendingLauncherTaskSupport.shouldShowRecoveryUi(
+        task = pendingLauncherTask,
+        operationActive = actionInProgress,
+    )
     val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
     val scope = rememberCoroutineScope()
     val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
@@ -2945,7 +2956,10 @@ fun LukoaLauncherScreen(
                 animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
             )
         }
-        if (selectedTab == LauncherTab.Backup) {
+    }
+
+    LaunchedEffect(selectedTab, backupHistory, actionInProgress) {
+        if (selectedTab == LauncherTab.Backup && !actionInProgress) {
             backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
         }
     }
@@ -3049,7 +3063,7 @@ fun LukoaLauncherScreen(
         )
     }
 
-    pendingLauncherTask?.takeIf { showPendingTaskDialog }?.let { task ->
+    pendingLauncherTask?.takeIf { showPendingTaskDialog && pendingTaskNeedsRecovery }?.let { task ->
         PendingTaskResumeDialog(
             task = task,
             activeLockLabel = OperationLockStore.activeLabel(context),
@@ -3321,16 +3335,15 @@ fun LukoaLauncherScreen(
                         if (busyLabel != null) {
                             BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                         }
-                    }
-
-                    pendingLauncherTask?.takeIf { !showPendingTaskDialog }?.let { task ->
-                        PendingTaskNoticePanel(
-                            task = task,
-                            activeLockLabel = OperationLockStore.activeLabel(context),
-                            actionsLocked = actionInProgress && !restoredOperationLockActive,
-                            onContinueCheck = ::continuePendingLauncherTask,
-                            onAbandon = ::abandonPendingLauncherTask,
-                        )
+                        pendingLauncherTask
+                            ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
+                            ?.let { task ->
+                                PendingTaskNoticePanel(
+                                    task = task,
+                                    onContinueCheck = ::continuePendingLauncherTask,
+                                    onAbandon = ::abandonPendingLauncherTask,
+                                )
+                            }
                     }
 
                     when (tab) {
@@ -3376,6 +3389,19 @@ fun LukoaLauncherScreen(
                                 tavernStarting = tavernStarting,
                                 syncActive = termuxInstalled && runCommandPermissionGranted,
                             )
+                            if (busyLabel != null) {
+                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
+                            } else {
+                                pendingLauncherTask
+                                    ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
+                                    ?.let { task ->
+                                        PendingTaskNoticePanel(
+                                            task = task,
+                                            onContinueCheck = ::continuePendingLauncherTask,
+                                            onAbandon = ::abandonPendingLauncherTask,
+                                        )
+                                    }
+                            }
                             launchPermissionReminder?.let { reminder ->
                                 NoticeCard(
                                     title = reminder.title,
@@ -3387,9 +3413,6 @@ fun LukoaLauncherScreen(
                                         update("请到设置里的权限分区补齐后台常驻或备份相关权限。", "", false, allowRunningInference = false)
                                     },
                                 )
-                            }
-                            if (busyLabel != null) {
-                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                             }
                             val setupRecommended = termuxSetupRecommended()
                             val showQuickStartGuide = !termuxInstalled ||
@@ -3488,6 +3511,7 @@ fun LukoaLauncherScreen(
                             autoBackupIntervalMinutes = autoBackupIntervalMinutes,
                             autoBackupKeepCount = autoBackupKeepCount,
                             backupHistory = backupHistory,
+                            backupArchiveDetails = backupUiState.backupArchiveDetails,
                             onCreateManualBackup = backupCoordinator::openManualBackupDialog,
                             onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
                             onRefreshBackups = { backupCoordinator.refreshBackupList() },

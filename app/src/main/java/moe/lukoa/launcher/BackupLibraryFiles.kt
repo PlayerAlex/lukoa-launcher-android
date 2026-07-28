@@ -84,6 +84,17 @@ object BackupLibraryFiles {
         return listLibraryArchiveEntries(context).map { it.termuxReadablePath }
     }
 
+    fun listLibraryArchiveDetails(context: Context): List<BackupLibraryArchiveDetails> {
+        return listLibraryArchiveEntries(context).map { entry ->
+            BackupLibraryArchiveDetails(
+                fileName = entry.fileName,
+                termuxReadablePath = entry.termuxReadablePath,
+                size = entry.size,
+                modifiedAtMillis = entry.modifiedAtMillis,
+            )
+        }
+    }
+
     fun pruneAutoLibraryArchives(context: Context, keepCount: Int): BackupLibraryPruneResult {
         val safeKeepCount = keepCount.coerceIn(0, 50)
         val autoEntries = listLibraryArchiveEntries(context)

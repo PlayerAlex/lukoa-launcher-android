@@ -82,6 +82,9 @@ class BackupRestoreIntegrationTest {
                 .use { it.readBytes() },
         )
         assertTrue(BackupLibraryFiles.listLibraryArchives(context).contains(imported.termuxReadablePath))
+        val importedDetails = BackupLibraryFiles.listLibraryArchiveDetails(context)
+            .first { it.termuxReadablePath == imported.termuxReadablePath }
+        assertEquals(expectedBytes.size.toLong(), importedDetails.size)
 
         val preview = BackupRestorePreviewResolver.resolve(
             context = context,
