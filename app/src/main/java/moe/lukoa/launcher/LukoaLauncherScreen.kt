@@ -3348,7 +3348,6 @@ fun LukoaLauncherScreen(
                             },
                             onTavernUpdate = ::requestTavernUpdate,
                             onTavernRollback = ::requestTavernRollback,
-                            onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Launch -> {
                             val launchPermissionReminder = PermissionStatusSummary.launchReminder(

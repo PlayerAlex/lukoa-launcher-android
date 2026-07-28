@@ -625,29 +625,24 @@ private fun RepairDiagnosticsContent(
         title = "诊断与日志",
         detail = "“导出诊断日志”会生成一份排错文件，不会修改酒馆数据。“清除页面日志”只清空启动器里当前显示的记录。\n“强制清理”会结束当前实例可能残留的进程，普通停止无效或端口被占用时才使用。${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
     ) {
-        Row(
+        SettingsFeedbackActionButton(
+            text = "导出诊断日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Accent,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SettingsFeedbackActionButton(
-                text = "导出诊断日志",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.weight(1f),
-                unavailableHint = lockedHint,
-                onShowHint = onShowHint,
-                onClick = onExportDiagnostic,
-            )
-            SettingsFeedbackActionButton(
-                text = "清除页面日志",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.weight(1f),
-                unavailableHint = lockedHint,
-                onShowHint = onShowHint,
-                onClick = onClearLogs,
-            )
-        }
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
+            onClick = onExportDiagnostic,
+        )
+        SettingsFeedbackActionButton(
+            text = "清除页面日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
+            onClick = onClearLogs,
+        )
         SettingsFeedbackActionButton(
             text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
             enabled = !actionsLocked,

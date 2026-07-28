@@ -1,7 +1,6 @@
 package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,15 +29,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-
-private enum class VersionPageView {
-    Current,
-    Target,
+internal enum class VersionPrimaryAction {
+    Update,
+    Rollback,
 }
 
+internal fun preferredVersionPrimaryAction(
+    state: TavernVersionActionState,
+): VersionPrimaryAction = when {
+    state.updateAvailable -> VersionPrimaryAction.Update
+    state.rollbackAvailable -> VersionPrimaryAction.Rollback
+    state.relation == TavernTargetRelation.Older -> VersionPrimaryAction.Rollback
+    else -> VersionPrimaryAction.Update
+}
+
+private data class VersionStatusStyle(
+    val text: String,
+    val tone: Color,
+    val background: Color,
+)
 
 @Composable
 fun VersionManagementSection(
@@ -54,7 +67,6 @@ fun VersionManagementSection(
     onTavernVersion: () -> Unit,
     onTavernUpdate: () -> Unit,
     onTavernRollback: () -> Unit,
-    onPagerLockChange: (Boolean) -> Unit = {},
 ) {
     val actionState = TavernVersionActionGuards.evaluate(
         current = tavernVersionInfo,
@@ -64,463 +76,379 @@ fun VersionManagementSection(
         tavernRunning = tavernRunning,
         tavernStarting = tavernStarting,
     )
-    val versionManagementChoices = TavernVersionSelection.versionManagementChoices(
+    val versionChoices = TavernVersionSelection.versionManagementChoices(
         officialVersions = officialVersions,
         current = tavernVersionInfo,
     )
-    val updateEnabled = !actionsLocked && actionState.updateAvailable
-    val rollbackEnabled = !actionsLocked && actionState.rollbackAvailable
-    val disabledReasons = listOfNotNull(
-        actionState.updateDisabledReason?.let { "更新：$it" },
-        actionState.rollbackDisabledReason?.let { "回退：$it" },
-    ).distinct()
-    var selectedView by remember {
-        mutableStateOf(
-            if (tavernVersionInfo.hasData) VersionPageView.Current else VersionPageView.Target,
-        )
-    }
-    val viewOptions = listOf(
-        SectionSwitchOption(
-            value = VersionPageView.Current,
-            label = "当前安装",
-            description = "看当前酒馆版本、分支、提交、本地改动和检测目录。",
-        ),
-        SectionSwitchOption(
-            value = VersionPageView.Target,
-            label = "目标切换",
-            description = "读取官方版本、选择目标版本，再决定更新还是回退。",
-        ),
-    )
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        VersionOverviewCard(
+        CurrentVersionSection(
             tavernVersionInfo = tavernVersionInfo,
-            selectedVersion = selectedVersion,
-            officialVersions = officialVersions,
             actionsLocked = actionsLocked,
             onRefreshCurrentVersion = onTavernVersion,
         )
-        SectionSwitcherCard(
-            title = "版本分区",
-            options = viewOptions,
-            selected = selectedView,
-            onPagerLockChange = onPagerLockChange,
-            onSelect = { selectedView = it },
+        TargetVersionSection(
+            officialVersions = officialVersions,
+            versionChoices = versionChoices,
+            currentRepoUrl = currentRepoUrl,
+            selectedVersion = selectedVersion,
+            actionsLocked = actionsLocked,
+            onRefreshOfficialVersions = onRefreshOfficialVersions,
+            onSelectVersion = onSelectVersion,
         )
+        VersionExecutionSection(
+            currentVersionInfo = tavernVersionInfo,
+            selectedVersion = selectedVersion,
+            actionState = actionState,
+            actionsLocked = actionsLocked,
+            onUpdate = onTavernUpdate,
+            onRollback = onTavernRollback,
+        )
+    }
+}
 
-        when (selectedView) {
-            VersionPageView.Current -> SectionPanel(
-                title = "当前安装信息",
-                accentColor = LukoaColors.Accent,
-                headerAction = {
-                    InfoPopoverButton(
-                        contentDescription = "查看当前安装信息说明",
-                        title = "当前安装信息",
-                        body = "这里显示当前酒馆的版本、分支和文件位置。\n“本地已修改”表示酒馆的程序文件和原版本不完全一样，可能是你手动改过，也可能是插件改过。\n为了避免覆盖这些文件，启动器会暂时阻止更新和回退。不确定怎么处理时，先做一份手动备份，再查看下方列出的文件。",
-                    )
-                },
+@Composable
+private fun CurrentVersionSection(
+    tavernVersionInfo: TavernVersionInfo,
+    actionsLocked: Boolean,
+    onRefreshCurrentVersion: () -> Unit,
+) {
+    var showTechnicalDetails by remember { mutableStateOf(false) }
+    val status = currentVersionStatus(tavernVersionInfo)
+
+    SectionPanel(
+        title = "当前安装",
+        accentColor = LukoaColors.Accent,
+        headerAction = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                StatusPill(
+                    text = status.text,
+                    active = true,
+                    toneColor = status.tone,
+                    activeBackground = status.background,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看当前安装说明",
+                    title = "当前安装",
+                    body = "这里显示当前这套 SillyTavern 酒馆安装的版本和位置。\n“本地已修改”表示程序文件与原版本不完全一样。为了避免覆盖这些文件，启动器会暂时阻止更新和回退。\n提交号、Git 描述和回退点属于排错信息，普通使用时不用查看。",
+                )
+            }
+        },
+    ) {
+        when {
+            tavernVersionInfo.hasData -> {
                 Text(
                     text = tavernVersionInfo.displayVersion,
-                    color = when {
-                        tavernVersionInfo.hasData -> LukoaColors.Text
-                        tavernVersionInfo.notInstalled -> LukoaColors.Amber
-                        else -> LukoaColors.Muted
-                    },
-                    style = MaterialTheme.typography.titleLarge,
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                VersionInfoLine("分支", tavernVersionInfo.branch.ifBlank { "未读取" })
+                VersionInfoLine("酒馆位置", tavernVersionInfo.directory.ifBlank { "未读取" })
 
-                if (tavernVersionInfo.hasData) {
-                    VersionInfoLine("分支", tavernVersionInfo.branch.ifBlank { "未读取" })
-                    VersionInfoLine("提交", tavernVersionInfo.commit.ifBlank { "未读取" })
-                    VersionInfoLine("Git 描述", tavernVersionInfo.describe.ifBlank { "未读取" })
-                    VersionInfoLine("回退点", tavernVersionInfo.rollbackDisplay)
-                    VersionInfoLine("目录", tavernVersionInfo.directory.ifBlank { "未读取" })
-                    if (tavernVersionInfo.hasLocalChanges) {
-                        Text(
-                            text = "酒馆源码有改动，先处理后再更新或回退。",
-                            color = LukoaColors.Amber,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = tavernVersionInfo.changedFilesPreview,
-                            color = LukoaColors.Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                if (tavernVersionInfo.hasLocalChanges) {
+                    LocalChangesNotice(tavernVersionInfo.changedFilesPreview)
+                }
+
+                SecondaryActionButton(
+                    text = if (showTechnicalDetails) "收起技术信息" else "查看技术信息",
+                    enabled = true,
+                    accentColor = LukoaColors.Accent,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showTechnicalDetails = !showTechnicalDetails },
+                )
+                if (showTechnicalDetails) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LukoaColors.SurfaceAlt.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            VersionInfoLine("提交", tavernVersionInfo.commit.ifBlank { "未读取" })
+                            VersionInfoLine("Git 描述", tavernVersionInfo.describe.ifBlank { "未读取" })
+                            VersionInfoLine("回退点", tavernVersionInfo.rollbackDisplay)
+                        }
                     }
-                } else if (tavernVersionInfo.notInstalled) {
-                    Text(
-                        text = "没有找到酒馆目录。先读取目标版本，再回启动页安装酒馆。",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    if (tavernVersionInfo.directory.isNotBlank()) {
-                        VersionInfoLine("检测目录", tavernVersionInfo.directory)
-                    }
-                } else {
-                    Text(
-                        text = "点上面的重新检测酒馆版本，就能读取当前安装信息。",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                 }
             }
 
-            VersionPageView.Target -> SectionPanel(
-                title = "目标版本与切换",
-                accentColor = LukoaColors.Accent,
-                headerAction = {
-                    InfoPopoverButton(
-                        contentDescription = "查看目标版本说明",
-                        title = "目标版本与切换",
-                        body = "先点“读取官方版本”，再选择你想使用的版本。\n目标比当前新时是更新，比当前旧时是回退；酒馆还没安装时，这个选择会用于首次安装。\n执行前会先创建安全备份，只切换酒馆程序版本，不会主动删除聊天、角色、世界书或插件数据。",
-                    )
-                },
-            ) {
-                OfficialVersionChooser(
-                    title = "官方版本下拉框",
-                    officialVersions = versionManagementChoices,
-                    selectedVersion = selectedVersion,
-                    actionsLocked = actionsLocked,
-                    refreshEnabled = !actionsLocked,
-                    emptyStateText = if (officialVersions.hasData) {
-                        "当前版本已经隐藏，暂时没有别的官方版本。"
-                    } else {
-                        "先读取官方版本"
-                    },
-                    onRefreshOfficialVersions = onRefreshOfficialVersions,
-                    onSelectVersion = onSelectVersion,
-                )
+            tavernVersionInfo.notInstalled -> {
                 Text(
-                    text = when {
-                        !officialVersions.hasData -> "当前还没读到这个 Git 源的官方版本列表。"
-                        !TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl) ->
-                            "当前显示的是旧 Git 源的版本列表，请先刷新。"
-                        else -> "当前列表来源：${repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl })}"
-                    },
-                    color = when {
-                        !officialVersions.hasData -> LukoaColors.Muted
-                        !TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl) ->
-                            LukoaColors.Amber
-                        else -> LukoaColors.Muted
-                    },
+                    text = "当前路径里没有找到酒馆。",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                tavernVersionInfo.directory.takeIf(String::isNotBlank)?.let { directory ->
+                    VersionInfoLine("检测位置", directory)
+                }
+                Text(
+                    text = "你仍然可以在下方选择目标版本，之后回到启动页完成首次安装。",
+                    color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
 
-                VersionOperationStatusCard(
-                    currentVersionInfo = tavernVersionInfo,
-                    selectedVersion = selectedVersion,
-                    actionState = actionState,
-                    disabledReasons = disabledReasons,
+            else -> {
+                Text(
+                    text = "尚未读取到当前版本。启动器进入版本页时会自动读取，也可以手动重新检测。",
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
+            }
+        }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    SecondaryActionButton(
-                        text = "更新",
-                        enabled = updateEnabled,
-                        accentColor = LukoaColors.Accent,
-                        modifier = Modifier
-                            .weight(1f),
-                        onClick = onTavernUpdate,
-                    )
-                    SecondaryActionButton(
-                        text = "回退",
-                        enabled = rollbackEnabled,
-                        accentColor = LukoaColors.Accent,
-                        modifier = Modifier
-                            .weight(1f),
-                        onClick = onTavernRollback,
-                    )
-                }
+        SecondaryActionButton(
+            text = "重新检测当前版本",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onRefreshCurrentVersion,
+        )
+    }
+}
 
-                if (tavernVersionInfo.notInstalled) {
-                    Text(
-                        text = "未安装时不能更新或回退，请先回启动页安装酒馆。",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+@Composable
+private fun LocalChangesNotice(changedFilesPreview: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.AmberSoft.copy(alpha = 0.82f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.35f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "检测到本地修改",
+                color = LukoaColors.Amber,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "为避免覆盖这些文件，更新和回退已暂时锁定。不确定怎么处理时，先生成一份手动备份。",
+                color = LukoaColors.Text,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (changedFilesPreview.isNotBlank()) {
+                Text(
+                    text = changedFilesPreview,
+                    color = LukoaColors.Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun VersionOverviewCard(
-    tavernVersionInfo: TavernVersionInfo,
-    selectedVersion: TavernVersionChoice?,
+private fun TargetVersionSection(
     officialVersions: TavernOfficialVersions,
+    versionChoices: TavernOfficialVersions,
+    currentRepoUrl: String,
+    selectedVersion: TavernVersionChoice?,
     actionsLocked: Boolean,
-    onRefreshCurrentVersion: () -> Unit,
+    onRefreshOfficialVersions: () -> Unit,
+    onSelectVersion: (TavernVersionChoice) -> Unit,
 ) {
-    val statusText: String
-    val statusColor: Color
-    val statusBackground: Color
-    when {
-        tavernVersionInfo.hasLocalChanges -> {
-            statusText = "本地已修改"
-            statusColor = LukoaColors.Amber
-            statusBackground = LukoaColors.AmberSoft
-        }
-        tavernVersionInfo.hasData -> {
-            statusText = "就绪"
-            statusColor = LukoaColors.Accent
-            statusBackground = LukoaColors.AccentSoft
-        }
-        tavernVersionInfo.notInstalled -> {
-            statusText = "未安装"
-            statusColor = LukoaColors.Amber
-            statusBackground = LukoaColors.AmberSoft
-        }
-        else -> {
-            statusText = "检测中"
-            statusColor = LukoaColors.Muted
-            statusBackground = LukoaColors.SurfaceAlt
-        }
+    val listMatchesCurrentSource = TavernVersionCatalog.listMatchesCurrentMirror(
+        officialVersions,
+        currentRepoUrl,
+    )
+    val sourceText = when {
+        !officialVersions.hasData -> "还没有读取官方版本列表。"
+        !listMatchesCurrentSource -> "当前列表来自旧下载源，请重新读取。"
+        else -> "版本来源：${repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl })}"
+    }
+    val sourceColor = if (officialVersions.hasData && !listMatchesCurrentSource) {
+        LukoaColors.Amber
+    } else {
+        LukoaColors.Muted
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
+    SectionPanel(
+        title = "选择目标版本",
+        accentColor = LukoaColors.Accent,
+        headerAction = {
+            InfoPopoverButton(
+                contentDescription = "查看目标版本说明",
+                title = "选择目标版本",
+                body = "先读取官方版本，再选择你想使用的目标。\n目标比当前新时会执行更新，比当前旧时会执行回退；无法判断新旧的自定义目标只允许按更新方式处理。\n酒馆尚未安装时，这个选择会保留给首次安装使用。大多数用户优先选择稳定版。",
+            )
+        },
     ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        OfficialVersionChooser(
+            officialVersions = versionChoices,
+            officialListLoaded = officialVersions.hasData,
+            selectedVersion = selectedVersion,
+            actionsLocked = actionsLocked,
+            refreshEnabled = !actionsLocked,
+            emptyStateText = if (officialVersions.hasData) {
+                "当前版本已从列表中隐藏"
+            } else {
+                "先读取官方版本"
+            },
+            onRefreshOfficialVersions = onRefreshOfficialVersions,
+            onSelectVersion = onSelectVersion,
+        )
+        Text(
+            text = sourceText,
+            color = sourceColor,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun VersionExecutionSection(
+    currentVersionInfo: TavernVersionInfo,
+    selectedVersion: TavernVersionChoice?,
+    actionState: TavernVersionActionState,
+    actionsLocked: Boolean,
+    onUpdate: () -> Unit,
+    onRollback: () -> Unit,
+) {
+    val primaryAction = preferredVersionPrimaryAction(actionState)
+    val actionEnabled = !actionsLocked && when (primaryAction) {
+        VersionPrimaryAction.Update -> actionState.updateAvailable
+        VersionPrimaryAction.Rollback -> actionState.rollbackAvailable
+    }
+    val status = executionStatus(
+        currentVersionInfo = currentVersionInfo,
+        selectedVersion = selectedVersion,
+        actionState = actionState,
+        actionsLocked = actionsLocked,
+    )
+    val disabledReason = when {
+        actionsLocked -> "当前有其他任务正在处理，请等待任务完成。"
+        primaryAction == VersionPrimaryAction.Update -> actionState.updateDisabledReason
+        else -> actionState.rollbackDisabledReason
+    }
+
+    SectionPanel(
+        title = "准备执行",
+        accentColor = LukoaColors.Accent,
+        headerAction = {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "版本部署",
-                    color = LukoaColors.Text,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
                 StatusPill(
-                    text = statusText,
+                    text = status.text,
                     active = true,
-                    toneColor = statusColor,
-                    activeBackground = statusBackground,
+                    toneColor = status.tone,
+                    activeBackground = status.background,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看版本切换说明",
+                    title = "更新与回退",
+                    body = "这里会根据当前版本和目标版本，自动显示“执行更新”或“执行回退”。\n按钮变灰时，请先按页面提示处理，例如停止酒馆、读取版本或处理本地修改。\n真正执行前还会再次显示当前版本、目标版本和下载源，并自动创建安全备份。",
                 )
             }
+        },
+    ) {
+        VersionTransitionCard(
+            currentVersion = currentVersionInfo.displayVersion,
+            targetVersion = selectedVersion?.label ?: "尚未选择",
+            targetSelected = selectedVersion != null,
+        )
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    VersionStatBlock(
-                        label = "当前版本",
-                        value = if (tavernVersionInfo.hasData) tavernVersionInfo.displayVersion else "未知",
-                        accentColor = if (tavernVersionInfo.hasData) LukoaColors.Text else LukoaColors.Dim,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "→",
-                        color = LukoaColors.Line,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    VersionStatBlock(
-                        label = "目标版本",
-                        value = selectedVersion?.label ?: "未选择",
-                        accentColor = if (selectedVersion != null) LukoaColors.Accent else LukoaColors.Dim,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            SecondaryActionButton(
-                text = "重新检测酒馆版本",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onRefreshCurrentVersion,
+        Text(
+            text = executionSummary(
+                currentVersionInfo = currentVersionInfo,
+                selectedVersion = selectedVersion,
+                actionState = actionState,
+                primaryAction = primaryAction,
+                actionEnabled = actionEnabled,
+                disabledReason = disabledReason,
+            ),
+            color = if (actionEnabled) LukoaColors.Text else LukoaColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        SecondaryActionButton(
+            text = executionButtonLabel(
+                currentVersionInfo = currentVersionInfo,
+                selectedVersion = selectedVersion,
+                actionState = actionState,
+                actionsLocked = actionsLocked,
+                primaryAction = primaryAction,
+            ),
+            enabled = actionEnabled,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = when (primaryAction) {
+                VersionPrimaryAction.Update -> onUpdate
+                VersionPrimaryAction.Rollback -> onRollback
+            },
+        )
+    }
+}
+
+@Composable
+private fun VersionTransitionCard(
+    currentVersion: String,
+    targetVersion: String,
+    targetSelected: Boolean,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.SurfaceAlt.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            VersionEndpoint(
+                label = "当前",
+                value = currentVersion,
+                color = LukoaColors.Text,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "→",
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            VersionEndpoint(
+                label = "目标",
+                value = targetVersion,
+                color = if (targetSelected) LukoaColors.Accent else LukoaColors.Muted,
+                modifier = Modifier.weight(1f),
             )
         }
     }
 }
 
 @Composable
-private fun VersionOperationStatusCard(
-    currentVersionInfo: TavernVersionInfo,
-    selectedVersion: TavernVersionChoice?,
-    actionState: TavernVersionActionState,
-    disabledReasons: List<String>,
-) {
-    val statusText: String
-    val statusColor: Color
-    when {
-        actionState.instanceActive -> {
-            statusText = "先停止当前实例"
-            statusColor = LukoaColors.Amber
-        }
-        currentVersionInfo.notInstalled -> {
-            statusText = "先安装酒馆"
-            statusColor = LukoaColors.Amber
-        }
-        !currentVersionInfo.hasData -> {
-            statusText = "先读取当前版本"
-            statusColor = LukoaColors.Amber
-        }
-        currentVersionInfo.hasLocalChanges -> {
-            statusText = "源码有本地改动"
-            statusColor = LukoaColors.Amber
-        }
-        selectedVersion == null -> {
-            statusText = "先选目标版本"
-            statusColor = LukoaColors.Amber
-        }
-        actionState.updateAvailable -> {
-            statusText = "可以更新"
-            statusColor = LukoaColors.Accent
-        }
-        actionState.rollbackAvailable -> {
-            statusText = "可以回退"
-            statusColor = LukoaColors.Accent
-        }
-        actionState.relation == TavernTargetRelation.Same -> {
-            statusText = "已经是这个版本"
-            statusColor = LukoaColors.Muted
-        }
-        else -> {
-            statusText = "暂时不能执行"
-            statusColor = LukoaColors.Muted
-        }
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "操作状态",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Surface(
-                    color = statusColor.copy(alpha = 0.14f),
-                    shape = LukoaCapsuleShape,
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
-                ) {
-                    Text(
-                        text = statusText,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = statusColor,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                VersionStatusValueCard(
-                    label = "当前版本",
-                    value = currentVersionInfo.displayVersion,
-                    accentColor = when {
-                        currentVersionInfo.hasData -> LukoaColors.Text
-                        currentVersionInfo.notInstalled -> LukoaColors.Amber
-                        else -> LukoaColors.Muted
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                VersionStatusValueCard(
-                    label = "目标版本",
-                    value = selectedVersion?.label ?: "未选择",
-                    accentColor = if (selectedVersion == null) LukoaColors.Muted else LukoaColors.Accent,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            selectedVersion?.let { choice ->
-                Text(
-                    text = when (choice.kind) {
-                        TavernVersionKind.Stable -> "稳定版，适合大多数人。"
-                        TavernVersionKind.Test -> "测试版，可能有新功能，也可能不稳定。"
-                        TavernVersionKind.Custom -> "自定义目标，请确认版本名、分支名或 commit 没填错。"
-                    },
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
-            TavernVersionActionGuards.relationHint(actionState, selectedVersion)
-                ?.takeIf { it.isNotBlank() }
-                ?.let { hint ->
-                    Text(
-                        text = hint,
-                        color = if (statusColor == LukoaColors.Accent) LukoaColors.Accent else LukoaColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-
-            if (disabledReasons.isNotEmpty()) {
-                HorizontalDivider(color = LukoaColors.Line)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "当前限制",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    disabledReasons.forEach { reason ->
-                        Text(
-                            text = reason,
-                            color = LukoaColors.Text,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VersionStatBlock(
+private fun VersionEndpoint(
     label: String,
     value: String,
-    accentColor: Color,
+    color: Color,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = label,
@@ -530,60 +458,84 @@ private fun VersionStatBlock(
         )
         Text(
             text = value,
-            color = accentColor,
-            style = MaterialTheme.typography.titleMedium,
+            color = color,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
 }
 
-@Composable
-internal fun VersionStatusValueCard(
-    label: String,
-    value: String,
-    accentColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line),
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = label,
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = value,
-                color = accentColor,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+private fun currentVersionStatus(info: TavernVersionInfo): VersionStatusStyle = when {
+    info.hasLocalChanges -> VersionStatusStyle("本地已修改", LukoaColors.Amber, LukoaColors.AmberSoft)
+    info.hasData -> VersionStatusStyle("已读取", LukoaColors.Accent, LukoaColors.AccentSoft)
+    info.notInstalled -> VersionStatusStyle("未安装", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    else -> VersionStatusStyle("等待读取", LukoaColors.Muted, LukoaColors.SurfaceAlt)
 }
 
+private fun executionStatus(
+    currentVersionInfo: TavernVersionInfo,
+    selectedVersion: TavernVersionChoice?,
+    actionState: TavernVersionActionState,
+    actionsLocked: Boolean,
+): VersionStatusStyle = when {
+    actionsLocked -> VersionStatusStyle("任务处理中", LukoaColors.Accent, LukoaColors.AccentSoft)
+    actionState.instanceActive -> VersionStatusStyle("请先停止酒馆", LukoaColors.Amber, LukoaColors.AmberSoft)
+    currentVersionInfo.hasLocalChanges -> VersionStatusStyle("需要处理修改", LukoaColors.Amber, LukoaColors.AmberSoft)
+    currentVersionInfo.notInstalled -> VersionStatusStyle("等待首次安装", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    !currentVersionInfo.hasData -> VersionStatusStyle("等待读取", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    selectedVersion == null -> VersionStatusStyle("等待选择目标", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    actionState.relation == TavernTargetRelation.Same -> VersionStatusStyle("已经是此版本", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    actionState.updateAvailable -> VersionStatusStyle("可以更新", LukoaColors.Accent, LukoaColors.AccentSoft)
+    actionState.rollbackAvailable -> VersionStatusStyle("可以回退", LukoaColors.Accent, LukoaColors.AccentSoft)
+    else -> VersionStatusStyle("暂不可用", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+}
+
+private fun executionSummary(
+    currentVersionInfo: TavernVersionInfo,
+    selectedVersion: TavernVersionChoice?,
+    actionState: TavernVersionActionState,
+    primaryAction: VersionPrimaryAction,
+    actionEnabled: Boolean,
+    disabledReason: String?,
+): String = when {
+    currentVersionInfo.notInstalled -> "目标版本会用于首次安装，请回到启动页继续安装酒馆。"
+    actionEnabled && primaryAction == VersionPrimaryAction.Update ->
+        "目标比当前版本新。执行前会再次确认，并先创建安全备份。"
+    actionEnabled -> "目标比当前版本旧。执行前会再次确认，并先创建安全备份。"
+    actionState.relation == TavernTargetRelation.Same -> "当前酒馆已经是你选择的目标版本。"
+    selectedVersion == null -> "先在上方选择目标版本，启动器会自动判断应该更新还是回退。"
+    !disabledReason.isNullOrBlank() -> disabledReason
+    else -> "当前条件还不满足，请先完成上方提示的步骤。"
+}
+
+private fun executionButtonLabel(
+    currentVersionInfo: TavernVersionInfo,
+    selectedVersion: TavernVersionChoice?,
+    actionState: TavernVersionActionState,
+    actionsLocked: Boolean,
+    primaryAction: VersionPrimaryAction,
+): String = when {
+    actionsLocked -> "当前任务处理中"
+    actionState.instanceActive -> "请先停止酒馆"
+    currentVersionInfo.notInstalled -> "请先安装酒馆"
+    !currentVersionInfo.hasData -> "请先读取当前版本"
+    currentVersionInfo.hasLocalChanges -> "处理本地修改后再继续"
+    selectedVersion == null -> "请先选择目标版本"
+    actionState.relation == TavernTargetRelation.Same -> "已经是当前版本"
+    primaryAction == VersionPrimaryAction.Rollback -> "执行回退"
+    else -> "执行更新"
+}
 
 @Composable
 private fun OfficialVersionChooser(
-    title: String,
     officialVersions: TavernOfficialVersions,
+    officialListLoaded: Boolean,
     selectedVersion: TavernVersionChoice?,
     actionsLocked: Boolean,
     refreshEnabled: Boolean = !actionsLocked,
-    refreshDisabledMessage: String? = null,
     emptyStateText: String = "先读取官方版本",
     onRefreshOfficialVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
@@ -614,144 +566,109 @@ private fun OfficialVersionChooser(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = title,
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = selectedVersion?.label ?: "未选择",
-                color = if (selectedVersion == null) LukoaColors.Muted else LukoaColors.Accent,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                OutlinedButton(
-                    onClick = { expanded = true },
-                    enabled = !actionsLocked,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.46f)),
-                    shape = LukoaCapsuleShape,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = LukoaColors.Accent,
-                        disabledContainerColor = Color.Transparent,
-                        disabledContentColor = LukoaColors.Dim,
-                    ),
-                ) {
-                    Text(
-                        text = selectedVersion?.label ?: "选择版本",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                enabled = !actionsLocked,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.46f)),
+                shape = LukoaCapsuleShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = LukoaColors.Accent.copy(alpha = 0.04f),
+                    contentColor = LukoaColors.Accent,
+                    disabledContainerColor = Color.Transparent,
+                    disabledContentColor = LukoaColors.Dim,
+                ),
+            ) {
+                Text(
+                    text = selectedVersion?.label ?: "选择目标版本",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                containerColor = LukoaColors.Surface,
+            ) {
+                if (allChoices.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text(emptyStateText) },
+                        enabled = false,
+                        onClick = {},
                     )
                 }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    containerColor = LukoaColors.Surface,
-                ) {
-                    if (allChoices.isEmpty()) {
+                if (officialVersions.stable.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("稳定版") },
+                        enabled = false,
+                        onClick = {},
+                    )
+                    officialVersions.stable.forEach { choice ->
                         DropdownMenuItem(
-                            text = { Text(emptyStateText) },
-                            enabled = false,
-                            onClick = {},
+                            text = {
+                                Text(
+                                    text = choice.label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelectVersion(choice)
+                            },
                         )
                     }
-                    if (officialVersions.stable.isNotEmpty()) {
-                        DropdownMenuItem(
-                            text = { Text("稳定版") },
-                            enabled = false,
-                            onClick = {},
-                        )
-                        officialVersions.stable.forEach { choice ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = choice.label,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                onClick = {
-                                    expanded = false
-                                    onSelectVersion(choice)
-                                },
-                            )
-                        }
-                    }
-                    if (officialVersions.test.isNotEmpty()) {
-                        HorizontalDivider(color = LukoaColors.Line)
-                        DropdownMenuItem(
-                            text = { Text("测试版") },
-                            enabled = false,
-                            onClick = {},
-                        )
-                        officialVersions.test.forEach { choice ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = choice.label,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                onClick = {
-                                    expanded = false
-                                    onSelectVersion(choice)
-                                },
-                            )
-                        }
-                    }
+                }
+                if (officialVersions.test.isNotEmpty()) {
                     HorizontalDivider(color = LukoaColors.Line)
                     DropdownMenuItem(
-                        text = { Text("自定义版本 / 分支 / commit") },
-                        onClick = {
-                            expanded = false
-                            customInput = selectedVersion?.takeIf { it.kind == TavernVersionKind.Custom }?.target.orEmpty()
-                            showCustomDialog = true
-                        },
+                        text = { Text("测试版") },
+                        enabled = false,
+                        onClick = {},
                     )
+                    officialVersions.test.forEach { choice ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = choice.label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelectVersion(choice)
+                            },
+                        )
+                    }
                 }
+                HorizontalDivider(color = LukoaColors.Line)
+                DropdownMenuItem(
+                    text = { Text("自定义版本 / 分支 / commit") },
+                    onClick = {
+                        expanded = false
+                        customInput = selectedVersion
+                            ?.takeIf { it.kind == TavernVersionKind.Custom }
+                            ?.target
+                            .orEmpty()
+                        showCustomDialog = true
+                    },
+                )
             }
-
-            SecondaryActionButton(
-                text = if (!refreshEnabled && refreshDisabledMessage != null) refreshDisabledMessage else if (officialVersions.hasData) "刷新" else "读取",
-                enabled = refreshEnabled,
-                accentColor = LukoaColors.Accent,
-                modifier = Modifier.weight(0.55f),
-                onClick = onRefreshOfficialVersions,
-            )
         }
 
-        if (!officialVersions.hasData) {
-            Text(
-                text = "读取官方版本，也可以自定义输入。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else if (allChoices.isEmpty()) {
-            Text(
-                text = "当前同版本已经从列表里隐藏。想切换别的目标，也可以手动输入。",
-                color = LukoaColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        SecondaryActionButton(
+            text = if (officialListLoaded) "刷新官方版本" else "读取官方版本",
+            enabled = refreshEnabled,
+            accentColor = LukoaColors.Accent,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onRefreshOfficialVersions,
+        )
     }
 }
 
@@ -774,7 +691,7 @@ private fun CustomVersionDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "填写 tag、分支名或 commit。",
+                    text = "填写版本标签、分支名或 commit。只有明确知道目标时才使用自定义输入。",
                     color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -818,9 +735,49 @@ private fun CustomVersionDialog(
             )
         },
         dismissButton = {
-            SecondaryActionButton("取消", true, LukoaColors.Accent, onClick = onDismiss)
+            SecondaryActionButton(
+                text = "取消",
+                enabled = true,
+                accentColor = LukoaColors.Accent,
+                onClick = onDismiss,
+            )
         },
     )
+}
+
+@Composable
+internal fun VersionStatusValueCard(
+    label: String,
+    value: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                color = LukoaColors.Muted,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = value,
+                color = accentColor,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable
@@ -828,6 +785,7 @@ internal fun VersionInfoLine(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = label,
@@ -841,7 +799,8 @@ internal fun VersionInfoLine(label: String, value: String) {
                 .padding(start = 12.dp),
             color = LukoaColors.Text,
             style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
+            textAlign = TextAlign.End,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
