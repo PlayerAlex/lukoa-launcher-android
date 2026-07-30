@@ -308,9 +308,10 @@ object TavernPortNormalizer {
 
 object TavernPathValidator {
     fun validate(value: String): String? {
-        val normalized = TavernPathNormalizer.normalize(value)
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return "酒馆目录不能为空。"
+        val normalized = TavernPathNormalizer.normalize(trimmed)
         return when {
-            normalized.isBlank() -> "酒馆目录不能为空。"
             normalized.length > 320 -> "酒馆目录太长了。"
             normalized.contains("::") || normalized.any { it == '\n' || it == '\r' || it.code < 32 } ->
                 "酒馆目录里不能有换行或 ::。"

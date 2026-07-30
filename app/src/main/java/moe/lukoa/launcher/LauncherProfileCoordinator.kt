@@ -54,9 +54,14 @@ class LauncherProfileCoordinator(
         )
     }
 
-    fun saveTavernDirectory() {
+    fun saveTavernDirectory(): Boolean {
+        val path = pathState.pathInput.trim()
+        TavernPathValidator.validate(path)?.let { reason ->
+            statusUpdate("酒馆路径无效：$reason", "", false)
+            return false
+        }
         val result = onSaveTavernPathConfig(
-            pathState.config.withUpdatedActiveProfilePathOnly(pathState.pathInput.trim()),
+            pathState.config.withUpdatedActiveProfilePathOnly(path),
         )
         pathState.applySaveResult(result)
         if (result.saved) {
@@ -66,13 +71,16 @@ class LauncherProfileCoordinator(
         } else {
             statusUpdate(result.message, "", false)
         }
+        return result.saved
     }
 
-    fun saveTavernPort() {
-        val safePort = LauncherPathSettingsPolicy.resolvePort(
-            pathState.portInput,
-            pathState.config.normalizedPort,
-        )
+    fun saveTavernPort(): Boolean {
+        val portInput = pathState.portInput.trim()
+        LauncherInputGuards.validateTavernPort(portInput)?.let { reason ->
+            statusUpdate("酒馆端口无效：$reason", "", false)
+            return false
+        }
+        val safePort = portInput.toInt()
         val result = onSaveTavernPathConfig(
             pathState.config.withUpdatedActiveProfilePortOnly(safePort),
         )
@@ -84,6 +92,7 @@ class LauncherProfileCoordinator(
         } else {
             statusUpdate(result.message, "", false)
         }
+        return result.saved
     }
 
     fun chooseDetectedTavernDirectory(path: String) {

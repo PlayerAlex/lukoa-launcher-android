@@ -413,6 +413,127 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("删除").performScrollTo().assertIsNotEnabled()
     }
 
+    @Test
+    fun directoryDialog_rejectedSaveKeepsDialogOpen() {
+        var saveCount = 0
+        setSettingsSectionContent(
+            onSaveTavernDirectory = {
+                saveCount += 1
+                false
+            },
+        )
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("酒馆路径") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("保存路径").assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("保存路径").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, saveCount) }
+        composeRule.onNodeWithText("保存路径").assertIsDisplayed()
+    }
+
+    private fun setSettingsSectionContent(
+        onSaveTavernDirectory: () -> Boolean,
+    ) {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    SettingsSection(
+                        termuxReturnDelayMs = 600L,
+                        termuxInstalled = true,
+                        runCommandPermissionGranted = true,
+                        backgroundRunPermissionGranted = true,
+                        termuxBackgroundRunPermissionGranted = true,
+                        termuxExternalAppsBlocked = false,
+                        termuxStoragePermissionBlocked = false,
+                        allFilesAccessGranted = true,
+                        installUnknownAppsGranted = true,
+                        tavernMirrorConfig = TavernMirrorConfig(),
+                        tavernPathConfig = TavernPathConfig(),
+                        tavernRepoInput = TavernMirrorDefaults.OFFICIAL_REPO,
+                        npmRegistryInput = TavernMirrorDefaults.OFFICIAL_NPM_REGISTRY,
+                        tavernPathInput = TavernPathDefaults.DEFAULT_TAVERN_DIR,
+                        tavernPortInput = TavernPortDefaults.DEFAULT_TAVERN_PORT.toString(),
+                        mirrorProbeStatus = TavernMirrorProbeStatus(),
+                        termuxRepoStatus = TermuxRepoStatus(),
+                        customTermuxRepoInput = "",
+                        repositoryInput = "PlayerAlex/lukoa-launcher-android",
+                        githubUpdateState = GithubUpdateUiState(),
+                        currentLauncherVersion = "0.9.3-beta20",
+                        healthCheckReport = null,
+                        healthCheckInFlight = false,
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        uploadLimitStatus = TavernUploadLimitStatus(),
+                        tavernUserState = TavernUserManagementState(),
+                        forceCleanupSuggestion = null,
+                        onTavernRepoInputChange = {},
+                        onNpmRegistryInputChange = {},
+                        onTavernPathInputChange = {},
+                        onTavernPortInputChange = {},
+                        onSelectTavernProfile = {},
+                        onAddTavernProfile = {},
+                        onRemoveCurrentTavernProfile = {},
+                        onMigrateToManagedTavernPath = {},
+                        onMigrateToTraditionalTavernPath = {},
+                        onMigrateToCustomTavernPath = {},
+                        onCustomTermuxRepoInputChange = {},
+                        onSaveTavernDirectory = onSaveTavernDirectory,
+                        onRestoreDefaultTavernDirectory = {},
+                        onSaveTavernPort = { true },
+                        onRestoreDefaultTavernPort = {},
+                        onSaveTavernMirror = {},
+                        onUseOfficialMirror = {},
+                        onUseGithubProxyMirror = {},
+                        onUseNpmMirror = {},
+                        onCheckTavernMirror = {},
+                        onReadTermuxRepoStatus = {},
+                        onApplyCustomTermuxMirror = {},
+                        onRequestBackgroundRunPermission = {},
+                        onRequestTermuxBackgroundRunPermission = {},
+                        onRequestRunCommandPermission = {},
+                        onOpenPermissionSettings = {},
+                        onCopyExternalAppsCommand = {},
+                        onOpenTermuxOnly = {},
+                        onOpenAllFilesAccessSettings = {},
+                        onOpenUnknownAppSourcesSettings = {},
+                        onShowTermuxStoragePermissionGuide = {},
+                        onRepositoryInputChange = {},
+                        onSaveRepository = {},
+                        onRestoreDefaultRepository = {},
+                        onSaveUpdateChannel = {},
+                        onCheckUpdate = {},
+                        onInstallUpdate = {},
+                        onOpenRelease = {},
+                        onRunHealthCheck = {},
+                        onRunHealthCheckPrimaryAction = {},
+                        onForceCleanup = {},
+                        onRepairDependencies = {},
+                        onResetTavernTheme = {},
+                        onSetNodeMemory = {},
+                        onCheckUploadLimit = {},
+                        onSetUploadLimit = {},
+                        onResetUploadLimit = {},
+                        onRefreshTavernUsers = {},
+                        onCreateTavernUser = { _, _ -> },
+                        onDeleteTavernUser = {},
+                        onClearLogs = {},
+                        onExportDiagnostic = {},
+                        onDecreaseTermuxReturnDelay = {},
+                        onIncreaseTermuxReturnDelay = {},
+                    )
+                }
+            }
+        }
+    }
+
     private fun setUpdatePanelContent(
         latest: GithubUpdateInfo? = updateInfo(isNewer = true),
         onOpenRepositorySettings: () -> Unit = {},

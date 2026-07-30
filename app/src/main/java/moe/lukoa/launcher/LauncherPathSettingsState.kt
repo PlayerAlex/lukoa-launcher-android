@@ -17,8 +17,10 @@ class LauncherPathSettingsState(initialConfig: TavernPathConfig) {
 
     fun applySaveResult(result: TavernPathSaveResult) {
         config = result.config
-        pathInput = result.config.displayTavernDir
-        portInput = result.config.normalizedPort.toString()
+        if (result.saved) {
+            pathInput = result.config.displayTavernDir
+            portInput = result.config.normalizedPort.toString()
+        }
     }
 
     fun openDirectoryChoice(candidates: List<String>) {

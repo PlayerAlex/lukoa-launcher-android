@@ -63,9 +63,9 @@ fun SettingsSection(
     onMigrateToTraditionalTavernPath: () -> Unit,
     onMigrateToCustomTavernPath: () -> Unit,
     onCustomTermuxRepoInputChange: (String) -> Unit,
-    onSaveTavernDirectory: () -> Unit,
+    onSaveTavernDirectory: () -> Boolean,
     onRestoreDefaultTavernDirectory: () -> Unit,
-    onSaveTavernPort: () -> Unit,
+    onSaveTavernPort: () -> Boolean,
     onRestoreDefaultTavernPort: () -> Unit,
     onSaveTavernMirror: () -> Unit,
     onUseOfficialMirror: () -> Unit,
@@ -171,8 +171,7 @@ fun SettingsSection(
                 onMigrateToTraditionalPath = onMigrateToTraditionalTavernPath,
                 onMigrateToCustomPath = onMigrateToCustomTavernPath,
                 onSave = {
-                    onSaveTavernDirectory()
-                    if (tavernPathError == null) {
+                    if (onSaveTavernDirectory()) {
                         showDirectorySettingsDialog = false
                     }
                 },
@@ -194,8 +193,7 @@ fun SettingsSection(
                 actionsLocked = actionsLocked,
                 onPortChange = onTavernPortInputChange,
                 onSave = {
-                    onSaveTavernPort()
-                    if (tavernPortError == null) {
+                    if (onSaveTavernPort()) {
                         showPortSettingsDialog = false
                     }
                 },

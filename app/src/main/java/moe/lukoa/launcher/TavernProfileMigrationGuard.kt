@@ -50,10 +50,10 @@ object TavernProfileMigrationGuard {
         }
 
         val profile = config.activeProfile
-        val normalizedTargetPath = TavernPathNormalizer.normalize(targetPath)
-        TavernPathValidator.validate(normalizedTargetPath)?.let { reason ->
+        TavernPathValidator.validate(targetPath)?.let { reason ->
             return TavernProfileMigrationDecision.Blocked(reason)
         }
+        val normalizedTargetPath = TavernPathNormalizer.normalize(targetPath)
         if (TavernComparablePath.same(normalizedTargetPath, profile.normalizedTavernDir)) {
             return TavernProfileMigrationDecision.Blocked("目标目录和当前目录一样，不需要迁移。")
         }

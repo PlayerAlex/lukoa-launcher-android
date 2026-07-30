@@ -44,7 +44,7 @@ fun LauncherProfileMutationDialogHost(
         CustomTavernPathMigrationDialog(
             currentPath = state.config.displayTavernDir,
             pathInput = state.customMigrationPathInput,
-            pathError = LauncherPathSettingsPolicy.customMigrationError(state.customMigrationPathInput),
+            pathError = TavernPathValidator.validate(state.customMigrationPathInput),
             actionsLocked = actionsLocked,
             onPathChange = { state.customMigrationPathInput = it },
             onConfirm = onConfirmCustomMigration,

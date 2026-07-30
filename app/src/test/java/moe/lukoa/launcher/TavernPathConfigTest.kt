@@ -7,6 +7,14 @@ import org.junit.Test
 
 class TavernPathConfigTest {
     @Test
+    fun `blank tavern path is rejected instead of becoming a default path`() {
+        assertEquals(
+            "酒馆目录不能为空。",
+            TavernPathValidator.validate("   "),
+        )
+    }
+
+    @Test
     fun `add suggested profile creates editable clone slot`() {
         val config = TavernPathConfig().addSuggestedProfile()
 

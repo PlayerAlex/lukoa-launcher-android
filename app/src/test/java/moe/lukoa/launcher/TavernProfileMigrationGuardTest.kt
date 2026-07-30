@@ -6,6 +6,24 @@ import org.junit.Test
 
 class TavernProfileMigrationGuardTest {
     @Test
+    fun `blank migration target is blocked instead of becoming a default path`() {
+        val decision = TavernProfileMigrationGuard.evaluate(
+            config = TavernPathConfig().withUpdatedActiveProfile(tavernDir = "~/custom"),
+            targetPath = "   ",
+            targetKind = TavernProfileMigrationTargetKind.Custom,
+            tavernRunning = false,
+            tavernStarting = false,
+            actionsLocked = false,
+        )
+
+        assertTrue(decision is TavernProfileMigrationDecision.Blocked)
+        assertEquals(
+            "酒馆目录不能为空。",
+            (decision as TavernProfileMigrationDecision.Blocked).message,
+        )
+    }
+
+    @Test
     fun `running instance blocks migration`() {
         val decision = TavernProfileMigrationGuard.evaluate(
             config = TavernPathConfig(),
