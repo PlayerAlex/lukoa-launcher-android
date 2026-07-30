@@ -62,7 +62,7 @@ internal fun RiskyActionDialogScaffold(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },

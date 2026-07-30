@@ -69,12 +69,12 @@ fun LauncherBottomBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
+        color = LukoaColors.Elevated,
     ) {
         Column {
-            HorizontalDivider(color = LukoaColors.Border.copy(alpha = 0.3f))
+            HorizontalDivider(color = LukoaColors.Border)
             NavigationBar(
-                containerColor = LukoaColors.Surface,
+                containerColor = LukoaColors.Elevated,
                 contentColor = LukoaColors.TextPrimary,
                 tonalElevation = 0.dp,
             ) {
@@ -104,7 +104,7 @@ fun LauncherBottomBar(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = LukoaColors.Primary,
                             selectedTextColor = LukoaColors.TextPrimary,
-                            indicatorColor = LukoaColors.PrimarySoft.copy(alpha = 0.6f),
+                            indicatorColor = LukoaColors.PrimarySoft,
                             unselectedIconColor = LukoaColors.TextSecondary,
                             unselectedTextColor = LukoaColors.TextSecondary,
                         ),
@@ -136,7 +136,7 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
     val presentation = BusyPanelPresentationResolver.resolve(label, elapsedSeconds)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.PrimarySoft.copy(alpha = 0.42f),
+        color = LukoaColors.PrimarySoft,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.34f)),
     ) {

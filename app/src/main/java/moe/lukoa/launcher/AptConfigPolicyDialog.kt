@@ -20,7 +20,7 @@ fun AptConfigPolicyDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("遇到配置文件冲突时怎么办") },

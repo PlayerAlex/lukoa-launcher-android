@@ -281,7 +281,7 @@ fun SettingsSection(
     if (showHealthDialog) {
         AlertDialog(
             onDismissRequest = { showHealthDialog = false },
-            containerColor = LukoaColors.Surface,
+            containerColor = LukoaColors.Elevated,
             titleContentColor = LukoaColors.Primary,
             textContentColor = LukoaColors.TextPrimary,
             title = { Text("一键体检") },

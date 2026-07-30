@@ -29,7 +29,7 @@ internal fun TavernProfileManagementDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -144,7 +144,7 @@ internal fun TavernDirectorySettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -273,7 +273,7 @@ internal fun TavernPortSettingsDialog(
     val defaultPort = TavernProfileDefaults.profileForId(tavernPathConfig.activeProfile.id).normalizedPort
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -351,7 +351,7 @@ internal fun LauncherRepositorySettingsDialog(
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -417,7 +417,7 @@ internal fun LauncherUpdateChannelDialog(
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {

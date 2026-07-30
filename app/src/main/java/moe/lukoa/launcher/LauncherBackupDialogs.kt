@@ -36,7 +36,7 @@ fun ManualBackupConfirmDialog(
     val nameOk = validationMessage == null
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -108,7 +108,7 @@ fun AutoBackupSettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -167,7 +167,7 @@ private fun AutoBackupIntervalPanel(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -223,7 +223,7 @@ private fun AutoBackupKeepPanel(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -274,7 +274,7 @@ private fun AutoBackupAdjustButton(
         shape = LukoaCapsuleShape,
         border = BorderStroke(
             1.dp,
-            if (enabled) LukoaColors.Primary.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.3f),
+            if (enabled) LukoaColors.Primary.copy(alpha = 0.3f) else LukoaColors.Border,
         ),
         contentPadding = PaddingValues(horizontal = 8.dp),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -306,7 +306,7 @@ fun ApplyBackupPathDialog(
     val valid = validationMessage == null
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Danger,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -369,7 +369,7 @@ fun ApplyBackupPreviewLoadingDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("正在读取备份信息") },
@@ -428,7 +428,7 @@ fun ApplyBackupPreviewDialog(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -471,7 +471,7 @@ fun DeleteBackupConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Danger,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("确认删除备份") },

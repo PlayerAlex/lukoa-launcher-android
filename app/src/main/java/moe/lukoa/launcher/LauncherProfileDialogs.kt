@@ -77,7 +77,7 @@ fun DeleteTavernProfileConfirmDialog(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -158,7 +158,7 @@ fun TavernProfileMigrationConfirmDialog(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -203,7 +203,7 @@ fun CustomTavernPathMigrationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -286,7 +286,7 @@ fun TavernDirectoryChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -312,7 +312,7 @@ fun TavernDirectoryChoiceDialog(
                 Surface(
                     color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Column(
                         modifier = Modifier
@@ -333,7 +333,7 @@ fun TavernDirectoryChoiceDialog(
                                         if (candidate.selectable) {
                                             LukoaColors.Primary.copy(alpha = 0.46f)
                                         } else {
-                                            LukoaColors.Border.copy(alpha = 0.5f)
+                                            LukoaColors.Border
                                         },
                                     ),
                                     shape = RoundedCornerShape(12.dp),
@@ -341,7 +341,7 @@ fun TavernDirectoryChoiceDialog(
                                         containerColor = if (candidate.selectable) {
                                             LukoaColors.Primary.copy(alpha = 0.08f)
                                         } else {
-                                            LukoaColors.Surface.copy(alpha = 0.5f)
+                                            LukoaColors.Surface
                                         },
                                         contentColor = if (candidate.selectable) {
                                             LukoaColors.Primary
@@ -349,7 +349,7 @@ fun TavernDirectoryChoiceDialog(
                                             LukoaColors.TextSecondary
                                         },
                                         disabledContentColor = LukoaColors.TextSecondary,
-                                        disabledContainerColor = LukoaColors.Surface.copy(alpha = 0.5f),
+                                        disabledContainerColor = LukoaColors.Surface,
                                     ),
                                 ) {
                                     Text(

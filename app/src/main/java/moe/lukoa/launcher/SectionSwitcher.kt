@@ -57,7 +57,7 @@ fun <T> SectionSwitcherCard(
                 }
                 false
             },
-        color = LukoaColors.Elevated.copy(alpha = 0.4f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
@@ -107,7 +107,7 @@ private fun SectionSwitchChip(
 ) {
     Surface(
         modifier = Modifier.clickable(onClick = rememberFeedbackClick(onClick)),
-        color = if (selected) accentColor.copy(alpha = 0.12f) else LukoaColors.Elevated.copy(alpha = 0.5f),
+        color = if (selected) accentColor.copy(alpha = 0.12f) else LukoaColors.Elevated,
         shape = LukoaCapsuleShape,
         border = BorderStroke(1.dp, if (selected) accentColor.copy(alpha = 0.3f) else Color.Transparent),
     ) {

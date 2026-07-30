@@ -26,7 +26,7 @@ object LukoaColors {
 
     // 会删除、覆盖或强制修改数据的操作使用明确的红色。
     val Danger = Color(0xFFEF4444)
-    val DangerSoft = Color(0xFF3B1518)
+    val DangerSoft = Color(0xFF321014)
 
     // 停止酒馆沿用旧版更柔和的红色，与数据危险操作分开。
     val Stop = Color(0xFFFB7185)

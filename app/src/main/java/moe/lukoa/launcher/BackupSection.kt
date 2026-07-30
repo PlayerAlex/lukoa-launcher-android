@@ -290,9 +290,9 @@ private fun BackupOverviewCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.30f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.28f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -341,7 +341,7 @@ private fun CopyBackupPathDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("复制备份文件夹地址") },
@@ -410,7 +410,7 @@ private fun BackupLibraryGroup(
                 modifier = Modifier.fillMaxWidth(),
                 color = LukoaColors.Elevated,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, LukoaColors.Border),
             ) {
                 Text(
                     text = emptyText,
@@ -466,7 +466,7 @@ private fun BackupRecordLine(
     Surface(
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier
@@ -499,7 +499,7 @@ private fun BackupRecordLine(
                 modifier = Modifier.fillMaxWidth(),
                 color = LukoaColors.Surface,
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.32f)),
+                border = BorderStroke(1.dp, LukoaColors.Border),
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
@@ -645,7 +645,7 @@ fun CopyBackupConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -704,7 +704,7 @@ fun RenameBackupDialog(
     val valid = validationMessage == null
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {

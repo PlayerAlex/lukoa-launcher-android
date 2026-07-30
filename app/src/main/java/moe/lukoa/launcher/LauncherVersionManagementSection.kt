@@ -183,9 +183,9 @@ private fun CurrentVersionSection(
                 if (showTechnicalDetails) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = LukoaColors.Elevated.copy(alpha = 0.55f),
+                        color = LukoaColors.Elevated,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border),
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
@@ -249,7 +249,7 @@ private fun LocalChangesNotice(
     if (confirmUploadLimitReset) {
         AlertDialog(
             onDismissRequest = { confirmUploadLimitReset = false },
-            containerColor = LukoaColors.Surface,
+            containerColor = LukoaColors.Elevated,
             title = { Text("恢复聊天文件大小默认值") },
             text = {
                 Text(
@@ -276,7 +276,7 @@ private fun LocalChangesNotice(
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AccentSoft.copy(alpha = 0.82f),
+        color = LukoaColors.AccentSoft,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.35f)),
     ) {
@@ -515,9 +515,9 @@ private fun VersionTransitionCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.55f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Row(
             modifier = Modifier
@@ -703,7 +703,7 @@ private fun OfficialVersionChooser(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                containerColor = LukoaColors.Surface,
+                containerColor = LukoaColors.Elevated,
             ) {
                 if (allChoices.isEmpty()) {
                     DropdownMenuItem(
@@ -794,7 +794,7 @@ private fun CustomVersionDialog(
     val valid = validationMessage == null
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("自定义酒馆版本") },

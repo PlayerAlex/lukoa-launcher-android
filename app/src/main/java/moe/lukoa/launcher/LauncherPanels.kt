@@ -114,7 +114,7 @@ fun Header(
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
                 color = if (showVersionUpdateBadge) {
-                    LukoaColors.PrimarySoft.copy(alpha = 0.72f)
+                    LukoaColors.PrimarySoft
                 } else {
                     LukoaColors.Elevated
                 },
@@ -274,13 +274,13 @@ fun SectionPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.2f),
+        color = LukoaColors.Surface,
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier
-                .border(1.dp, LukoaColors.Border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .border(1.dp, LukoaColors.Border, RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -373,12 +373,12 @@ fun LogPanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.3f),
+        color = LukoaColors.Surface,
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
             modifier = Modifier
-                .border(1.dp, LukoaColors.Border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .border(1.dp, LukoaColors.Border, RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -469,9 +469,9 @@ private fun ReturnToLatestChip(
     Surface(
         modifier = modifier
             .clickable(onClick = feedbackClick),
-        color = LukoaColors.Background.copy(alpha = 0.94f),
+        color = LukoaColors.Background,
         shape = LukoaCapsuleShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),

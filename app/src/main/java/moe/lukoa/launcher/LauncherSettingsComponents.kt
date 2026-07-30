@@ -64,9 +64,9 @@ internal fun SettingsEntryGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.28f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.28f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(content = content)
     }
@@ -89,7 +89,7 @@ internal fun SettingsGroupLabel(title: String) {
 internal fun SettingsEntryDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 14.dp),
-        color = LukoaColors.Border.copy(alpha = 0.34f),
+        color = LukoaColors.Border,
     )
 }
 
@@ -257,7 +257,7 @@ private fun SettingsTrailingValue(
 
 @Composable
 internal fun SettingsSectionDivider() {
-    HorizontalDivider(color = LukoaColors.Border.copy(alpha = 0.42f))
+    HorizontalDivider(color = LukoaColors.Border)
 }
 
 @Composable

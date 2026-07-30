@@ -69,7 +69,7 @@ fun DocumentationSection(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Surface,
             shape = RoundedCornerShape(18.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.46f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -360,7 +360,7 @@ private fun DocNavChip(
         shape = LukoaCapsuleShape,
         border = BorderStroke(
             1.dp,
-            if (selected) LukoaColors.Primary.copy(alpha = 0.36f) else LukoaColors.Border.copy(alpha = 0.48f),
+            if (selected) LukoaColors.Primary.copy(alpha = 0.36f) else LukoaColors.Border,
         ),
     ) {
         Text(
@@ -383,7 +383,7 @@ private fun DocChapterPanel(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface,
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.46f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column {
             Row(
@@ -410,7 +410,7 @@ private fun DocChapterPanel(
                     fontWeight = FontWeight.Bold,
                 )
             }
-            HorizontalDivider(color = LukoaColors.Border.copy(alpha = 0.38f))
+            HorizontalDivider(color = LukoaColors.Border)
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             ) {

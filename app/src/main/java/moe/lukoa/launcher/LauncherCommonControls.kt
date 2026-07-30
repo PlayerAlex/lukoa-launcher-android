@@ -90,7 +90,7 @@ fun InfoIconButton(
             .clickable(onClick = feedbackClick),
         color = LukoaColors.Elevated,
         shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -123,7 +123,7 @@ fun InfoPopoverButton(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier.widthIn(min = 240.dp, max = 320.dp),
-            containerColor = LukoaColors.Surface,
+            containerColor = LukoaColors.Elevated,
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -195,7 +195,7 @@ fun SecondaryActionButton(
     val feedbackClick = rememberFeedbackClick(onClick)
     val styleColor = accentColor
     val toneColor = if (enabled) styleColor else LukoaColors.Dim
-    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.3f)
+    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border
     OutlinedButton(
         onClick = feedbackClick,
         enabled = enabled,
@@ -234,7 +234,7 @@ fun BackupStepper(
     val buttonWidth = if (hasLargeStep) 44.dp else 52.dp
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.5f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
@@ -335,7 +335,7 @@ private fun StepperButton(
         onClick = feedbackClick,
         enabled = enabled,
         modifier = modifier.height(44.dp),
-        border = BorderStroke(1.dp, if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border),
         shape = LukoaCapsuleShape,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (enabled) styleColor.copy(alpha = 0.05f) else Color.Transparent,

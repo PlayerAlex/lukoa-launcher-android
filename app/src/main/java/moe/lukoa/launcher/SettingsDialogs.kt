@@ -35,7 +35,7 @@ internal fun UpdateChannelSelectorCard(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -91,7 +91,7 @@ fun TermuxWakeDelayDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -164,7 +164,7 @@ fun PermissionCenterDialog(
     val readinessActive = termuxInstalled && readyCount >= 5
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {

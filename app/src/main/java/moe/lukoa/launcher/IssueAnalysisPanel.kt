@@ -29,7 +29,7 @@ fun IssueAnalysisPanel(
                 modifier = Modifier.fillMaxWidth(),
                 color = LukoaColors.Elevated,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, LukoaColors.Border),
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
@@ -70,9 +70,9 @@ private fun IssueAnalysisItem(
     val toneColor = issue.severity.toneColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface.copy(alpha = 0.78f),
+        color = LukoaColors.Surface,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -105,7 +105,7 @@ private fun IssueAnalysisItem(
             )
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.Elevated.copy(alpha = 0.45f),
+                color = LukoaColors.Elevated,
                 shape = RoundedCornerShape(10.dp),
             ) {
                 Text(

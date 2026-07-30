@@ -331,9 +331,9 @@ private fun OnboardingProgressList(currentStep: Int) {
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated.copy(alpha = 0.58f),
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -406,7 +406,7 @@ private fun CommandSnippet(text: String) {
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Terminal,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -454,7 +454,7 @@ private fun WizardVersionPicker(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -508,7 +508,7 @@ private fun WizardVersionPicker(
                     DropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { expanded = false },
-                        containerColor = LukoaColors.Surface,
+                        containerColor = LukoaColors.Elevated,
                     ) {
                         if (officialVersions.stable.isNotEmpty()) {
                             DropdownMenuItem(

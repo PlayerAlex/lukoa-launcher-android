@@ -54,7 +54,7 @@ fun PendingTaskResumeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -123,7 +123,7 @@ fun PendingTaskNoticePanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AccentSoft.copy(alpha = 0.4f),
+        color = LukoaColors.AccentSoft,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.34f)),
     ) {
@@ -203,7 +203,7 @@ private fun PendingTaskStateHeader(activeLockLabel: String?) {
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(
             1.dp,
-            if (taskMayBeRunning) LukoaColors.Accent.copy(alpha = 0.35f) else LukoaColors.Border.copy(alpha = 0.4f),
+            if (taskMayBeRunning) LukoaColors.Accent.copy(alpha = 0.35f) else LukoaColors.Border,
         ),
     ) {
         Row(
@@ -236,7 +236,7 @@ private fun PendingTaskSummaryCard(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -289,7 +289,7 @@ private fun PendingTaskAbandonDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         title = { Text("确认不再跟踪？") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

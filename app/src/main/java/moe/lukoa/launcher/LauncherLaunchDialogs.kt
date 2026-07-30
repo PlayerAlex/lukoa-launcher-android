@@ -56,7 +56,7 @@ fun InstallRiskConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -72,7 +72,7 @@ fun InstallRiskConfirmDialog(
                 Surface(
                     color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Column(
                         modifier = Modifier
@@ -118,7 +118,7 @@ fun StartPreflightConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -138,7 +138,7 @@ fun StartPreflightConfirmDialog(
                     Surface(
                         color = LukoaColors.Elevated,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border),
                     ) {
                         Column(
                             modifier = Modifier
@@ -196,7 +196,7 @@ private fun StartPreflightProfileInfoCard(profile: TavernProfile) {
     Surface(
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier
@@ -296,7 +296,7 @@ fun ForceCleanupTavernConfirmDialog(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -340,7 +340,7 @@ private fun TavernActionProfileCard(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),

@@ -71,7 +71,7 @@ fun UpdateAvailableDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Primary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
@@ -88,7 +88,7 @@ fun UpdateAvailableDialog(
                 Surface(
                     color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
@@ -144,7 +144,7 @@ fun UpdateAvailableDialog(
                 Surface(
                     color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Text(
                         text = formattedReleaseNotes,
@@ -160,7 +160,7 @@ fun UpdateAvailableDialog(
                 Surface(
                     color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Text(
                         text = "清除红点后，这个版本不会再自动弹出提醒，但你之后仍然可以手动点右上角版本查看。",
@@ -245,7 +245,7 @@ internal fun GithubUpdateStatusCard(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),

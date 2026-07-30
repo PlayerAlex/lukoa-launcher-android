@@ -58,7 +58,7 @@ fun TermuxStoragePermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("需要 Termux 存储权限") },
@@ -80,7 +80,7 @@ fun TermuxStoragePermissionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         color = LukoaColors.Elevated,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border),
                     ) {
                         Text(
                             text = archivePath,
@@ -123,7 +123,7 @@ fun BackgroundRunPermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text(if (granted) "后台运行已允许" else "需要后台运行权限") },
@@ -191,7 +191,7 @@ fun FirstTavernStartGuideDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Surface,
+        containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.Accent,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },

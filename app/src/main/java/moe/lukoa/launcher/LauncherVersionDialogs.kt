@@ -73,7 +73,7 @@ fun TavernVersionActionConfirmDialog(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
