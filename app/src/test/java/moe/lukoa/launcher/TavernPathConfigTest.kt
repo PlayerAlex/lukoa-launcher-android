@@ -7,6 +7,26 @@ import org.junit.Test
 
 class TavernPathConfigTest {
     @Test
+    fun `main profile defaults to traditional SillyTavern directory`() {
+        val config = TavernPathConfig()
+
+        assertEquals("~/SillyTavern", config.activeProfile.tavernDir)
+        assertEquals("\$HOME/SillyTavern", config.normalizedTavernDir)
+        assertTrue(config.isActiveProfileDefault)
+    }
+
+    @Test
+    fun `existing main profile path is preserved instead of rewritten to new default`() {
+        val config = TavernPathConfig(
+            tavernDir = "~/LukoaLauncher/SillyTavern",
+        )
+
+        assertEquals("~/LukoaLauncher/SillyTavern", config.activeProfile.tavernDir)
+        assertEquals("~/LukoaLauncher/SillyTavern", config.displayTavernDir)
+        assertFalse(config.isActiveProfileDefault)
+    }
+
+    @Test
     fun `blank tavern path is rejected instead of becoming a default path`() {
         assertEquals(
             "酒馆目录不能为空。",
@@ -42,12 +62,33 @@ class TavernPathConfigTest {
     }
 
     @Test
-    fun `absolute launcher managed path still counts as active profile default`() {
+    fun `absolute traditional path still counts as active profile default`() {
         val config = TavernPathConfig().withUpdatedActiveProfile(
-            tavernDir = "/data/data/com.termux/files/home/LukoaLauncher/SillyTavern",
+            tavernDir = "/data/data/com.termux/files/home/SillyTavern",
         )
 
         assertTrue(config.isActiveProfileDefault)
+    }
+
+    @Test
+    fun `restoring main profile path only uses traditional default and keeps saved port`() {
+        val config = TavernPathConfig().withUpdatedActiveProfile(
+            tavernDir = "~/custom-main",
+            port = 9005,
+        )
+
+        val restored = config.restoreActiveProfileDefaultPathOnly()
+
+        assertEquals("~/SillyTavern", restored.activeProfile.tavernDir)
+        assertEquals(9005, restored.activeProfile.port)
+    }
+
+    @Test
+    fun `blank path normalization falls back to traditional default`() {
+        assertEquals(
+            "\$HOME/SillyTavern",
+            TavernPathNormalizer.normalize("   "),
+        )
     }
 
     @Test

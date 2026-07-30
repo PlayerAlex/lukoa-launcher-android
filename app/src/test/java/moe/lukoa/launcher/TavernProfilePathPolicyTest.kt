@@ -7,13 +7,28 @@ import org.junit.Test
 
 class TavernProfilePathPolicyTest {
     @Test
-    fun `main profile defaults to launcher managed root directory`() {
+    fun `main profile defaults to traditional directory`() {
         val info = TavernProfilePathPolicy.describe(TavernPathConfig().activeProfile)
+
+        assertEquals(TavernProfilePathKind.TraditionalDefault, info.kind)
+        assertEquals("~/SillyTavern", info.currentDisplayPath)
+        assertEquals("~/LukoaLauncher/SillyTavern", info.launcherManagedDefaultDisplayPath)
+        assertEquals("~/SillyTavern", info.traditionalDefaultDisplayPath)
+        assertTrue(info.canMigrateToTraditionalDefault)
+        assertFalse(info.canDeleteDirectoryWithProfile)
+    }
+
+    @Test
+    fun `main launcher managed directory remains an available migration target`() {
+        val profile = TavernProfileDefaults.profileForId("main").copy(
+            tavernDir = "~/LukoaLauncher/SillyTavern",
+        )
+
+        val info = TavernProfilePathPolicy.describe(profile)
 
         assertEquals(TavernProfilePathKind.LauncherManaged, info.kind)
         assertEquals("~/LukoaLauncher/SillyTavern", info.currentDisplayPath)
-        assertEquals("~/LukoaLauncher/SillyTavern", info.launcherManagedDefaultDisplayPath)
-        assertTrue(info.canMigrateToTraditionalDefault)
+        assertEquals("~/SillyTavern", info.traditionalDefaultDisplayPath)
         assertFalse(info.canDeleteDirectoryWithProfile)
     }
 

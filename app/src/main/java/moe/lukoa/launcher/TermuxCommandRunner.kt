@@ -982,7 +982,15 @@ class TermuxCommandRunner(private val context: Context) {
                 printf "%s/SillyTavern%s" "${'$'}LAUNCHER_TAVERN_ROOT_DIR" "${'$'}slot"
               fi
             }
-            DEFAULT_TAVERN_DIR="${'$'}(launcher_managed_profile_dir "${'$'}{TAVERN_PROFILE_ID:-main}")"
+            profile_default_tavern_dir() {
+              profile_id="${'$'}{1:-main}"
+              if [ "${'$'}profile_id" = "main" ]; then
+                printf "%s" "${'$'}LEGACY_DEFAULT_TAVERN_DIR"
+              else
+                launcher_managed_profile_dir "${'$'}profile_id"
+              fi
+            }
+            DEFAULT_TAVERN_DIR="${'$'}(profile_default_tavern_dir "${'$'}{TAVERN_PROFILE_ID:-main}")"
             sanitize_profile_state_key() {
               raw="${'$'}{1:-main}"
               sanitized="${'$'}(printf "%s" "${'$'}raw" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"

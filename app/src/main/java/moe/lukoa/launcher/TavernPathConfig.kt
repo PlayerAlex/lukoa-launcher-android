@@ -206,10 +206,10 @@ data class TavernPathSaveResult(
 object TavernPathDefaults {
     const val LAUNCHER_MANAGED_ROOT_DIR = "~/LukoaLauncher"
     const val LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED = "\$HOME/LukoaLauncher"
-    const val LEGACY_DEFAULT_TAVERN_DIR = "~/SillyTavern"
-    const val LEGACY_DEFAULT_TAVERN_DIR_NORMALIZED = "\$HOME/SillyTavern"
-    const val DEFAULT_TAVERN_DIR = "$LAUNCHER_MANAGED_ROOT_DIR/SillyTavern"
-    const val DEFAULT_TAVERN_DIR_NORMALIZED = "$LAUNCHER_MANAGED_ROOT_DIR_NORMALIZED/SillyTavern"
+    const val DEFAULT_TAVERN_DIR = "~/SillyTavern"
+    const val DEFAULT_TAVERN_DIR_NORMALIZED = "\$HOME/SillyTavern"
+    const val LEGACY_DEFAULT_TAVERN_DIR = DEFAULT_TAVERN_DIR
+    const val LEGACY_DEFAULT_TAVERN_DIR_NORMALIZED = DEFAULT_TAVERN_DIR_NORMALIZED
     const val TERMUX_HOME_DIR = "/data/data/com.termux/files/home"
 }
 
@@ -254,7 +254,11 @@ object TavernProfileDefaults {
     }
 
     private fun defaultPathForSlot(slot: Int): String {
-        return TavernProfilePathPolicy.launcherManagedDefaultPathForProfileId(profileIdForSlot(slot))
+        return if (slot <= 1) {
+            TavernPathDefaults.DEFAULT_TAVERN_DIR
+        } else {
+            TavernProfilePathPolicy.launcherManagedDefaultPathForProfileId(profileIdForSlot(slot))
+        }
     }
 
     private fun defaultPortForSlot(slot: Int): Int {

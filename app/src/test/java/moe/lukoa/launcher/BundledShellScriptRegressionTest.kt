@@ -9,6 +9,22 @@ class BundledShellScriptRegressionTest {
     private val script by lazy {
         File("src/main/assets/lukoa-tavern.sh").readText(Charsets.UTF_8)
     }
+    private val runnerSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt").readText(Charsets.UTF_8)
+    }
+
+    @Test
+    fun `shell defaults main profile to traditional path and clones to managed paths`() {
+        assertTrue(script.contains("profile_default_tavern_dir()"))
+        assertTrue(script.contains("DEFAULT_TAVERN_DIR=\"\$(profile_default_tavern_dir \"\${TAVERN_PROFILE_ID:-main}\")\""))
+        assertTrue(script.contains("printf \"%s\" \"\$LEGACY_DEFAULT_TAVERN_DIR\""))
+        assertTrue(script.contains("launcher_managed_profile_dir \"\$profile_id\""))
+
+        assertTrue(runnerSource.contains("profile_default_tavern_dir()"))
+        assertTrue(runnerSource.contains("DEFAULT_TAVERN_DIR=\"\${'$'}(profile_default_tavern_dir"))
+        assertTrue(runnerSource.contains("printf \"%s\" \"\${'$'}LEGACY_DEFAULT_TAVERN_DIR\""))
+        assertTrue(runnerSource.contains("launcher_managed_profile_dir \"\${'$'}profile_id\""))
+    }
 
     @Test
     fun `node memory configuration does not source executable state`() {

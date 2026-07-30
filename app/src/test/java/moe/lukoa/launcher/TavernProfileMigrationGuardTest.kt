@@ -81,7 +81,7 @@ class TavernProfileMigrationGuardTest {
 
         val decision = TavernProfileMigrationGuard.evaluate(
             config = config,
-            targetPath = TavernPathDefaults.DEFAULT_TAVERN_DIR,
+            targetPath = TavernProfilePathPolicy.launcherManagedDefaultPathForProfileId("main"),
             targetKind = TavernProfileMigrationTargetKind.LauncherManaged,
             tavernRunning = false,
             tavernStarting = false,

@@ -58,7 +58,16 @@ launcher_managed_profile_dir() {
   fi
 }
 
-DEFAULT_TAVERN_DIR="$(launcher_managed_profile_dir "${TAVERN_PROFILE_ID:-main}")"
+profile_default_tavern_dir() {
+  profile_id="${1:-main}"
+  if [ "$profile_id" = "main" ]; then
+    printf "%s" "$LEGACY_DEFAULT_TAVERN_DIR"
+  else
+    launcher_managed_profile_dir "$profile_id"
+  fi
+}
+
+DEFAULT_TAVERN_DIR="$(profile_default_tavern_dir "${TAVERN_PROFILE_ID:-main}")"
 
 sanitize_profile_state_key() {
   raw="${1:-main}"
