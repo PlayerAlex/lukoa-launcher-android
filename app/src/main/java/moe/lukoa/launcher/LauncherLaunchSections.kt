@@ -59,15 +59,14 @@ fun TavernControlSection(
         primaryDisabledReason != null -> primaryDisabledReason
         else -> "等待检测结果。"
     }
-    val primaryText = when {
-        actionInProgress -> "${busyLabel ?: "处理中"}..."
-        tavernStarting -> "停止酒馆"
-        !primaryEnabled && primaryDisabledReason?.contains("权限") == true -> "先修权限"
-        !primaryEnabled && primaryDisabledReason?.contains("Termux") == true -> "先安装 Termux"
-        !primaryEnabled -> "先安装酒馆"
-        tavernRunning -> "停止酒馆"
-        else -> "启动酒馆"
-    }
+    val primaryText = tavernPrimaryActionLabel(
+        tavernRunning = tavernRunning,
+        tavernStarting = tavernStarting,
+        actionInProgress = actionInProgress,
+        busyLabel = busyLabel,
+        primaryEnabled = primaryEnabled,
+        primaryDisabledReason = primaryDisabledReason,
+    )
     val primaryColor = when {
         shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
         else -> LukoaColors.Accent
@@ -104,7 +103,7 @@ fun TavernControlSection(
         if (!primaryEnabled && primaryDisabledReason != null) {
             Text(
                 text = primaryDisabledReason,
-                color = LukoaColors.Amber,
+                color = LukoaColors.Muted,
                 style = MaterialTheme.typography.bodySmall,
             )
         }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -316,17 +317,6 @@ fun SettingsSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        LauncherUpdateSettingsPanel(
-            currentLauncherVersion = currentLauncherVersion,
-            repositoryInput = repositoryInput,
-            githubUpdateState = githubUpdateState,
-            onOpenRepositorySettings = { showRepositorySettingsDialog = true },
-            onOpenUpdateChannelSettings = { showUpdateChannelDialog = true },
-            onCheckUpdate = onCheckUpdate,
-            onInstallUpdate = onInstallUpdate,
-            onOpenRelease = onOpenRelease,
-            onShowHint = showHint,
-        )
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
             tavernPathConfig = tavernPathConfig,
@@ -380,6 +370,17 @@ fun SettingsSection(
                     onShowHint = showHint,
                 )
             },
+        )
+        LauncherUpdateSettingsPanel(
+            currentLauncherVersion = currentLauncherVersion,
+            repositoryInput = repositoryInput,
+            githubUpdateState = githubUpdateState,
+            onOpenRepositorySettings = { showRepositorySettingsDialog = true },
+            onOpenUpdateChannelSettings = { showUpdateChannelDialog = true },
+            onCheckUpdate = onCheckUpdate,
+            onInstallUpdate = onInstallUpdate,
+            onOpenRelease = onOpenRelease,
+            onShowHint = showHint,
         )
     }
 }
@@ -533,7 +534,7 @@ internal fun InstanceManagementPanel(
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
     SectionPanel(
-        title = "实例管理",
+        title = "实例与运行环境",
         accentColor = LukoaColors.Info,
         headerAction = {
             Row(
@@ -541,22 +542,24 @@ internal fun InstanceManagementPanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 StatusPill(
-                    text = "端口 ${tavernPathConfig.normalizedPort}",
+                    text = tavernPathConfig.activeProfileLabel,
                     active = true,
+                    modifier = Modifier.widthIn(max = 112.dp),
                     toneColor = LukoaColors.Info,
                     activeBackground = LukoaColors.InfoSoft,
                 )
                 InfoPopoverButton(
-                    contentDescription = "查看实例管理说明",
-                    title = "实例管理",
+                    contentDescription = "查看实例与运行环境说明",
+                    title = "实例与运行环境",
                     body = "“实例”可以理解为一套单独的酒馆：它有自己的文件夹、端口和设置。\n切换实例后，启动、版本、备份和用户管理都会改为操作你刚选中的那一套。\n如果你只有一套酒馆，保持当前实例即可，不需要另外新建。",
                 )
             }
         },
     ) {
+        SettingsGroupLabel("当前实例")
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "当前实例",
+                title = "实例名称",
                 value = tavernPathConfig.activeProfileLabel,
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
@@ -572,13 +575,15 @@ internal fun InstanceManagementPanel(
             )
             SettingsEntryDivider()
             SettingsEntryRow(
-                title = "实例端口",
+                title = "访问端口",
                 value = tavernPathConfig.normalizedPort.toString(),
                 valueColor = LukoaColors.Info,
                 valueAsPill = true,
                 onClick = onOpenPortSettings,
             )
-            SettingsEntryDivider()
+        }
+        SettingsGroupLabel("运行环境")
+        SettingsEntryGroup {
             SettingsEntryRow(
                 title = "网络与镜像源",
                 value = mirrorProbeStatus.overallLevel.label(),

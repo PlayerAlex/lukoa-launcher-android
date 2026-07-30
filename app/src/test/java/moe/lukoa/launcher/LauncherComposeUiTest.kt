@@ -189,7 +189,9 @@ class LauncherComposeUiTest {
 
         composeRule.onNodeWithText("数据安全").assertDoesNotExist()
         composeRule.onNodeWithText("备份分区").assertDoesNotExist()
-        composeRule.onNodeWithText("快速操作").assertExists()
+        composeRule.onNodeWithText("备份概览").assertDoesNotExist()
+        composeRule.onNodeWithText("快速操作").assertDoesNotExist()
+        composeRule.onNodeWithText("备份操作").assertExists()
         composeRule.onNodeWithText("修改自动规则").assertExists()
         composeRule.onNodeWithText("备份库").assertExists()
         composeRule.onNodeWithText("sd-ui-test.tar.gz")

@@ -64,12 +64,25 @@ internal fun SettingsEntryGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.38f),
+        color = LukoaColors.SurfaceAlt.copy(alpha = 0.28f),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.28f)),
     ) {
         Column(content = content)
     }
+}
+
+@Composable
+internal fun SettingsGroupLabel(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { heading() },
+        color = LukoaColors.Muted,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+    )
 }
 
 @Composable
@@ -288,17 +301,10 @@ internal fun SettingsSubsection(
                 body = detail,
             )
         }
-        Surface(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface.copy(alpha = 0.58f),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.30f)),
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = content,
-            )
-        }
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
     }
 }

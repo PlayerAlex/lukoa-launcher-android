@@ -1,7 +1,6 @@
 package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -78,24 +76,19 @@ fun BackupSection(
         BackupOverviewCard(
             activeInstanceLabel = activeInstanceLabel,
             autoBackupEnabled = autoBackupEnabled,
-            autoBackupIntervalMinutes = autoBackupIntervalMinutes,
-            autoBackupKeepCount = autoBackupKeepCount,
             manualBackupCount = manualBackups.size,
             autoBackupCount = autoBackups.size,
         )
-        BackupQuickActionsSection(
+        BackupActionsSection(
             actionsLocked = actionsLocked,
             backupListRefreshing = backupListRefreshing,
+            autoBackupEnabled = autoBackupEnabled,
+            autoBackupIntervalMinutes = autoBackupIntervalMinutes,
+            autoBackupKeepCount = autoBackupKeepCount,
             onCreateManualBackup = onCreateManualBackup,
             onImportBackup = onImportBackup,
             onRefreshBackups = onRefreshBackups,
             onCopyBackupLibraryPath = { showCopyPathDialog = true },
-        )
-        BackupAutomaticSection(
-            actionsLocked = actionsLocked,
-            autoBackupEnabled = autoBackupEnabled,
-            autoBackupIntervalMinutes = autoBackupIntervalMinutes,
-            autoBackupKeepCount = autoBackupKeepCount,
             onToggleAutoBackup = onToggleAutoBackup,
             onOpenAutoBackupSettings = onOpenAutoBackupSettings,
         )
@@ -114,25 +107,31 @@ fun BackupSection(
 }
 
 @Composable
-private fun BackupQuickActionsSection(
+private fun BackupActionsSection(
     actionsLocked: Boolean,
     backupListRefreshing: Boolean,
+    autoBackupEnabled: Boolean,
+    autoBackupIntervalMinutes: Int,
+    autoBackupKeepCount: Int,
     onCreateManualBackup: () -> Unit,
     onImportBackup: () -> Unit,
     onRefreshBackups: () -> Unit,
     onCopyBackupLibraryPath: () -> Unit,
+    onToggleAutoBackup: () -> Unit,
+    onOpenAutoBackupSettings: () -> Unit,
 ) {
     SectionPanel(
-        title = "快速操作",
+        title = "备份操作",
         accentColor = LukoaColors.Accent,
         headerAction = {
             InfoPopoverButton(
                 contentDescription = "查看备份操作说明",
-                title = "这些操作会做什么",
-                body = "生成手动备份会新增一份当前实例的数据，不会改动正在使用的酒馆。\n导入备份只是把你选的文件放进备份库，也不会立即恢复。\n准备更新、回退、换手机或应用其他备份前，建议先生成一份手动备份。",
+                title = "备份操作",
+                body = "生成手动备份会新增一份当前实例的数据，不会改动正在使用的酒馆。导入备份也只是把文件放进备份库，不会立即覆盖数据。\n自动备份会按设定时间保存，并只清理超过保留数量的旧自动备份。重要操作前仍建议手动备份一次。",
             )
         },
     ) {
+        SettingsGroupLabel("手动与文件")
         SecondaryActionButton(
             text = "生成手动备份",
             enabled = !actionsLocked,
@@ -166,78 +165,38 @@ private fun BackupQuickActionsSection(
             modifier = Modifier.fillMaxWidth(),
             onClick = onCopyBackupLibraryPath,
         )
-    }
-}
-
-@Composable
-private fun BackupAutomaticSection(
-    actionsLocked: Boolean,
-    autoBackupEnabled: Boolean,
-    autoBackupIntervalMinutes: Int,
-    autoBackupKeepCount: Int,
-    onToggleAutoBackup: () -> Unit,
-    onOpenAutoBackupSettings: () -> Unit,
-) {
-    SectionPanel(
-        title = "自动备份",
-        accentColor = LukoaColors.Accent,
-        headerAction = {
-            InfoPopoverButton(
-                contentDescription = "查看自动备份说明",
-                title = "自动备份",
-                body = "开启后，启动器会按设定时间自动保存当前实例的数据。\n自动备份达到保留数量后，只会清理最旧的自动备份，不会删除手动备份。\n自动备份适合日常保护；重要操作前仍建议再做一份手动备份。",
-            )
-        },
-    ) {
-        Surface(
+        SettingsSectionDivider()
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            color = if (autoBackupEnabled) {
-                LukoaColors.AccentSoft.copy(alpha = 0.62f)
-            } else {
-                LukoaColors.SurfaceAlt
-            },
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(
-                1.dp,
-                if (autoBackupEnabled) {
-                    LukoaColors.Accent.copy(alpha = 0.32f)
-                } else {
-                    LukoaColors.Line.copy(alpha = 0.4f)
-                },
-            ),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "当前状态",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    StatusPill(
-                        text = if (autoBackupEnabled) "已开启" else "未开启",
-                        active = autoBackupEnabled,
-                        toneColor = if (autoBackupEnabled) LukoaColors.Accent else LukoaColors.Muted,
-                        activeBackground = LukoaColors.AccentSoft,
-                    )
-                }
+                Text(
+                    text = "自动备份",
+                    color = LukoaColors.Text,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     text = if (autoBackupEnabled) {
                         "每 ${formatBackupInterval(autoBackupIntervalMinutes)} 保存一次，最多保留 $autoBackupKeepCount 份。"
                     } else {
-                        "现有手动备份和自动备份都不会受到影响。"
+                        "目前只在你手动操作时生成备份。"
                     },
-                    color = LukoaColors.Text,
+                    color = LukoaColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            StatusPill(
+                text = if (autoBackupEnabled) "已开启" else "未开启",
+                active = autoBackupEnabled,
+                toneColor = if (autoBackupEnabled) LukoaColors.Accent else LukoaColors.Muted,
+                activeBackground = LukoaColors.AccentSoft,
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -326,21 +285,18 @@ private fun BackupLibrarySection(
 private fun BackupOverviewCard(
     activeInstanceLabel: String,
     autoBackupEnabled: Boolean,
-    autoBackupIntervalMinutes: Int,
-    autoBackupKeepCount: Int,
     manualBackupCount: Int,
     autoBackupCount: Int,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
+        color = LukoaColors.SurfaceAlt.copy(alpha = 0.30f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.28f)),
     ) {
         Column(
-            modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -348,14 +304,16 @@ private fun BackupOverviewCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "备份概览",
                     modifier = Modifier.weight(1f),
+                    text = activeInstanceLabel,
                     color = LukoaColors.Text,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 StatusPill(
-                    text = if (autoBackupEnabled) "自动保护已开启" else "仅手动备份",
+                    text = if (autoBackupEnabled) "自动保护" else "手动保护",
                     active = autoBackupEnabled,
                     toneColor = if (autoBackupEnabled) LukoaColors.Accent else LukoaColors.Muted,
                     activeBackground = LukoaColors.AccentSoft,
@@ -363,107 +321,13 @@ private fun BackupOverviewCard(
                 InfoPopoverButton(
                     contentDescription = "查看备份内容说明",
                     title = "备份会保存什么",
-                    body = "这里备份的是当前实例，不会影响其他实例。\n备份会保存聊天、角色、世界书、插件、设置和密钥。可以重新下载的程序文件和缓存不会保存。\n生成和导入备份都不会改动当前酒馆；只有确认“应用并覆盖”后，当前数据才会被替换。",
+                    body = "这里只管理当前实例，不会影响其他实例。\n备份会保存聊天、角色、世界书、插件、设置和密钥；可以重新下载的程序文件和缓存不会保存。\n生成和导入都不会改动酒馆，只有确认“应用并覆盖”后才会替换当前数据。",
                 )
             }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.SurfaceAlt,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.36f)),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "当前实例",
-                        color = LukoaColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        text = activeInstanceLabel,
-                        modifier = Modifier.weight(1f),
-                        color = LukoaColors.Text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                BackupMetricCard(
-                    label = "手动备份",
-                    value = "$manualBackupCount 份",
-                    modifier = Modifier.weight(1f),
-                )
-                BackupMetricCard(
-                    label = "自动备份",
-                    value = "$autoBackupCount 份",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "自动规则",
-                    color = LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = if (autoBackupEnabled) {
-                        "每 ${formatBackupInterval(autoBackupIntervalMinutes)} · 保留 $autoBackupKeepCount 份"
-                    } else {
-                        "未开启"
-                    },
-                    modifier = Modifier.weight(1f),
-                    color = if (autoBackupEnabled) LukoaColors.Text else LukoaColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackupMetricCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        color = LukoaColors.SurfaceAlt,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.36f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
             Text(
-                text = label,
+                text = "手动备份 $manualBackupCount 份  ·  自动备份 $autoBackupCount 份",
                 color = LukoaColors.Muted,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Text(
-                text = value,
-                color = LukoaColors.Text,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
     }
