@@ -21,7 +21,7 @@ class StatusPillStyleTest {
     fun opaqueSoftBackground_remainsClearlyVisible() {
         val resolved = resolvedStatusPillBackground(
             active = true,
-            requestedBackground = LukoaColors.AccentSoft,
+            requestedBackground = LukoaColors.PrimarySoft,
         )
 
         assertEquals(0.82f, resolved.alpha, 0.001f)

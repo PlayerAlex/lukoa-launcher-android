@@ -28,14 +28,14 @@ internal fun UpdateChannelSelectorCard(
     enabled: Boolean,
     onSelectChannel: (GithubReleaseChannel) -> Unit,
 ) {
-    val channelColor = LukoaColors.Accent
-    val channelBackground = LukoaColors.AccentSoft
+    val channelColor = LukoaColors.Primary
+    val channelBackground = LukoaColors.PrimarySoft
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -47,7 +47,7 @@ internal fun UpdateChannelSelectorCard(
             ) {
                 Text(
                     text = "更新通道",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -92,8 +92,8 @@ fun TermuxWakeDelayDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "Termux 唤醒返回",
@@ -109,7 +109,7 @@ fun TermuxWakeDelayDialog(
                     label = "返回等待",
                     value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
                     enabled = !actionsLocked,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     onDecrease = onDecrease,
                     onIncrease = onIncrease,
                 )
@@ -165,8 +165,8 @@ fun PermissionCenterDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "权限与授权",
@@ -184,7 +184,7 @@ fun PermissionCenterDialog(
                 if (!termuxInstalled) {
                     Text(
                         text = "你还没装 Termux。先装好 Termux，再回来处理下面这些权限。",
-                        color = LukoaColors.Amber,
+                        color = LukoaColors.Accent,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -197,15 +197,15 @@ fun PermissionCenterDialog(
                         text = readinessText,
                         active = readinessActive,
                         modifier = Modifier.weight(1f),
-                        toneColor = if (readinessActive) LukoaColors.Accent else LukoaColors.Amber,
-                        activeBackground = if (readinessActive) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
+                        toneColor = if (readinessActive) LukoaColors.Primary else LukoaColors.Accent,
+                        activeBackground = if (readinessActive) LukoaColors.PrimarySoft else LukoaColors.AccentSoft,
                     )
                     StatusPill(
                         text = if (termuxStoragePermissionBlocked) "Termux 存储待处理" else "Termux 存储按需申请",
                         active = !termuxStoragePermissionBlocked,
                         modifier = Modifier.weight(1f),
-                        toneColor = if (termuxStoragePermissionBlocked) LukoaColors.Amber else LukoaColors.Muted,
-                        activeBackground = if (termuxStoragePermissionBlocked) LukoaColors.AmberSoft else LukoaColors.SurfaceAlt,
+                        toneColor = if (termuxStoragePermissionBlocked) LukoaColors.Accent else LukoaColors.TextSecondary,
+                        activeBackground = if (termuxStoragePermissionBlocked) LukoaColors.AccentSoft else LukoaColors.Elevated,
                     )
                 }
                 PermissionDetailCard(
@@ -324,14 +324,14 @@ private fun PermissionDetailCard(
     tone: ActionTone = if (active) ActionTone.Neutral else ActionTone.Warning,
 ) {
     val accentColor = when {
-        active -> LukoaColors.Accent
-        tone == ActionTone.Warning -> LukoaColors.Amber
+        active -> LukoaColors.Primary
+        tone == ActionTone.Warning -> LukoaColors.Accent
         tone == ActionTone.Danger -> LukoaColors.Danger
-        else -> LukoaColors.Info
+        else -> LukoaColors.Primary
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.22f)),
     ) {
@@ -347,15 +347,15 @@ private fun PermissionDetailCard(
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 StatusPill(
                     text = if (active) "已准备" else "待处理",
                     active = active,
-                    toneColor = if (active) LukoaColors.Accent else LukoaColors.Amber,
-                    activeBackground = if (active) LukoaColors.AccentSoft else LukoaColors.AmberSoft,
+                    toneColor = if (active) LukoaColors.Primary else LukoaColors.Accent,
+                    activeBackground = if (active) LukoaColors.PrimarySoft else LukoaColors.AccentSoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看$title 说明",
@@ -366,7 +366,7 @@ private fun PermissionDetailCard(
             if (!active) {
                 Text(
                     text = detail,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -403,13 +403,13 @@ internal fun MiniInfoLine(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
             text = value,
             modifier = Modifier.padding(start = 12.dp),
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -420,18 +420,18 @@ internal fun MiniInfoLine(label: String, value: String) {
 
 @Composable
 internal fun lukoaTextFieldColors(
-    accentColor: Color = LukoaColors.Accent,
+    accentColor: Color = LukoaColors.Primary,
 ) = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = LukoaColors.Text,
-    unfocusedTextColor = LukoaColors.Text,
+    focusedTextColor = LukoaColors.TextPrimary,
+    unfocusedTextColor = LukoaColors.TextPrimary,
     disabledTextColor = LukoaColors.Dim,
-    focusedContainerColor = LukoaColors.SurfaceAlt,
-    unfocusedContainerColor = LukoaColors.SurfaceAlt,
+    focusedContainerColor = LukoaColors.Elevated,
+    unfocusedContainerColor = LukoaColors.Elevated,
     disabledContainerColor = LukoaColors.Surface,
     focusedBorderColor = accentColor,
-    unfocusedBorderColor = LukoaColors.Line,
-    disabledBorderColor = LukoaColors.Line,
+    unfocusedBorderColor = LukoaColors.Border,
+    disabledBorderColor = LukoaColors.Border,
     focusedLabelColor = accentColor,
-    unfocusedLabelColor = LukoaColors.Muted,
+    unfocusedLabelColor = LukoaColors.TextSecondary,
     cursorColor = accentColor,
 )

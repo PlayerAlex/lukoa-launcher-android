@@ -72,8 +72,8 @@ fun UpdateAvailableDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text("发现${updateInfo.releaseTypeLabel} v${updateInfo.versionName}")
         },
@@ -86,9 +86,9 @@ fun UpdateAvailableDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Surface(
-                    color = LukoaColors.SurfaceAlt,
+                    color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
@@ -101,13 +101,13 @@ fun UpdateAvailableDialog(
                             VersionStatusValueCard(
                                 label = "当前版本",
                                 value = "v$currentVersionName",
-                                accentColor = LukoaColors.Muted,
+                                accentColor = LukoaColors.TextSecondary,
                                 modifier = Modifier.weight(1f),
                             )
                             VersionStatusValueCard(
                                 label = "新版本",
                                 value = "v${updateInfo.versionName}",
-                                accentColor = LukoaColors.Accent,
+                                accentColor = LukoaColors.Primary,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -122,14 +122,14 @@ fun UpdateAvailableDialog(
                 }
                 if (updateInfo.prerelease) {
                     Surface(
-                        color = LukoaColors.AmberSoft,
+                        color = LukoaColors.AccentSoft,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.4f)),
                     ) {
                         Text(
                             text = "这是测试版更新，功能会更早到，但稳定性可能不如正式版。",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            color = LukoaColors.Amber,
+                            color = LukoaColors.Accent,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -137,14 +137,14 @@ fun UpdateAvailableDialog(
 
                 Text(
                     text = "更新内容",
-                    color = LukoaColors.Accent,
+                    color = LukoaColors.Primary,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Surface(
-                    color = LukoaColors.SurfaceAlt,
+                    color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                 ) {
                     Text(
                         text = formattedReleaseNotes,
@@ -153,19 +153,19 @@ fun UpdateAvailableDialog(
                             .heightIn(min = 96.dp, max = 220.dp)
                             .verticalScroll(rememberScrollState())
                             .padding(12.dp),
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 Surface(
-                    color = LukoaColors.SurfaceAlt,
+                    color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                 ) {
                     Text(
                         text = "清除红点后，这个版本不会再自动弹出提醒，但你之后仍然可以手动点右上角版本查看。",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -217,35 +217,35 @@ internal fun GithubUpdateStatusCard(
     when {
         githubUpdateState.downloading -> {
             statusText = "正在下载"
-            statusColor = LukoaColors.Accent
+            statusColor = LukoaColors.Primary
         }
         githubUpdateState.checking -> {
             statusText = "正在检查"
-            statusColor = LukoaColors.Accent
+            statusColor = LukoaColors.Primary
         }
         githubUpdateState.hasUpdate -> {
             statusText = "发现新版本"
-            statusColor = LukoaColors.Accent
+            statusColor = LukoaColors.Primary
         }
         githubUpdateState.latest != null -> {
             statusText = "已是最新"
-            statusColor = LukoaColors.Muted
+            statusColor = LukoaColors.TextSecondary
         }
         githubUpdateState.repository.isBlank() -> {
             statusText = "未配置仓库"
-            statusColor = LukoaColors.Amber
+            statusColor = LukoaColors.Accent
         }
         else -> {
             statusText = "等待检查"
-            statusColor = LukoaColors.Muted
+            statusColor = LukoaColors.TextSecondary
         }
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -258,7 +258,7 @@ internal fun GithubUpdateStatusCard(
             ) {
                 Text(
                     text = "当前状态",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -278,7 +278,7 @@ internal fun GithubUpdateStatusCard(
             }
             Text(
                 text = githubUpdateState.message,
-                color = if (githubUpdateState.hasUpdate) LukoaColors.Text else LukoaColors.Muted,
+                color = if (githubUpdateState.hasUpdate) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
@@ -290,7 +290,7 @@ internal fun GithubUpdateStatusCard(
                 if (latest.prerelease) {
                     Text(
                         text = "当前读到的是测试版发布，可能比稳定版更早，但不保证和正式版一样稳定。",
-                        color = LukoaColors.Amber,
+                        color = LukoaColors.Accent,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

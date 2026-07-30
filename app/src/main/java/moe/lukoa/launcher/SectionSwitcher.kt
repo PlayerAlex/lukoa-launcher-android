@@ -37,7 +37,7 @@ fun <T> SectionSwitcherCard(
     options: List<SectionSwitchOption<T>>,
     selected: T,
     modifier: Modifier = Modifier,
-    accentColor: Color = LukoaColors.Accent,
+    accentColor: Color = LukoaColors.Primary,
     onPagerLockChange: ((Boolean) -> Unit)? = null,
     onSelect: (T) -> Unit,
 ) {
@@ -57,7 +57,7 @@ fun <T> SectionSwitcherCard(
                 }
                 false
             },
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.4f),
+        color = LukoaColors.Elevated.copy(alpha = 0.4f),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
@@ -68,7 +68,7 @@ fun <T> SectionSwitcherCard(
         ) {
             Text(
                 text = title,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -89,7 +89,7 @@ fun <T> SectionSwitcherCard(
             }
             Text(
                 text = selectedOption.description,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -107,14 +107,14 @@ private fun SectionSwitchChip(
 ) {
     Surface(
         modifier = Modifier.clickable(onClick = rememberFeedbackClick(onClick)),
-        color = if (selected) accentColor.copy(alpha = 0.12f) else LukoaColors.SurfaceAlt.copy(alpha = 0.5f),
+        color = if (selected) accentColor.copy(alpha = 0.12f) else LukoaColors.Elevated.copy(alpha = 0.5f),
         shape = LukoaCapsuleShape,
         border = BorderStroke(1.dp, if (selected) accentColor.copy(alpha = 0.3f) else Color.Transparent),
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-            color = if (selected) accentColor else LukoaColors.Muted,
+            color = if (selected) accentColor else LukoaColors.TextSecondary,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
         )

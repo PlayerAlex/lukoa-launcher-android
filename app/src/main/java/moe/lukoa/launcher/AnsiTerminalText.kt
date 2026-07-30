@@ -53,7 +53,7 @@ object AnsiTerminalText {
         append(value)
         addStyle(
             SpanStyle(
-                color = state.foreground ?: LukoaColors.Text,
+                color = state.foreground ?: LukoaColors.TextPrimary,
                 background = state.background ?: Color.Unspecified,
                 fontWeight = if (state.bold) FontWeight.Bold else FontWeight.Normal,
             ),
@@ -150,13 +150,13 @@ object AnsiTerminalText {
         return when (code) {
             30 -> LukoaColors.Dim
             31 -> LukoaColors.Danger
-            32 -> LukoaColors.Accent
-            33 -> LukoaColors.Amber
-            34 -> LukoaColors.Info
+            32 -> LukoaColors.Primary
+            33 -> LukoaColors.Accent
+            34 -> LukoaColors.Primary
             35 -> Color(0xFFD38CFF)
             36 -> Color(0xFF67E8F9)
-            37 -> LukoaColors.Text
-            90 -> LukoaColors.Muted
+            37 -> LukoaColors.TextPrimary
+            90 -> LukoaColors.TextSecondary
             91 -> Color(0xFFFF8B8B)
             92 -> Color(0xFF7AF0B2)
             93 -> Color(0xFFFFD166)
@@ -164,7 +164,7 @@ object AnsiTerminalText {
             95 -> Color(0xFFE5A3FF)
             96 -> Color(0xFF88F5FF)
             97 -> Color.White
-            else -> LukoaColors.Text
+            else -> LukoaColors.TextPrimary
         }
     }
 
@@ -173,12 +173,12 @@ object AnsiTerminalText {
         return when (normalized) {
             0 -> LukoaColors.Dim
             1 -> LukoaColors.Danger
-            2 -> LukoaColors.Accent
-            3 -> LukoaColors.Amber
-            4 -> LukoaColors.Info
+            2 -> LukoaColors.Primary
+            3 -> LukoaColors.Accent
+            4 -> LukoaColors.Primary
             5 -> Color(0xFFD38CFF)
             6 -> Color(0xFF67E8F9)
-            7 -> LukoaColors.Text
+            7 -> LukoaColors.TextPrimary
             in 8..15 -> ansiColor(90 + (normalized - 8))
             in 16..231 -> {
                 val colorIndex = normalized - 16

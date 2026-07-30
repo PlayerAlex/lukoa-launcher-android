@@ -126,7 +126,7 @@ private fun CurrentVersionSection(
 
     SectionPanel(
         title = "当前安装",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -150,7 +150,7 @@ private fun CurrentVersionSection(
             tavernVersionInfo.hasData -> {
                 Text(
                     text = tavernVersionInfo.displayVersion,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -176,16 +176,16 @@ private fun CurrentVersionSection(
                 SecondaryActionButton(
                     text = if (showTechnicalDetails) "收起技术信息" else "查看技术信息",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { showTechnicalDetails = !showTechnicalDetails },
                 )
                 if (showTechnicalDetails) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = LukoaColors.SurfaceAlt.copy(alpha = 0.55f),
+                        color = LukoaColors.Elevated.copy(alpha = 0.55f),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
@@ -202,7 +202,7 @@ private fun CurrentVersionSection(
             tavernVersionInfo.notInstalled -> {
                 Text(
                     text = "当前路径里没有找到酒馆。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -211,7 +211,7 @@ private fun CurrentVersionSection(
                 }
                 Text(
                     text = "你仍然可以在下方选择目标版本，之后回到启动页完成首次安装。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -219,7 +219,7 @@ private fun CurrentVersionSection(
             else -> {
                 Text(
                     text = "尚未读取到当前版本。启动器进入版本页时会自动读取，也可以手动重新检测。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -228,7 +228,7 @@ private fun CurrentVersionSection(
         SecondaryActionButton(
             text = "重新检测当前版本",
             enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             onClick = onRefreshCurrentVersion,
         )
@@ -254,7 +254,7 @@ private fun LocalChangesNotice(
             text = {
                 Text(
                     text = "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                 )
             },
             confirmButton = {
@@ -276,9 +276,9 @@ private fun LocalChangesNotice(
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AmberSoft.copy(alpha = 0.82f),
+        color = LukoaColors.AccentSoft.copy(alpha = 0.82f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.35f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -292,7 +292,7 @@ private fun LocalChangesNotice(
                 Text(
                     text = "检测到本地修改",
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Amber,
+                    color = LukoaColors.Accent,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                 )
@@ -308,20 +308,20 @@ private fun LocalChangesNotice(
             }
             Text(
                 text = "修改位置：$location",
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
             if (likelyUploadLimitChange) {
                 Text(
                     text = "这很可能是你在“设置 → 修复工具 → 聊天文件大小”中修改过数值。要更新或回退，请先恢复当前酒馆版本的默认值。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
                     text = "恢复聊天文件大小默认值",
                     enabled = !actionsLocked && !tavernRunning,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { confirmUploadLimitReset = true },
                 )
@@ -332,7 +332,7 @@ private fun LocalChangesNotice(
                         } else {
                             "当前有其他任务正在处理，完成后再恢复默认值。"
                         },
-                        color = LukoaColors.Amber,
+                        color = LukoaColors.Accent,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -340,20 +340,20 @@ private fun LocalChangesNotice(
             } else {
                 Text(
                     text = "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             if (changedFilesPreview.isNotBlank()) {
                 Text(
                     text = "检测到的文件",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = changedFilesPreview,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
@@ -383,14 +383,14 @@ private fun TargetVersionSection(
         else -> "版本来源：${repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl })}"
     }
     val sourceColor = if (officialVersions.hasData && !listMatchesCurrentSource) {
-        LukoaColors.Amber
+        LukoaColors.Accent
     } else {
-        LukoaColors.Muted
+        LukoaColors.TextSecondary
     }
 
     SectionPanel(
         title = "选择目标版本",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             InfoPopoverButton(
                 contentDescription = "查看目标版本说明",
@@ -449,7 +449,7 @@ private fun VersionExecutionSection(
 
     SectionPanel(
         title = "准备执行",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -484,7 +484,7 @@ private fun VersionExecutionSection(
                 actionEnabled = actionEnabled,
                 disabledReason = disabledReason,
             ),
-            color = if (actionEnabled) LukoaColors.Text else LukoaColors.Muted,
+            color = if (actionEnabled) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
 
@@ -497,7 +497,7 @@ private fun VersionExecutionSection(
                 primaryAction = primaryAction,
             ),
             enabled = actionEnabled,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             onClick = when (primaryAction) {
                 VersionPrimaryAction.Update -> onUpdate
@@ -515,9 +515,9 @@ private fun VersionTransitionCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.55f),
+        color = LukoaColors.Elevated.copy(alpha = 0.55f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Row(
             modifier = Modifier
@@ -529,19 +529,19 @@ private fun VersionTransitionCard(
             VersionEndpoint(
                 label = "当前",
                 value = currentVersion,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "→",
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             VersionEndpoint(
                 label = "目标",
                 value = targetVersion,
-                color = if (targetSelected) LukoaColors.Accent else LukoaColors.Muted,
+                color = if (targetSelected) LukoaColors.Primary else LukoaColors.TextSecondary,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -562,7 +562,7 @@ private fun VersionEndpoint(
     ) {
         Text(
             text = label,
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -579,10 +579,10 @@ private fun VersionEndpoint(
 }
 
 private fun currentVersionStatus(info: TavernVersionInfo): VersionStatusStyle = when {
-    info.hasLocalChanges -> VersionStatusStyle("本地已修改", LukoaColors.Amber, LukoaColors.AmberSoft)
-    info.hasData -> VersionStatusStyle("已读取", LukoaColors.Accent, LukoaColors.AccentSoft)
-    info.notInstalled -> VersionStatusStyle("未安装", LukoaColors.Muted, LukoaColors.SurfaceAlt)
-    else -> VersionStatusStyle("等待读取", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    info.hasLocalChanges -> VersionStatusStyle("本地已修改", LukoaColors.Accent, LukoaColors.AccentSoft)
+    info.hasData -> VersionStatusStyle("已读取", LukoaColors.Primary, LukoaColors.PrimarySoft)
+    info.notInstalled -> VersionStatusStyle("未安装", LukoaColors.TextSecondary, LukoaColors.Elevated)
+    else -> VersionStatusStyle("等待读取", LukoaColors.TextSecondary, LukoaColors.Elevated)
 }
 
 private fun executionStatus(
@@ -591,16 +591,16 @@ private fun executionStatus(
     actionState: TavernVersionActionState,
     actionsLocked: Boolean,
 ): VersionStatusStyle = when {
-    actionsLocked -> VersionStatusStyle("任务处理中", LukoaColors.Accent, LukoaColors.AccentSoft)
-    actionState.instanceActive -> VersionStatusStyle("请先停止酒馆", LukoaColors.Amber, LukoaColors.AmberSoft)
-    currentVersionInfo.hasLocalChanges -> VersionStatusStyle("需要处理修改", LukoaColors.Amber, LukoaColors.AmberSoft)
-    currentVersionInfo.notInstalled -> VersionStatusStyle("等待首次安装", LukoaColors.Muted, LukoaColors.SurfaceAlt)
-    !currentVersionInfo.hasData -> VersionStatusStyle("等待读取", LukoaColors.Muted, LukoaColors.SurfaceAlt)
-    selectedVersion == null -> VersionStatusStyle("等待选择目标", LukoaColors.Muted, LukoaColors.SurfaceAlt)
-    actionState.relation == TavernTargetRelation.Same -> VersionStatusStyle("已经是此版本", LukoaColors.Muted, LukoaColors.SurfaceAlt)
-    actionState.updateAvailable -> VersionStatusStyle("可以更新", LukoaColors.Accent, LukoaColors.AccentSoft)
-    actionState.rollbackAvailable -> VersionStatusStyle("可以回退", LukoaColors.Accent, LukoaColors.AccentSoft)
-    else -> VersionStatusStyle("暂不可用", LukoaColors.Muted, LukoaColors.SurfaceAlt)
+    actionsLocked -> VersionStatusStyle("任务处理中", LukoaColors.Primary, LukoaColors.PrimarySoft)
+    actionState.instanceActive -> VersionStatusStyle("请先停止酒馆", LukoaColors.Accent, LukoaColors.AccentSoft)
+    currentVersionInfo.hasLocalChanges -> VersionStatusStyle("需要处理修改", LukoaColors.Accent, LukoaColors.AccentSoft)
+    currentVersionInfo.notInstalled -> VersionStatusStyle("等待首次安装", LukoaColors.TextSecondary, LukoaColors.Elevated)
+    !currentVersionInfo.hasData -> VersionStatusStyle("等待读取", LukoaColors.TextSecondary, LukoaColors.Elevated)
+    selectedVersion == null -> VersionStatusStyle("等待选择目标", LukoaColors.TextSecondary, LukoaColors.Elevated)
+    actionState.relation == TavernTargetRelation.Same -> VersionStatusStyle("已经是此版本", LukoaColors.TextSecondary, LukoaColors.Elevated)
+    actionState.updateAvailable -> VersionStatusStyle("可以更新", LukoaColors.Primary, LukoaColors.PrimarySoft)
+    actionState.rollbackAvailable -> VersionStatusStyle("可以回退", LukoaColors.Primary, LukoaColors.PrimarySoft)
+    else -> VersionStatusStyle("暂不可用", LukoaColors.TextSecondary, LukoaColors.Elevated)
 }
 
 private fun executionSummary(
@@ -684,11 +684,11 @@ private fun OfficialVersionChooser(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.46f)),
+                border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.46f)),
                 shape = LukoaCapsuleShape,
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = LukoaColors.Accent.copy(alpha = 0.04f),
-                    contentColor = LukoaColors.Accent,
+                    containerColor = LukoaColors.Primary.copy(alpha = 0.04f),
+                    contentColor = LukoaColors.Primary,
                     disabledContainerColor = Color.Transparent,
                     disabledContentColor = LukoaColors.Dim,
                 ),
@@ -735,7 +735,7 @@ private fun OfficialVersionChooser(
                     }
                 }
                 if (officialVersions.test.isNotEmpty()) {
-                    HorizontalDivider(color = LukoaColors.Line)
+                    HorizontalDivider(color = LukoaColors.Border)
                     DropdownMenuItem(
                         text = { Text("测试版") },
                         enabled = false,
@@ -757,7 +757,7 @@ private fun OfficialVersionChooser(
                         )
                     }
                 }
-                HorizontalDivider(color = LukoaColors.Line)
+                HorizontalDivider(color = LukoaColors.Border)
                 DropdownMenuItem(
                     text = { Text("自定义版本 / 分支 / commit") },
                     onClick = {
@@ -775,7 +775,7 @@ private fun OfficialVersionChooser(
         SecondaryActionButton(
             text = if (officialListLoaded) "刷新官方版本" else "读取官方版本",
             enabled = refreshEnabled,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             onClick = onRefreshOfficialVersions,
         )
@@ -795,14 +795,14 @@ private fun CustomVersionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("自定义酒馆版本") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "填写版本标签、分支名或 commit。只有明确知道目标时才使用自定义输入。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
@@ -813,18 +813,18 @@ private fun CustomVersionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = LukoaCapsuleShape,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
+                        focusedTextColor = LukoaColors.TextPrimary,
+                        unfocusedTextColor = LukoaColors.TextPrimary,
                         disabledTextColor = LukoaColors.Dim,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
+                        focusedContainerColor = LukoaColors.Elevated,
+                        unfocusedContainerColor = LukoaColors.Elevated,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Accent,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Accent,
-                        unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Accent,
+                        focusedBorderColor = LukoaColors.Primary,
+                        unfocusedBorderColor = LukoaColors.Border,
+                        disabledBorderColor = LukoaColors.Border,
+                        focusedLabelColor = LukoaColors.Primary,
+                        unfocusedLabelColor = LukoaColors.TextSecondary,
+                        cursorColor = LukoaColors.Primary,
                     ),
                 )
                 if (!valid && value.isNotBlank()) {
@@ -840,7 +840,7 @@ private fun CustomVersionDialog(
             SecondaryActionButton(
                 text = "使用这个版本",
                 enabled = valid,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 onClick = onConfirm,
             )
         },
@@ -848,7 +848,7 @@ private fun CustomVersionDialog(
             SecondaryActionButton(
                 text = "取消",
                 enabled = true,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 onClick = onDismiss,
             )
         },
@@ -866,7 +866,7 @@ internal fun VersionStatusValueCard(
         modifier = modifier,
         color = LukoaColors.Surface,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line),
+        border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -874,7 +874,7 @@ internal fun VersionStatusValueCard(
         ) {
             Text(
                 text = label,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -899,7 +899,7 @@ internal fun VersionInfoLine(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
@@ -907,7 +907,7 @@ internal fun VersionInfoLine(label: String, value: String) {
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp),
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.End,
             maxLines = 2,

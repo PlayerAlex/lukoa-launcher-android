@@ -239,15 +239,15 @@ fun MirrorProbeLevel.label(): String = when (this) {
 }
 
 fun MirrorProbeLevel.toneColor() = when (this) {
-    MirrorProbeLevel.Healthy -> LukoaColors.Accent
-    MirrorProbeLevel.Warning -> LukoaColors.Amber
+    MirrorProbeLevel.Healthy -> LukoaColors.Primary
+    MirrorProbeLevel.Warning -> LukoaColors.Accent
     MirrorProbeLevel.Failed -> LukoaColors.Danger
-    MirrorProbeLevel.Unknown -> LukoaColors.Muted
+    MirrorProbeLevel.Unknown -> LukoaColors.TextSecondary
 }
 
 fun MirrorProbeLevel.backgroundColor() = when (this) {
-    MirrorProbeLevel.Healthy -> LukoaColors.AccentSoft
-    MirrorProbeLevel.Warning -> LukoaColors.AmberSoft
+    MirrorProbeLevel.Healthy -> LukoaColors.PrimarySoft
+    MirrorProbeLevel.Warning -> LukoaColors.AccentSoft
     MirrorProbeLevel.Failed -> LukoaColors.DangerSoft
-    MirrorProbeLevel.Unknown -> LukoaColors.SurfaceAlt
+    MirrorProbeLevel.Unknown -> LukoaColors.Elevated
 }

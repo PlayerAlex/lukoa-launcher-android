@@ -64,9 +64,9 @@ internal fun SettingsEntryGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.28f),
+        color = LukoaColors.Elevated.copy(alpha = 0.28f),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.28f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.28f)),
     ) {
         Column(content = content)
     }
@@ -79,7 +79,7 @@ internal fun SettingsGroupLabel(title: String) {
         modifier = Modifier
             .fillMaxWidth()
             .semantics { heading() },
-        color = LukoaColors.Muted,
+        color = LukoaColors.TextSecondary,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
     )
@@ -89,7 +89,7 @@ internal fun SettingsGroupLabel(title: String) {
 internal fun SettingsEntryDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 14.dp),
-        color = LukoaColors.Line.copy(alpha = 0.34f),
+        color = LukoaColors.Border.copy(alpha = 0.34f),
     )
 }
 
@@ -98,7 +98,7 @@ internal fun SettingsEntryRow(
     title: String,
     detail: String? = null,
     value: String? = null,
-    valueColor: Color = LukoaColors.Text,
+    valueColor: Color = LukoaColors.TextPrimary,
     valueLayout: SettingsValueLayout = SettingsValueLayout.Trailing,
     valueAsPill: Boolean = false,
     highlightColor: Color? = null,
@@ -147,7 +147,7 @@ internal fun SettingsEntryRow(
         ) {
             Text(
                 text = title,
-                color = if (enabled) LukoaColors.Text else LukoaColors.Dim,
+                color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -164,7 +164,7 @@ internal fun SettingsEntryRow(
             if (!detail.isNullOrBlank()) {
                 Text(
                     text = detail,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -182,7 +182,7 @@ internal fun SettingsEntryRow(
             Text(
                 text = "›",
                 modifier = Modifier.clearAndSetSemantics {},
-                color = if (enabled) LukoaColors.Muted else LukoaColors.Dim,
+                color = if (enabled) LukoaColors.TextSecondary else LukoaColors.Dim,
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -257,7 +257,7 @@ private fun SettingsTrailingValue(
 
 @Composable
 internal fun SettingsSectionDivider() {
-    HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.42f))
+    HorizontalDivider(color = LukoaColors.Border.copy(alpha = 0.42f))
 }
 
 @Composable
@@ -265,7 +265,7 @@ internal fun SettingsSubsection(
     title: String,
     detail: String,
     statusText: String? = null,
-    statusTone: Color = LukoaColors.Accent,
+    statusTone: Color = LukoaColors.Primary,
     statusActive: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -283,7 +283,7 @@ internal fun SettingsSubsection(
                 modifier = Modifier
                     .weight(1f)
                     .semantics { heading() },
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )

@@ -282,8 +282,8 @@ fun SettingsSection(
         AlertDialog(
             onDismissRequest = { showHealthDialog = false },
             containerColor = LukoaColors.Surface,
-            titleContentColor = LukoaColors.Accent,
-            textContentColor = LukoaColors.Text,
+            titleContentColor = LukoaColors.Primary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("一键体检") },
             text = {
                 Column(
@@ -306,7 +306,7 @@ fun SettingsSection(
                 SecondaryActionButton(
                     text = "关闭",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     onClick = { showHealthDialog = false },
                 )
             },
@@ -413,14 +413,14 @@ internal fun LauncherUpdateSettingsPanel(
         else -> "未检查"
     }
     val updateStatusTone = when {
-        githubUpdateState.checking -> LukoaColors.Accent
-        githubUpdateState.hasUpdate || githubUpdateState.downloading -> LukoaColors.Accent
-        else -> LukoaColors.Muted
+        githubUpdateState.checking -> LukoaColors.Primary
+        githubUpdateState.hasUpdate || githubUpdateState.downloading -> LukoaColors.Primary
+        else -> LukoaColors.TextSecondary
     }
 
     SectionPanel(
         title = "启动器更新",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -430,7 +430,7 @@ internal fun LauncherUpdateSettingsPanel(
                     text = updateStatusText,
                     active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
                     toneColor = updateStatusTone,
-                    activeBackground = LukoaColors.AccentSoft,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看启动器更新说明",
@@ -444,9 +444,9 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsEntryRow(
                 title = "当前版本",
                 value = versionSummary,
-                valueColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else LukoaColors.Text,
+                valueColor = if (githubUpdateState.hasUpdate) LukoaColors.Primary else LukoaColors.TextPrimary,
                 valueLayout = SettingsValueLayout.Supporting,
-                highlightColor = if (githubUpdateState.hasUpdate) LukoaColors.Accent else null,
+                highlightColor = if (githubUpdateState.hasUpdate) LukoaColors.Primary else null,
                 enabled = !updateLocked,
                 onClick = if (githubUpdateState.hasUpdate) onInstallUpdate else null,
                 unavailableHint = when {
@@ -471,7 +471,7 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsEntryRow(
                 title = "更新通道",
                 value = githubUpdateState.channel.label,
-                valueColor = LukoaColors.Accent,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 enabled = !updateLocked,
                 onClick = onOpenUpdateChannelSettings,
@@ -490,7 +490,7 @@ internal fun LauncherUpdateSettingsPanel(
                     else -> "检查更新"
                 },
                 enabled = !updateLocked,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 modifier = Modifier.weight(1f),
                 unavailableHint = when {
                     githubUpdateState.downloading -> "正在下载启动器更新，请稍等。"
@@ -503,7 +503,7 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsFeedbackActionButton(
                 text = "打开发布页",
                 enabled = !updateLocked && releasePageAvailable,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 modifier = Modifier.weight(1f),
                 unavailableHint = when {
                     updateLocked -> "更新任务正在进行，请稍等。"
@@ -533,7 +533,7 @@ internal fun InstanceManagementPanel(
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
     SectionPanel(
         title = "实例与运行环境",
-        accentColor = LukoaColors.Info,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -543,8 +543,8 @@ internal fun InstanceManagementPanel(
                     text = tavernPathConfig.activeProfileLabel,
                     active = true,
                     modifier = Modifier.widthIn(max = 112.dp),
-                    toneColor = LukoaColors.Info,
-                    activeBackground = LukoaColors.InfoSoft,
+                    toneColor = LukoaColors.Primary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看实例与运行环境说明",
@@ -559,9 +559,9 @@ internal fun InstanceManagementPanel(
             SettingsEntryRow(
                 title = "实例名称",
                 value = tavernPathConfig.activeProfileLabel,
-                valueColor = LukoaColors.Info,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
-                highlightColor = LukoaColors.Info,
+                highlightColor = LukoaColors.Primary,
                 onClick = onOpenProfileManagement,
             )
             SettingsEntryDivider()
@@ -575,7 +575,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryRow(
                 title = "访问端口",
                 value = tavernPathConfig.normalizedPort.toString(),
-                valueColor = LukoaColors.Info,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onOpenPortSettings,
             )
@@ -593,7 +593,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryRow(
                 title = "唤醒延迟",
                 value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
-                valueColor = LukoaColors.Accent,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onOpenWakeDelaySettings,
             )
@@ -606,8 +606,8 @@ internal fun InstanceManagementPanel(
                     "${permissionNotice.pendingItems.size} 项待处理"
                 },
                 valueColor = when (permissionNotice.tone) {
-                    PermissionNoticeTone.Info -> LukoaColors.Accent
-                    PermissionNoticeTone.Warning -> LukoaColors.Amber
+                    PermissionNoticeTone.Info -> LukoaColors.Primary
+                    PermissionNoticeTone.Warning -> LukoaColors.Accent
                 },
                 valueAsPill = true,
                 onClick = onOpenPermissionCenter,
@@ -633,7 +633,7 @@ private fun RepairDiagnosticsContent(
         SettingsFeedbackActionButton(
             text = "导出诊断日志",
             enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             unavailableHint = lockedHint,
             onShowHint = onShowHint,
@@ -642,7 +642,7 @@ private fun RepairDiagnosticsContent(
         SettingsFeedbackActionButton(
             text = "清除页面日志",
             enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             unavailableHint = lockedHint,
             onShowHint = onShowHint,
@@ -685,10 +685,10 @@ private fun settingsHealthSummaryText(report: LauncherHealthReport?): String {
 private fun settingsHealthSummaryTone(report: LauncherHealthReport?): Color {
     val effectiveReport = report?.takeIf { it.hasData }
     return when {
-        effectiveReport == null -> LukoaColors.Muted
+        effectiveReport == null -> LukoaColors.TextSecondary
         effectiveReport.errorCount > 0 -> LukoaColors.Danger
-        effectiveReport.warningCount > 0 -> LukoaColors.Amber
-        effectiveReport.unknownCount > 0 -> LukoaColors.Muted
-        else -> LukoaColors.Accent
+        effectiveReport.warningCount > 0 -> LukoaColors.Accent
+        effectiveReport.unknownCount > 0 -> LukoaColors.TextSecondary
+        else -> LukoaColors.Primary
     }
 }

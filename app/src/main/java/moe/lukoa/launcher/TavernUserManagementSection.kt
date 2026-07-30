@@ -58,7 +58,7 @@ fun TavernUserManagementSection(
 
     SectionPanel(
         title = "用户管理",
-        accentColor = LukoaColors.Info,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -73,8 +73,8 @@ fun TavernUserManagementSection(
                         else -> "${state.users.size} 位用户"
                     },
                     active = actionsLocked || state.loading || state.users.isNotEmpty(),
-                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Info,
-                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AmberSoft else LukoaColors.InfoSoft,
+                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
+                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看用户管理说明",
@@ -95,9 +95,9 @@ fun TavernUserManagementSection(
                     else -> state.message
                 },
                 value = instanceLabel,
-                valueColor = LukoaColors.Info,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
-                highlightColor = LukoaColors.Info,
+                highlightColor = LukoaColors.Primary,
             )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -105,7 +105,7 @@ fun TavernUserManagementSection(
                 text = if (state.loading) "读取中..." else "读取用户",
                 modifier = Modifier.weight(1f),
                 enabled = !actionsLocked && !state.loading && !tavernRunning,
-                accentColor = LukoaColors.Info,
+                accentColor = LukoaColors.Primary,
                 unavailableHint = when {
                     state.loading -> "正在读取用户，请稍等。"
                     else -> userActionsUnavailableHint
@@ -117,7 +117,7 @@ fun TavernUserManagementSection(
                 text = "新增用户",
                 modifier = Modifier.weight(1f),
                 enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 unavailableHint = userActionsUnavailableHint,
                 onShowHint = onShowHint,
                 onClick = { createDialog = true },
@@ -167,21 +167,21 @@ private fun TavernUserRow(
         ) {
             Text(
                 text = user.name,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = "登录标识：${user.handle}${if (user.admin) " · 管理员" else ""}",
-                color = if (user.admin) LukoaColors.Info else LukoaColors.Muted,
+                color = if (user.admin) LukoaColors.Primary else LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
                 text = "目录：${if (user.directoryExists) formatUserDirectorySize(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}",
                 color = when {
-                    !user.directoryExists -> LukoaColors.Amber
+                    !user.directoryExists -> LukoaColors.Accent
                     !user.enabled -> LukoaColors.Dim
-                    else -> LukoaColors.Muted
+                    else -> LukoaColors.TextSecondary
                 },
                 style = MaterialTheme.typography.bodySmall,
             )

@@ -21,25 +21,25 @@ fun AptConfigPolicyDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("遇到配置文件冲突时怎么办") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "${pendingTask.task.actionLabel} 可能会升级 Termux 包。若遇到 openssl.cnf 这类配置文件冲突，需要提前选择处理方式。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = "推荐保留当前配置。这样最不容易把 Termux 里已有设置覆盖掉。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     text = "只有你明确想恢复软件包默认配置时，才选择使用新版配置。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

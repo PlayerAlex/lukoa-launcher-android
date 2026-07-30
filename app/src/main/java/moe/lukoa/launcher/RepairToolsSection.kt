@@ -44,9 +44,9 @@ fun RepairToolsSection(
     val uploadStatusText = uploadLimitStatus.currentMegabytes?.let(TavernUploadLimitPolicy::label)
         ?: if (uploadLimitStatus.checking) "检查中…" else "尚未读取"
     val uploadStatusTone = when {
-        uploadLimitStatus.checking -> LukoaColors.Accent
-        uploadLimitStatus.currentMegabytes != null -> LukoaColors.Accent
-        else -> LukoaColors.Muted
+        uploadLimitStatus.checking -> LukoaColors.Primary
+        uploadLimitStatus.currentMegabytes != null -> LukoaColors.Primary
+        else -> LukoaColors.TextSecondary
     }
     confirmation?.let { request ->
         AlertDialog(
@@ -64,7 +64,7 @@ fun RepairToolsSection(
 
     SectionPanel(
         title = "修复工具",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -77,8 +77,8 @@ fun RepairToolsSection(
                         else -> "可使用"
                     },
                     active = true,
-                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Amber else LukoaColors.Accent,
-                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AmberSoft else LukoaColors.AccentSoft,
+                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
+                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看修复工具说明",
@@ -104,7 +104,7 @@ fun RepairToolsSection(
                 text = "修复 npm 依赖",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 unavailableHint = mutationUnavailableHint,
                 onShowHint = onShowHint,
                 onClick = {
@@ -119,7 +119,7 @@ fun RepairToolsSection(
                 text = "网页打不开时重置主题",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Info,
+                accentColor = LukoaColors.Primary,
                 unavailableHint = mutationUnavailableHint,
                 onShowHint = onShowHint,
                 onClick = {
@@ -141,7 +141,7 @@ fun RepairToolsSection(
                         text = "${memory / 1024}GB",
                         modifier = Modifier.weight(1f),
                         enabled = !actionsLocked && !tavernRunning,
-                        accentColor = LukoaColors.Accent,
+                        accentColor = LukoaColors.Primary,
                         unavailableHint = mutationUnavailableHint,
                         onShowHint = onShowHint,
                         onClick = {
@@ -163,7 +163,7 @@ fun RepairToolsSection(
                 detail = uploadLimitStatus.message,
                 value = uploadStatusText,
                 valueColor = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
-                    LukoaColors.Amber
+                    LukoaColors.Accent
                 } else {
                     uploadStatusTone
                 },
@@ -184,7 +184,7 @@ fun RepairToolsSection(
                         text = TavernUploadLimitPolicy.label(limit),
                         modifier = Modifier.weight(1f),
                         enabled = !actionsLocked && !tavernRunning,
-                        accentColor = if (current) LukoaColors.Accent else LukoaColors.Info,
+                        accentColor = if (current) LukoaColors.Primary else LukoaColors.Primary,
                         unavailableHint = mutationUnavailableHint,
                         onShowHint = onShowHint,
                         onClick = {
@@ -201,7 +201,7 @@ fun RepairToolsSection(
                 text = "恢复酒馆默认值",
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning && uploadLimitStatus.currentMegabytes != null,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 unavailableHint = when {
                     mutationUnavailableHint != null -> mutationUnavailableHint
                     uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"

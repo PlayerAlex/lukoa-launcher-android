@@ -50,10 +50,10 @@ enum class ActionTone {
 }
 
 fun ActionTone.color(): Color = when (this) {
-    ActionTone.Safe -> LukoaColors.Accent
-    ActionTone.Warning -> LukoaColors.Amber
+    ActionTone.Safe -> LukoaColors.Primary
+    ActionTone.Warning -> LukoaColors.Accent
     ActionTone.Danger -> LukoaColors.Danger
-    ActionTone.Neutral -> LukoaColors.Info
+    ActionTone.Neutral -> LukoaColors.Primary
 }
 
 @Composable
@@ -79,7 +79,7 @@ fun rememberFeedbackClick(
 fun InfoIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = LukoaColors.Muted,
+    accentColor: Color = LukoaColors.TextSecondary,
     onClick: () -> Unit,
 ) {
     val feedbackClick = rememberFeedbackClick(onClick)
@@ -88,9 +88,9 @@ fun InfoIconButton(
             .size(24.dp)
             .semantics { this.contentDescription = contentDescription }
             .clickable(onClick = feedbackClick),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.5f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -116,7 +116,7 @@ fun InfoPopoverButton(
     Box(modifier = modifier) {
         InfoIconButton(
             contentDescription = contentDescription,
-            accentColor = LukoaColors.Muted,
+            accentColor = LukoaColors.TextSecondary,
             onClick = { expanded = true },
         )
         DropdownMenu(
@@ -131,7 +131,7 @@ fun InfoPopoverButton(
             ) {
                 Text(
                     text = title,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -141,7 +141,7 @@ fun InfoPopoverButton(
                     .forEach { paragraph ->
                         Text(
                             text = paragraph,
-                            color = LukoaColors.Muted,
+                            color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -195,7 +195,7 @@ fun SecondaryActionButton(
     val feedbackClick = rememberFeedbackClick(onClick)
     val styleColor = accentColor
     val toneColor = if (enabled) styleColor else LukoaColors.Dim
-    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Line.copy(alpha = 0.3f)
+    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.3f)
     OutlinedButton(
         onClick = feedbackClick,
         enabled = enabled,
@@ -226,7 +226,7 @@ fun BackupStepper(
     enabled: Boolean,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
-    accentColor: Color = LukoaColors.Info,
+    accentColor: Color = LukoaColors.Primary,
     onDecreaseLarge: (() -> Unit)? = null,
     onIncreaseLarge: (() -> Unit)? = null,
 ) {
@@ -234,7 +234,7 @@ fun BackupStepper(
     val buttonWidth = if (hasLargeStep) 44.dp else 52.dp
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.5f),
+        color = LukoaColors.Elevated.copy(alpha = 0.5f),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
@@ -247,7 +247,7 @@ fun BackupStepper(
             ) {
                 Text(
                     text = label,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -291,7 +291,7 @@ fun BackupStepper(
                     Text(
                         text = value,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                        color = if (enabled) LukoaColors.Text else LukoaColors.Dim,
+                        color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
@@ -335,7 +335,7 @@ private fun StepperButton(
         onClick = feedbackClick,
         enabled = enabled,
         modifier = modifier.height(44.dp),
-        border = BorderStroke(1.dp, if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.4f)),
         shape = LukoaCapsuleShape,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (enabled) styleColor.copy(alpha = 0.05f) else Color.Transparent,
@@ -357,15 +357,15 @@ fun StatusPill(
     text: String,
     active: Boolean,
     modifier: Modifier = Modifier,
-    toneColor: Color = if (active) LukoaColors.Accent else LukoaColors.Muted,
-    activeBackground: Color = LukoaColors.AccentSoft,
+    toneColor: Color = if (active) LukoaColors.Primary else LukoaColors.TextSecondary,
+    activeBackground: Color = LukoaColors.PrimarySoft,
 ) {
     val shape = RoundedCornerShape(999.dp)
     val background = resolvedStatusPillBackground(
         active = active,
-        requestedBackground = if (active) activeBackground else LukoaColors.SurfaceAlt,
+        requestedBackground = if (active) activeBackground else LukoaColors.Elevated,
     )
-    val contentColor = if (active) toneColor else LukoaColors.Muted
+    val contentColor = if (active) toneColor else LukoaColors.TextSecondary
     val borderColor = if (active) toneColor.copy(alpha = 0.3f) else Color.Transparent
     Surface(
         modifier = modifier
@@ -404,7 +404,7 @@ fun NoticeCard(
     title: String,
     detail: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = LukoaColors.Amber,
+    accentColor: Color = LukoaColors.Accent,
     actionLabel: String? = null,
     actionTone: ActionTone = ActionTone.Warning,
     onAction: (() -> Unit)? = null,
@@ -421,13 +421,13 @@ fun NoticeCard(
         ) {
             Text(
                 text = title,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = detail,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (!actionLabel.isNullOrBlank() && onAction != null) {

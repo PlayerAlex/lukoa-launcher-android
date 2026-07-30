@@ -59,33 +59,33 @@ fun TermuxStoragePermissionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Accent,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("需要 Termux 存储权限") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Termux 现在读不到 Downloads 里的备份。请先授权，否则不能应用备份。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = "点“去授权”后会打开 Termux。看到权限弹窗时点允许，再回启动器继续。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (archivePath.isNotBlank()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = LukoaColors.SurfaceAlt,
+                        color = LukoaColors.Elevated,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                     ) {
                         Text(
                             text = archivePath,
                             modifier = Modifier.padding(10.dp),
-                            color = LukoaColors.Muted,
+                            color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
@@ -124,8 +124,8 @@ fun BackgroundRunPermissionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Accent,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text(if (granted) "后台运行已允许" else "需要后台运行权限") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -135,13 +135,13 @@ fun BackgroundRunPermissionDialog(
                     } else {
                         "自动备份想在你离开软件后也准时运行，需要把露科亚启动器加入后台运行白名单。"
                     },
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = "点“去授权”后会打开系统页面。部分手机还要额外允许后台运行、自启动或取消省电限制。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -192,8 +192,8 @@ fun FirstTavernStartGuideDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Accent,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },
         text = {
             Column(
@@ -205,20 +205,20 @@ fun FirstTavernStartGuideDialog(
             ) {
                 Text(
                     text = summary,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = LukoaColors.Amber.copy(alpha = 0.08f),
+                    color = LukoaColors.Accent.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+                    border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.28f)),
                 ) {
                     Text(
                         text = detail,
                         modifier = Modifier.padding(12.dp),
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

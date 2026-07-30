@@ -82,7 +82,7 @@ fun Header(
                     Text(
                         text = "露科亚启动器",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
                     )
                     Row(
@@ -92,15 +92,15 @@ fun Header(
                         Text(
                             text = "Termux 控制台",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = LukoaColors.Muted,
+                            color = LukoaColors.TextSecondary,
                         )
                         Box(
                             modifier = Modifier
                                 .size(9.dp)
                                 .background(
                                     color = when {
-                                        tavernRunning -> LukoaColors.Accent
-                                        tavernStarting -> LukoaColors.Accent
+                                        tavernRunning -> LukoaColors.Primary
+                                        tavernStarting -> LukoaColors.Primary
                                         else -> LukoaColors.Dim
                                     },
                                     shape = RoundedCornerShape(5.dp),
@@ -114,17 +114,17 @@ fun Header(
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
                 color = if (showVersionUpdateBadge) {
-                    LukoaColors.AccentSoft.copy(alpha = 0.72f)
+                    LukoaColors.PrimarySoft.copy(alpha = 0.72f)
                 } else {
-                    LukoaColors.SurfaceAlt
+                    LukoaColors.Elevated
                 },
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(
                     1.dp,
                     if (showVersionUpdateBadge) {
-                        LukoaColors.Accent.copy(alpha = 0.5f)
+                        LukoaColors.Primary.copy(alpha = 0.5f)
                     } else {
-                        LukoaColors.Line
+                        LukoaColors.Border
                     },
                 ),
             ) {
@@ -135,7 +135,7 @@ fun Header(
                 ) {
                     Text(
                         text = "v$versionName",
-                        color = if (showVersionUpdateBadge) LukoaColors.Text else LukoaColors.Muted,
+                        color = if (showVersionUpdateBadge) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -144,7 +144,7 @@ fun Header(
                             modifier = Modifier
                                 .size(8.dp)
                                 .background(
-                                    color = LukoaColors.Accent,
+                                    color = LukoaColors.Primary,
                                     shape = RoundedCornerShape(4.dp),
                                 ),
                         )
@@ -165,10 +165,10 @@ fun OverviewPanel(
     syncActive: Boolean,
 ) {
     val accentColor = when {
-        tavernRunning -> LukoaColors.Accent
-        tavernStarting -> LukoaColors.Accent
-        verified -> LukoaColors.Accent
-        else -> LukoaColors.Line
+        tavernRunning -> LukoaColors.Primary
+        tavernStarting -> LukoaColors.Primary
+        verified -> LukoaColors.Primary
+        else -> LukoaColors.Border
     }
     val stateLabel = when {
         tavernRunning -> "酒馆运行中"
@@ -208,7 +208,7 @@ fun OverviewPanel(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "当前状态",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -216,14 +216,14 @@ fun OverviewPanel(
                 StatusPill(
                     text = if (verified) "已确认" else "未确认",
                     active = verified,
-                    toneColor = if (verified) LukoaColors.Accent else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
+                    toneColor = if (verified) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
             }
 
             Text(
                 text = summary,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleMedium,
@@ -232,7 +232,7 @@ fun OverviewPanel(
 
             Text(
                 text = statusLine,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodySmall,
@@ -247,18 +247,18 @@ fun OverviewPanel(
                     active = tavernRunning || tavernStarting,
                     modifier = Modifier.weight(1f),
                     toneColor = when {
-                        tavernRunning -> LukoaColors.Accent
-                        tavernStarting -> LukoaColors.Accent
-                        else -> LukoaColors.Muted
+                        tavernRunning -> LukoaColors.Primary
+                        tavernStarting -> LukoaColors.Primary
+                        else -> LukoaColors.TextSecondary
                     },
-                    activeBackground = LukoaColors.AccentSoft,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
                 StatusPill(
                     text = if (syncActive) "Termux 同步中" else "Termux 未同步",
                     active = syncActive,
                     modifier = Modifier.weight(1f),
-                    toneColor = if (syncActive) LukoaColors.Accent else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
+                    toneColor = if (syncActive) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
             }
         }
@@ -274,13 +274,13 @@ fun SectionPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.2f),
+        color = LukoaColors.Elevated.copy(alpha = 0.2f),
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .border(1.dp, LukoaColors.Border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -298,7 +298,7 @@ fun SectionPanel(
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -373,12 +373,12 @@ fun LogPanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.3f),
+        color = LukoaColors.Elevated.copy(alpha = 0.3f),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
             modifier = Modifier
-                .border(1.dp, LukoaColors.Line.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .border(1.dp, LukoaColors.Border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -400,15 +400,15 @@ fun LogPanel(
                     StatusPill(
                         text = if (followLatest) "追踪最新" else "已暂停",
                         active = followLatest,
-                        toneColor = if (followLatest) LukoaColors.Accent else LukoaColors.Muted,
-                        activeBackground = if (followLatest) LukoaColors.AccentSoft else LukoaColors.SurfaceAlt,
+                        toneColor = if (followLatest) LukoaColors.Primary else LukoaColors.TextSecondary,
+                        activeBackground = if (followLatest) LukoaColors.PrimarySoft else LukoaColors.Elevated,
                     )
                 }
             }
             subtitle?.let {
                 Text(
                     text = it,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -471,7 +471,7 @@ private fun ReturnToLatestChip(
             .clickable(onClick = feedbackClick),
         color = LukoaColors.Background.copy(alpha = 0.94f),
         shape = LukoaCapsuleShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),

@@ -3479,7 +3479,7 @@ fun LukoaLauncherScreen(
                                 NoticeCard(
                                     title = reminder.title,
                                     detail = reminder.detail,
-                                    accentColor = LukoaColors.Amber,
+                                    accentColor = LukoaColors.Accent,
                                     actionLabel = "去权限页处理",
                                     onAction = {
                                         selectedTab = LauncherTab.Settings
@@ -3568,13 +3568,13 @@ fun LukoaLauncherScreen(
                             LogPanel(
                                 title = "酒馆运行日志",
                                 content = tavernRuntimeLog,
-                                accentColor = LukoaColors.Info,
+                                accentColor = LukoaColors.Primary,
                                 maxVisibleLines = null,
                             )
                             LogPanel(
                                 title = "App 操作反馈",
                                 content = appLog,
-                                accentColor = LukoaColors.Muted,
+                                accentColor = LukoaColors.TextSecondary,
                             )
                         }
                         LauncherTab.Backup -> BackupSection(

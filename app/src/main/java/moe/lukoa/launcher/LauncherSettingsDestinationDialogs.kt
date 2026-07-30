@@ -30,8 +30,8 @@ internal fun TavernProfileManagementDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "实例管理",
@@ -98,7 +98,7 @@ internal fun TavernProfileManagementDialog(
                 if (tavernPathConfig.hasMultipleProfiles && tavernPathConfig.isActiveProfileMain) {
                     Text(
                         text = "主实例默认保留。要删除分身，请先切换到对应分身。",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else if (tavernPathConfig.canRemoveActiveProfile) {
@@ -108,7 +108,7 @@ internal fun TavernProfileManagementDialog(
                         } else {
                             "删除前会再次确认。当前只会移除启动器里的实例配置，不会删除酒馆目录和备份。"
                         },
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -145,8 +145,8 @@ internal fun TavernDirectorySettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "酒馆路径",
@@ -163,7 +163,7 @@ internal fun TavernDirectorySettingsDialog(
             ) {
                 Text(
                     text = "“保存路径”只会修改启动器配置，不会搬动文件；迁移按钮才会真的移动酒馆目录。",
-                    color = LukoaColors.Amber,
+                    color = LukoaColors.Accent,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -274,8 +274,8 @@ internal fun TavernPortSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "实例端口",
@@ -298,7 +298,7 @@ internal fun TavernPortSettingsDialog(
                     placeholder = { Text(defaultPort.toString()) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = lukoaTextFieldColors(LukoaColors.Info),
+                    colors = lukoaTextFieldColors(LukoaColors.Primary),
                 )
                 tavernPortError?.let { error ->
                     Text(
@@ -352,8 +352,8 @@ internal fun LauncherRepositorySettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "更新仓库",
@@ -418,8 +418,8 @@ internal fun LauncherUpdateChannelDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "更新通道",

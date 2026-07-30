@@ -81,7 +81,7 @@ fun QuickStartGuideSection(
                 WizardSecondaryAction("备用下载", !actionsLocked, onOpenTermuxGithub),
                 WizardSecondaryAction("我装好了，重新检测", !actionsLocked, onRecheckTermux),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
         termuxInstalled && !runCommandPermissionGranted -> WizardAction(
             step = "第 2 步",
@@ -94,7 +94,7 @@ fun QuickStartGuideSection(
                 WizardSecondaryAction("权限设置", !actionsLocked, onOpenPermissionSettings),
                 WizardSecondaryAction("重新检测", !actionsLocked, onRecheckPermission),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
         externalAppsBlocked -> WizardAction(
             step = "第 2 步",
@@ -107,7 +107,7 @@ fun QuickStartGuideSection(
                 WizardSecondaryAction("打开 Termux", !actionsLocked, onOpenTermux),
                 WizardSecondaryAction("重新检测", !actionsLocked, onRecheckPermission),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
             commandText = commandText,
         )
         termuxSetupRecommended -> WizardAction(
@@ -121,7 +121,7 @@ fun QuickStartGuideSection(
                 WizardSecondaryAction("重新检测酒馆", !actionsLocked && !tavernVersionChecking, onCheckTavern),
                 WizardSecondaryAction("直接安装酒馆", !actionsLocked, onShowInstall),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
         tavernInstallDetected == null -> WizardAction(
             step = "第 4 步",
@@ -134,7 +134,7 @@ fun QuickStartGuideSection(
                 WizardSecondaryAction("第一次用，安装酒馆", !actionsLocked, onShowInstall),
                 WizardSecondaryAction("准备环境", !actionsLocked, onPrepareTermux),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
         tavernInstallDetected == false -> WizardAction(
             step = "第 4 步",
@@ -151,7 +151,7 @@ fun QuickStartGuideSection(
                 ),
                 WizardSecondaryAction("重新检测", !actionsLocked && !tavernVersionChecking, onCheckTavern),
             ),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
         else -> WizardAction(
             step = "完成",
@@ -161,7 +161,7 @@ fun QuickStartGuideSection(
             primaryEnabled = false,
             primary = {},
             secondary = emptyList(),
-            tone = LukoaColors.Accent,
+            tone = LukoaColors.Primary,
         )
     }
 
@@ -169,7 +169,7 @@ fun QuickStartGuideSection(
 
     SectionPanel(
         title = "第一次使用",
-        accentColor = LukoaColors.Accent,
+        accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -178,8 +178,8 @@ fun QuickStartGuideSection(
                 StatusPill(
                     text = "已完成 $completedSteps/4",
                     active = completedSteps > 0,
-                    toneColor = LukoaColors.Accent,
-                    activeBackground = LukoaColors.AccentSoft,
+                    toneColor = LukoaColors.Primary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
                     contentDescription = "查看第一次使用说明",
@@ -191,7 +191,7 @@ fun QuickStartGuideSection(
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(14.dp),
             border = BorderStroke(1.dp, current.tone.copy(alpha = 0.48f)),
         ) {
@@ -205,14 +205,14 @@ fun QuickStartGuideSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(
-                        color = LukoaColors.AccentSoft,
+                        color = LukoaColors.PrimarySoft,
                         shape = LukoaCapsuleShape,
-                        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.42f)),
+                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.42f)),
                     ) {
                         Text(
                             text = current.step,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            color = LukoaColors.Accent,
+                            color = LukoaColors.Primary,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -224,13 +224,13 @@ fun QuickStartGuideSection(
                     ) {
                         Text(
                             text = "现在只做这一项",
-                            color = LukoaColors.Muted,
+                            color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = current.title,
-                            color = LukoaColors.Text,
+                            color = LukoaColors.TextPrimary,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
@@ -239,7 +239,7 @@ fun QuickStartGuideSection(
 
                 Text(
                     text = current.detail,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
@@ -260,7 +260,7 @@ fun QuickStartGuideSection(
                         SecondaryActionButton(
                             text = action.text,
                             enabled = action.enabled,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = action.onClick,
                         )
@@ -280,7 +280,7 @@ fun QuickStartGuideSection(
                 if (actionsLocked) {
                     Text(
                         text = "这一步正在执行，完成后按钮会自动恢复，不需要重复点击。",
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -290,14 +290,14 @@ fun QuickStartGuideSection(
 
         Text(
             text = "准备进度",
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
         )
         OnboardingProgressList(currentStep = stepIndex)
         Text(
             text = "完成这 4 步后，新手指引会自动收起。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -331,9 +331,9 @@ private fun OnboardingProgressList(currentStep: Int) {
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt.copy(alpha = 0.58f),
+        color = LukoaColors.Elevated.copy(alpha = 0.58f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -361,14 +361,14 @@ private fun OnboardingProgressRow(
     done: Boolean,
     current: Boolean,
 ) {
-    val tone = if (done || current) LukoaColors.Accent else LukoaColors.Muted
+    val tone = if (done || current) LukoaColors.Primary else LukoaColors.TextSecondary
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
-            color = if (done || current) LukoaColors.AccentSoft else LukoaColors.Surface,
+            color = if (done || current) LukoaColors.PrimarySoft else LukoaColors.Surface,
             shape = LukoaCapsuleShape,
             border = BorderStroke(1.dp, tone.copy(alpha = if (done || current) 0.48f else 0.28f)),
         ) {
@@ -383,7 +383,7 @@ private fun OnboardingProgressRow(
         Text(
             text = label,
             modifier = Modifier.weight(1f),
-            color = if (done || current) LukoaColors.Text else LukoaColors.Muted,
+            color = if (done || current) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
         )
@@ -406,7 +406,7 @@ private fun CommandSnippet(text: String) {
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Terminal,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -417,19 +417,19 @@ private fun CommandSnippet(text: String) {
                     modifier = Modifier
                         .width(4.dp)
                         .height(16.dp)
-                        .background(LukoaColors.Accent, RoundedCornerShape(2.dp)),
+                        .background(LukoaColors.Primary, RoundedCornerShape(2.dp)),
                 )
                 Text(
                     text = "复制后粘贴到 Termux，回车执行",
                     modifier = Modifier.padding(start = 8.dp),
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
                 text = text,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
@@ -452,9 +452,9 @@ private fun WizardVersionPicker(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -471,13 +471,13 @@ private fun WizardVersionPicker(
                 ) {
                     Text(
                         text = "安装版本",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = effectiveSelectedVersion.label,
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -489,11 +489,11 @@ private fun WizardVersionPicker(
                         onClick = { expanded = true },
                         enabled = !actionsLocked && choices.isNotEmpty(),
                         modifier = Modifier.height(40.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.46f)),
+                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.46f)),
                         shape = LukoaCapsuleShape,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent,
-                            contentColor = LukoaColors.Accent,
+                            contentColor = LukoaColors.Primary,
                             disabledContainerColor = Color.Transparent,
                             disabledContentColor = LukoaColors.Dim,
                         ),
@@ -559,12 +559,12 @@ private fun WizardVersionPicker(
             }
             Text(
                 text = "不懂就用默认稳定版；测试版可能不稳定。",
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
                 text = "当前源：${repoLabelFor(effectiveSelectedVersion.repoUrl)}",
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }

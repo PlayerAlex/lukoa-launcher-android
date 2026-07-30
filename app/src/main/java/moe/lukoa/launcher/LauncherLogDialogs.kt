@@ -58,34 +58,34 @@ fun ExportLogDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
         shape = RoundedCornerShape(20.dp),
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("导出运行日志") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = "导出包含清除后累计内容。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
                     text = "只导出酒馆运行日志",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onExportTermux,
                 )
                 SecondaryActionButton(
                     text = "只导出 App 操作反馈",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onExportApp,
                 )
                 SecondaryActionButton(
                     text = "全部都导出",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onExportBoth,
                 )
@@ -93,7 +93,7 @@ fun ExportLogDialog(
         },
         confirmButton = {},
         dismissButton = {
-            SecondaryActionButton("取消", true, LukoaColors.Accent, onClick = onDismiss)
+            SecondaryActionButton("取消", true, LukoaColors.Primary, onClick = onDismiss)
         },
     )
 }
@@ -108,34 +108,34 @@ fun ClearLogScopeDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
         shape = RoundedCornerShape(20.dp),
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("选择清除范围") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = "只清空这里的显示，不删酒馆文件。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 SecondaryActionButton(
                     text = "只清除 Termux 侧",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onClearTermux,
                 )
                 SecondaryActionButton(
                     text = "只清除 App 操作反馈",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onClearApp,
                 )
                 SecondaryActionButton(
                     text = "全部都清除",
                     enabled = true,
-                    accentColor = LukoaColors.Accent,
+                    accentColor = LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onClearBoth,
                 )
@@ -143,7 +143,7 @@ fun ClearLogScopeDialog(
         },
         confirmButton = {},
         dismissButton = {
-            SecondaryActionButton("取消", true, LukoaColors.Accent, onClick = onDismiss)
+            SecondaryActionButton("取消", true, LukoaColors.Primary, onClick = onDismiss)
         },
     )
 }
@@ -165,19 +165,19 @@ fun ClearLogDangerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("确认清除日志") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "将清空页面显示：$target。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
                     text = "只清空页面显示；后台诊断归档会继续记录，导出日志和诊断仍保留完整内容。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
@@ -188,15 +188,15 @@ fun ClearLogDangerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
-                        focusedBorderColor = LukoaColors.Accent,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Accent,
-                        unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Accent,
+                        focusedTextColor = LukoaColors.TextPrimary,
+                        unfocusedTextColor = LukoaColors.TextPrimary,
+                        focusedContainerColor = LukoaColors.Elevated,
+                        unfocusedContainerColor = LukoaColors.Elevated,
+                        focusedBorderColor = LukoaColors.Primary,
+                        unfocusedBorderColor = LukoaColors.Border,
+                        focusedLabelColor = LukoaColors.Primary,
+                        unfocusedLabelColor = LukoaColors.TextSecondary,
+                        cursorColor = LukoaColors.Primary,
                     ),
                 )
             }

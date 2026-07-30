@@ -72,10 +72,10 @@ fun LauncherBottomBar(
         color = LukoaColors.Surface,
     ) {
         Column {
-            HorizontalDivider(color = LukoaColors.Line.copy(alpha = 0.3f))
+            HorizontalDivider(color = LukoaColors.Border.copy(alpha = 0.3f))
             NavigationBar(
                 containerColor = LukoaColors.Surface,
-                contentColor = LukoaColors.Text,
+                contentColor = LukoaColors.TextPrimary,
                 tonalElevation = 0.dp,
             ) {
                 LauncherTab.entries.forEach { tab ->
@@ -98,15 +98,15 @@ fun LauncherBottomBar(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) LukoaColors.Text else LukoaColors.Muted,
+                                color = if (selected) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = LukoaColors.Accent,
-                            selectedTextColor = LukoaColors.Text,
-                            indicatorColor = LukoaColors.AccentSoft.copy(alpha = 0.6f),
-                            unselectedIconColor = LukoaColors.Muted,
-                            unselectedTextColor = LukoaColors.Muted,
+                            selectedIconColor = LukoaColors.Primary,
+                            selectedTextColor = LukoaColors.TextPrimary,
+                            indicatorColor = LukoaColors.PrimarySoft.copy(alpha = 0.6f),
+                            unselectedIconColor = LukoaColors.TextSecondary,
+                            unselectedTextColor = LukoaColors.TextSecondary,
                         ),
                     )
                 }
@@ -136,9 +136,9 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
     val presentation = BusyPanelPresentationResolver.resolve(label, elapsedSeconds)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AccentSoft.copy(alpha = 0.42f),
+        color = LukoaColors.PrimarySoft.copy(alpha = 0.42f),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.34f)),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -157,11 +157,11 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
                         modifier = Modifier
                             .width(8.dp)
                             .height(8.dp)
-                            .background(LukoaColors.Accent, RoundedCornerShape(4.dp)),
+                            .background(LukoaColors.Primary, RoundedCornerShape(4.dp)),
                     )
                     Text(
                         text = "命令执行中",
-                        color = LukoaColors.Accent,
+                        color = LukoaColors.Primary,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                     )
@@ -169,13 +169,13 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
                 StatusPill(
                     text = elapsedText,
                     active = true,
-                    toneColor = LukoaColors.Accent,
-                    activeBackground = LukoaColors.SurfaceAlt,
+                    toneColor = LukoaColors.Primary,
+                    activeBackground = LukoaColors.Elevated,
                 )
             }
             Text(
                 text = label,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -185,18 +185,18 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp),
-                color = LukoaColors.Accent,
-                trackColor = LukoaColors.SurfaceAlt,
+                color = LukoaColors.Primary,
+                trackColor = LukoaColors.Elevated,
             )
             Text(
                 text = presentation.activityText,
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = presentation.helperText,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }

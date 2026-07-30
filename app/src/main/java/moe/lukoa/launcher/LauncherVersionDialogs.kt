@@ -66,14 +66,14 @@ fun TavernVersionActionConfirmDialog(
     ) {
         Text(
             text = confirmation.summary,
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -86,20 +86,20 @@ fun TavernVersionActionConfirmDialog(
         }
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            color = LukoaColors.Accent.copy(alpha = 0.08f),
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+            border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.28f)),
         ) {
             Text(
                 text = confirmation.detail,
                 modifier = Modifier.padding(12.dp),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Text(
             text = confirmation.riskTip,
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }

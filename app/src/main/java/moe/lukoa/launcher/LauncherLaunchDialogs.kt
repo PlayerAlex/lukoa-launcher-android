@@ -57,8 +57,8 @@ fun InstallRiskConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text(confirmation.title)
         },
@@ -66,13 +66,13 @@ fun InstallRiskConfirmDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = confirmation.summary,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Surface(
-                    color = LukoaColors.SurfaceAlt,
+                    color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                 ) {
                     Column(
                         modifier = Modifier
@@ -85,7 +85,7 @@ fun InstallRiskConfirmDialog(
                         confirmation.details.forEach { item ->
                             Text(
                                 text = "• $item",
-                                color = LukoaColors.Text,
+                                color = LukoaColors.TextPrimary,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -119,8 +119,8 @@ fun StartPreflightConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Accent,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text(result.title.ifBlank { "启动前发现问题" })
         },
@@ -131,14 +131,14 @@ fun StartPreflightConfirmDialog(
                 }
                 Text(
                     text = result.summary,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 result.details.takeIf { it.isNotEmpty() }?.let { details ->
                     Surface(
-                        color = LukoaColors.SurfaceAlt,
+                        color = LukoaColors.Elevated,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                     ) {
                         Column(
                             modifier = Modifier
@@ -151,7 +151,7 @@ fun StartPreflightConfirmDialog(
                             details.forEach { item ->
                                 Text(
                                     text = "• $item",
-                                    color = LukoaColors.Text,
+                                    color = LukoaColors.TextPrimary,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
@@ -194,9 +194,9 @@ fun StartPreflightConfirmDialog(
 @Composable
 private fun StartPreflightProfileInfoCard(profile: TavernProfile) {
     Surface(
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier
@@ -206,19 +206,19 @@ private fun StartPreflightProfileInfoCard(profile: TavernProfile) {
         ) {
             Text(
                 text = "这次准备启动的是下面这个实例：",
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             VersionInfoLine("当前实例", profile.normalizedName)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = "当前目录",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     text = profile.displayTavernDir,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -245,7 +245,7 @@ fun StopTavernConfirmDialog(
     ) {
         Text(
             text = "这一步只会尝试温和停止当前实例，不会顺手强制清理残留进程。",
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
         TavernActionProfileCard(
@@ -255,12 +255,12 @@ fun StopTavernConfirmDialog(
         )
         Text(
             text = "如果普通停止后网页仍在响应，再改用“强制释放端口 / 强制清理残留进程”更稳。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
             text = "这一步不会删除聊天、角色、世界书或备份文件。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -284,7 +284,7 @@ fun ForceCleanupTavernConfirmDialog(
     ) {
         Text(
             text = confirmation.suggestion.summary,
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
         TavernActionProfileCard(
@@ -294,9 +294,9 @@ fun ForceCleanupTavernConfirmDialog(
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -304,12 +304,12 @@ fun ForceCleanupTavernConfirmDialog(
             ) {
                 Text(
                     text = "为什么现在会建议这样做",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Text(
                     text = confirmation.suggestion.reasonDetail,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -323,7 +323,7 @@ fun ForceCleanupTavernConfirmDialog(
             Text(
                 text = confirmation.suggestion.riskTip,
                 modifier = Modifier.padding(12.dp),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -338,9 +338,9 @@ private fun TavernActionProfileCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),

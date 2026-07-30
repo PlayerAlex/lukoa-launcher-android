@@ -14,7 +14,7 @@ class AnsiTerminalTextTest {
 
         assertEquals("red plain green", annotated.text)
         assertEquals(LukoaColors.Danger, annotated.spanStyles.first { it.start == 0 && it.end == 3 }.item.color)
-        assertEquals(LukoaColors.Accent, annotated.spanStyles.first { it.start == 10 && it.end == 15 }.item.color)
+        assertEquals(LukoaColors.Primary, annotated.spanStyles.first { it.start == 10 && it.end == 15 }.item.color)
     }
 
     @Test

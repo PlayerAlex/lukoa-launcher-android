@@ -3,26 +3,26 @@ package moe.lukoa.launcher
 import androidx.compose.ui.graphics.Color
 
 object LukoaColors {
-    // 深色基底：取自黑背心与暗黑科技风的融合，带有极微弱的蓝调
-    val Background = Color(0xFF0F1115)
-    val Surface = Color(0xFF161920)
-    val SurfaceAlt = Color(0xFF20252E)
-    val Line = Color(0xFF313946)
-    val Text = Color(0xFFF8FAFC)
-    val Muted = Color(0xFFA3B1C6)
-    val Dim = Color(0xFF6E7A8F)
+    // 页面层级。
+    val Background = Color(0xFF0D1412)
+    val Surface = Color(0xFF151D1A)
+    val Elevated = Color(0xFF1B2622)
+    val Border = Color(0xFF25332E)
 
-    // 正常状态与可执行操作统一使用原有的薄荷青绿色。
-    val Accent = Color(0xFF2DD4BF)
-    val AccentSoft = Color(0xFF0E332E)
+    // 文字层级。
+    val TextPrimary = Color(0xFFE3EDE8)
+    val TextSecondary = Color(0xFF8DA39A)
+    val Dim = Color(0xFF5E7068)
 
-    // 普通信息沿用正常绿色，不再引入额外的粉色语义。
-    val Info = Accent
-    val InfoSoft = AccentSoft
+    // 正常状态、主操作与交互反馈。
+    val Primary = Color(0xFF6DB5A4)
+    val PrimaryHover = Color(0xFF8AC9B8)
+    val OnPrimary = Background
+    val PrimarySoft = Color(0xFF19332D)
 
-    // 警告点缀：金发与瞳孔的琥珀金 (Gold)
-    val Amber = Color(0xFFFBBF24)
-    val AmberSoft = Color(0xFF3B2D0C)
+    // 提醒与小范围强调使用暖金色，不与危险操作混用。
+    val Accent = Color(0xFFE8B86D)
+    val AccentSoft = Color(0xFF362C1D)
 
     // 会删除、覆盖或强制修改数据的操作使用明确的红色。
     val Danger = Color(0xFFEF4444)
@@ -31,6 +31,6 @@ object LukoaColors {
     // 停止酒馆沿用旧版更柔和的红色，与数据危险操作分开。
     val Stop = Color(0xFFFB7185)
 
-    // 终端黑洞
-    val Terminal = Color(0xFF080A0C)
+    // 终端区域继续比页面背景更深，但保持同一青绿色相。
+    val Terminal = Color(0xFF080D0B)
 }

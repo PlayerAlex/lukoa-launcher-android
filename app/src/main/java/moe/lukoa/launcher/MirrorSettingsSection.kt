@@ -75,7 +75,7 @@ fun MirrorSettingsSection(
         )
     }
 
-    SectionPanel(title = "网络与镜像源", accentColor = LukoaColors.Accent) {
+    SectionPanel(title = "网络与镜像源", accentColor = LukoaColors.Primary) {
         MirrorSummaryCard(
             tavernMirrorConfig = tavernMirrorConfig,
             mirrorProbeStatus = mirrorProbeStatus,
@@ -86,7 +86,7 @@ fun MirrorSettingsSection(
         SecondaryActionButton(
             text = "切换设置",
             enabled = !actionsLocked,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.fillMaxWidth(),
             onClick = { showMirrorDialog = true },
         )
@@ -117,8 +117,8 @@ internal fun MirrorSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "切换下载源",
@@ -162,14 +162,14 @@ internal fun MirrorSettingsDialog(
                         SecondaryActionButton(
                             text = "国内推荐",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onUseGithubProxyMirror,
                         )
                         SecondaryActionButton(
                             text = "官方源",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onUseOfficialMirror,
                         )
@@ -178,14 +178,14 @@ internal fun MirrorSettingsDialog(
                         SecondaryActionButton(
                             text = "只换 npm",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onUseNpmMirror,
                         )
                         SecondaryActionButton(
                             text = "保存自定义",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onSaveTavernMirror,
                         )
@@ -208,14 +208,14 @@ internal fun MirrorSettingsDialog(
                         SecondaryActionButton(
                             text = "读取当前源",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onReadTermuxRepoStatus,
                         )
                         SecondaryActionButton(
                             text = "填入清华源",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = { onCustomTermuxRepoInputChange(TERMUX_TUNA_REPO) },
                         )
@@ -224,7 +224,7 @@ internal fun MirrorSettingsDialog(
                         SecondaryActionButton(
                             text = "填入官方源",
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = { onCustomTermuxRepoInputChange(TERMUX_OFFICIAL_REPO) },
                         )
@@ -232,7 +232,7 @@ internal fun MirrorSettingsDialog(
                         SecondaryActionButton(
                             text = "应用到 Termux",
                             enabled = !actionsLocked && customTermuxRepoInput.isNotBlank() && customError == null,
-                            accentColor = LukoaColors.Accent,
+                            accentColor = LukoaColors.Primary,
                             modifier = Modifier.weight(1f),
                             onClick = onApplyCustomTermuxMirror,
                         )
@@ -254,7 +254,7 @@ internal fun MirrorSettingsDialog(
                     }
                     Text(
                         text = "点“应用到 Termux”后才会真正切换下载地址并更新软件列表。",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -264,7 +264,7 @@ internal fun MirrorSettingsDialog(
             SecondaryActionButton(
                 text = "关闭",
                 enabled = true,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 onClick = onDismiss,
             )
         },
@@ -282,9 +282,9 @@ private fun MirrorSummaryCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.34f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -292,7 +292,7 @@ private fun MirrorSummaryCard(
         ) {
             Text(
                 text = "当前方案",
-                color = LukoaColors.Accent,
+                color = LukoaColors.Primary,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -301,7 +301,7 @@ private fun MirrorSummaryCard(
             MirrorInfoLine("Termux 源", if (termuxRepoStatus.hasData) termuxRepoStatus.label else "未读取")
             Text(
                 text = "App 检测",
-                color = LukoaColors.Accent,
+                color = LukoaColors.Primary,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -310,13 +310,13 @@ private fun MirrorSummaryCard(
             MirrorProbeLine("npm 源", mirrorProbeStatus.npmStatus)
             Text(
                 text = mirrorProbeStatus.lastCheckedText,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             SecondaryActionButton(
                 text = if (mirrorProbeStatus.checking) "检测中" else "立即检测",
                 enabled = !actionsLocked && !mirrorProbeStatus.checking,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onCheckTavernMirror,
             )
@@ -336,7 +336,7 @@ private fun MirrorProbeLine(
         Text(
             text = label,
             modifier = Modifier.weight(0.26f),
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         StatusPill(
@@ -349,7 +349,7 @@ private fun MirrorProbeLine(
         Text(
             text = status.message,
             modifier = Modifier.weight(0.52f),
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -367,7 +367,7 @@ private fun MirrorSubsection(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface.copy(alpha = 0.72f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -381,7 +381,7 @@ private fun MirrorSubsection(
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -405,7 +405,7 @@ private fun MirrorInfoLine(label: String, value: String) {
         Text(
             text = label,
             modifier = Modifier.weight(0.34f),
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -413,7 +413,7 @@ private fun MirrorInfoLine(label: String, value: String) {
         Text(
             text = value,
             modifier = Modifier.weight(0.66f),
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -440,18 +440,18 @@ private fun MirrorTextField(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = LukoaColors.Text,
-            unfocusedTextColor = LukoaColors.Text,
+            focusedTextColor = LukoaColors.TextPrimary,
+            unfocusedTextColor = LukoaColors.TextPrimary,
             disabledTextColor = LukoaColors.Dim,
-            focusedContainerColor = LukoaColors.SurfaceAlt,
-            unfocusedContainerColor = LukoaColors.SurfaceAlt,
+            focusedContainerColor = LukoaColors.Elevated,
+            unfocusedContainerColor = LukoaColors.Elevated,
             disabledContainerColor = LukoaColors.Surface,
-            focusedBorderColor = LukoaColors.Accent,
-            unfocusedBorderColor = LukoaColors.Line,
-            disabledBorderColor = LukoaColors.Line,
-            focusedLabelColor = LukoaColors.Accent,
-            unfocusedLabelColor = LukoaColors.Muted,
-            cursorColor = LukoaColors.Accent,
+            focusedBorderColor = LukoaColors.Primary,
+            unfocusedBorderColor = LukoaColors.Border,
+            disabledBorderColor = LukoaColors.Border,
+            focusedLabelColor = LukoaColors.Primary,
+            unfocusedLabelColor = LukoaColors.TextSecondary,
+            cursorColor = LukoaColors.Primary,
         ),
     )
 }

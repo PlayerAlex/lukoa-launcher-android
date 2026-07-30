@@ -37,8 +37,8 @@ fun ManualBackupConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "生成备份",
@@ -56,18 +56,18 @@ fun ManualBackupConfirmDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
+                        focusedTextColor = LukoaColors.TextPrimary,
+                        unfocusedTextColor = LukoaColors.TextPrimary,
                         disabledTextColor = LukoaColors.Dim,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
+                        focusedContainerColor = LukoaColors.Elevated,
+                        unfocusedContainerColor = LukoaColors.Elevated,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Accent,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Accent,
-                        unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Accent,
+                        focusedBorderColor = LukoaColors.Primary,
+                        unfocusedBorderColor = LukoaColors.Border,
+                        disabledBorderColor = LukoaColors.Border,
+                        focusedLabelColor = LukoaColors.Primary,
+                        unfocusedLabelColor = LukoaColors.TextSecondary,
+                        cursorColor = LukoaColors.Primary,
                     ),
                 )
                 if (!nameOk) {
@@ -83,12 +83,12 @@ fun ManualBackupConfirmDialog(
             SecondaryActionButton(
                 text = "开始备份",
                 enabled = nameOk,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 onClick = onConfirm,
             )
         },
         dismissButton = {
-            SecondaryActionButton("取消", true, LukoaColors.Accent, onClick = onDismiss)
+            SecondaryActionButton("取消", true, LukoaColors.Primary, onClick = onDismiss)
         },
     )
 }
@@ -109,8 +109,8 @@ fun AutoBackupSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "自动备份规则",
@@ -123,8 +123,8 @@ fun AutoBackupSettingsDialog(
                     text = if (enabled) "自动备份已开启" else "自动备份未开启",
                     active = enabled,
                     modifier = Modifier.fillMaxWidth(),
-                    toneColor = if (enabled) LukoaColors.Accent else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
+                    toneColor = if (enabled) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
                 AutoBackupIntervalPanel(
                     intervalMinutes = intervalMinutes,
@@ -146,7 +146,7 @@ fun AutoBackupSettingsDialog(
             SecondaryActionButton(
                 text = "完成",
                 enabled = true,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 onClick = onDismiss,
             )
         },
@@ -165,9 +165,9 @@ private fun AutoBackupIntervalPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -181,13 +181,13 @@ private fun AutoBackupIntervalPanel(
                 Text(
                     text = "备份间隔",
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = "每 ${formatBackupInterval(intervalMinutes)} 一次",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -221,9 +221,9 @@ private fun AutoBackupKeepPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -237,13 +237,13 @@ private fun AutoBackupKeepPanel(
                 Text(
                     text = "保留数量",
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = "$keepCount 份",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                 )
@@ -274,13 +274,13 @@ private fun AutoBackupAdjustButton(
         shape = LukoaCapsuleShape,
         border = BorderStroke(
             1.dp,
-            if (enabled) LukoaColors.Accent.copy(alpha = 0.3f) else LukoaColors.Line.copy(alpha = 0.3f),
+            if (enabled) LukoaColors.Primary.copy(alpha = 0.3f) else LukoaColors.Border.copy(alpha = 0.3f),
         ),
         contentPadding = PaddingValues(horizontal = 8.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (enabled) LukoaColors.Accent.copy(alpha = 0.05f) else LukoaColors.SurfaceAlt,
-            contentColor = if (enabled) LukoaColors.Accent else LukoaColors.Dim,
-            disabledContainerColor = LukoaColors.SurfaceAlt,
+            containerColor = if (enabled) LukoaColors.Primary.copy(alpha = 0.05f) else LukoaColors.Elevated,
+            contentColor = if (enabled) LukoaColors.Primary else LukoaColors.Dim,
+            disabledContainerColor = LukoaColors.Elevated,
             disabledContentColor = LukoaColors.Dim,
         ),
     ) {
@@ -308,7 +308,7 @@ fun ApplyBackupPathDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Danger,
-        textContentColor = LukoaColors.Text,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = "选择要应用的备份",
@@ -325,17 +325,17 @@ fun ApplyBackupPathDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
+                        focusedTextColor = LukoaColors.TextPrimary,
+                        unfocusedTextColor = LukoaColors.TextPrimary,
                         disabledTextColor = LukoaColors.Dim,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
+                        focusedContainerColor = LukoaColors.Elevated,
+                        unfocusedContainerColor = LukoaColors.Elevated,
                         disabledContainerColor = LukoaColors.Surface,
                         focusedBorderColor = LukoaColors.Danger,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        disabledBorderColor = LukoaColors.Line,
+                        unfocusedBorderColor = LukoaColors.Border,
+                        disabledBorderColor = LukoaColors.Border,
                         focusedLabelColor = LukoaColors.Danger,
-                        unfocusedLabelColor = LukoaColors.Muted,
+                        unfocusedLabelColor = LukoaColors.TextSecondary,
                         cursorColor = LukoaColors.Danger,
                     ),
                 )
@@ -370,19 +370,19 @@ fun ApplyBackupPreviewLoadingDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("正在读取备份信息") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "正在后台读取备份名称、时间和大小，请稍候。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     text = archivePath,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -416,19 +416,19 @@ fun ApplyBackupPreviewDialog(
         )
         Text(
             text = "启动器不会自动复制一份当前酒馆。需要保留当前数据时，请先手动备份。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
             text = "应用前请确认酒馆已经停止。若 Termux 没有存储权限，启动器会提示你授权。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -440,7 +440,7 @@ fun ApplyBackupPreviewDialog(
                 VersionInfoLine("恢复到", preview.restoreTargetDir)
                 Text(
                     text = preview.archivePath,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -456,7 +456,7 @@ fun ApplyBackupPreviewDialog(
             Text(
                 text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
                 modifier = Modifier.padding(12.dp),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -473,7 +473,7 @@ fun DeleteBackupConfirmDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
         titleContentColor = LukoaColors.Danger,
-        textContentColor = LukoaColors.Text,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text("确认删除备份") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -485,7 +485,7 @@ fun DeleteBackupConfirmDialog(
                 )
                 Text(
                     text = archivePath,
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,

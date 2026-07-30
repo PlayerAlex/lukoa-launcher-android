@@ -28,7 +28,7 @@ fun HealthCheckSection(
     onRunHealthCheck: () -> Unit,
     onPrimaryAction: () -> Unit,
 ) {
-    SectionPanel(title = "一键体检", accentColor = LukoaColors.Accent) {
+    SectionPanel(title = "一键体检", accentColor = LukoaColors.Primary) {
         HealthCheckContent(
             report = report,
             checking = checking,
@@ -50,9 +50,9 @@ internal fun HealthCheckContent(
     val effectiveReport = report.takeIf { it?.hasData == true }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -65,7 +65,7 @@ internal fun HealthCheckContent(
                 Text(
                     text = effectiveReport?.summaryTitle ?: "还没体检",
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -81,13 +81,13 @@ internal fun HealthCheckContent(
             Text(
                 text = effectiveReport?.summaryDetail
                     ?: "点“一键体检”后，启动器会把权限、路径、镜像源和酒馆环境一起看一遍。",
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             effectiveReport?.let {
                 Text(
                     text = "上次体检：${formatCheckedAt(it.checkedAtMillis)}",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -101,7 +101,7 @@ internal fun HealthCheckContent(
         SecondaryActionButton(
             text = if (checking) "体检中..." else "一键体检",
             enabled = !actionsLocked && !checking,
-            accentColor = LukoaColors.Accent,
+            accentColor = LukoaColors.Primary,
             modifier = Modifier.weight(1f),
             onClick = onRunHealthCheck,
         )
@@ -128,7 +128,7 @@ private fun HealthCheckItemRow(item: LauncherHealthItem) {
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface.copy(alpha = 0.75f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -141,7 +141,7 @@ private fun HealthCheckItemRow(item: LauncherHealthItem) {
                 Text(
                     text = item.title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -156,7 +156,7 @@ private fun HealthCheckItemRow(item: LauncherHealthItem) {
             }
             Text(
                 text = item.detail,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -175,11 +175,11 @@ private fun summaryPillText(report: LauncherHealthReport?): String {
 
 private fun summaryTone(report: LauncherHealthReport?): Color {
     return when {
-        report == null -> LukoaColors.Muted
+        report == null -> LukoaColors.TextSecondary
         report.errorCount > 0 -> LukoaColors.Danger
-        report.warningCount > 0 -> LukoaColors.Amber
-        report.unknownCount > 0 -> LukoaColors.Muted
-        else -> LukoaColors.Accent
+        report.warningCount > 0 -> LukoaColors.Accent
+        report.unknownCount > 0 -> LukoaColors.TextSecondary
+        else -> LukoaColors.Primary
     }
 }
 
@@ -194,10 +194,10 @@ private fun LauncherHealthLevel.label(): String {
 
 private fun LauncherHealthLevel.toneColor(): Color {
     return when (this) {
-        LauncherHealthLevel.Good -> LukoaColors.Accent
-        LauncherHealthLevel.Warning -> LukoaColors.Amber
+        LauncherHealthLevel.Good -> LukoaColors.Primary
+        LauncherHealthLevel.Warning -> LukoaColors.Accent
         LauncherHealthLevel.Error -> LukoaColors.Danger
-        LauncherHealthLevel.Unknown -> LukoaColors.Muted
+        LauncherHealthLevel.Unknown -> LukoaColors.TextSecondary
     }
 }
 
@@ -208,10 +208,10 @@ private fun primaryActionColor(type: LauncherHealthActionType): Color {
         LauncherHealthActionType.CopyExternalAppsCommand,
         LauncherHealthActionType.PrepareTermuxEnvironment,
         LauncherHealthActionType.RequestBackgroundRunPermission,
-        LauncherHealthActionType.RequestTermuxBackgroundRunPermission -> LukoaColors.Amber
+        LauncherHealthActionType.RequestTermuxBackgroundRunPermission -> LukoaColors.Accent
 
         LauncherHealthActionType.StopTavern -> LukoaColors.Danger
-        else -> LukoaColors.Accent
+        else -> LukoaColors.Primary
     }
 }
 

@@ -70,14 +70,14 @@ fun DeleteTavernProfileConfirmDialog(
             } else {
                 "会把这个实例从启动器配置里移除，并切换到另一个实例继续管理。"
             },
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -98,7 +98,7 @@ fun DeleteTavernProfileConfirmDialog(
             color = if (confirmation.deletesProfileDirectory) {
                 LukoaColors.Danger.copy(alpha = 0.08f)
             } else {
-                LukoaColors.Amber.copy(alpha = 0.08f)
+                LukoaColors.Accent.copy(alpha = 0.08f)
             },
             shape = RoundedCornerShape(12.dp),
             border = BorderStroke(
@@ -106,7 +106,7 @@ fun DeleteTavernProfileConfirmDialog(
                 if (confirmation.deletesProfileDirectory) {
                     LukoaColors.Danger.copy(alpha = 0.28f)
                 } else {
-                    LukoaColors.Amber.copy(alpha = 0.28f)
+                    LukoaColors.Accent.copy(alpha = 0.28f)
                 },
             ),
         ) {
@@ -117,7 +117,7 @@ fun DeleteTavernProfileConfirmDialog(
                     "这一步只会移除启动器里的实例配置，不会删除这个目录里的酒馆文件，也不会删除备份。"
                 },
                 modifier = Modifier.padding(12.dp),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -127,7 +127,7 @@ fun DeleteTavernProfileConfirmDialog(
             } else {
                 "如果以后还想重新管理这个目录，可以再新建一个分身实例并把路径改回来。"
             },
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -151,14 +151,14 @@ fun TavernProfileMigrationConfirmDialog(
     ) {
         Text(
             text = "这一步会真的搬动当前实例的酒馆目录，不只是改启动器里的路径配置。迁移过程中不要再重复点启动、停止或删除实例。",
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.SurfaceAlt,
+            color = LukoaColors.Elevated,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -172,20 +172,20 @@ fun TavernProfileMigrationConfirmDialog(
         }
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Amber.copy(alpha = 0.08f),
+            color = LukoaColors.Accent.copy(alpha = 0.08f),
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.28f)),
+            border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.28f)),
         ) {
             Text(
                 text = confirmation.riskNote,
                 modifier = Modifier.padding(12.dp),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Text(
             text = "如果你还没做过备份，建议先去备份页手动备份一次，再回来迁移。",
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -204,8 +204,8 @@ fun CustomTavernPathMigrationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Amber,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Accent,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text("迁移到自定义地址")
         },
@@ -213,12 +213,12 @@ fun CustomTavernPathMigrationDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "这里填写的不是启动器推荐默认目录。迁移过去后，删除实例时不会自动帮你删这个目录，后续路径识别和风险判断也会更依赖你自己确认。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
                     text = "当前目录：$currentPath",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
@@ -231,23 +231,23 @@ fun CustomTavernPathMigrationDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = LukoaColors.Text,
-                        unfocusedTextColor = LukoaColors.Text,
+                        focusedTextColor = LukoaColors.TextPrimary,
+                        unfocusedTextColor = LukoaColors.TextPrimary,
                         disabledTextColor = LukoaColors.Dim,
-                        focusedContainerColor = LukoaColors.SurfaceAlt,
-                        unfocusedContainerColor = LukoaColors.SurfaceAlt,
+                        focusedContainerColor = LukoaColors.Elevated,
+                        unfocusedContainerColor = LukoaColors.Elevated,
                         disabledContainerColor = LukoaColors.Surface,
-                        focusedBorderColor = LukoaColors.Amber,
-                        unfocusedBorderColor = LukoaColors.Line,
-                        disabledBorderColor = LukoaColors.Line,
-                        focusedLabelColor = LukoaColors.Amber,
-                        unfocusedLabelColor = LukoaColors.Muted,
-                        cursorColor = LukoaColors.Amber,
+                        focusedBorderColor = LukoaColors.Accent,
+                        unfocusedBorderColor = LukoaColors.Border,
+                        disabledBorderColor = LukoaColors.Border,
+                        focusedLabelColor = LukoaColors.Accent,
+                        unfocusedLabelColor = LukoaColors.TextSecondary,
+                        cursorColor = LukoaColors.Accent,
                     ),
                 )
                 Text(
                     text = "如果目标目录里已经有旧文件，启动器会先把旧目录挪到安全备份名，再继续迁移。但这不是默认酒馆位置，后续问题需要你自己承担。",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 pathError?.let { error ->
@@ -287,8 +287,8 @@ fun TavernDirectoryChoiceDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text("选一个酒馆目录")
         },
@@ -301,18 +301,18 @@ fun TavernDirectoryChoiceDialog(
                     } else {
                         "检测到的目录里，没有可直接分配给当前实例的候选项。请先看下面的占用提示。"
                     },
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
                     text = "当前实例路径：${TavernPathNormalizer.toDisplayPath(currentPath)}",
-                    color = LukoaColors.Muted,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Surface(
-                    color = LukoaColors.SurfaceAlt,
+                    color = LukoaColors.Elevated,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
                 ) {
                     Column(
                         modifier = Modifier
@@ -331,31 +331,31 @@ fun TavernDirectoryChoiceDialog(
                                     border = BorderStroke(
                                         1.dp,
                                         if (candidate.selectable) {
-                                            LukoaColors.Accent.copy(alpha = 0.46f)
+                                            LukoaColors.Primary.copy(alpha = 0.46f)
                                         } else {
-                                            LukoaColors.Line.copy(alpha = 0.5f)
+                                            LukoaColors.Border.copy(alpha = 0.5f)
                                         },
                                     ),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = if (candidate.selectable) {
-                                            LukoaColors.Accent.copy(alpha = 0.08f)
+                                            LukoaColors.Primary.copy(alpha = 0.08f)
                                         } else {
                                             LukoaColors.Surface.copy(alpha = 0.5f)
                                         },
                                         contentColor = if (candidate.selectable) {
-                                            LukoaColors.Accent
+                                            LukoaColors.Primary
                                         } else {
-                                            LukoaColors.Muted
+                                            LukoaColors.TextSecondary
                                         },
-                                        disabledContentColor = LukoaColors.Muted,
+                                        disabledContentColor = LukoaColors.TextSecondary,
                                         disabledContainerColor = LukoaColors.Surface.copy(alpha = 0.5f),
                                     ),
                                 ) {
                                     Text(
                                         text = candidate.displayPath,
                                         modifier = Modifier.fillMaxWidth(),
-                                        color = if (candidate.selectable) LukoaColors.Text else LukoaColors.Muted,
+                                        color = if (candidate.selectable) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,
@@ -364,7 +364,7 @@ fun TavernDirectoryChoiceDialog(
                                 if (!candidate.selectable && candidate.reason.isNotBlank()) {
                                     Text(
                                         text = candidate.reason,
-                                        color = LukoaColors.Amber,
+                                        color = LukoaColors.Accent,
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
@@ -375,7 +375,7 @@ fun TavernDirectoryChoiceDialog(
                 if (selectableCount == 0) {
                     Text(
                         text = "如果你就是想给当前实例单独用一套环境，请先准备一个新的酒馆目录，再回到设置里手动改路径。",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

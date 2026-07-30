@@ -23,13 +23,13 @@ fun IssueAnalysisPanel(
     actionsLocked: Boolean,
     onQuickFixAction: (LauncherQuickFixAction) -> Unit,
 ) {
-    SectionPanel(title = "失败后一键修复", accentColor = LukoaColors.Accent) {
+    SectionPanel(title = "失败后一键修复", accentColor = LukoaColors.Primary) {
         if (issues.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.SurfaceAlt,
+                color = LukoaColors.Elevated,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
@@ -37,13 +37,13 @@ fun IssueAnalysisPanel(
                 ) {
                     Text(
                         text = "最近一次返回未发现常见报错。",
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = "如果你体感上还是不对，先点一键体检，再看下方 Termux 返回。",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -72,7 +72,7 @@ private fun IssueAnalysisItem(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface.copy(alpha = 0.78f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -85,7 +85,7 @@ private fun IssueAnalysisItem(
                 Text(
                     text = issue.title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -100,18 +100,18 @@ private fun IssueAnalysisItem(
             }
             Text(
                 text = issue.detail,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.SurfaceAlt.copy(alpha = 0.45f),
+                color = LukoaColors.Elevated.copy(alpha = 0.45f),
                 shape = RoundedCornerShape(10.dp),
             ) {
                 Text(
                     text = issue.action,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -138,8 +138,8 @@ private fun IssueSeverity.label(): String {
 
 private fun IssueSeverity.toneColor(): Color {
     return when (this) {
-        IssueSeverity.Info -> LukoaColors.Muted
-        IssueSeverity.Warning -> LukoaColors.Amber
+        IssueSeverity.Info -> LukoaColors.TextSecondary
+        IssueSeverity.Warning -> LukoaColors.Accent
         IssueSeverity.Danger -> LukoaColors.Danger
     }
 }

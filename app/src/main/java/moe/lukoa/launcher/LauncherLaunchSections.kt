@@ -69,14 +69,14 @@ fun TavernControlSection(
     )
     val primaryColor = when {
         shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
-        else -> LukoaColors.Accent
+        else -> LukoaColors.Primary
     }
-    SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Accent) {
+    SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Primary) {
         TavernControlStatusCard(
             statusText = statusText,
             statusDetail = statusDetail,
             statusActive = tavernRunning || tavernStarting || actionInProgress,
-            statusTone = LukoaColors.Accent,
+            statusTone = LukoaColors.Primary,
             wakeEnabled = !actionInProgress && wakeEnabled,
             onWake = wakeClick,
         )
@@ -88,9 +88,9 @@ fun TavernControlSection(
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (actionInProgress) LukoaColors.SurfaceAlt else primaryColor,
-                contentColor = if (actionInProgress) LukoaColors.Muted else LukoaColors.Background,
-                disabledContainerColor = LukoaColors.SurfaceAlt,
+                containerColor = if (actionInProgress) LukoaColors.Elevated else primaryColor,
+                contentColor = if (actionInProgress) LukoaColors.TextSecondary else LukoaColors.Background,
+                disabledContainerColor = LukoaColors.Elevated,
                 disabledContentColor = LukoaColors.Dim,
             ),
         ) {
@@ -103,7 +103,7 @@ fun TavernControlSection(
         if (!primaryEnabled && primaryDisabledReason != null) {
             Text(
                 text = primaryDisabledReason,
-                color = LukoaColors.Muted,
+                color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -139,9 +139,9 @@ private fun TavernControlStatusCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -158,13 +158,13 @@ private fun TavernControlStatusCard(
                 ) {
                     Text(
                         text = "当前控制状态",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = statusDetail,
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -173,14 +173,14 @@ private fun TavernControlStatusCard(
                 StatusPill(
                     text = statusText,
                     active = statusActive,
-                    toneColor = if (statusActive) statusTone else LukoaColors.Muted,
-                    activeBackground = LukoaColors.AccentSoft,
+                    toneColor = if (statusActive) statusTone else LukoaColors.TextSecondary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
             }
             SecondaryActionButton(
                 text = "唤醒 Termux 并返回",
                 enabled = wakeEnabled,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onWake,
             )

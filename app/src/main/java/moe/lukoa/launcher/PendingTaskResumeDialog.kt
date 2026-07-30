@@ -55,8 +55,8 @@ fun PendingTaskResumeDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
-        titleContentColor = LukoaColors.Text,
-        textContentColor = LukoaColors.Text,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             Text(if (taskMayStillBeRunning) "任务跟踪已中断" else "上次操作需要确认")
         },
@@ -69,7 +69,7 @@ fun PendingTaskResumeDialog(
                     } else {
                         "启动器没有收到上次操作的最终结果。这不代表操作失败，也不会自动再执行一次。\n推荐先检查结果：只会查找已有返回并刷新状态。"
                     },
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 PendingTaskSummaryCard(task = task)
@@ -123,9 +123,9 @@ fun PendingTaskNoticePanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AmberSoft.copy(alpha = 0.4f),
+        color = LukoaColors.AccentSoft.copy(alpha = 0.4f),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, LukoaColors.Amber.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.34f)),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -140,7 +140,7 @@ fun PendingTaskNoticePanel(
                     modifier = Modifier
                         .width(8.dp)
                         .height(8.dp)
-                        .background(LukoaColors.Amber, RoundedCornerShape(4.dp)),
+                        .background(LukoaColors.Accent, RoundedCornerShape(4.dp)),
                 )
                 Column(
                     modifier = Modifier.weight(1f),
@@ -148,13 +148,13 @@ fun PendingTaskNoticePanel(
                 ) {
                     Text(
                         text = "上次操作等待确认",
-                        color = LukoaColors.Text,
+                        color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = "${task.title} · ${formatPendingTaskTime(task.startedAtMillis)}",
-                        color = LukoaColors.Muted,
+                        color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -173,7 +173,7 @@ fun PendingTaskNoticePanel(
                 } else {
                     "等待时间已经结束，但启动器还没收到最终结果。先检查已有结果；不会重新执行${task.title}。"
                 },
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
             ToneActionButton(
@@ -199,11 +199,11 @@ private fun PendingTaskStateHeader(activeLockLabel: String?) {
     val taskMayBeRunning = !activeLockLabel.isNullOrBlank()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = if (taskMayBeRunning) LukoaColors.AmberSoft else LukoaColors.SurfaceAlt,
+        color = if (taskMayBeRunning) LukoaColors.AccentSoft else LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(
             1.dp,
-            if (taskMayBeRunning) LukoaColors.Amber.copy(alpha = 0.35f) else LukoaColors.Line.copy(alpha = 0.4f),
+            if (taskMayBeRunning) LukoaColors.Accent.copy(alpha = 0.35f) else LukoaColors.Border.copy(alpha = 0.4f),
         ),
     ) {
         Row(
@@ -214,15 +214,15 @@ private fun PendingTaskStateHeader(activeLockLabel: String?) {
             Text(
                 text = if (taskMayBeRunning) "任务可能仍在执行" else "任务结果尚未确认",
                 modifier = Modifier.weight(1f),
-                color = LukoaColors.Text,
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
             StatusPill(
                 text = if (taskMayBeRunning) "先检查" else "待确认",
                 active = taskMayBeRunning,
-                toneColor = if (taskMayBeRunning) LukoaColors.Amber else LukoaColors.Muted,
-                activeBackground = if (taskMayBeRunning) LukoaColors.SurfaceAlt else LukoaColors.Surface,
+                toneColor = if (taskMayBeRunning) LukoaColors.Accent else LukoaColors.TextSecondary,
+                activeBackground = if (taskMayBeRunning) LukoaColors.Elevated else LukoaColors.Surface,
             )
         }
     }
@@ -234,9 +234,9 @@ private fun PendingTaskSummaryCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.SurfaceAlt,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Line.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, LukoaColors.Border.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -250,7 +250,7 @@ private fun PendingTaskSummaryCard(
                 Text(
                     text = task.title,
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
@@ -271,7 +271,7 @@ private fun PendingTaskSummaryCard(
             task.detail.takeIf(String::isNotBlank)?.let { detail ->
                 Text(
                     text = detail,
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -295,12 +295,12 @@ private fun PendingTaskAbandonDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "这只会删除启动器保存的“${task.title}”等待记录，不会停止 Termux，也不会删除酒馆、备份或已经生成的文件。",
-                    color = LukoaColors.Text,
+                    color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
                     text = "如果 Termux 仍在执行，清除记录后启动器将无法继续阻止重复操作。只有确认任务已经结束时才使用。",
-                    color = LukoaColors.Amber,
+                    color = LukoaColors.Accent,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -336,7 +336,7 @@ private fun PendingTaskInfoLine(
     ) {
         Text(
             text = label,
-            color = LukoaColors.Muted,
+            color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
@@ -344,7 +344,7 @@ private fun PendingTaskInfoLine(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp),
-            color = LukoaColors.Text,
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,

@@ -64,7 +64,7 @@ internal fun RiskyActionDialogScaffold(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Surface,
         titleContentColor = titleTone.color(),
-        textContentColor = LukoaColors.Text,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } },
         confirmButton = {
