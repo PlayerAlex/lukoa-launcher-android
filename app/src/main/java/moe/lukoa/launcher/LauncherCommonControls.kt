@@ -53,7 +53,61 @@ fun ActionTone.color(): Color = when (this) {
     ActionTone.Safe -> LukoaColors.Primary
     ActionTone.Warning -> LukoaColors.Accent
     ActionTone.Danger -> LukoaColors.Danger
-    ActionTone.Neutral -> LukoaColors.Primary
+    ActionTone.Neutral -> LukoaColors.TextSecondary
+}
+
+internal data class SecondaryActionStyle(
+    val containerColor: Color,
+    val contentColor: Color,
+    val borderColor: Color,
+)
+
+internal fun resolveSecondaryActionStyle(
+    enabled: Boolean,
+    accentColor: Color,
+): SecondaryActionStyle {
+    if (!enabled) {
+        return SecondaryActionStyle(
+            containerColor = Color.Transparent,
+            contentColor = LukoaColors.Dim,
+            borderColor = LukoaColors.Border,
+        )
+    }
+
+    return when (accentColor) {
+        LukoaColors.Primary -> SecondaryActionStyle(
+            containerColor = Color.Transparent,
+            contentColor = LukoaColors.TextPrimary,
+            borderColor = LukoaColors.Border,
+        )
+        LukoaColors.TextSecondary,
+        LukoaColors.Dim,
+        -> SecondaryActionStyle(
+            containerColor = Color.Transparent,
+            contentColor = accentColor,
+            borderColor = LukoaColors.Border,
+        )
+        LukoaColors.Accent -> SecondaryActionStyle(
+            containerColor = LukoaColors.AccentSoft,
+            contentColor = LukoaColors.Accent,
+            borderColor = LukoaColors.Accent,
+        )
+        LukoaColors.Danger -> SecondaryActionStyle(
+            containerColor = LukoaColors.DangerSoft,
+            contentColor = LukoaColors.Danger,
+            borderColor = LukoaColors.Danger,
+        )
+        LukoaColors.Stop -> SecondaryActionStyle(
+            containerColor = LukoaColors.DangerSoft,
+            contentColor = LukoaColors.Stop,
+            borderColor = LukoaColors.Stop,
+        )
+        else -> SecondaryActionStyle(
+            containerColor = Color.Transparent,
+            contentColor = accentColor,
+            borderColor = LukoaColors.Border,
+        )
+    }
 }
 
 @Composable
@@ -193,20 +247,21 @@ fun SecondaryActionButton(
     onClick: () -> Unit,
 ) {
     val feedbackClick = rememberFeedbackClick(onClick)
-    val styleColor = accentColor
-    val toneColor = if (enabled) styleColor else LukoaColors.Dim
-    val borderColor = if (enabled) styleColor.copy(alpha = 0.3f) else LukoaColors.Border
+    val style = resolveSecondaryActionStyle(
+        enabled = enabled,
+        accentColor = accentColor,
+    )
     OutlinedButton(
         onClick = feedbackClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(1.dp, style.borderColor),
         shape = LukoaCapsuleShape,
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (enabled) styleColor.copy(alpha = 0.05f) else Color.Transparent,
-            contentColor = toneColor,
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = LukoaColors.Dim,
+            containerColor = style.containerColor,
+            contentColor = style.contentColor,
+            disabledContainerColor = style.containerColor,
+            disabledContentColor = style.contentColor,
         ),
     ) {
         Text(

@@ -85,6 +85,13 @@ class LukoaPaletteScreenshotTest {
                         ) {
                             Text("启动酒馆", fontWeight = FontWeight.Bold)
                         }
+                        SecondaryActionButton(
+                            text = "查看技术信息",
+                            enabled = true,
+                            accentColor = LukoaColors.Primary,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {},
+                        )
                     }
                     SectionPanel(
                         title = "实例与运行环境",
