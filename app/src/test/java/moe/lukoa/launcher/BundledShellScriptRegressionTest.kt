@@ -73,4 +73,11 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("extensions-delete|tavern-extensions-delete"))
         assertFalse(script.contains("fs.rmSync(extensionRoot"))
     }
+
+    @Test
+    fun `bundled script is delivered through Termux stdin instead of command arguments`() {
+        assertTrue(runnerSource.contains("putExtra(EXTRA_STDIN, it)"))
+        assertTrue(runnerSource.contains("stdin = plan.stdin"))
+        assertFalse(runnerSource.contains("LUKOA_LAUNCHER_SCRIPT_EOF"))
+    }
 }

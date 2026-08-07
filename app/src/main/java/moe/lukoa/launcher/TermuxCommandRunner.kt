@@ -39,8 +39,12 @@ class TermuxCommandRunner(private val context: Context) {
 
     fun installOrRepairScript(scriptText: String): CommandDispatch {
         val nonce = UUID.randomUUID().toString().replace("-", "")
-        val installCommand = try {
-            buildInstallCommand(scriptText, nonce)
+        val plan = try {
+            TermuxScriptCommandBuilder.install(
+                scriptText = scriptText,
+                nonce = nonce,
+                runtimeSetup = buildRuntimeSetupCommand(),
+            )
         } catch (error: Exception) {
             return CommandDispatch(
                 sent = false,
@@ -51,10 +55,11 @@ class TermuxCommandRunner(private val context: Context) {
         }
         return runCommand(
             command = "install-script",
-            args = listOf("-c", installCommand),
+            args = listOf("-c", plan.command),
             nonce = nonce,
             executablePath = TERMUX_SH_PATH,
             displayCommand = "install-script",
+            stdin = plan.stdin,
         )
     }
 
@@ -736,6 +741,7 @@ class TermuxCommandRunner(private val context: Context) {
         executablePath: String = TERMUX_SCRIPT_PATH,
         displayCommand: String = command,
         background: Boolean = true,
+        stdin: String? = null,
     ): CommandDispatch {
         if (!isTermuxInstalled()) {
             return CommandDispatch(
@@ -776,6 +782,7 @@ class TermuxCommandRunner(private val context: Context) {
             })
             putExtra(EXTRA_WORKDIR, TERMUX_HOME)
             putExtra(EXTRA_BACKGROUND, background)
+            stdin?.let { putExtra(EXTRA_STDIN, it) }
             putExtra(EXTRA_PENDING_INTENT, pendingIntent)
         }
 
@@ -805,24 +812,13 @@ class TermuxCommandRunner(private val context: Context) {
         }
     }
 
-    private fun buildInstallCommand(scriptText: String, nonce: String): String {
-        val normalized = scriptText.replace("\r\n", "\n").replace("\r", "\n")
-        require(!normalized.contains(INSTALL_EOF_MARKER)) {
-            "script contains reserved install marker"
-        }
+    private fun buildRuntimeSetupCommand(): String {
         return buildString {
-            appendLine("set -eu")
-            appendLine("mkdir -p \"\$HOME/.local/bin\" \"\$HOME/.local/state/lukoa-launcher\" \"\$HOME/.config/lukoa-launcher\" \"\$HOME/.termux\"")
-            appendLine("cat > \"\$HOME/.local/bin/lukoa-tavern.sh\" <<'$INSTALL_EOF_MARKER'")
-            appendLine(normalized)
-            appendLine(INSTALL_EOF_MARKER)
-            appendLine("chmod 700 \"\$HOME/.local/bin/lukoa-tavern.sh\"")
             appendConfigFileWrite(this)
             appendMirrorExports(this)
             appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
             appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
             appendLine("fi")
-            appendLine("\"\$HOME/.local/bin/lukoa-tavern.sh\" selftest \"$nonce\"")
         }
     }
 
@@ -843,8 +839,13 @@ class TermuxCommandRunner(private val context: Context) {
                 displayCommand = displayCommand,
             )
         }
-        val installAndRunCommand = try {
-            buildInstallAndRunScriptCommand(scriptText, scriptCommand, scriptArgs)
+        val plan = try {
+            TermuxScriptCommandBuilder.installAndRun(
+                scriptText = scriptText,
+                scriptCommand = scriptCommand,
+                scriptArgs = scriptArgs,
+                runtimeSetup = buildRuntimeSetupCommand(),
+            )
         } catch (error: Exception) {
             return CommandDispatch(
                 sent = false,
@@ -854,38 +855,13 @@ class TermuxCommandRunner(private val context: Context) {
         }
         return runCommand(
             command = command,
-            args = listOf("-c", installAndRunCommand),
+            args = listOf("-c", plan.command),
             nonce = nonce,
             executablePath = TERMUX_SH_PATH,
             displayCommand = displayCommand,
             background = background,
+            stdin = plan.stdin,
         )
-    }
-
-    private fun buildInstallAndRunScriptCommand(
-        scriptText: String,
-        scriptCommand: String,
-        scriptArgs: List<String>,
-    ): String {
-        val normalized = scriptText.replace("\r\n", "\n").replace("\r", "\n")
-        require(!normalized.contains(INSTALL_EOF_MARKER)) {
-            "script contains reserved install marker"
-        }
-        val quotedArgs = (listOf(scriptCommand) + scriptArgs).joinToString(" ") { shellSingleQuoted(it) }
-        return buildString {
-            appendLine("set -eu")
-            appendLine("mkdir -p \"\$HOME/.local/bin\" \"\$HOME/.local/state/lukoa-launcher\" \"\$HOME/.config/lukoa-launcher\" \"\$HOME/.termux\"")
-            appendLine("cat > \"\$HOME/.local/bin/lukoa-tavern.sh\" <<'$INSTALL_EOF_MARKER'")
-            appendLine(normalized)
-            appendLine(INSTALL_EOF_MARKER)
-            appendLine("chmod 700 \"\$HOME/.local/bin/lukoa-tavern.sh\"")
-            appendConfigFileWrite(this)
-            appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
-            appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
-            appendLine("fi")
-            appendMirrorExports(this)
-            appendLine("exec \"\$HOME/.local/bin/lukoa-tavern.sh\" $quotedArgs")
-        }
     }
 
     private fun shellSingleQuoted(value: String): String {
@@ -2548,6 +2524,7 @@ class TermuxCommandRunner(private val context: Context) {
         const val EXTRA_ARGUMENTS = "com.termux.RUN_COMMAND_ARGUMENTS"
         const val EXTRA_WORKDIR = "com.termux.RUN_COMMAND_WORKDIR"
         const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
+        const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
         const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
 
         const val EXTRA_EXECUTION_ID = "execution_id"
@@ -2557,7 +2534,6 @@ class TermuxCommandRunner(private val context: Context) {
         private const val EXECUTION_PREFS = "lukoa_termux_execution"
         private const val KEY_LAST_EXECUTION_ID = "last_execution_id"
         private val executionIdLock = Any()
-        private const val INSTALL_EOF_MARKER = "LUKOA_LAUNCHER_SCRIPT_EOF"
     }
 
     @SuppressLint("ApplySharedPref")

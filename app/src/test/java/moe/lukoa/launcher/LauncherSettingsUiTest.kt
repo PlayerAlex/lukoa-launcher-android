@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
@@ -236,7 +237,11 @@ class LauncherSettingsUiTest {
             .performClick()
 
         composeRule.onNodeWithText("修复 npm 依赖").assertIsDisplayed()
-        composeRule.onNodeWithText("网页打不开时重置主题").assertIsDisplayed()
+        composeRule.onNodeWithText("网页打不开时重置主题")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onAllNodesWithTag("repair-tools-dialog-group")
+            .assertCountEquals(5)
     }
 
     @Test

@@ -1,16 +1,20 @@
 package moe.lukoa.launcher
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 private data class RepairConfirmation(val title: String, val detail: String, val action: () -> Unit)
@@ -151,135 +156,147 @@ fun RepairToolsSection(
 
     val content: @Composable () -> Unit = {
         if (leadingContent != null) {
+            RepairToolsGroup(grouped = !showSectionContainer) {
+                SettingsSubsection(
+                    title = "先检查问题",
+                    detail = "不知道问题在哪里时，先点“一键体检”。它会检查当前实例的安装、权限、下载源和运行环境，不会修改酒馆文件。检查完成后再按结果处理。",
+                ) {
+                    leadingContent()
+                }
+            }
+        }
+        RepairToolsGroup(grouped = !showSectionContainer) {
             SettingsSubsection(
-                title = "先检查问题",
-                detail = "不知道问题在哪里时，先点“一键体检”。它会检查当前实例的安装、权限、下载源和运行环境，不会修改酒馆文件。检查完成后再按结果处理。",
+                title = "常用修复",
+                detail = "酒馆安装中断、启动时报缺少文件或依赖错误时，可以重新下载依赖。只有酒馆网页因为主题设置损坏而打不开时，才重置主题。两项都会先保留旧文件并再次确认。",
             ) {
-                leadingContent()
+                SettingsFeedbackActionButton(
+                    text = "修复 npm 依赖",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !actionsLocked && !tavernRunning,
+                    accentColor = LukoaColors.Primary,
+                    unavailableHint = mutationUnavailableHint,
+                    onShowHint = onShowHint,
+                    onClick = {
+                        confirmation = RepairConfirmation(
+                            "重新安装依赖",
+                            "旧的程序依赖文件会先移到带时间的恢复文件夹。只有重新下载成功后才会清理旧副本。这个过程可能需要几分钟。",
+                            onRepairDependencies,
+                        )
+                    },
+                )
+                SettingsFeedbackActionButton(
+                    text = "网页打不开时重置主题",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !actionsLocked && !tavernRunning,
+                    accentColor = LukoaColors.Primary,
+                    unavailableHint = mutationUnavailableHint,
+                    onShowHint = onShowHint,
+                    onClick = {
+                        confirmation = RepairConfirmation(
+                            "重置网页主题",
+                            "将搜索当前用户设置并把主题重置为 Dark Lite。原设置文件会保留带时间戳的副本；找不到兼容设置时不会修改任何文件。",
+                            onResetTheme,
+                        )
+                    },
+                )
             }
         }
-        SettingsSubsection(
-            title = "常用修复",
-            detail = "酒馆安装中断、启动时报缺少文件或依赖错误时，可以重新下载依赖。只有酒馆网页因为主题设置损坏而打不开时，才重置主题。两项都会先保留旧文件并再次确认。",
-        ) {
-            SettingsFeedbackActionButton(
-                text = "修复 npm 依赖",
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Primary,
-                unavailableHint = mutationUnavailableHint,
-                onShowHint = onShowHint,
-                onClick = {
-                    confirmation = RepairConfirmation(
-                        "重新安装依赖",
-                        "旧的程序依赖文件会先移到带时间的恢复文件夹。只有重新下载成功后才会清理旧副本。这个过程可能需要几分钟。",
-                        onRepairDependencies,
-                    )
-                },
-            )
-            SettingsFeedbackActionButton(
-                text = "网页打不开时重置主题",
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !actionsLocked && !tavernRunning,
-                accentColor = LukoaColors.Primary,
-                unavailableHint = mutationUnavailableHint,
-                onShowHint = onShowHint,
-                onClick = {
-                    confirmation = RepairConfirmation(
-                        "重置网页主题",
-                        "将搜索当前用户设置并把主题重置为 Dark Lite。原设置文件会保留带时间戳的副本；找不到兼容设置时不会修改任何文件。",
-                        onResetTheme,
-                    )
-                },
-            )
-        }
-        SettingsSubsection(
-            title = "酒馆运行内存",
-            detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；只有手机内存充足且酒馆明确提示内存不足时才选 6GB。设置过高反而可能让系统关闭 Termux。",
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(2048, 4096, 6144).forEach { memory ->
-                    SettingsFeedbackActionButton(
-                        text = "${memory / 1024}GB",
-                        modifier = Modifier.weight(1f),
-                        enabled = !actionsLocked && !tavernRunning,
-                        accentColor = LukoaColors.Primary,
-                        unavailableHint = mutationUnavailableHint,
-                        onShowHint = onShowHint,
-                        onClick = {
-                            confirmation = RepairConfirmation(
-                                "设置 ${memory / 1024}GB 内存上限",
-                                "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本。手机内存不足时，设置过高可能导致系统关闭 Termux。",
-                            ) { onSetNodeMemory(memory) }
-                        },
-                    )
+        RepairToolsGroup(grouped = !showSectionContainer) {
+            SettingsSubsection(
+                title = "酒馆运行内存",
+                detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；只有手机内存充足且酒馆明确提示内存不足时才选 6GB。设置过高反而可能让系统关闭 Termux。",
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(2048, 4096, 6144).forEach { memory ->
+                        SettingsFeedbackActionButton(
+                            text = "${memory / 1024}GB",
+                            modifier = Modifier.weight(1f),
+                            enabled = !actionsLocked && !tavernRunning,
+                            accentColor = LukoaColors.Primary,
+                            unavailableHint = mutationUnavailableHint,
+                            onShowHint = onShowHint,
+                            onClick = {
+                                confirmation = RepairConfirmation(
+                                    "设置 ${memory / 1024}GB 内存上限",
+                                    "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本。手机内存不足时，设置过高可能导致系统关闭 Termux。",
+                                ) { onSetNodeMemory(memory) }
+                            },
+                        )
+                    }
                 }
             }
         }
-        SettingsSubsection(
-            title = "聊天文件大小",
-            detail = "这里限制一次最多能导入多大的聊天记录文件。选择 500MB、1GB 或 2GB 会修改酒馆程序文件，因此版本页会显示本地修改；准备更新或回退前，请用下方按钮恢复当前酒馆版本的默认值。",
-        ) {
-            SettingsEntryRow(
-                title = "当前上传限制",
-                detail = uploadLimitStatus.message,
-                value = uploadStatusText,
-                valueColor = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
-                    LukoaColors.Accent
-                } else {
-                    uploadStatusTone
-                },
-                valueAsPill = true,
-                enabled = !actionsLocked && !uploadLimitStatus.checking,
-                onClick = onCheckUploadLimit,
-                unavailableHint = when {
-                    actionsLocked -> mutationUnavailableHint
-                    uploadLimitStatus.checking -> "正在检查当前上传限制，请稍等。"
-                    else -> null
-                },
-                onShowHint = onShowHint,
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
-                    val current = uploadLimitStatus.currentMegabytes == limit
-                    SettingsFeedbackActionButton(
-                        text = TavernUploadLimitPolicy.label(limit),
-                        modifier = Modifier.weight(1f),
-                        enabled = !actionsLocked && !tavernRunning,
-                        accentColor = if (current) LukoaColors.Primary else LukoaColors.Primary,
-                        unavailableHint = mutationUnavailableHint,
-                        onShowHint = onShowHint,
-                        onClick = {
-                            val label = TavernUploadLimitPolicy.label(limit)
-                            confirmation = RepairConfirmation(
-                                "设置上传限制为 $label",
-                                "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
-                            ) { onSetUploadLimit(limit) }
-                        },
-                    )
+        RepairToolsGroup(grouped = !showSectionContainer) {
+            SettingsSubsection(
+                title = "聊天文件大小",
+                detail = "这里限制一次最多能导入多大的聊天记录文件。选择 500MB、1GB 或 2GB 会修改酒馆程序文件，因此版本页会显示本地修改；准备更新或回退前，请用下方按钮恢复当前酒馆版本的默认值。",
+            ) {
+                SettingsEntryRow(
+                    title = "当前上传限制",
+                    detail = uploadLimitStatus.message,
+                    value = uploadStatusText,
+                    valueColor = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
+                        LukoaColors.Accent
+                    } else {
+                        uploadStatusTone
+                    },
+                    valueAsPill = true,
+                    enabled = !actionsLocked && !uploadLimitStatus.checking,
+                    onClick = onCheckUploadLimit,
+                    unavailableHint = when {
+                        actionsLocked -> mutationUnavailableHint
+                        uploadLimitStatus.checking -> "正在检查当前上传限制，请稍等。"
+                        else -> null
+                    },
+                    onShowHint = onShowHint,
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
+                        val current = uploadLimitStatus.currentMegabytes == limit
+                        SettingsFeedbackActionButton(
+                            text = TavernUploadLimitPolicy.label(limit),
+                            modifier = Modifier.weight(1f),
+                            enabled = !actionsLocked && !tavernRunning,
+                            accentColor = if (current) LukoaColors.Primary else LukoaColors.Primary,
+                            unavailableHint = mutationUnavailableHint,
+                            onShowHint = onShowHint,
+                            onClick = {
+                                val label = TavernUploadLimitPolicy.label(limit)
+                                confirmation = RepairConfirmation(
+                                    "设置上传限制为 $label",
+                                    "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
+                                ) { onSetUploadLimit(limit) }
+                            },
+                        )
+                    }
                 }
+                SettingsFeedbackActionButton(
+                    text = "恢复酒馆默认值",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !actionsLocked && !tavernRunning && uploadLimitStatus.currentMegabytes != null,
+                    accentColor = LukoaColors.Primary,
+                    unavailableHint = when {
+                        mutationUnavailableHint != null -> mutationUnavailableHint
+                        uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"
+                        else -> null
+                    },
+                    onShowHint = onShowHint,
+                    onClick = {
+                        confirmation = RepairConfirmation(
+                            "恢复聊天文件大小默认值",
+                            "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件；完成后，版本页会重新判断本地修改。",
+                            onResetUploadLimit,
+                        )
+                    },
+                )
             }
-            SettingsFeedbackActionButton(
-                text = "恢复酒馆默认值",
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !actionsLocked && !tavernRunning && uploadLimitStatus.currentMegabytes != null,
-                accentColor = LukoaColors.Primary,
-                unavailableHint = when {
-                    mutationUnavailableHint != null -> mutationUnavailableHint
-                    uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"
-                    else -> null
-                },
-                onShowHint = onShowHint,
-                onClick = {
-                    confirmation = RepairConfirmation(
-                        "恢复聊天文件大小默认值",
-                        "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件；完成后，版本页会重新判断本地修改。",
-                        onResetUploadLimit,
-                    )
-                },
-            )
         }
-        extraContent?.invoke()
+        if (extraContent != null) {
+            RepairToolsGroup(grouped = !showSectionContainer) {
+                extraContent()
+            }
+        }
     }
 
     if (showSectionContainer) {
@@ -292,6 +309,30 @@ fun RepairToolsSection(
         }
     } else {
         content()
+    }
+}
+
+@Composable
+private fun RepairToolsGroup(
+    grouped: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (!grouped) {
+        content()
+        return
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("repair-tools-dialog-group"),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            content = { content() },
+        )
     }
 }
 
