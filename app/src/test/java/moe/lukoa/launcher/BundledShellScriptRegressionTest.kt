@@ -62,4 +62,15 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("await storage.removeItem(users.toKey(handle))"))
         assertFalse(script.contains("fs.rmSync(users.getUserDirectories(handle).root"))
     }
+
+    @Test
+    fun `extension deletion is limited to a stopped tavern direct child directory`() {
+        assertTrue(script.contains("run_tavern_extension_action()"))
+        assertTrue(script.contains("if (action === 'delete')"))
+        assertTrue(script.contains("repair_require_stopped || return"))
+        assertTrue(script.contains("path.dirname(target) !== extensionRoot"))
+        assertTrue(script.contains("targetStat.isSymbolicLink()"))
+        assertTrue(script.contains("extensions-delete|tavern-extensions-delete"))
+        assertFalse(script.contains("fs.rmSync(extensionRoot"))
+    }
 }

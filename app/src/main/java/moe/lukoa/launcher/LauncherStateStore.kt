@@ -2,7 +2,6 @@ package moe.lukoa.launcher
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.SharedPreferences
 
 data class LauncherLoadResult(
     val state: LauncherUiState,
@@ -17,12 +16,12 @@ data class AutoBackupConfigSnapshot(
 )
 
 class LauncherStateStore(private val context: Context) {
+    private val autoBackupConfigStore = AutoBackupConfigStore(context)
+
     fun load(isTermuxInstalled: Boolean, allowColdStartFallback: Boolean): LauncherLoadResult {
         val defaults = defaultLauncherState(isTermuxInstalled)
         val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
-        val loadedAutoBackupIntervalMinutes = readSavedAutoBackupIntervalMinutes(prefs, defaults)
-        val loadedAutoBackupKeepCount = prefs.getInt(KEY_AUTO_BACKUP_KEEP_COUNT, defaults.autoBackupKeepCount)
-            .coerceIn(1, 50)
+        val autoBackupConfig = autoBackupConfigStore.read()
         val loadedTermuxReturnDelayMs = prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
             .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
         if (
@@ -32,9 +31,9 @@ class LauncherStateStore(private val context: Context) {
             val clearedState = defaults.copy(
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, defaults.officialVersionsCache)
                     ?: defaults.officialVersionsCache,
-                autoBackupEnabled = prefs.getBoolean(KEY_AUTO_BACKUP_ENABLED, defaults.autoBackupEnabled),
-                autoBackupIntervalMinutes = loadedAutoBackupIntervalMinutes,
-                autoBackupKeepCount = loadedAutoBackupKeepCount,
+                autoBackupEnabled = autoBackupConfig.enabled,
+                autoBackupIntervalMinutes = autoBackupConfig.intervalMinutes,
+                autoBackupKeepCount = autoBackupConfig.keepCount,
                 termuxReturnDelayMs = loadedTermuxReturnDelayMs,
                 appLog = logEntry("App", "上次启动器已从后台任务中移除，已自动清除启动器显示日志。"),
             )
@@ -50,9 +49,9 @@ class LauncherStateStore(private val context: Context) {
             val bootstrapState = defaults.copy(
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, defaults.officialVersionsCache)
                     ?: defaults.officialVersionsCache,
-                autoBackupEnabled = prefs.getBoolean(KEY_AUTO_BACKUP_ENABLED, defaults.autoBackupEnabled),
-                autoBackupIntervalMinutes = loadedAutoBackupIntervalMinutes,
-                autoBackupKeepCount = loadedAutoBackupKeepCount,
+                autoBackupEnabled = autoBackupConfig.enabled,
+                autoBackupIntervalMinutes = autoBackupConfig.intervalMinutes,
+                autoBackupKeepCount = autoBackupConfig.keepCount,
                 termuxReturnDelayMs = loadedTermuxReturnDelayMs,
             )
             return LauncherLoadResult(
@@ -70,9 +69,9 @@ class LauncherStateStore(private val context: Context) {
                 verified = prefs.getBoolean(KEY_VERIFIED, defaults.verified),
                 officialVersionsCache = prefs.getString(KEY_OFFICIAL_VERSIONS_CACHE, null)
                     ?: defaults.officialVersionsCache,
-                autoBackupEnabled = prefs.getBoolean(KEY_AUTO_BACKUP_ENABLED, defaults.autoBackupEnabled),
-                autoBackupIntervalMinutes = loadedAutoBackupIntervalMinutes,
-                autoBackupKeepCount = loadedAutoBackupKeepCount,
+                autoBackupEnabled = autoBackupConfig.enabled,
+                autoBackupIntervalMinutes = autoBackupConfig.intervalMinutes,
+                autoBackupKeepCount = autoBackupConfig.keepCount,
                 backupHistory = prefs.getString(KEY_BACKUP_HISTORY, null)
                     ?.lineSequence()
                     ?.map { it.trim() }
@@ -112,33 +111,13 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
-            .putBoolean(KEY_AUTO_BACKUP_ENABLED, state.autoBackupEnabled)
-            .putInt(
-                KEY_AUTO_BACKUP_INTERVAL_MINUTES,
-                state.autoBackupIntervalMinutes.coerceIn(
-                    MIN_AUTO_BACKUP_INTERVAL_MINUTES,
-                    MAX_AUTO_BACKUP_INTERVAL_MINUTES,
-                ),
-            )
-            .putInt(
-                KEY_AUTO_BACKUP_INTERVAL_HOURS,
-                (state.autoBackupIntervalMinutes / 60).coerceIn(1, 12),
-            )
-            .putInt(KEY_AUTO_BACKUP_KEEP_COUNT, state.autoBackupKeepCount.coerceIn(1, 50))
             .putString(KEY_BACKUP_HISTORY, BackupHistoryReducer.sanitize(state.backupHistory).joinToString("\n"))
             .putLong(KEY_TERMUX_RETURN_DELAY_MS, state.termuxReturnDelayMs.coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS))
             .apply()
     }
 
     fun readAutoBackupConfig(): AutoBackupConfigSnapshot {
-        val defaults = defaultLauncherState(isTermuxInstalled = true)
-        val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
-        val intervalMinutes = readSavedAutoBackupIntervalMinutes(prefs, defaults)
-        return AutoBackupConfigSnapshot(
-            enabled = prefs.getBoolean(KEY_AUTO_BACKUP_ENABLED, defaults.autoBackupEnabled),
-            intervalMinutes = intervalMinutes,
-            keepCount = prefs.getInt(KEY_AUTO_BACKUP_KEEP_COUNT, defaults.autoBackupKeepCount).coerceIn(1, 50),
-        )
+        return autoBackupConfigStore.read()
     }
 
     fun readTermuxReturnDelayMs(): Long {
@@ -148,20 +127,8 @@ class LauncherStateStore(private val context: Context) {
             .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
     }
 
-    @SuppressLint("ApplySharedPref")
     fun saveAutoBackupConfig(enabled: Boolean, intervalMinutes: Int, keepCount: Int) {
-        val safeIntervalMinutes = intervalMinutes.coerceIn(
-            MIN_AUTO_BACKUP_INTERVAL_MINUTES,
-            MAX_AUTO_BACKUP_INTERVAL_MINUTES,
-        )
-        val safeKeepCount = keepCount.coerceIn(1, 50)
-        context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_AUTO_BACKUP_ENABLED, enabled)
-            .putInt(KEY_AUTO_BACKUP_INTERVAL_MINUTES, safeIntervalMinutes)
-            .putInt(KEY_AUTO_BACKUP_INTERVAL_HOURS, (safeIntervalMinutes / 60).coerceIn(1, 12))
-            .putInt(KEY_AUTO_BACKUP_KEEP_COUNT, safeKeepCount)
-            .commit()
+        autoBackupConfigStore.save(enabled, intervalMinutes, keepCount)
     }
 
     fun appendAppLogMessage(message: String) {
@@ -226,33 +193,9 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_APP_LOG, state.appLog)
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
-            .putBoolean(KEY_AUTO_BACKUP_ENABLED, state.autoBackupEnabled)
-            .putInt(
-                KEY_AUTO_BACKUP_INTERVAL_MINUTES,
-                state.autoBackupIntervalMinutes.coerceIn(
-                    MIN_AUTO_BACKUP_INTERVAL_MINUTES,
-                    MAX_AUTO_BACKUP_INTERVAL_MINUTES,
-                ),
-            )
-            .putInt(
-                KEY_AUTO_BACKUP_INTERVAL_HOURS,
-                (state.autoBackupIntervalMinutes / 60).coerceIn(1, 12),
-            )
-            .putInt(KEY_AUTO_BACKUP_KEEP_COUNT, state.autoBackupKeepCount.coerceIn(1, 50))
             .putString(KEY_BACKUP_HISTORY, BackupHistoryReducer.sanitize(state.backupHistory).joinToString("\n"))
             .putLong(KEY_TERMUX_RETURN_DELAY_MS, state.termuxReturnDelayMs.coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS))
             .apply()
-    }
-
-    private fun readSavedAutoBackupIntervalMinutes(
-        prefs: SharedPreferences,
-        defaults: LauncherUiState,
-    ): Int {
-        return if (prefs.contains(KEY_AUTO_BACKUP_INTERVAL_MINUTES)) {
-            prefs.getInt(KEY_AUTO_BACKUP_INTERVAL_MINUTES, defaults.autoBackupIntervalMinutes)
-        } else {
-            prefs.getInt(KEY_AUTO_BACKUP_INTERVAL_HOURS, 6) * 60
-        }.coerceIn(MIN_AUTO_BACKUP_INTERVAL_MINUTES, MAX_AUTO_BACKUP_INTERVAL_MINUTES)
     }
 
     private companion object {
@@ -264,10 +207,6 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_APP_LOG = "app_log"
         const val KEY_VERIFIED = "verified"
         const val KEY_OFFICIAL_VERSIONS_CACHE = "official_versions_cache"
-        const val KEY_AUTO_BACKUP_ENABLED = "auto_backup_enabled"
-        const val KEY_AUTO_BACKUP_INTERVAL_HOURS = "auto_backup_interval_hours"
-        const val KEY_AUTO_BACKUP_INTERVAL_MINUTES = "auto_backup_interval_minutes"
-        const val KEY_AUTO_BACKUP_KEEP_COUNT = "auto_backup_keep_count"
         const val KEY_BACKUP_HISTORY = "backup_history"
         const val KEY_TERMUX_RETURN_DELAY_MS = "termux_return_delay_ms"
         const val KEY_LAST_TERMUX_WAKE_AT = "last_termux_wake_at"

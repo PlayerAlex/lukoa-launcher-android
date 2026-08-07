@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +24,89 @@ import androidx.compose.ui.unit.dp
 private data class RepairConfirmation(val title: String, val detail: String, val action: () -> Unit)
 
 @Composable
+fun RepairToolsSettingsPanel(
+    instanceLabel: String,
+    summaryText: String,
+    summaryColor: androidx.compose.ui.graphics.Color,
+    actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    uploadLimitStatus: TavernUploadLimitStatus,
+    onRepairDependencies: () -> Unit,
+    onResetTheme: () -> Unit,
+    onSetNodeMemory: (Int) -> Unit,
+    onCheckUploadLimit: () -> Unit,
+    onSetUploadLimit: (Int) -> Unit,
+    onResetUploadLimit: () -> Unit,
+    onShowHint: (String) -> Unit,
+    leadingContent: (@Composable () -> Unit)? = null,
+    extraContent: (@Composable () -> Unit)? = null,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.Primary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("修复工具") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    RepairToolsSection(
+                        actionsLocked = actionsLocked,
+                        tavernRunning = tavernRunning,
+                        uploadLimitStatus = uploadLimitStatus,
+                        onRepairDependencies = onRepairDependencies,
+                        onResetTheme = onResetTheme,
+                        onSetNodeMemory = onSetNodeMemory,
+                        onCheckUploadLimit = onCheckUploadLimit,
+                        onSetUploadLimit = onSetUploadLimit,
+                        onResetUploadLimit = onResetUploadLimit,
+                        onShowHint = onShowHint,
+                        leadingContent = leadingContent,
+                        extraContent = extraContent,
+                        showSectionContainer = false,
+                    )
+                }
+            },
+            confirmButton = {
+                SecondaryActionButton(
+                    text = "关闭",
+                    enabled = true,
+                    accentColor = LukoaColors.Primary,
+                    onClick = { showDialog = false },
+                )
+            },
+            dismissButton = null,
+        )
+    }
+
+    SectionPanel(
+        title = "修复工具",
+        accentColor = LukoaColors.Primary,
+        headerAction = { RepairToolsHeader(actionsLocked, tavernRunning) },
+    ) {
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "检查、修复与诊断",
+                detail = "当前实例：$instanceLabel。包含一键体检、依赖与主题修复、运行内存、聊天文件大小和诊断日志。",
+                value = summaryText,
+                valueColor = summaryColor,
+                valueAsPill = true,
+                highlightColor = LukoaColors.Primary,
+                onClick = { showDialog = true },
+            )
+        }
+    }
+}
+
+@Composable
 fun RepairToolsSection(
     actionsLocked: Boolean,
     tavernRunning: Boolean,
@@ -34,6 +120,7 @@ fun RepairToolsSection(
     onShowHint: (String) -> Unit = {},
     leadingContent: (@Composable () -> Unit)? = null,
     extraContent: (@Composable () -> Unit)? = null,
+    showSectionContainer: Boolean = true,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
     val mutationUnavailableHint = when {
@@ -62,32 +149,7 @@ fun RepairToolsSection(
         )
     }
 
-    SectionPanel(
-        title = "修复工具",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = when {
-                        actionsLocked -> "当前忙碌"
-                        tavernRunning -> "运行中锁定"
-                        else -> "可使用"
-                    },
-                    active = true,
-                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
-                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看修复工具说明",
-                    title = "修复工具",
-                    body = "不知道问题在哪里时，先点“一键体检”。它只查看当前状态，不会修改酒馆文件。\n酒馆安装中断或启动时报缺少文件，可以尝试“修复 npm 依赖”；只有网页因为主题设置损坏而打不开时，才重置主题。\n内存和聊天文件大小一般保持常用值即可。所有会修改文件的操作都会再次确认，而且只影响当前实例。",
-                )
-            }
-        },
-    ) {
+    val content: @Composable () -> Unit = {
         if (leadingContent != null) {
             SettingsSubsection(
                 title = "先检查问题",
@@ -218,5 +280,41 @@ fun RepairToolsSection(
             )
         }
         extraContent?.invoke()
+    }
+
+    if (showSectionContainer) {
+        SectionPanel(
+            title = "修复工具",
+            accentColor = LukoaColors.Primary,
+            headerAction = { RepairToolsHeader(actionsLocked, tavernRunning) },
+        ) {
+            content()
+        }
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun RepairToolsHeader(actionsLocked: Boolean, tavernRunning: Boolean) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusPill(
+            text = when {
+                actionsLocked -> "当前忙碌"
+                tavernRunning -> "运行中锁定"
+                else -> "可使用"
+            },
+            active = true,
+            toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
+            activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+        )
+        InfoPopoverButton(
+            contentDescription = "查看修复工具说明",
+            title = "修复工具",
+            body = "不知道问题在哪里时，先点“一键体检”。它只查看当前状态，不会修改酒馆文件。\n酒馆安装中断或启动时报缺少文件，可以尝试“修复 npm 依赖”；只有网页因为主题设置损坏而打不开时，才重置主题。\n内存和聊天文件大小一般保持常用值即可。所有会修改文件的操作都会再次确认，而且只影响当前实例。",
+        )
     }
 }

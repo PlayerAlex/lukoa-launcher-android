@@ -258,6 +258,28 @@ class TermuxCommandRunner(private val context: Context) {
 
     fun runTavernUserDelete(value: String?): CommandDispatch = runTavernUserMutation("delete", value)
 
+    fun runTavernExtensionsList(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-extensions-list-direct",
+        scriptCommand = "extensions-list",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-extensions-list",
+        background = false,
+    )
+
+    fun runTavernExtensionDelete(value: String?): CommandDispatch {
+        val encodedDirectoryName = value.orEmpty().trim()
+        if (TavernExtensionCommandCodec.decodeDirectoryName(encodedDirectoryName) == null) {
+            return CommandDispatch(false, "扩展目录参数无效。", displayCommand = "tavern-extensions-delete")
+        }
+        return runBundledScriptCommand(
+            command = "tavern-extensions-delete-direct",
+            scriptCommand = "extensions-delete",
+            scriptArgs = listOf(encodedDirectoryName),
+            displayCommand = "tavern-extensions-delete",
+            background = false,
+        )
+    }
+
     private fun runTavernUserMutation(action: String, value: String?): CommandDispatch {
         val argument = value.orEmpty().trim()
         if (argument.isBlank() || argument.length > 512) {

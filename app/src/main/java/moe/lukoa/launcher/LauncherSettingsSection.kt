@@ -51,6 +51,7 @@ fun SettingsSection(
     tavernRunning: Boolean,
     uploadLimitStatus: TavernUploadLimitStatus,
     tavernUserState: TavernUserManagementState,
+    tavernExtensionState: TavernExtensionManagementState,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
@@ -102,6 +103,8 @@ fun SettingsSection(
     onRefreshTavernUsers: () -> Unit,
     onCreateTavernUser: (String, String) -> Unit,
     onDeleteTavernUser: (String) -> Unit,
+    onRefreshTavernExtensions: () -> Unit,
+    onDeleteTavernExtension: (String) -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -337,7 +340,19 @@ fun SettingsSection(
             onDelete = onDeleteTavernUser,
             onShowHint = showHint,
         )
-        RepairToolsSection(
+        TavernExtensionManagementSection(
+            state = tavernExtensionState,
+            instanceLabel = tavernPathConfig.activeProfileLabel,
+            actionsLocked = actionsLocked,
+            tavernRunning = tavernRunning,
+            onRefresh = onRefreshTavernExtensions,
+            onDelete = onDeleteTavernExtension,
+            onShowHint = showHint,
+        )
+        RepairToolsSettingsPanel(
+            instanceLabel = tavernPathConfig.activeProfileLabel,
+            summaryText = settingsHealthSummaryText(healthCheckReport),
+            summaryColor = settingsHealthSummaryTone(healthCheckReport),
             actionsLocked = actionsLocked,
             tavernRunning = tavernRunning,
             uploadLimitStatus = uploadLimitStatus,
@@ -395,7 +410,9 @@ internal fun LauncherUpdateSettingsPanel(
     onOpenRelease: () -> Unit,
     onShowHint: (String) -> Unit = {},
 ) {
+    var showCurrentReleaseNotes by remember { mutableStateOf(false) }
     val updateLocked = githubUpdateState.checking || githubUpdateState.downloading
+    val currentRelease = githubUpdateState.currentRelease
     val repository = githubUpdateState.repository.ifBlank {
         repositoryInput.ifBlank { "未配置" }
     }
@@ -416,6 +433,38 @@ internal fun LauncherUpdateSettingsPanel(
         githubUpdateState.checking -> LukoaColors.Primary
         githubUpdateState.hasUpdate || githubUpdateState.downloading -> LukoaColors.Primary
         else -> LukoaColors.TextSecondary
+    }
+
+    if (showCurrentReleaseNotes && currentRelease != null) {
+        AlertDialog(
+            onDismissRequest = { showCurrentReleaseNotes = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.Primary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("v${currentRelease.versionName} 更新内容") },
+            text = {
+                Text(
+                    text = GithubReleaseNotesFormatter.format(
+                        versionName = currentRelease.versionName,
+                        body = currentRelease.body,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                SecondaryActionButton(
+                    text = "关闭",
+                    enabled = true,
+                    accentColor = LukoaColors.Primary,
+                    onClick = { showCurrentReleaseNotes = false },
+                )
+            },
+            dismissButton = null,
+        )
     }
 
     SectionPanel(
@@ -453,6 +502,26 @@ internal fun LauncherUpdateSettingsPanel(
                     githubUpdateState.downloading -> "正在下载启动器更新，请稍等。"
                     githubUpdateState.checking -> "正在检查启动器更新，请稍等。"
                     !githubUpdateState.hasUpdate -> "当前没有待安装的新版本，可以点下方“检查更新”重新检查。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "当前版本更新内容",
+                value = currentRelease?.let { "查看 v${it.versionName} 的更新说明" }
+                    ?: "检查更新后读取",
+                valueLayout = SettingsValueLayout.Supporting,
+                enabled = !updateLocked && currentRelease != null,
+                onClick = if (currentRelease != null) {
+                    { showCurrentReleaseNotes = true }
+                } else {
+                    null
+                },
+                unavailableHint = when {
+                    githubUpdateState.downloading -> "正在下载启动器更新，请稍等。"
+                    githubUpdateState.checking -> "正在检查启动器更新，请稍等。"
+                    currentRelease == null -> "点“检查更新”后，启动器会同时读取当前已安装版本的更新内容。"
                     else -> null
                 },
                 onShowHint = onShowHint,

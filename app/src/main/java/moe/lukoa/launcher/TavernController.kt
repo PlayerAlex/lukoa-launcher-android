@@ -89,6 +89,8 @@ class TavernController(
             "tavern-users-list" -> runner.runTavernUsersList()
             "tavern-user-create" -> runner.runTavernUserCreate(parsed.argument)
             "tavern-user-delete" -> runner.runTavernUserDelete(parsed.argument)
+            "tavern-extensions-list" -> runner.runTavernExtensionsList()
+            "tavern-extensions-delete" -> runner.runTavernExtensionDelete(parsed.argument)
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
             "termux-repo-status" -> runner.runTermuxPackageMirrorStatus()
@@ -348,6 +350,8 @@ class TavernController(
             "tavern-users-list" -> "正在读取当前酒馆用户。"
             "tavern-user-create" -> "正在创建酒馆用户。"
             "tavern-user-delete" -> "正在删除用户账户并保留数据目录。"
+            "tavern-extensions-list" -> "正在读取当前酒馆扩展。"
+            "tavern-extensions-delete" -> "正在删除选中的酒馆扩展。"
             "tavern-official-versions" -> "正在读取官方版本列表。"
             "termux-storage-permission" -> "正在请求 Termux 存储权限。"
             "termux-repo-status" -> "正在读取当前 Termux 包源。"
@@ -394,6 +398,8 @@ class TavernController(
             "tavern-users-list" -> if (ok) "酒馆用户已读取。" else "读取酒馆用户失败。"
             "tavern-user-create" -> if (ok) "酒馆用户已创建。" else "创建酒馆用户失败。"
             "tavern-user-delete" -> if (ok) "用户账户已删除，数据目录仍然保留。" else "删除用户账户失败。"
+            "tavern-extensions-list" -> if (ok) "酒馆扩展已读取。" else "读取酒馆扩展失败。"
+            "tavern-extensions-delete" -> if (ok) "酒馆扩展已删除。" else "删除酒馆扩展失败。"
             "tavern-official-versions" -> if (ok) "官方版本列表已读取。" else "读取官方版本失败。"
             "termux-storage-permission" -> if (ok) "Termux 存储权限已可用。" else "Termux 存储权限还没打开。"
             "termux-repo-status" -> if (ok) "当前 Termux 包源已读取。" else "读取 Termux 包源失败。"

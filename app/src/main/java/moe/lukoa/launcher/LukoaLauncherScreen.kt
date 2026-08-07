@@ -247,6 +247,7 @@ fun LukoaLauncherScreen(
     var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
     var uploadLimitStatus by remember { mutableStateOf(TavernUploadLimitStatus()) }
     var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
+    var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
@@ -276,6 +277,7 @@ fun LukoaLauncherScreen(
     LaunchedEffect(tavernPathConfig.activeProfile.id) {
         uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
         tavernUserState = TavernUserManagementState(message = "已切换酒馆实例，请重新读取用户。")
+        tavernExtensionState = TavernExtensionManagementState(message = "已切换酒馆实例，请重新读取扩展。")
     }
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -674,6 +676,9 @@ fun LukoaLauncherScreen(
         tavernUserState = TavernUserManagementState(
             message = "酒馆配置已更新，请重新读取当前目录的用户。",
         )
+        tavernExtensionState = TavernExtensionManagementState(
+            message = "酒馆配置已更新，请重新读取当前目录的扩展。",
+        )
         healthCheckReport = null
         showStopConfirmDialog = false
         pendingStartPreflight = null
@@ -739,6 +744,13 @@ fun LukoaLauncherScreen(
         TavernUploadLimitStatusParser.parse(termuxOutput)?.let { uploadLimitStatus = it }
         TavernUserOutputParser.parse(termuxOutput)?.let { users ->
             tavernUserState = TavernUserManagementState(users = users, message = "已读取 ${users.size} 个用户。")
+        }
+        TavernExtensionOutputParser.parse(termuxOutput)?.let { snapshot ->
+            tavernExtensionState = TavernExtensionManagementState(
+                rootDirectory = snapshot.rootDirectory,
+                extensions = snapshot.extensions,
+                message = "已读取 ${snapshot.extensions.size} 个扩展。",
+            )
         }
         val permissionText = "$newStatus\n$termuxOutput"
         maybePromptTavernDirectoryChoice(permissionText)
@@ -3626,6 +3638,7 @@ fun LukoaLauncherScreen(
                             tavernRunning = tavernRunning,
                             uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
+                            tavernExtensionState = tavernExtensionState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
@@ -3788,6 +3801,63 @@ fun LukoaLauncherScreen(
                                 val payload = TavernUserCommandCodec.encode(handle)
                                 runGuarded("删除酒馆用户账户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-delete"), allowRunningInference = false) { guardedUpdate ->
                                     onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
+                                }
+                            },
+                            onRefreshTavernExtensions = {
+                                runGuarded(
+                                    "读取酒馆扩展",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-list"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    tavernExtensionState = tavernExtensionState.copy(
+                                        loading = true,
+                                        message = "正在读取扩展…",
+                                    )
+                                    onCommand("tavern-extensions-list") { newStatus, output, ok ->
+                                        guardedUpdate(newStatus, output, ok)
+                                        if (!isTransientStatus(newStatus) && TavernExtensionOutputParser.parse(output) == null) {
+                                            tavernExtensionState = tavernExtensionState.copy(
+                                                loading = false,
+                                                message = if (ok) {
+                                                    "命令已完成，但没有读到兼容的扩展列表。"
+                                                } else {
+                                                    "读取失败，请确认当前实例已安装且 Termux 中的 Node.js 可用。"
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            onDeleteTavernExtension = { directoryName ->
+                                val validationError = TavernExtensionCommandCodec.validateDirectoryName(directoryName)
+                                when {
+                                    tavernRunning -> update(
+                                        "删除扩展前必须先停止酒馆。",
+                                        "",
+                                        false,
+                                        allowRunningInference = false,
+                                    )
+
+                                    validationError != null -> update(
+                                        "扩展目录无效：$validationError",
+                                        "",
+                                        false,
+                                        allowRunningInference = false,
+                                    )
+
+                                    else -> {
+                                        val payload = TavernExtensionCommandCodec.encodeDirectoryName(directoryName)
+                                        runGuarded(
+                                            "删除酒馆扩展",
+                                            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-delete"),
+                                            allowRunningInference = false,
+                                        ) { guardedUpdate ->
+                                            onCommand(
+                                                LauncherCommandCodec.encode("tavern-extensions-delete", payload),
+                                                guardedUpdate,
+                                            )
+                                        }
+                                    }
                                 }
                             },
                             onClearLogs = ::requestClearLogs,

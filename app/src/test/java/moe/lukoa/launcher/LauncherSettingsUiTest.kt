@@ -170,6 +170,41 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun launcherUpdateSettingsPanel_opensCurrentInstalledVersionReleaseNotes() {
+        setUpdatePanelContent(
+            currentRelease = updateInfo(isNewer = false).copy(
+                versionName = "0.9.3-beta3",
+                tagName = "v0.9.3-beta3",
+                body = "## 新增\n- 新增自动备份保护\n## 修复\n- 修复后台划掉后设置重置",
+            ),
+        )
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("当前版本更新内容") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+
+        composeRule.onNodeWithText("v0.9.3-beta3 更新内容").assertIsDisplayed()
+        composeRule.onNodeWithText("0.9.3-beta3 版本更新日志：\n1. 新增自动备份保护\n2. 修复后台划掉后设置重置")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun launcherUpdateSettingsPanel_withoutCurrentRelease_explainsHowToLoadIt() {
+        val hints = mutableListOf<String>()
+        setUpdatePanelContent(currentRelease = null, onShowHint = hints::add)
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("当前版本更新内容") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("点“检查更新”后，启动器会同时读取当前已安装版本的更新内容。", hints.last())
+        }
+    }
+
+    @Test
     fun launcherUpdateSettingsPanel_withoutNewVersion_explainsVersionRowTap() {
         val hints = mutableListOf<String>()
         setUpdatePanelContent(
@@ -188,6 +223,20 @@ class LauncherSettingsUiTest {
                 hints.last(),
             )
         }
+    }
+
+    @Test
+    fun settingsSection_opensRepairToolsFromCompactEntry() {
+        setSettingsSectionContent(onSaveTavernDirectory = { true })
+
+        composeRule.onNodeWithText("修复 npm 依赖").assertDoesNotExist()
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("检查、修复与诊断") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+
+        composeRule.onNodeWithText("修复 npm 依赖").assertIsDisplayed()
+        composeRule.onNodeWithText("网页打不开时重置主题").assertIsDisplayed()
     }
 
     @Test
@@ -306,6 +355,80 @@ class LauncherSettingsUiTest {
         composeRule.runOnIdle {
             assertEquals("酒馆正在运行，请先停止酒馆再管理用户。", hints.last())
         }
+    }
+
+    @Test
+    fun extensionManagementSection_confirmsExactTargetBeforeDelete() {
+        var deletedDirectory = ""
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            rootDirectory = "/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party",
+                            extensions = listOf(
+                                TavernExtensionRecord(
+                                    directoryName = "Extension-A",
+                                    displayName = "清凉扩展",
+                                    version = "1.2.3",
+                                    hasManifest = true,
+                                ),
+                            ),
+                            message = "已读取 1 个扩展。",
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        onRefresh = {},
+                        onDelete = { deletedDirectory = it },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("版本：1.2.3 · 目录：Extension-A").assertIsDisplayed()
+        composeRule.onNode(hasText("删除") and hasClickAction()).performClick()
+        composeRule.onNodeWithText("当前实例：主实例").assertIsDisplayed()
+        composeRule.onNodeWithText("目标目录：/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party/Extension-A")
+            .assertIsDisplayed()
+        composeRule.onNode(hasText("确认删除") and hasClickAction()).performClick()
+
+        composeRule.runOnIdle { assertEquals("Extension-A", deletedDirectory) }
+    }
+
+    @Test
+    fun extensionManagementSection_runningKeepsReadEnabledAndLocksDelete() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            extensions = listOf(
+                                TavernExtensionRecord("Extension-A", "清凉扩展", "", false),
+                            ),
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = true,
+                        onRefresh = {},
+                        onDelete = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
+        composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
     }
 
     @Test
@@ -473,6 +596,7 @@ class LauncherSettingsUiTest {
                         tavernRunning = false,
                         uploadLimitStatus = TavernUploadLimitStatus(),
                         tavernUserState = TavernUserManagementState(),
+                        tavernExtensionState = TavernExtensionManagementState(),
                         forceCleanupSuggestion = null,
                         onTavernRepoInputChange = {},
                         onNpmRegistryInputChange = {},
@@ -524,6 +648,8 @@ class LauncherSettingsUiTest {
                         onRefreshTavernUsers = {},
                         onCreateTavernUser = { _, _ -> },
                         onDeleteTavernUser = {},
+                        onRefreshTavernExtensions = {},
+                        onDeleteTavernExtension = {},
                         onClearLogs = {},
                         onExportDiagnostic = {},
                         onDecreaseTermuxReturnDelay = {},
@@ -536,6 +662,7 @@ class LauncherSettingsUiTest {
 
     private fun setUpdatePanelContent(
         latest: GithubUpdateInfo? = updateInfo(isNewer = true),
+        currentRelease: GithubUpdateInfo? = null,
         onOpenRepositorySettings: () -> Unit = {},
         onOpenUpdateChannelSettings: () -> Unit = {},
         onInstallUpdate: () -> Unit = {},
@@ -557,6 +684,7 @@ class LauncherSettingsUiTest {
                             repository = "PlayerAlex/lukoa-launcher-android",
                             channel = GithubReleaseChannel.Test,
                             latest = latest,
+                            currentRelease = currentRelease,
                             message = "发现新版本。",
                         ),
                         onOpenRepositorySettings = onOpenRepositorySettings,

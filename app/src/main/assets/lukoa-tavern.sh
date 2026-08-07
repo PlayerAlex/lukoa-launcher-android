@@ -3635,6 +3635,112 @@ NODE
   printf "==== end SillyTavern version ====\n"
 }
 
+run_tavern_extension_action() {
+  action="${1:-list}"
+  payload="${2:-}"
+  if [ "$action" = "delete" ]; then
+    repair_require_stopped || return "$?"
+  fi
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" false 69
+    emit_status
+    return 69
+  }
+  extension_root="$TAVERN_DIR/public/scripts/extensions/third-party"
+  output="$(LUKOA_EXTENSION_ACTION="$action" LUKOA_EXTENSION_PAYLOAD="$payload" LUKOA_EXTENSION_ROOT="$extension_root" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const action = process.env.LUKOA_EXTENSION_ACTION || 'list';
+const payload = process.env.LUKOA_EXTENSION_PAYLOAD || '';
+const configuredRoot = path.resolve(process.env.LUKOA_EXTENSION_ROOT || 'public/scripts/extensions/third-party');
+const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
+
+function fail(message, code) {
+  console.error(message);
+  process.exit(code);
+}
+
+function decodeDirectoryName(value) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) fail('Invalid extension directory payload', 64);
+  const buffer = Buffer.from(value, 'base64url');
+  if (buffer.toString('base64url') !== value) fail('Invalid extension directory payload', 64);
+  const decoded = buffer.toString('utf8');
+  if (
+    !decoded || decoded !== decoded.trim() || decoded === '.' || decoded === '..' ||
+    decoded.length > 128 || /[\/\\\u0000-\u001f\u007f]/.test(decoded)
+  ) {
+    fail('Unsafe extension directory name', 64);
+  }
+  return decoded;
+}
+
+function readExtensions(extensionRoot) {
+  if (!fs.existsSync(extensionRoot)) return [];
+  return fs.readdirSync(extensionRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
+    .map(entry => {
+      const manifestFile = path.join(extensionRoot, entry.name, 'manifest.json');
+      let manifest = null;
+      try {
+        manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      } catch (_) {
+        manifest = null;
+      }
+      return {
+        directoryName: entry.name,
+        displayName: String(manifest?.display_name || manifest?.name || entry.name),
+        version: String(manifest?.version || ''),
+        hasManifest: manifest !== null,
+      };
+    })
+    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
+let extensionRoot = configuredRoot;
+if (action === 'delete') {
+  const directoryName = decodeDirectoryName(payload);
+  if (!fs.existsSync(configuredRoot)) fail('Extension root does not exist', 66);
+  extensionRoot = fs.realpathSync(configuredRoot);
+  const target = path.resolve(extensionRoot, directoryName);
+  if (path.dirname(target) !== extensionRoot || target === extensionRoot) {
+    fail('Extension target escaped the extension root', 64);
+  }
+  let targetStat;
+  try {
+    targetStat = fs.lstatSync(target);
+  } catch (_) {
+    fail('Extension directory does not exist', 66);
+  }
+  if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) {
+    fail('Extension target is not a regular directory', 64);
+  }
+  fs.rmSync(target, { recursive: true, force: false });
+} else if (action !== 'list') {
+  fail('Unsupported extension action', 64);
+} else if (fs.existsSync(configuredRoot)) {
+  extensionRoot = fs.realpathSync(configuredRoot);
+}
+
+console.log('==== SillyTavern extensions ====');
+console.log(`extension.root=${encode(extensionRoot)}`);
+for (const extension of readExtensions(extensionRoot)) {
+  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}`);
+}
+console.log('==== end SillyTavern extensions ====');
+NODE
+)"
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "SillyTavern extension operation failed or was blocked by a safety rule" false "$code"
+    emit_status
+    return "$code"
+  fi
+  write_status "extensions-$action" "SillyTavern extension operation completed" false 0
+  cat "$STATUS_FILE"
+  printf "%s\n" "$output"
+}
+
 run_tavern_user_action() {
   action="${1:-list}"
   payload="${2:-}"
@@ -3780,6 +3886,13 @@ main() {
     user-delete|tavern-user-delete)
       shift
       run_tavern_user_action delete "${1:-}"
+      ;;
+    extensions-list|tavern-extensions-list)
+      run_tavern_extension_action list ""
+      ;;
+    extensions-delete|tavern-extensions-delete)
+      shift
+      run_tavern_extension_action delete "${1:-}"
       ;;
     log|logs|tail)
       cmd_log

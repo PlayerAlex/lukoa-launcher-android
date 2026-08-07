@@ -37,6 +37,8 @@ object TermuxCommandTimeoutPolicy {
         "tavern-users-list" to 60_000L,
         "tavern-user-create" to 2 * 60_000L,
         "tavern-user-delete" to 60_000L,
+        "tavern-extensions-list" to 60_000L,
+        "tavern-extensions-delete" to 2 * 60_000L,
         "tavern-backup-list" to 24_000L,
         "tavern-version-startup" to 4_000L,
         "tavern-official-versions" to 60_000L,
