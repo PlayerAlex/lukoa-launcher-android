@@ -12,22 +12,25 @@ class LukoaColorsTest {
         assertEquals(Color(0xFF071311), LukoaColors.Background)
         assertEquals(Color(0xFF0D1D1A), LukoaColors.Surface)
         assertEquals(Color(0xFF142824), LukoaColors.Elevated)
-        assertEquals(Color(0xFF5EE6C1), LukoaColors.Primary)
-        assertEquals(Color(0xFF82F2D2), LukoaColors.PrimaryHover)
+        assertEquals(Color(0xFF4EB89F), LukoaColors.Primary)
+        assertEquals(Color(0xFF66CBB1), LukoaColors.PrimaryHover)
         assertEquals(Color(0xFF071311), LukoaColors.OnPrimary)
-        assertEquals(Color(0xFFECFBF6), LukoaColors.TextPrimary)
-        assertEquals(Color(0xFF9BBAB2), LukoaColors.TextSecondary)
+        assertEquals(Color(0xFFCADAD5), LukoaColors.TextPrimary)
+        assertEquals(Color(0xFF8FA9A2), LukoaColors.TextSecondary)
         assertEquals(Color(0xFF21423B), LukoaColors.Border)
         assertEquals(Color(0xFFFFC857), LukoaColors.Accent)
     }
 
     @Test
-    fun primaryColor_readsAsBrightCoolMintInsteadOfMutedGreen() {
-        assertTrue(LukoaColors.Primary.green >= 0.85f)
-        assertTrue(LukoaColors.Primary.blue >= 0.72f)
-        assertTrue(LukoaColors.Primary.red <= 0.40f)
-        assertTrue(LukoaColors.Primary.green - LukoaColors.Primary.red >= 0.45f)
+    fun foregroundColors_areCoolWithoutBeingHarsh() {
+        assertTrue(LukoaColors.Primary.luminance() in 0.34f..0.45f)
+        assertTrue(LukoaColors.Primary.green in 0.70f..0.78f)
+        assertTrue(LukoaColors.Primary.blue >= 0.60f)
+        assertTrue(LukoaColors.Primary.red <= 0.34f)
+        assertTrue(LukoaColors.Primary.green - LukoaColors.Primary.red >= 0.40f)
         assertTrue(LukoaColors.Primary.blue - LukoaColors.Primary.red >= 0.30f)
+        assertTrue(LukoaColors.TextPrimary.luminance() in 0.60f..0.75f)
+        assertTrue(LukoaColors.TextSecondary.luminance() <= 0.42f)
     }
 
     @Test

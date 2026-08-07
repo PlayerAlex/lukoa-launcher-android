@@ -9,14 +9,14 @@ object LukoaColors {
     val Elevated = Color(0xFF142824)
     val Border = Color(0xFF21423B)
 
-    // 冷白文字保持清透，辅助文字减少灰绿色浑浊感。
-    val TextPrimary = Color(0xFFECFBF6)
-    val TextSecondary = Color(0xFF9BBAB2)
-    val Dim = Color(0xFF607972)
+    // 柔和冷白控制暗色界面的眩光，辅助文字继续降低一级亮度。
+    val TextPrimary = Color(0xFFCADAD5)
+    val TextSecondary = Color(0xFF8FA9A2)
+    val Dim = Color(0xFF596D67)
 
-    // 高明度薄荷只用于主操作、选中态和关键正常状态。
-    val Primary = Color(0xFF5EE6C1)
-    val PrimaryHover = Color(0xFF82F2D2)
+    // 中等明度的清透薄荷用于主操作，避免大面积按钮产生荧光感。
+    val Primary = Color(0xFF4EB89F)
+    val PrimaryHover = Color(0xFF66CBB1)
     val OnPrimary = Background
     val PrimarySoft = Color(0xFF10382F)
 
