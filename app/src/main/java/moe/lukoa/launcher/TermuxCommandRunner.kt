@@ -845,6 +845,11 @@ class TermuxCommandRunner(private val context: Context) {
                 scriptCommand = scriptCommand,
                 scriptArgs = scriptArgs,
                 runtimeSetup = buildRuntimeSetupCommand(),
+                transport = if (background) {
+                    TermuxScriptTransport.Stdin
+                } else {
+                    TermuxScriptTransport.CompressedArgument
+                },
             )
         } catch (error: Exception) {
             return CommandDispatch(

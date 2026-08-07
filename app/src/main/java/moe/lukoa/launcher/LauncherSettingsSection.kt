@@ -373,16 +373,14 @@ fun SettingsSection(
                     onClick = { showHealthDialog = true },
                 )
             },
-            extraContent = {
-                RepairDiagnosticsContent(
-                    actionsLocked = actionsLocked,
-                    forceCleanupSuggestion = forceCleanupSuggestion,
-                    onForceCleanup = onForceCleanup,
-                    onClearLogs = onClearLogs,
-                    onExportDiagnostic = onExportDiagnostic,
-                    onShowHint = showHint,
-                )
-            },
+        )
+        DiagnosticsSettingsPanel(
+            actionsLocked = actionsLocked,
+            forceCleanupSuggestion = forceCleanupSuggestion,
+            onForceCleanup = onForceCleanup,
+            onClearLogs = onClearLogs,
+            onExportDiagnostic = onExportDiagnostic,
+            onShowHint = showHint,
         )
         LauncherUpdateSettingsPanel(
             currentLauncherVersion = currentLauncherVersion,
@@ -686,7 +684,7 @@ internal fun InstanceManagementPanel(
 }
 
 @Composable
-private fun RepairDiagnosticsContent(
+private fun DiagnosticsSettingsPanel(
     actionsLocked: Boolean,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
     onForceCleanup: () -> Unit,
@@ -695,9 +693,16 @@ private fun RepairDiagnosticsContent(
     onShowHint: (String) -> Unit,
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    SettingsSubsection(
+    SectionPanel(
         title = "诊断与日志",
-        detail = "“导出诊断日志”会生成一份排错文件，不会修改酒馆数据。“清除页面日志”只清空启动器里当前显示的记录。\n“强制清理”会结束当前实例可能残留的进程，普通停止无效或端口被占用时才使用。${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
+        accentColor = LukoaColors.Primary,
+        headerAction = {
+            InfoPopoverButton(
+                contentDescription = "查看诊断与日志说明",
+                title = "诊断与日志",
+                body = "“导出诊断日志”会生成一份排错文件，不会修改酒馆数据。“清除页面日志”只清空启动器里当前显示的记录。\n“强制清理”会结束当前实例可能残留的进程，普通停止无效或端口被占用时才使用。${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
+            )
+        },
     ) {
         SettingsFeedbackActionButton(
             text = "导出诊断日志",

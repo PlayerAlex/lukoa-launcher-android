@@ -5,19 +5,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -231,8 +238,14 @@ class LauncherSettingsUiTest {
         setSettingsSectionContent(onSaveTavernDirectory = { true })
 
         composeRule.onNodeWithText("修复 npm 依赖").assertDoesNotExist()
+        composeRule.onNodeWithText("诊断与日志")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("导出诊断日志")
+            .performScrollTo()
+            .assertIsDisplayed()
         advancePastClickDebounce()
-        composeRule.onNode(hasText("检查、修复与诊断") and hasClickAction())
+        composeRule.onNode(hasText("检查与修复") and hasClickAction())
             .performScrollTo()
             .performClick()
 
@@ -241,7 +254,33 @@ class LauncherSettingsUiTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onAllNodesWithTag("repair-tools-dialog-group")
-            .assertCountEquals(5)
+            .assertCountEquals(4)
+        listOf(
+            "repair-memory-choice-2048" to "2GB",
+            "repair-memory-choice-4096" to "4GB",
+            "repair-memory-choice-6144" to "6GB",
+            "repair-upload-choice-500" to "500MB",
+            "repair-upload-choice-1024" to "1GB",
+            "repair-upload-choice-2048" to "2GB",
+        ).forEach { (tag, text) -> assertTextHasNoVisualOverflow(tag, text) }
+    }
+
+    private fun assertTextHasNoVisualOverflow(tag: String, text: String) {
+        composeRule.onNodeWithTag(tag).performScrollTo()
+        val node = composeRule.onNode(
+            hasText(text) and hasAnyAncestor(hasTestTag(tag)),
+            useUnmergedTree = true,
+        )
+        val results = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+        val result = results.single()
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        val parentBounds = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        assertFalse(
+            "$text should fit without ellipsis: parent=$parentBounds, bounds=$bounds, size=${result.size}, lineCount=${result.lineCount}, " +
+                "ellipsized=${(0 until result.lineCount).any(result::isLineEllipsized)}",
+            result.hasVisualOverflow,
+        )
     }
 
     @Test

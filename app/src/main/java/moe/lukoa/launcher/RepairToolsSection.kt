@@ -44,7 +44,6 @@ fun RepairToolsSettingsPanel(
     onResetUploadLimit: () -> Unit,
     onShowHint: (String) -> Unit,
     leadingContent: (@Composable () -> Unit)? = null,
-    extraContent: (@Composable () -> Unit)? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
@@ -75,7 +74,6 @@ fun RepairToolsSettingsPanel(
                         onResetUploadLimit = onResetUploadLimit,
                         onShowHint = onShowHint,
                         leadingContent = leadingContent,
-                        extraContent = extraContent,
                         showSectionContainer = false,
                     )
                 }
@@ -99,8 +97,8 @@ fun RepairToolsSettingsPanel(
     ) {
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "检查、修复与诊断",
-                detail = "当前实例：$instanceLabel。包含一键体检、依赖与主题修复、运行内存、聊天文件大小和诊断日志。",
+                title = "检查与修复",
+                detail = "当前实例：$instanceLabel。包含一键体检、依赖与主题修复、运行内存和聊天文件大小。",
                 value = summaryText,
                 valueColor = summaryColor,
                 valueAsPill = true,
@@ -124,7 +122,6 @@ fun RepairToolsSection(
     onResetUploadLimit: () -> Unit = {},
     onShowHint: (String) -> Unit = {},
     leadingContent: (@Composable () -> Unit)? = null,
-    extraContent: (@Composable () -> Unit)? = null,
     showSectionContainer: Boolean = true,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
@@ -207,11 +204,13 @@ fun RepairToolsSection(
                 title = "酒馆运行内存",
                 detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；只有手机内存充足且酒馆明确提示内存不足时才选 6GB。设置过高反而可能让系统关闭 Termux。",
             ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(2048, 4096, 6144).forEach { memory ->
-                        SettingsFeedbackActionButton(
+                        SettingsCompactChoiceButton(
                             text = "${memory / 1024}GB",
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("repair-memory-choice-$memory"),
                             enabled = !actionsLocked && !tavernRunning,
                             accentColor = LukoaColors.Primary,
                             unavailableHint = mutationUnavailableHint,
@@ -251,12 +250,14 @@ fun RepairToolsSection(
                     },
                     onShowHint = onShowHint,
                 )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
                         val current = uploadLimitStatus.currentMegabytes == limit
-                        SettingsFeedbackActionButton(
+                        SettingsCompactChoiceButton(
                             text = TavernUploadLimitPolicy.label(limit),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("repair-upload-choice-$limit"),
                             enabled = !actionsLocked && !tavernRunning,
                             accentColor = if (current) LukoaColors.Primary else LukoaColors.Primary,
                             unavailableHint = mutationUnavailableHint,
@@ -290,11 +291,6 @@ fun RepairToolsSection(
                         )
                     },
                 )
-            }
-        }
-        if (extraContent != null) {
-            RepairToolsGroup(grouped = !showSectionContainer) {
-                extraContent()
             }
         }
     }

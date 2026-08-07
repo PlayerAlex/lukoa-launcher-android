@@ -75,9 +75,11 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
-    fun `bundled script is delivered through Termux stdin instead of command arguments`() {
+    fun `bundled script transport supports background stdin and bounded foreground compression`() {
         assertTrue(runnerSource.contains("putExtra(EXTRA_STDIN, it)"))
         assertTrue(runnerSource.contains("stdin = plan.stdin"))
+        assertTrue(runnerSource.contains("TermuxScriptTransport.Stdin"))
+        assertTrue(runnerSource.contains("TermuxScriptTransport.CompressedArgument"))
         assertFalse(runnerSource.contains("LUKOA_LAUNCHER_SCRIPT_EOF"))
     }
 }

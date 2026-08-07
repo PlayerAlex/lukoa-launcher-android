@@ -2,8 +2,10 @@ package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -19,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -215,6 +218,59 @@ internal fun SettingsFeedbackActionButton(
             }
         },
     )
+}
+
+@Composable
+internal fun SettingsCompactChoiceButton(
+    text: String,
+    enabled: Boolean,
+    accentColor: Color,
+    unavailableHint: String?,
+    onShowHint: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val canShowUnavailableHint = !enabled && !unavailableHint.isNullOrBlank()
+    val acceptsClick = enabled || canShowUnavailableHint
+    val feedbackClick = rememberFeedbackClick(onClick = {
+        if (enabled) {
+            onClick()
+        } else if (canShowUnavailableHint) {
+            onShowHint(unavailableHint.orEmpty())
+        }
+    })
+    val style = resolveSecondaryActionStyle(
+        enabled = acceptsClick,
+        accentColor = if (enabled) accentColor else LukoaColors.Dim,
+    )
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(LukoaCapsuleShape)
+            .background(style.containerColor)
+            .border(1.dp, style.borderColor, LukoaCapsuleShape)
+            .clickable(
+                enabled = acceptsClick,
+                role = Role.Button,
+                onClick = feedbackClick,
+            )
+            .semantics {
+                if (!enabled) disabled()
+            }
+            .padding(horizontal = 2.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.fillMaxWidth(),
+            color = style.contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
