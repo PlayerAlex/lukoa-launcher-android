@@ -340,7 +340,7 @@ fun SettingsSection(
             onDelete = onDeleteTavernUser,
             onShowHint = showHint,
         )
-        TavernExtensionManagementSection(
+        TavernExtensionManagementSettingsPanel(
             state = tavernExtensionState,
             instanceLabel = tavernPathConfig.activeProfileLabel,
             actionsLocked = actionsLocked,

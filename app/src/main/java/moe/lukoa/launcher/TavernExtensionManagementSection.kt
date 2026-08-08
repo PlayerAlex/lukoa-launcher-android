@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +27,83 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 @Composable
+fun TavernExtensionManagementSettingsPanel(
+    state: TavernExtensionManagementState,
+    instanceLabel: String,
+    actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    onRefresh: () -> Unit,
+    onDelete: (String) -> Unit,
+    onShowHint: (String) -> Unit = {},
+) {
+    var showDialog by remember(instanceLabel) { mutableStateOf(false) }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.Primary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("扩展管理") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = state,
+                        instanceLabel = instanceLabel,
+                        actionsLocked = actionsLocked,
+                        tavernRunning = tavernRunning,
+                        onRefresh = onRefresh,
+                        onDelete = onDelete,
+                        onShowHint = onShowHint,
+                        showSectionContainer = false,
+                    )
+                }
+            },
+            confirmButton = {
+                SecondaryActionButton(
+                    text = "关闭",
+                    enabled = true,
+                    accentColor = LukoaColors.Primary,
+                    onClick = { showDialog = false },
+                )
+            },
+            dismissButton = null,
+        )
+    }
+
+    SectionPanel(
+        title = "扩展管理",
+        accentColor = LukoaColors.Primary,
+        headerAction = {
+            StatusPill(
+                text = extensionManagementStatusText(state, actionsLocked),
+                active = actionsLocked || state.loading || state.rootDirectory.isNotBlank(),
+                toneColor = if (actionsLocked) LukoaColors.Accent else LukoaColors.Primary,
+                activeBackground = if (actionsLocked) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+            )
+        },
+    ) {
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "管理已安装扩展",
+                detail = "当前实例：$instanceLabel。进入后可读取、搜索和删除第三方网页扩展。",
+                value = "打开",
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                highlightColor = LukoaColors.Primary,
+                onClick = { showDialog = true },
+            )
+        }
+    }
+}
+
+@Composable
 fun TavernExtensionManagementSection(
     state: TavernExtensionManagementState,
     instanceLabel: String,
@@ -32,6 +112,7 @@ fun TavernExtensionManagementSection(
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
+    showSectionContainer: Boolean = true,
 ) {
     var pendingDelete by remember(instanceLabel, state.rootDirectory) {
         mutableStateOf<TavernExtensionRecord?>(null)
@@ -83,34 +164,7 @@ fun TavernExtensionManagementSection(
         )
     }
 
-    SectionPanel(
-        title = "扩展管理",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = when {
-                        actionsLocked -> "当前忙碌"
-                        state.loading -> "读取中"
-                        state.extensions.isNotEmpty() -> "${state.extensions.size} 个扩展"
-                        state.rootDirectory.isNotBlank() -> "暂无扩展"
-                        else -> "未读取"
-                    },
-                    active = actionsLocked || state.loading || state.rootDirectory.isNotBlank(),
-                    toneColor = if (actionsLocked) LukoaColors.Accent else LukoaColors.Primary,
-                    activeBackground = if (actionsLocked) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看扩展管理说明",
-                    title = "扩展管理",
-                    body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、目录和文件大小，不会修改文件；扩展较多时可以直接搜索。\n删除扩展前必须先停止酒馆，并会再次显示目标目录供你确认。",
-                )
-            }
-        },
-    ) {
+    val content: @Composable () -> Unit = {
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
@@ -192,6 +246,52 @@ fun TavernExtensionManagementSection(
             }
         }
     }
+
+    if (showSectionContainer) {
+        SectionPanel(
+            title = "扩展管理",
+            accentColor = LukoaColors.Primary,
+            headerAction = { TavernExtensionManagementHeader(state, actionsLocked) },
+        ) {
+            content()
+        }
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun TavernExtensionManagementHeader(
+    state: TavernExtensionManagementState,
+    actionsLocked: Boolean,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusPill(
+            text = extensionManagementStatusText(state, actionsLocked),
+            active = actionsLocked || state.loading || state.rootDirectory.isNotBlank(),
+            toneColor = if (actionsLocked) LukoaColors.Accent else LukoaColors.Primary,
+            activeBackground = if (actionsLocked) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+        )
+        InfoPopoverButton(
+            contentDescription = "查看扩展管理说明",
+            title = "扩展管理",
+            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、目录和文件大小，不会修改文件；扩展较多时可以直接搜索。\n删除扩展前必须先停止酒馆，并会再次显示目标目录供你确认。",
+        )
+    }
+}
+
+private fun extensionManagementStatusText(
+    state: TavernExtensionManagementState,
+    actionsLocked: Boolean,
+): String = when {
+    actionsLocked -> "当前忙碌"
+    state.loading -> "读取中"
+    state.extensions.isNotEmpty() -> "${state.extensions.size} 个扩展"
+    state.rootDirectory.isNotBlank() -> "暂无扩展"
+    else -> "未读取"
 }
 
 @Composable
