@@ -19,12 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 
 @Composable
 fun TavernExtensionManagementSettingsPanel(
@@ -36,7 +37,8 @@ fun TavernExtensionManagementSettingsPanel(
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
 ) {
-    var showDialog by remember(instanceLabel) { mutableStateOf(false) }
+    var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
+    val dialogStateHolder = rememberSaveableStateHolder()
 
     if (showDialog) {
         AlertDialog(
@@ -53,16 +55,18 @@ fun TavernExtensionManagementSettingsPanel(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    TavernExtensionManagementSection(
-                        state = state,
-                        instanceLabel = instanceLabel,
-                        actionsLocked = actionsLocked,
-                        tavernRunning = tavernRunning,
-                        onRefresh = onRefresh,
-                        onDelete = onDelete,
-                        onShowHint = onShowHint,
-                        showSectionContainer = false,
-                    )
+                    dialogStateHolder.SaveableStateProvider("extension-management-dialog") {
+                        TavernExtensionManagementSection(
+                            state = state,
+                            instanceLabel = instanceLabel,
+                            actionsLocked = actionsLocked,
+                            tavernRunning = tavernRunning,
+                            onRefresh = onRefresh,
+                            onDelete = onDelete,
+                            onShowHint = onShowHint,
+                            showSectionContainer = false,
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -117,7 +121,7 @@ fun TavernExtensionManagementSection(
     var pendingDelete by remember(instanceLabel, state.rootDirectory) {
         mutableStateOf<TavernExtensionRecord?>(null)
     }
-    var searchQuery by remember(instanceLabel, state.rootDirectory) { mutableStateOf("") }
+    var searchQuery by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
     val normalizedQuery = searchQuery.trim()
     val visibleExtensions = if (normalizedQuery.isBlank()) {
         state.extensions
@@ -327,17 +331,7 @@ private fun TavernExtensionRow(
                     append(
                         when (val kilobytes = extension.directoryKilobytes) {
                             null -> "未知"
-                            in 0L until 1024L -> "${kilobytes}KB"
-                            in 1024L until 1024L * 1024L -> String.format(
-                                Locale.ROOT,
-                                "%.1fMB",
-                                kilobytes / 1024.0,
-                            )
-                            else -> String.format(
-                                Locale.ROOT,
-                                "%.1fGB",
-                                kilobytes / 1024.0 / 1024.0,
-                            )
+                            else -> formatStorageKilobytes(kilobytes)
                         },
                     )
                 },

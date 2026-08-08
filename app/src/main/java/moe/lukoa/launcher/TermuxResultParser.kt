@@ -10,7 +10,7 @@ object TermuxResultParser {
             ?: extras?.getBundle(EXTRA_RESULT)
             ?: extras?.keySet()
                 ?.asSequence()
-                ?.mapNotNull { key -> extras.get(key) as? Bundle }
+                ?.mapNotNull(extras::getBundle)
                 ?.firstOrNull { candidate ->
                     candidate.containsAnyKey(KEY_STDOUT_KEYS) ||
                         candidate.containsAnyKey(KEY_STDERR_KEYS) ||
@@ -48,7 +48,7 @@ object TermuxResultParser {
     }
 
     private fun Bundle.getAnyString(key: String): String? {
-        val value = get(key) ?: return null
+        val value = readSimpleValue(key) ?: return null
         return when (value) {
             is String -> value
             is CharSequence -> value.toString()
@@ -57,7 +57,7 @@ object TermuxResultParser {
     }
 
     private fun Bundle.getAnyInt(key: String): Int? {
-        val value = get(key) ?: return null
+        val value = readSimpleValue(key) ?: return null
         return when (value) {
             is Int -> value
             is Long -> value.toInt()
@@ -68,11 +68,17 @@ object TermuxResultParser {
 
     private fun Bundle.toValueMap(): Map<String, Any?> {
         return keySet().associateWith { key ->
-            when (val value = get(key)) {
+            when (val value = readSimpleValue(key)) {
                 is Bundle -> value.toValueMap()
                 else -> value
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun Bundle.readSimpleValue(key: String): Any? {
+        // Termux 返回的是字符串、数字和嵌套 Bundle 的联合结构；Bundle 没有覆盖这类联合值的类型安全读取 API。
+        return get(key)
     }
 
     private const val EXTRA_PLUGIN_RESULT_BUNDLE = "com.termux.service.extra.PLUGIN_RESULT_BUNDLE"

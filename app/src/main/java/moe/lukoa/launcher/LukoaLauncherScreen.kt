@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -103,8 +104,10 @@ fun LukoaLauncherScreen(
     onExportDiagnostic: (DiagnosticSnapshot, LauncherUpdate) -> Unit,
     onExportBackup: (LauncherUiState, LauncherUpdate) -> Unit,
     onExportVersionReport: (LauncherUpdate) -> Unit,
-    onPickExternalBackup: ((ExternalBackupImportResult) -> Unit) -> Unit,
-    onPickBackupExportDestination: (String, String, (BackupExportDestinationResult) -> Unit) -> Unit,
+    backupDocumentResult: BackupDocumentResult?,
+    onConsumeBackupDocumentResult: () -> Unit,
+    onPickExternalBackup: () -> Unit,
+    onPickBackupExportDestination: (String, String) -> Unit,
     onOpenBackupExportLocation: (String) -> Boolean,
     onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
@@ -249,7 +252,7 @@ fun LukoaLauncherScreen(
     var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
-    var selectedTab by remember { mutableStateOf(LauncherTab.Launch) }
+    var selectedTab by rememberSaveable { mutableStateOf(LauncherTab.Launch) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
     val viewConfiguration = LocalViewConfiguration.current
     val pagerAxisGuard = remember(viewConfiguration.touchSlop) {
@@ -315,7 +318,9 @@ fun LukoaLauncherScreen(
     )
     val pendingTaskNeedsRecovery = pendingTaskUiVisibility.showRecoveryUi
     val showBusyOperationPanel = pendingTaskUiVisibility.showBusyUi
-    val issueAnalysis = TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
+    val issueAnalysis = remember(termuxLog, tavernRuntimeLog, status) {
+        TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
+    }
     val scope = rememberCoroutineScope()
     val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
         RuntimeLogSessionGate(discardFirstSnapshot = discardInitialRuntimeLogSnapshot)
@@ -1518,6 +1523,12 @@ fun LukoaLauncherScreen(
         )
     }
 
+    LaunchedEffect(backupDocumentResult) {
+        val result = backupDocumentResult ?: return@LaunchedEffect
+        backupCoordinator.handleDocumentResult(result)
+        onConsumeBackupDocumentResult()
+    }
+
     fun runPendingTaskFollowUpRefresh(
         refreshTargets: PendingTaskRefreshTargets,
         startupDelayMs: Long = 0L,
@@ -2111,45 +2122,6 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun saveTavernMirrorConfig() = profileCoordinator.saveTavernMirrorConfig()
-
-    fun saveTavernDirectory() = profileCoordinator.saveTavernDirectory()
-
-    fun saveTavernPort() = profileCoordinator.saveTavernPort()
-
-    fun chooseDetectedTavernDirectory(path: String) = profileCoordinator.chooseDetectedTavernDirectory(path)
-
-    fun restoreDefaultTavernDirectory() = profileCoordinator.restoreDefaultTavernDirectory()
-
-    fun restoreDefaultTavernPort() = profileCoordinator.restoreDefaultTavernPort()
-
-    fun selectTavernProfile(profileId: String) = profileCoordinator.selectTavernProfile(profileId)
-
-    fun addTavernProfile() = profileCoordinator.addTavernProfile()
-
-    fun requestRemoveCurrentTavernProfile() = profileCoordinator.requestRemoveCurrentTavernProfile()
-
-    fun requestMigrateToManagedTavernPath() = profileCoordinator.requestMigrateToManagedTavernPath()
-
-    fun requestMigrateToTraditionalTavernPath() = profileCoordinator.requestMigrateToTraditionalTavernPath()
-
-    fun openCustomTavernPathMigrationDialog() = profileCoordinator.openCustomTavernPathMigrationDialog()
-
-    fun confirmCustomTavernPathMigrationDialog() = profileCoordinator.confirmCustomTavernPathMigrationDialog()
-
-    fun confirmMigrateCurrentTavernPath() = profileCoordinator.confirmMigrateCurrentTavernPath()
-
-    fun confirmRemoveCurrentTavernProfile() = profileCoordinator.confirmRemoveCurrentTavernProfile()
-
-    fun useOfficialTavernMirror() = profileCoordinator.useOfficialTavernMirror()
-
-    fun useGithubProxyTavernMirror() = profileCoordinator.useGithubProxyTavernMirror()
-
-    fun useNpmMirrorOnly() = profileCoordinator.useNpmMirrorOnly()
-
-    fun readTermuxPackageMirrorStatus() = profileCoordinator.readTermuxPackageMirrorStatus()
-
-    fun applyCustomTermuxPackageMirror() = profileCoordinator.applyCustomTermuxPackageMirror()
     fun restoreDefaultGithubRepository() {
         if (githubUpdateState.checking || githubUpdateState.downloading) {
             update("GitHub 更新处理中，结束后再恢复。", "", false, allowRunningInference = false)
@@ -3222,7 +3194,7 @@ fun LukoaLauncherScreen(
 
     LauncherDirectoryChoiceDialogHost(
         state = pathSettingsState,
-        onChoose = ::chooseDetectedTavernDirectory,
+        onChoose = profileCoordinator::chooseDetectedTavernDirectory,
     )
 
     if (showStopConfirmDialog) {
@@ -3325,9 +3297,9 @@ fun LukoaLauncherScreen(
     LauncherProfileMutationDialogHost(
         state = pathSettingsState,
         actionsLocked = actionInProgress,
-        onConfirmRemoval = ::confirmRemoveCurrentTavernProfile,
-        onConfirmMigration = ::confirmMigrateCurrentTavernPath,
-        onConfirmCustomMigration = ::confirmCustomTavernPathMigrationDialog,
+        onConfirmRemoval = profileCoordinator::confirmRemoveCurrentTavernProfile,
+        onConfirmMigration = profileCoordinator::confirmMigrateCurrentTavernPath,
+        onConfirmCustomMigration = profileCoordinator::confirmCustomTavernPathMigrationDialog,
     )
 
     if (showUpdateDialog) {
@@ -3644,24 +3616,24 @@ fun LukoaLauncherScreen(
                             onNpmRegistryInputChange = { npmRegistryInput = it },
                             onTavernPathInputChange = { tavernPathInput = it },
                             onTavernPortInputChange = { tavernPortInput = it },
-                            onSelectTavernProfile = ::selectTavernProfile,
-                            onAddTavernProfile = ::addTavernProfile,
-                            onRemoveCurrentTavernProfile = ::requestRemoveCurrentTavernProfile,
-                            onMigrateToManagedTavernPath = ::requestMigrateToManagedTavernPath,
-                            onMigrateToTraditionalTavernPath = ::requestMigrateToTraditionalTavernPath,
-                            onMigrateToCustomTavernPath = ::openCustomTavernPathMigrationDialog,
+                            onSelectTavernProfile = profileCoordinator::selectTavernProfile,
+                            onAddTavernProfile = profileCoordinator::addTavernProfile,
+                            onRemoveCurrentTavernProfile = profileCoordinator::requestRemoveCurrentTavernProfile,
+                            onMigrateToManagedTavernPath = profileCoordinator::requestMigrateToManagedTavernPath,
+                            onMigrateToTraditionalTavernPath = profileCoordinator::requestMigrateToTraditionalTavernPath,
+                            onMigrateToCustomTavernPath = profileCoordinator::openCustomTavernPathMigrationDialog,
                             onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
-                            onSaveTavernDirectory = ::saveTavernDirectory,
-                            onRestoreDefaultTavernDirectory = ::restoreDefaultTavernDirectory,
-                            onSaveTavernPort = ::saveTavernPort,
-                            onRestoreDefaultTavernPort = ::restoreDefaultTavernPort,
-                            onSaveTavernMirror = { saveTavernMirrorConfig() },
-                            onUseOfficialMirror = ::useOfficialTavernMirror,
-                            onUseGithubProxyMirror = ::useGithubProxyTavernMirror,
-                            onUseNpmMirror = ::useNpmMirrorOnly,
+                            onSaveTavernDirectory = profileCoordinator::saveTavernDirectory,
+                            onRestoreDefaultTavernDirectory = profileCoordinator::restoreDefaultTavernDirectory,
+                            onSaveTavernPort = profileCoordinator::saveTavernPort,
+                            onRestoreDefaultTavernPort = profileCoordinator::restoreDefaultTavernPort,
+                            onSaveTavernMirror = profileCoordinator::saveTavernMirrorConfig,
+                            onUseOfficialMirror = profileCoordinator::useOfficialTavernMirror,
+                            onUseGithubProxyMirror = profileCoordinator::useGithubProxyTavernMirror,
+                            onUseNpmMirror = profileCoordinator::useNpmMirrorOnly,
                             onCheckTavernMirror = profileCoordinator::checkTavernMirror,
-                            onReadTermuxRepoStatus = ::readTermuxPackageMirrorStatus,
-                            onApplyCustomTermuxMirror = ::applyCustomTermuxPackageMirror,
+                            onReadTermuxRepoStatus = profileCoordinator::readTermuxPackageMirrorStatus,
+                            onApplyCustomTermuxMirror = profileCoordinator::applyCustomTermuxPackageMirror,
                             onRequestBackgroundRunPermission = {
                                 val opened = onRequestBackgroundRunPermission()
                                 update(

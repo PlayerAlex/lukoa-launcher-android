@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -137,23 +138,28 @@ fun InfoIconButton(
     onClick: () -> Unit,
 ) {
     val feedbackClick = rememberFeedbackClick(onClick)
-    Surface(
+    Box(
         modifier = modifier
-            .size(24.dp)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .semantics { this.contentDescription = contentDescription }
             .clickable(onClick = feedbackClick),
-        color = LukoaColors.Elevated,
-        shape = LukoaCapsuleShape,
-        border = BorderStroke(1.dp, LukoaColors.Border),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = "!",
-                color = accentColor,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-            )
+        Surface(
+            modifier = Modifier.size(24.dp),
+            color = LukoaColors.Elevated,
+            shape = LukoaCapsuleShape,
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = "!",
+                    color = accentColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

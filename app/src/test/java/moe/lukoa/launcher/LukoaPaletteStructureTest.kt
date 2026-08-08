@@ -32,7 +32,7 @@ class LukoaPaletteStructureTest {
     }
 
     private fun findSourceRoot(): File {
-        var cursor = File(System.getProperty("user.dir")).absoluteFile
+        var cursor = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
         while (true) {
             val candidate = File(cursor, "app/src/main/java")
             if (candidate.isDirectory) return candidate

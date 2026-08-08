@@ -36,8 +36,8 @@ class LauncherBackupCoordinator(
     private val isTermuxStoragePermissionBlocked: () -> Boolean,
     private val setTermuxStoragePermissionBlocked: (Boolean) -> Unit,
     private val onCopyText: (String, String) -> Boolean,
-    private val onPickExternalBackup: ((ExternalBackupImportResult) -> Unit) -> Unit,
-    private val onPickBackupExportDestination: (String, String, (BackupExportDestinationResult) -> Unit) -> Unit,
+    private val onPickExternalBackup: () -> Unit,
+    private val onPickBackupExportDestination: (String, String) -> Unit,
 ) {
     private val appContext = context.applicationContext
     private val previewRequestCoordinator = BackupRestorePreviewRequestCoordinator()
@@ -347,9 +347,7 @@ class LauncherBackupCoordinator(
             return
         }
         statusUpdate("请选择导出位置，文件名会自动整理为 .tar.gz。", "", true)
-        onPickBackupExportDestination(normalized, normalized.substringAfterLast('/')) { result ->
-            statusUpdate(result.message, "", result.ok)
-        }
+        onPickBackupExportDestination(normalized, normalized.substringAfterLast('/'))
     }
 
     fun copyBackupLibraryPath(target: BackupLibraryPathTarget) {
@@ -427,26 +425,38 @@ class LauncherBackupCoordinator(
             statusUpdate("正在处理，完成后再导入备份。", "", false)
             return
         }
-        onPickExternalBackup { result ->
-            val importedPath = result.termuxReadablePath.trim()
-            if (result.ok && importedPath.isNotBlank()) {
-                persistBackupHistory(listOf(importedPath) + state.backupHistory)
-                runLocalBackupLibraryOperation("刷新酒馆备份列表") {
-                    val paths = readLocalBackupLibrary()
-                    val importedFileName = importedPath.replace('\\', '/').substringAfterLast('/')
-                    val mergedPaths = if (paths.any {
-                            it.replace('\\', '/').substringAfterLast('/') == importedFileName
-                        }
-                    ) {
-                        paths
-                    } else {
-                        BackupHistoryReducer.sanitize(listOf(importedPath) + paths)
-                    }
-                    mergedPaths to "${result.message}，备份库已刷新。"
-                }
-            } else {
+        onPickExternalBackup()
+    }
+
+    fun handleDocumentResult(documentResult: BackupDocumentResult) {
+        when (documentResult) {
+            is BackupDocumentResult.Export -> {
+                val result = documentResult.result
                 statusUpdate(result.message, "", result.ok)
             }
+            is BackupDocumentResult.Import -> handleExternalBackupImport(documentResult.result)
+        }
+    }
+
+    private fun handleExternalBackupImport(result: ExternalBackupImportResult) {
+        val importedPath = result.termuxReadablePath.trim()
+        if (!result.ok || importedPath.isBlank()) {
+            statusUpdate(result.message, "", result.ok)
+            return
+        }
+        persistBackupHistory(listOf(importedPath) + state.backupHistory)
+        runLocalBackupLibraryOperation("刷新酒馆备份列表") {
+            val paths = readLocalBackupLibrary()
+            val importedFileName = importedPath.replace('\\', '/').substringAfterLast('/')
+            val mergedPaths = if (paths.any {
+                    it.replace('\\', '/').substringAfterLast('/') == importedFileName
+                }
+            ) {
+                paths
+            } else {
+                BackupHistoryReducer.sanitize(listOf(importedPath) + paths)
+            }
+            mergedPaths to "${result.message}，备份库已刷新。"
         }
     }
 

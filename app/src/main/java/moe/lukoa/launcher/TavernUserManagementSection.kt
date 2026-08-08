@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -16,11 +19,93 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
+@Composable
+fun TavernUserManagementSettingsPanel(
+    state: TavernUserManagementState,
+    instanceLabel: String,
+    actionsLocked: Boolean,
+    tavernRunning: Boolean,
+    onRefresh: () -> Unit,
+    onCreate: (String, String) -> Unit,
+    onDelete: (String) -> Unit,
+    onShowHint: (String) -> Unit = {},
+) {
+    var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
+    val dialogStateHolder = rememberSaveableStateHolder()
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.Primary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("用户管理") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    dialogStateHolder.SaveableStateProvider("user-management-dialog") {
+                        TavernUserManagementSection(
+                            state = state,
+                            instanceLabel = instanceLabel,
+                            actionsLocked = actionsLocked,
+                            tavernRunning = tavernRunning,
+                            onRefresh = onRefresh,
+                            onCreate = onCreate,
+                            onDelete = onDelete,
+                            onShowHint = onShowHint,
+                            showSectionContainer = false,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                SecondaryActionButton(
+                    text = "关闭",
+                    enabled = true,
+                    accentColor = LukoaColors.Primary,
+                    onClick = { showDialog = false },
+                )
+            },
+            dismissButton = null,
+        )
+    }
+
+    SectionPanel(
+        title = "用户管理",
+        accentColor = LukoaColors.Primary,
+        headerAction = {
+            TavernUserManagementHeader(
+                state = state,
+                actionsLocked = actionsLocked,
+                tavernRunning = tavernRunning,
+            )
+        },
+    ) {
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "管理酒馆用户",
+                detail = "当前实例：$instanceLabel。进入后可读取、新增和删除酒馆登录账户。",
+                value = "打开",
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                highlightColor = LukoaColors.Primary,
+                onClick = { showDialog = true },
+            )
+        }
+    }
+}
 
 @Composable
 fun TavernUserManagementSection(
@@ -32,14 +117,16 @@ fun TavernUserManagementSection(
     onCreate: (String, String) -> Unit,
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
+    showSectionContainer: Boolean = true,
 ) {
-    var createDialog by remember { mutableStateOf(false) }
+    var createDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
     var deleteUser by remember { mutableStateOf<TavernUserRecord?>(null) }
     val userActionsUnavailableHint = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再试。"
         tavernRunning -> "酒馆正在运行，请先停止酒馆再管理用户。"
         else -> null
     }
+    val adminCount = state.users.count { it.admin }
     if (createDialog) {
         UserInputDialog("新增酒馆用户", "登录标识", "显示名称", onDismiss = { createDialog = false }) { handle, name ->
             createDialog = false
@@ -56,34 +143,7 @@ fun TavernUserManagementSection(
         )
     }
 
-    SectionPanel(
-        title = "用户管理",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = when {
-                        actionsLocked -> "当前忙碌"
-                        tavernRunning -> "运行中锁定"
-                        state.loading -> "读取中"
-                        state.users.isEmpty() -> "未读取"
-                        else -> "${state.users.size} 位用户"
-                    },
-                    active = actionsLocked || state.loading || state.users.isNotEmpty(),
-                    toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
-                    activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看用户管理说明",
-                    title = "用户管理",
-                    body = "这里管理的是当前这套酒馆里的登录账号，不是启动器的实例。\n“显示名称”是页面里看到的昵称；“登录标识”是登录时使用的英文短名，也是这个用户的数据文件夹名。\n为了避免用户文件被同时写入，读取、新增或删除前都要先停止酒馆。",
-                )
-            }
-        },
-    ) {
+    val content: @Composable () -> Unit = {
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
@@ -124,25 +184,81 @@ fun TavernUserManagementSection(
             )
         }
         if (state.users.isNotEmpty()) {
-            SettingsEntryGroup {
-                state.users.forEachIndexed { index, user ->
-                    TavernUserRow(
-                        user = user,
-                        deleteEnabled = !actionsLocked && !tavernRunning && user.handle != "default-user",
-                        deleteUnavailableHint = when {
-                            actionsLocked || tavernRunning -> userActionsUnavailableHint
-                            user.handle == "default-user" -> "默认用户不能删除。"
-                            else -> null
-                        },
-                        onShowHint = onShowHint,
-                        onDelete = { deleteUser = user },
-                    )
-                    if (index < state.users.lastIndex) {
-                        SettingsEntryDivider()
+            SettingsEntryGroup(
+                modifier = Modifier.heightIn(max = 360.dp),
+            ) {
+                LazyColumn {
+                    itemsIndexed(
+                        items = state.users,
+                        key = { _, user -> user.handle },
+                    ) { index, user ->
+                        val isLastAdmin = user.admin && adminCount <= 1
+                        TavernUserRow(
+                            user = user,
+                            deleteEnabled = !actionsLocked && !tavernRunning && user.handle != "default-user" && !isLastAdmin,
+                            deleteUnavailableHint = when {
+                                actionsLocked || tavernRunning -> userActionsUnavailableHint
+                                user.handle == "default-user" -> "默认用户不能删除。"
+                                isLastAdmin -> "最后一个管理员不能删除。"
+                                else -> null
+                            },
+                            onShowHint = onShowHint,
+                            onDelete = { deleteUser = user },
+                        )
+                        if (index < state.users.lastIndex) {
+                            SettingsEntryDivider()
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showSectionContainer) {
+        SectionPanel(
+            title = "用户管理",
+            accentColor = LukoaColors.Primary,
+            headerAction = {
+                TavernUserManagementHeader(
+                    state = state,
+                    actionsLocked = actionsLocked,
+                    tavernRunning = tavernRunning,
+                )
+            },
+            content = content,
+        )
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun TavernUserManagementHeader(
+    state: TavernUserManagementState,
+    actionsLocked: Boolean,
+    tavernRunning: Boolean,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusPill(
+            text = when {
+                actionsLocked -> "当前忙碌"
+                tavernRunning -> "运行中锁定"
+                state.loading -> "读取中"
+                state.users.isEmpty() -> "未读取"
+                else -> "${state.users.size} 位用户"
+            },
+            active = actionsLocked || state.loading || state.users.isNotEmpty(),
+            toneColor = if (actionsLocked || tavernRunning) LukoaColors.Accent else LukoaColors.Primary,
+            activeBackground = if (actionsLocked || tavernRunning) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+        )
+        InfoPopoverButton(
+            contentDescription = "查看用户管理说明",
+            title = "用户管理",
+            body = "这里管理的是当前这套酒馆里的登录账号，不是启动器的实例。\n“显示名称”是页面里看到的昵称；“登录标识”是登录时使用的英文短名，也是这个用户的数据文件夹名。\n为了避免用户文件被同时写入，读取、新增或删除前都要先停止酒馆。",
+        )
     }
 }
 
@@ -177,7 +293,7 @@ private fun TavernUserRow(
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                text = "目录：${if (user.directoryExists) formatUserDirectorySize(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}",
+                text = "目录：${if (user.directoryExists) formatStorageKilobytes(user.directoryKilobytes) else "缺失"} · ${if (user.enabled) "已启用" else "已禁用"}",
                 color = when {
                     !user.directoryExists -> LukoaColors.Accent
                     !user.enabled -> LukoaColors.Dim
@@ -206,8 +322,8 @@ private fun UserInputDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
-    var handle by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
+    var handle by rememberSaveable { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
     val handleError = TavernUserCommandCodec.validateHandle(handle.trim())
     val nameError = TavernUserCommandCodec.validateName(name.trim())
     AlertDialog(
@@ -227,10 +343,4 @@ private fun UserInputDialog(
         confirmButton = { Button(enabled = handleError == null && nameError == null, onClick = { onConfirm(handle.trim(), name.trim()) }) { Text("确认") } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } },
     )
-}
-
-private fun formatUserDirectorySize(kilobytes: Long): String = when {
-    kilobytes >= 1024 * 1024 -> "%.1fGB".format(kilobytes / 1024.0 / 1024.0)
-    kilobytes >= 1024 -> "%.1fMB".format(kilobytes / 1024.0)
-    else -> "${kilobytes}KB"
 }

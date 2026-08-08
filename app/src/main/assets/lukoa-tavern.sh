@@ -1354,9 +1354,118 @@ cmd_official_versions() {
   printf "==== end SillyTavern official versions ====\n"
 }
 
+apt_lock_holders() {
+  for lock_path in \
+    "$PREFIX_DIR/var/lib/dpkg/lock-frontend" \
+    "$PREFIX_DIR/var/lib/dpkg/lock" \
+    "$PREFIX_DIR/var/lib/apt/lists/lock" \
+    "$PREFIX_DIR/var/cache/apt/archives/lock"; do
+    [ -e "$lock_path" ] || continue
+    for fd_path in /proc/[0-9]*/fd/*; do
+      target="$(readlink "$fd_path" 2>/dev/null || true)"
+      [ "$target" = "$lock_path" ] || continue
+      pid="${fd_path#/proc/}"
+      pid="${pid%%/*}"
+      [ -n "$pid" ] && printf "%s\n" "$pid"
+    done
+  done | sort -u
+}
+
+wait_for_apt_locks() {
+  deadline="$(( $(date +%s 2>/dev/null || printf 0) + 90 ))"
+  while :; do
+    holders="$(apt_lock_holders | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+    if [ -z "$holders" ]; then
+      return 0
+    fi
+    now="$(date +%s 2>/dev/null || printf 0)"
+    if [ "$now" -ge "$deadline" ]; then
+      printf "aptLockHeld=1\n"
+      printf "aptLockPids=%s\n" "$holders"
+      printf "aptLockReason=Termux package manager is busy\n"
+      printf "aptLockAction=Open Termux and wait for the current install or upgrade to finish, then try again\n"
+      return 75
+    fi
+    printf "waitingForAptLockPids=%s\n" "$holders"
+    sleep 2
+  done
+}
+
+apt_config_option() {
+  case "${LUKOA_APT_CONFIG_POLICY:-keep}" in
+    replace|new|confnew) printf "%s" "--force-confnew" ;;
+    *) printf "%s" "--force-confold" ;;
+  esac
+}
+
+run_logged() {
+  rc_file="$RUNTIME_STATE_DIR/run-exit-$$"
+  rm -f "$rc_file" 2>/dev/null || true
+  (
+    "$@"
+    printf "%s" "$?" > "$rc_file"
+  ) 2>&1 | tee -a "$LOG_FILE"
+  code="$(cat "$rc_file" 2>/dev/null || printf 1)"
+  rm -f "$rc_file" 2>/dev/null || true
+  case "$code" in ''|*[!0-9]*) code=1 ;; esac
+  return "$code"
+}
+
+run_apt_update() {
+  wait_for_apt_locks || return "$?"
+  if command -v apt-get >/dev/null 2>&1; then
+    run_logged apt-get update
+  else
+    run_logged apt update
+  fi
+}
+
+run_apt_install() {
+  wait_for_apt_locks || return "$?"
+  conf_option="$(apt_config_option)"
+  if command -v apt-get >/dev/null 2>&1; then
+    run_logged apt-get install -y \
+      -o Dpkg::Options::=--force-confdef \
+      -o Dpkg::Options::="$conf_option" \
+      "$@"
+  else
+    run_logged apt install -y \
+      -o Dpkg::Options::=--force-confdef \
+      -o Dpkg::Options::="$conf_option" \
+      "$@"
+  fi
+}
+
+run_dpkg_configure() {
+  wait_for_apt_locks || return "$?"
+  if command -v dpkg >/dev/null 2>&1; then
+    run_logged dpkg --force-confdef --force-confold --configure -a
+  else
+    return 69
+  fi
+}
+
+run_apt_fix_broken() {
+  wait_for_apt_locks || return "$?"
+  conf_option="$(apt_config_option)"
+  if command -v apt-get >/dev/null 2>&1; then
+    run_logged apt-get -y \
+      -o Dpkg::Options::=--force-confdef \
+      -o Dpkg::Options::="$conf_option" \
+      -f install
+  else
+    run_logged apt -y \
+      -o Dpkg::Options::=--force-confdef \
+      -o Dpkg::Options::="$conf_option" \
+      --fix-broken install
+  fi
+}
+
 cmd_install() {
   write_command "install"
   target="${1:-release}"
+  OFFICIAL_REPO="${2:-$OFFICIAL_REPO}"
+  LUKOA_APT_CONFIG_POLICY="${3:-keep}"
   if ! valid_version_target "$target"; then
     write_status "error" "Invalid SillyTavern install target" false 64
     emit_status
@@ -1375,14 +1484,33 @@ cmd_install() {
   command -v curl >/dev/null 2>&1 || need="$need curl"
   if [ -n "$need" ]; then
     printf "step=pkg install%s\n" "$need"
-    if command -v pkg >/dev/null 2>&1; then
-      pkg install -y $need
+    run_apt_update
+    dependency_code="$?"
+    printf "installDependencyAptUpdateExitCode=%s\n" "$dependency_code"
+    if [ "$dependency_code" -eq 0 ]; then
+      run_apt_install $need
       dependency_code="$?"
-    elif command -v apt >/dev/null 2>&1; then
-      apt update && apt install -y $need
-      dependency_code="$?"
-    else
-      dependency_code=69
+      if [ "$dependency_code" -eq 100 ]; then
+        printf "step=dpkg configure recovery before tavern install\n"
+        run_dpkg_configure
+        configure_code="$?"
+        printf "installDependencyDpkgConfigureExitCode=%s\n" "$configure_code"
+        if [ "$configure_code" -eq 0 ]; then
+          printf "step=apt fix-broken install before tavern install\n"
+          run_apt_fix_broken
+          fix_code="$?"
+          printf "installDependencyFixBrokenExitCode=%s\n" "$fix_code"
+          if [ "$fix_code" -eq 0 ]; then
+            run_apt_install $need
+            dependency_code="$?"
+            printf "installDependencyRetryExitCode=%s\n" "$dependency_code"
+          else
+            dependency_code="$fix_code"
+          fi
+        else
+          dependency_code="$configure_code"
+        fi
+      fi
     fi
     printf "installDependencyExitCode=%s\n" "$dependency_code"
     if [ "$dependency_code" -ne 0 ]; then
@@ -1454,6 +1582,7 @@ cmd_install() {
 cmd_update() {
   write_command "update"
   requested_target="${1:-}"
+  OFFICIAL_REPO="${2:-$OFFICIAL_REPO}"
   ensure_tavern_mutation_ready "updating source files"
   preflight_code="$?"
   if [ "$preflight_code" -ne 0 ]; then
@@ -1481,7 +1610,7 @@ cmd_update() {
     return "$code"
   fi
   printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "$(timestamp)" >> "$LOG_FILE"
-  printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
+  printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
@@ -1549,6 +1678,7 @@ cmd_update() {
   printf "\n==== SillyTavern update ====\n"
   printf "directory=%s\n" "$TAVERN_DIR"
   printf "target=%s\n" "$requested_target"
+  printf "repo=%s\n" "$OFFICIAL_REPO"
   printf "before=%s\n" "$before"
   printf "after=%s\n" "$after"
   printf "exitCode=%s\n" "$code"
@@ -1569,6 +1699,7 @@ cmd_update() {
 cmd_rollback() {
   write_command "rollback"
   requested_target="${1:-}"
+  OFFICIAL_REPO="${2:-$OFFICIAL_REPO}"
   ensure_tavern_mutation_ready "rolling back source files"
   preflight_code="$?"
   if [ "$preflight_code" -ne 0 ]; then
@@ -1596,7 +1727,7 @@ cmd_rollback() {
     return "$code"
   fi
   printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "$(timestamp)" >> "$LOG_FILE"
-  printf "[%s] before=%s target=%s\n" "$(timestamp)" "$before_full" "$requested_target" >> "$LOG_FILE"
+  printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
   git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
   fetch_code="$?"
@@ -1648,6 +1779,7 @@ cmd_rollback() {
   printf "\n==== SillyTavern rollback ====\n"
   printf "directory=%s\n" "$TAVERN_DIR"
   printf "target=%s\n" "$requested_target"
+  printf "repo=%s\n" "$OFFICIAL_REPO"
   printf "before=%s\n" "$before"
   printf "after=%s\n" "$after"
   printf "exitCode=%s\n" "$code"

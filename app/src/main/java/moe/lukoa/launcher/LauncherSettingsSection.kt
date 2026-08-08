@@ -16,11 +16,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+
+private enum class SettingsDialogDestination {
+    ProfileManagement,
+    Directory,
+    Port,
+    PermissionCenter,
+    Repository,
+    UpdateChannel,
+    WakeDelay,
+    Mirror,
+    HealthCheck,
+}
 
 @Composable
 fun SettingsSection(
@@ -125,17 +138,9 @@ fun SettingsSection(
         termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
     )
     val activePathInfo = TavernProfilePathPolicy.describe(tavernPathConfig.activeProfile)
-    var showProfileManagementDialog by remember { mutableStateOf(false) }
-    var showDirectorySettingsDialog by remember { mutableStateOf(false) }
-    var showPortSettingsDialog by remember { mutableStateOf(false) }
-    var showPermissionCenterDialog by remember { mutableStateOf(false) }
-    var showRepositorySettingsDialog by remember { mutableStateOf(false) }
-    var showUpdateChannelDialog by remember { mutableStateOf(false) }
-    var showWakeDelayDialog by remember { mutableStateOf(false) }
-    var showMirrorSettingsDialog by remember { mutableStateOf(false) }
-    var showHealthDialog by remember { mutableStateOf(false) }
+    var activeDialog by rememberSaveable { mutableStateOf<SettingsDialogDestination?>(null) }
 
-    if (showProfileManagementDialog) {
+    if (activeDialog == SettingsDialogDestination.ProfileManagement) {
         key(
             tavernPathConfig.activeProfile.id,
             tavernPathConfig.availableProfiles.size,
@@ -146,16 +151,15 @@ fun SettingsSection(
                 actionsLocked = actionsLocked,
                 onSelectProfile = { profileId ->
                     onSelectTavernProfile(profileId)
-                    showProfileManagementDialog = true
                 },
                 onAddProfile = onAddTavernProfile,
                 onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
-                onDismiss = { showProfileManagementDialog = false },
+                onDismiss = { activeDialog = null },
             )
         }
     }
 
-    if (showDirectorySettingsDialog) {
+    if (activeDialog == SettingsDialogDestination.Directory) {
         key(
             tavernPathConfig.activeProfile.id,
             activePathInfo.currentPath,
@@ -175,16 +179,16 @@ fun SettingsSection(
                 onMigrateToCustomPath = onMigrateToCustomTavernPath,
                 onSave = {
                     if (onSaveTavernDirectory()) {
-                        showDirectorySettingsDialog = false
+                        activeDialog = null
                     }
                 },
                 onRestoreDefault = onRestoreDefaultTavernDirectory,
-                onDismiss = { showDirectorySettingsDialog = false },
+                onDismiss = { activeDialog = null },
             )
         }
     }
 
-    if (showPortSettingsDialog) {
+    if (activeDialog == SettingsDialogDestination.Port) {
         key(
             tavernPathConfig.activeProfile.id,
             tavernPathConfig.activeProfile.normalizedPort,
@@ -197,16 +201,16 @@ fun SettingsSection(
                 onPortChange = onTavernPortInputChange,
                 onSave = {
                     if (onSaveTavernPort()) {
-                        showPortSettingsDialog = false
+                        activeDialog = null
                     }
                 },
                 onRestoreDefault = onRestoreDefaultTavernPort,
-                onDismiss = { showPortSettingsDialog = false },
+                onDismiss = { activeDialog = null },
             )
         }
     }
 
-    if (showPermissionCenterDialog) {
+    if (activeDialog == SettingsDialogDestination.PermissionCenter) {
         PermissionCenterDialog(
             termuxInstalled = termuxInstalled,
             runCommandPermissionGranted = runCommandPermissionGranted,
@@ -225,40 +229,40 @@ fun SettingsSection(
             onOpenAllFilesAccessSettings = onOpenAllFilesAccessSettings,
             onOpenUnknownAppSourcesSettings = onOpenUnknownAppSourcesSettings,
             onShowTermuxStoragePermissionGuide = onShowTermuxStoragePermissionGuide,
-            onDismiss = { showPermissionCenterDialog = false },
+            onDismiss = { activeDialog = null },
         )
     }
 
-    if (showRepositorySettingsDialog) {
+    if (activeDialog == SettingsDialogDestination.Repository) {
         LauncherRepositorySettingsDialog(
             repositoryInput = repositoryInput,
             githubUpdateState = githubUpdateState,
             onRepositoryInputChange = onRepositoryInputChange,
             onSaveRepository = onSaveRepository,
             onRestoreDefaultRepository = onRestoreDefaultRepository,
-            onDismiss = { showRepositorySettingsDialog = false },
+            onDismiss = { activeDialog = null },
         )
     }
 
-    if (showUpdateChannelDialog) {
+    if (activeDialog == SettingsDialogDestination.UpdateChannel) {
         LauncherUpdateChannelDialog(
             githubUpdateState = githubUpdateState,
             onSaveUpdateChannel = onSaveUpdateChannel,
-            onDismiss = { showUpdateChannelDialog = false },
+            onDismiss = { activeDialog = null },
         )
     }
 
-    if (showWakeDelayDialog) {
+    if (activeDialog == SettingsDialogDestination.WakeDelay) {
         TermuxWakeDelayDialog(
             termuxReturnDelayMs = termuxReturnDelayMs,
             actionsLocked = actionsLocked,
             onDecrease = onDecreaseTermuxReturnDelay,
             onIncrease = onIncreaseTermuxReturnDelay,
-            onDismiss = { showWakeDelayDialog = false },
+            onDismiss = { activeDialog = null },
         )
     }
 
-    if (showMirrorSettingsDialog) {
+    if (activeDialog == SettingsDialogDestination.Mirror) {
         MirrorSettingsDialog(
             tavernMirrorConfig = tavernMirrorConfig,
             tavernRepoInput = tavernRepoInput,
@@ -277,13 +281,13 @@ fun SettingsSection(
             onCheckTavernMirror = onCheckTavernMirror,
             onReadTermuxRepoStatus = onReadTermuxRepoStatus,
             onApplyCustomTermuxMirror = onApplyCustomTermuxMirror,
-            onDismiss = { showMirrorSettingsDialog = false },
+            onDismiss = { activeDialog = null },
         )
     }
 
-    if (showHealthDialog) {
+    if (activeDialog == SettingsDialogDestination.HealthCheck) {
         AlertDialog(
-            onDismissRequest = { showHealthDialog = false },
+            onDismissRequest = { activeDialog = null },
             containerColor = LukoaColors.Elevated,
             titleContentColor = LukoaColors.Primary,
             textContentColor = LukoaColors.TextPrimary,
@@ -310,7 +314,7 @@ fun SettingsSection(
                     text = "关闭",
                     enabled = true,
                     accentColor = LukoaColors.Primary,
-                    onClick = { showHealthDialog = false },
+                    onClick = { activeDialog = null },
                 )
             },
             dismissButton = null,
@@ -323,14 +327,14 @@ fun SettingsSection(
             tavernPathConfig = tavernPathConfig,
             mirrorProbeStatus = mirrorProbeStatus,
             permissionNotice = permissionNotice,
-            onOpenProfileManagement = { showProfileManagementDialog = true },
-            onOpenDirectorySettings = { showDirectorySettingsDialog = true },
-            onOpenPortSettings = { showPortSettingsDialog = true },
-            onOpenMirrorSettings = { showMirrorSettingsDialog = true },
-            onOpenWakeDelaySettings = { showWakeDelayDialog = true },
-            onOpenPermissionCenter = { showPermissionCenterDialog = true },
+            onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
+            onOpenDirectorySettings = { activeDialog = SettingsDialogDestination.Directory },
+            onOpenPortSettings = { activeDialog = SettingsDialogDestination.Port },
+            onOpenMirrorSettings = { activeDialog = SettingsDialogDestination.Mirror },
+            onOpenWakeDelaySettings = { activeDialog = SettingsDialogDestination.WakeDelay },
+            onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
         )
-        TavernUserManagementSection(
+        TavernUserManagementSettingsPanel(
             state = tavernUserState,
             instanceLabel = tavernPathConfig.activeProfileLabel,
             actionsLocked = actionsLocked,
@@ -370,7 +374,7 @@ fun SettingsSection(
                     value = settingsHealthSummaryText(healthCheckReport),
                     valueColor = settingsHealthSummaryTone(healthCheckReport),
                     valueAsPill = true,
-                    onClick = { showHealthDialog = true },
+                    onClick = { activeDialog = SettingsDialogDestination.HealthCheck },
                 )
             },
         )
@@ -386,8 +390,8 @@ fun SettingsSection(
             currentLauncherVersion = currentLauncherVersion,
             repositoryInput = repositoryInput,
             githubUpdateState = githubUpdateState,
-            onOpenRepositorySettings = { showRepositorySettingsDialog = true },
-            onOpenUpdateChannelSettings = { showUpdateChannelDialog = true },
+            onOpenRepositorySettings = { activeDialog = SettingsDialogDestination.Repository },
+            onOpenUpdateChannelSettings = { activeDialog = SettingsDialogDestination.UpdateChannel },
             onCheckUpdate = onCheckUpdate,
             onInstallUpdate = onInstallUpdate,
             onOpenRelease = onOpenRelease,

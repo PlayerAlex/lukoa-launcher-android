@@ -13,6 +13,9 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -35,27 +38,35 @@ class MainActivity : ComponentActivity() {
     private var lastTermuxWakeAt = 0L
     private var lastResumeTermuxWakeAt = 0L
     private var hasCompletedInitialResume = false
-    private var pendingBackupImportCallback: ((ExternalBackupImportResult) -> Unit)? = null
-    private var pendingBackupExportRequest: PendingBackupExportRequest? = null
+    private var backupDocumentFlowState = BackupDocumentFlowState()
+    private var backupDocumentResult by mutableStateOf<BackupDocumentResult?>(null)
+    private var backupDocumentOperationInProgress = false
     private val backupFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val callback = pendingBackupImportCallback ?: return@registerForActivityResult
-        pendingBackupImportCallback = null
         if (uri == null) {
-            callback(ExternalBackupImportResult(ok = false, message = "已取消选择外部备份。"))
+            backupDocumentFlowState = backupDocumentFlowState.copy(
+                importPending = false,
+                importUri = "",
+            )
+            backupDocumentResult = BackupDocumentResult.Import(
+                ExternalBackupImportResult(ok = false, message = "已取消选择外部备份。"),
+            )
             return@registerForActivityResult
         }
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                ExternalBackupImporter.copyToBackupLibrary(applicationContext, uri)
-            }
-            callback(result)
-        }
+        persistReadPermission(uri)
+        backupDocumentFlowState = backupDocumentFlowState.copy(
+            importPending = true,
+            importUri = uri.toString(),
+        )
+        resumePendingBackupDocumentOperation()
     }
     private val backupExportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        val request = pendingBackupExportRequest ?: return@registerForActivityResult
-        pendingBackupExportRequest = null
         if (uri == null) {
-            request.callback(
+            backupDocumentFlowState = backupDocumentFlowState.copy(
+                exportSourcePath = "",
+                exportFileName = "",
+                exportUri = "",
+            )
+            backupDocumentResult = BackupDocumentResult.Export(
                 BackupExportDestinationResult(
                     ok = false,
                     message = "已取消导出备份。",
@@ -63,21 +74,18 @@ class MainActivity : ComponentActivity() {
             )
             return@registerForActivityResult
         }
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                BackupExportDestinationResolver.prepareDestination(
-                    context = applicationContext,
-                    uri = uri,
-                    sourcePath = request.sourcePath,
-                )
-            }
-            request.callback(result)
-        }
+        persistWritePermission(uri)
+        backupDocumentFlowState = backupDocumentFlowState.copy(exportUri = uri.toString())
+        resumePendingBackupDocumentOperation()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hideStatusBar()
+
+        backupDocumentFlowState = BackupDocumentFlowStateCodec.decode { key ->
+            savedInstanceState?.getString(key)
+        }
 
         runner = TermuxCommandRunner(applicationContext)
         controller = TavernController(applicationContext, runner)
@@ -220,6 +228,8 @@ class MainActivity : ComponentActivity() {
                     onExportVersionReport = { update ->
                         controller.exportVersionReport(update)
                     },
+                    backupDocumentResult = backupDocumentResult,
+                    onConsumeBackupDocumentResult = { backupDocumentResult = null },
                     onPickExternalBackup = ::pickExternalBackup,
                     onPickBackupExportDestination = ::pickBackupExportDestination,
                     onOpenBackupExportLocation = ::openBackupExportLocation,
@@ -271,6 +281,14 @@ class MainActivity : ComponentActivity() {
         if (shouldRunStartupRefresh && isTermuxInstalled) {
             scheduleAutoWakeTermux(initialState.termuxReturnDelayMs)
         }
+        resumePendingBackupDocumentOperation()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        BackupDocumentFlowStateCodec.encode(backupDocumentFlowState).forEach { (key, value) ->
+            outState.putString(key, value)
+        }
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -410,30 +428,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun pickExternalBackup(callback: (ExternalBackupImportResult) -> Unit) {
-        if (pendingBackupImportCallback != null) {
-            callback(ExternalBackupImportResult(ok = false, message = "已经打开了一个备份选择器，请先完成当前选择。"))
+    private fun pickExternalBackup() {
+        if (backupDocumentFlowState.importPending || backupDocumentFlowState.exportPending) {
+            backupDocumentResult = BackupDocumentResult.Import(
+                ExternalBackupImportResult(ok = false, message = "已经打开了一个备份选择器，请先完成当前选择。"),
+            )
             return
         }
-        pendingBackupImportCallback = callback
+        backupDocumentFlowState = backupDocumentFlowState.copy(importPending = true)
         try {
             backupFilePicker.launch(arrayOf("application/gzip", "application/x-gzip", "application/octet-stream", "*/*"))
         } catch (error: Exception) {
-            pendingBackupImportCallback = null
-            callback(ExternalBackupImportResult(ok = false, message = "打开文件选择器失败：${error.message ?: error.javaClass.simpleName}"))
+            backupDocumentFlowState = backupDocumentFlowState.copy(importPending = false, importUri = "")
+            backupDocumentResult = BackupDocumentResult.Import(
+                ExternalBackupImportResult(
+                    ok = false,
+                    message = "打开文件选择器失败：${error.message ?: error.javaClass.simpleName}",
+                ),
+            )
         }
     }
 
     private fun pickBackupExportDestination(
         sourcePath: String,
         defaultFileName: String,
-        callback: (BackupExportDestinationResult) -> Unit,
     ) {
-        if (!ensureBackupSourceReadableForExport(sourcePath, callback)) {
+        ensureBackupSourceReadableForExport(sourcePath)?.let { error ->
+            backupDocumentResult = BackupDocumentResult.Export(error)
             return
         }
-        if (pendingBackupExportRequest != null) {
-            callback(
+        if (backupDocumentFlowState.importPending || backupDocumentFlowState.exportPending) {
+            backupDocumentResult = BackupDocumentResult.Export(
                 BackupExportDestinationResult(
                     ok = false,
                     message = "已经打开了导出位置选择器，请先完成当前选择。",
@@ -442,12 +467,20 @@ class MainActivity : ComponentActivity() {
             return
         }
         val safeFileName = BackupExportDestinationResolver.defaultFileName(defaultFileName)
-        pendingBackupExportRequest = PendingBackupExportRequest(sourcePath.trim(), callback)
+        backupDocumentFlowState = backupDocumentFlowState.copy(
+            exportSourcePath = sourcePath.trim(),
+            exportFileName = safeFileName,
+            exportUri = "",
+        )
         try {
             backupExportPicker.launch(safeFileName)
         } catch (error: Exception) {
-            pendingBackupExportRequest = null
-            callback(
+            backupDocumentFlowState = backupDocumentFlowState.copy(
+                exportSourcePath = "",
+                exportFileName = "",
+                exportUri = "",
+            )
+            backupDocumentResult = BackupDocumentResult.Export(
                 BackupExportDestinationResult(
                     ok = false,
                     message = "打开文件管理器失败：${error.message ?: error.javaClass.simpleName}",
@@ -458,32 +491,84 @@ class MainActivity : ComponentActivity() {
 
     private fun ensureBackupSourceReadableForExport(
         sourcePath: String,
-        callback: (BackupExportDestinationResult) -> Unit,
-    ): Boolean {
+    ): BackupExportDestinationResult? {
         if (BackupLibraryFiles.canReadLibrarySource(applicationContext, sourcePath)) {
-            return true
+            return null
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
             val opened = openAllFilesAccessSettings()
-            callback(
-                BackupExportDestinationResult(
-                    ok = false,
-                    message = if (opened) {
-                        "需要先允许“管理所有文件”。授权后回来再点导出。"
-                    } else {
-                        "导出需要文件管理权限。请在系统设置里允许本应用管理所有文件。"
-                    },
-                ),
-            )
-            return false
-        }
-        callback(
-            BackupExportDestinationResult(
+            return BackupExportDestinationResult(
                 ok = false,
-                message = "读不到备份源文件。请确认备份还在 Download/LukoaLauncher/backups/sd 或 zd。",
-            ),
+                message = if (opened) {
+                    "需要先允许“管理所有文件”。授权后回来再点导出。"
+                } else {
+                    "导出需要文件管理权限。请在系统设置里允许本应用管理所有文件。"
+                },
+            )
+        }
+        return BackupExportDestinationResult(
+            ok = false,
+            message = "读不到备份源文件。请确认备份还在 Download/LukoaLauncher/backups/sd 或 zd。",
         )
-        return false
+    }
+
+    private fun resumePendingBackupDocumentOperation() {
+        if (backupDocumentOperationInProgress) return
+        val importUri = backupDocumentFlowState.importUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
+        val exportUri = backupDocumentFlowState.exportUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
+        when {
+            backupDocumentFlowState.importPending && importUri != null -> {
+                backupDocumentOperationInProgress = true
+                lifecycleScope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        ExternalBackupImporter.copyToBackupLibrary(applicationContext, importUri)
+                    }
+                    backupDocumentFlowState = backupDocumentFlowState.copy(
+                        importPending = false,
+                        importUri = "",
+                    )
+                    backupDocumentOperationInProgress = false
+                    backupDocumentResult = BackupDocumentResult.Import(result)
+                    resumePendingBackupDocumentOperation()
+                }
+            }
+            backupDocumentFlowState.exportPending && exportUri != null -> {
+                backupDocumentOperationInProgress = true
+                val sourcePath = backupDocumentFlowState.exportSourcePath
+                lifecycleScope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        BackupExportDestinationResolver.prepareDestination(
+                            context = applicationContext,
+                            uri = exportUri,
+                            sourcePath = sourcePath,
+                        )
+                    }
+                    backupDocumentFlowState = backupDocumentFlowState.copy(
+                        exportSourcePath = "",
+                        exportFileName = "",
+                        exportUri = "",
+                    )
+                    backupDocumentOperationInProgress = false
+                    backupDocumentResult = BackupDocumentResult.Export(result)
+                    resumePendingBackupDocumentOperation()
+                }
+            }
+        }
+    }
+
+    private fun persistReadPermission(uri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    private fun persistWritePermission(uri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
     }
 
     private fun openAllFilesAccessSettings(): Boolean {
@@ -677,9 +762,3 @@ class MainActivity : ComponentActivity() {
         const val TERMUX_WAKE_GUARD_MS = 4_000L
     }
 }
-
-
-private data class PendingBackupExportRequest(
-    val sourcePath: String,
-    val callback: (BackupExportDestinationResult) -> Unit,
-)

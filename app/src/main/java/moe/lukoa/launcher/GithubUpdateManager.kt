@@ -2,6 +2,8 @@ package moe.lukoa.launcher
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -13,8 +15,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import java.security.MessageDigest
 import java.util.Locale
 
 data class GithubUpdateInfo(
@@ -64,6 +65,8 @@ data class GithubUpdateUiState(
 }
 
 class GithubUpdateManager(private val context: Context) {
+    private val httpClient = LukoaHttpClient(context)
+
     fun checkLatest(
         scope: CoroutineScope,
         repository: String,
@@ -182,7 +185,10 @@ class GithubUpdateManager(private val context: Context) {
     }
 
     private fun loadReleases(repository: String): List<JSONObject> {
-        val releasesText = httpGetText("https://api.github.com/repos/$repository/releases?per_page=30")
+        val releasesText = httpClient.getText(
+            url = "https://api.github.com/repos/$repository/releases?per_page=30",
+            accept = GITHUB_ACCEPT,
+        )
         val releases = JSONArray(releasesText)
         return buildList {
             for (index in 0 until releases.length()) {
@@ -283,47 +289,30 @@ class GithubUpdateManager(private val context: Context) {
         }
 
         return try {
-            val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
-            val safeBaseName = sanitizeFileName(
+            val updatesDir = File(context.cacheDir, "updates")
+            val safeFileName = sanitizeFileName(
                 updateInfo.apkName.ifBlank { "lukoa-launcher-${updateInfo.versionName}.apk" },
-            ).removeSuffix(".apk")
-            val file = ExportFileNamer.nextAvailableFile(updatesDir, safeBaseName, "apk")
-            downloadToFile(updateInfo.apkDownloadUrl, file)
-
-            if (file.length() < MIN_APK_SIZE_BYTES) {
-                file.delete()
-                return DownloadedApk(false, "下载的 APK 不完整。", null)
-            }
-
-            val archiveInfo = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
-            if (archiveInfo == null) {
-                file.delete()
-                return DownloadedApk(false, "下载完成，但不是 APK。", null)
-            }
-            if (archiveInfo.packageName != context.packageName) {
-                file.delete()
-                return DownloadedApk(
-                    false,
-                    "下载的 APK 不是露科亚启动器，已拦截。",
-                    null,
-                )
-            }
-
-            val currentInfo = VersionBackupManager.versionInfo(context)
-            val archiveCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                archiveInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                archiveInfo.versionCode.toLong()
-            }
-            if (archiveCode <= currentInfo.versionCode) {
-                file.delete()
-                return DownloadedApk(
-                    false,
-                    "下载的 APK 不是新版本。",
-                    null,
-                )
-            }
+            ).let { if (it.endsWith(".apk", ignoreCase = true)) it else "$it.apk" }
+            val currentIdentity = currentLauncherIdentity()
+            val file = LauncherUpdateFileTransaction.download(
+                directory = updatesDir,
+                finalFileName = safeFileName,
+                download = { temporaryFile ->
+                    httpClient.downloadToFile(
+                        url = updateInfo.apkDownloadUrl,
+                        file = temporaryFile,
+                        accept = GITHUB_ACCEPT,
+                    )
+                },
+                validate = { temporaryFile ->
+                    if (temporaryFile.length() < MIN_APK_SIZE_BYTES) {
+                        error("下载的 APK 不完整。")
+                    }
+                    val downloadedIdentity = archiveIdentity(temporaryFile)
+                        ?: error("下载完成，但不是 APK。")
+                    LauncherApkValidationPolicy.validate(currentIdentity, downloadedIdentity)?.let(::error)
+                },
+            )
 
             DownloadedApk(true, "新版 APK 已下载：${file.name}", file)
         } catch (error: Exception) {
@@ -367,64 +356,56 @@ class GithubUpdateManager(private val context: Context) {
         }
     }
 
-    private fun httpGetText(url: String): String {
-        val connection = openConnection(url)
-        return connection.use {
-            val code = it.responseCode
-            val stream = if (code in 200..299) it.inputStream else it.errorStream
-            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { reader -> reader.readText() }.orEmpty()
-            if (code !in 200..299) {
-                throw IllegalStateException("GitHub 返回 HTTP $code：${body.take(120)}")
-            }
-            body
+    @Suppress("DEPRECATION")
+    private fun currentLauncherIdentity(): LauncherApkIdentity {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
         }
+        val info = context.packageManager.getPackageInfo(context.packageName, flags)
+        return packageIdentity(info)
     }
 
-    private fun downloadToFile(url: String, file: File) {
-        val connection = openConnection(url)
-        connection.use {
-            val code = it.responseCode
-            if (code !in 200..299) {
-                val body = it.errorStream?.bufferedReader(Charsets.UTF_8)?.use { reader -> reader.readText() }.orEmpty()
-                throw IllegalStateException("下载返回 HTTP $code：${body.take(120)}")
-            }
-            it.inputStream.use { input ->
-                file.outputStream().use { output ->
-                    input.copyTo(output)
+    @Suppress("DEPRECATION")
+    private fun archiveIdentity(file: File): LauncherApkIdentity? {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags) ?: return null
+        return packageIdentity(info)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun packageIdentity(info: PackageInfo): LauncherApkIdentity {
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            info.versionCode.toLong()
+        }
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.signingInfo?.let { signingInfo ->
+                if (signingInfo.hasMultipleSigners()) {
+                    signingInfo.apkContentsSigners
+                } else {
+                    signingInfo.signingCertificateHistory
                 }
             }
+        } else {
+            info.signatures
+        }.orEmpty()
+        val digests = signatures.mapTo(linkedSetOf()) { signature ->
+            MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+                .joinToString("") { byte -> "%02x".format(byte) }
         }
-    }
-
-    private fun openConnection(url: String, redirectCount: Int = 0): HttpURLConnection {
-        if (redirectCount > MAX_REDIRECTS) {
-            throw IllegalStateException("重定向次数过多。")
-        }
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 12_000
-            readTimeout = 30_000
-            instanceFollowRedirects = false
-            setRequestProperty("Accept", "application/vnd.github+json, application/octet-stream")
-            setRequestProperty("Cache-Control", "no-cache")
-            setRequestProperty("Pragma", "no-cache")
-            setRequestProperty("User-Agent", "LukoaLauncher/${VersionBackupManager.versionInfo(context).versionName}")
-        }
-        val code = connection.responseCode
-        if (code in listOf(
-                HttpURLConnection.HTTP_MOVED_PERM,
-                HttpURLConnection.HTTP_MOVED_TEMP,
-                HttpURLConnection.HTTP_SEE_OTHER,
-                307,
-                308,
-            )
-        ) {
-            val location = connection.getHeaderField("Location")
-                ?: throw IllegalStateException("GitHub 重定向缺少 Location。")
-            connection.disconnect()
-            return openConnection(URL(URL(url), location).toString(), redirectCount + 1)
-        }
-        return connection
+        return LauncherApkIdentity(
+            packageName = info.packageName.orEmpty(),
+            versionCode = versionCode,
+            signerDigests = digests,
+        )
     }
 
     private fun sanitizeFileName(name: String): String {
@@ -442,8 +423,8 @@ class GithubUpdateManager(private val context: Context) {
     )
 
     private companion object {
+        const val GITHUB_ACCEPT = "application/vnd.github+json, application/octet-stream"
         const val MIN_APK_SIZE_BYTES = 100 * 1024
-        const val MAX_REDIRECTS = 5
     }
 }
 
@@ -548,12 +529,4 @@ object VersionComparator {
         pattern = """(\d+(?:\.\d+){0,3})(?:[-._]?([A-Za-z]+)(?:[-._]?(\d+))?)?""",
         option = RegexOption.IGNORE_CASE,
     )
-}
-
-private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R {
-    return try {
-        block(this)
-    } finally {
-        disconnect()
-    }
 }

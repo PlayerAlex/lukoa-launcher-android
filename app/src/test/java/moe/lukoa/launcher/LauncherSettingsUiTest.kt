@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -20,12 +21,15 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,6 +43,24 @@ import java.time.Duration
 class LauncherSettingsUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun infoIconButton_keepsAtLeast48DpTouchTarget() {
+        composeRule.setContent {
+            LukoaTheme {
+                InfoIconButton(
+                    contentDescription = "触控目标测试",
+                    onClick = {},
+                )
+            }
+        }
+
+        val bounds = composeRule.onNodeWithContentDescription("触控目标测试")
+            .fetchSemanticsNode()
+            .boundsInRoot
+        assertTrue("说明按钮触控宽度不足：$bounds", bounds.width >= 48f)
+        assertTrue("说明按钮触控高度不足：$bounds", bounds.height >= 48f)
+    }
 
     @Test
     fun infoPopover_initiallyHiddenAndOpensLightweightExplanation() {
@@ -622,7 +644,7 @@ class LauncherSettingsUiTest {
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    TavernUserManagementSection(
+                    TavernUserManagementSettingsPanel(
                         state = TavernUserManagementState(
                             users = listOf(
                                 TavernUserRecord(
@@ -647,7 +669,75 @@ class LauncherSettingsUiTest {
             }
         }
 
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("管理酒馆用户").performScrollTo().performClick()
         composeRule.onNodeWithText("删除").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun userManagementPanel_keepsLongUserListInsideSecondaryWindow() {
+        composeRule.setContent {
+            LukoaTheme {
+                TavernUserManagementSettingsPanel(
+                    state = TavernUserManagementState(
+                        users = (1..30).map { index ->
+                            TavernUserRecord(
+                                handle = "user-$index",
+                                name = "用户 $index",
+                                admin = index == 1 || index == 2,
+                                enabled = true,
+                                directoryExists = true,
+                                directoryKilobytes = index * 1024L,
+                            )
+                        },
+                        message = "已读取 30 位用户。",
+                    ),
+                    instanceLabel = "主实例",
+                    actionsLocked = false,
+                    tavernRunning = false,
+                    onRefresh = {},
+                    onCreate = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("读取用户").assertDoesNotExist()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("管理酒馆用户").performClick()
+        composeRule.onNodeWithText("读取用户").assertExists()
+        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(29)
+        composeRule.onNodeWithText("用户 30").assertIsDisplayed()
+        composeRule.onNodeWithText("关闭").performClick()
+        composeRule.onNodeWithText("读取用户").assertDoesNotExist()
+    }
+
+    @Test
+    fun userManagementPanel_lastAdministratorCannotBeDeleted() {
+        composeRule.setContent {
+            LukoaTheme {
+                TavernUserManagementSettingsPanel(
+                    state = TavernUserManagementState(
+                        users = listOf(
+                            TavernUserRecord("owner", "唯一管理员", true, true, true, 1024L),
+                            TavernUserRecord("member", "普通用户", false, true, true, 1024L),
+                        ),
+                        message = "已读取 2 位用户。",
+                    ),
+                    instanceLabel = "主实例",
+                    actionsLocked = false,
+                    tavernRunning = false,
+                    onRefresh = {},
+                    onCreate = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("管理酒馆用户").performClick()
+        composeRule.onAllNodesWithText("删除")[0].assertIsNotEnabled()
+        composeRule.onAllNodesWithText("删除")[1].assertIsEnabled()
     }
 
     @Test

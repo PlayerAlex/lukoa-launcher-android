@@ -397,11 +397,10 @@ class TermuxCommandRunner(private val context: Context) {
                 displayCommand = "tavern-install",
             )
         }
-        return runCommand(
+        return runBundledScriptCommand(
             command = "tavern-install-direct",
-            args = listOf("-c", buildTavernInstallCommand(args)),
-            nonce = null,
-            executablePath = TERMUX_SH_PATH,
+            scriptCommand = "install",
+            scriptArgs = listOf(args.target, args.repoUrl, args.configPolicy.wireValue),
             displayCommand = "tavern-install",
             background = false,
         )
@@ -424,11 +423,10 @@ class TermuxCommandRunner(private val context: Context) {
                 displayCommand = "tavern-update",
             )
         }
-        return runCommand(
+        return runBundledScriptCommand(
             command = "tavern-update-direct",
-            args = listOf("-c", buildTavernUpdateCommand(args)),
-            nonce = null,
-            executablePath = TERMUX_SH_PATH,
+            scriptCommand = "update",
+            scriptArgs = listOf(args.target, args.repoUrl),
             displayCommand = "tavern-update",
             background = false,
         )
@@ -451,11 +449,10 @@ class TermuxCommandRunner(private val context: Context) {
                 displayCommand = "tavern-rollback",
             )
         }
-        return runCommand(
+        return runBundledScriptCommand(
             command = "tavern-rollback-direct",
-            args = listOf("-c", buildTavernRollbackCommand(args)),
-            nonce = null,
-            executablePath = TERMUX_SH_PATH,
+            scriptCommand = "rollback",
+            scriptArgs = listOf(args.target, args.repoUrl),
             displayCommand = "tavern-rollback",
             background = false,
         )
@@ -2214,303 +2211,6 @@ class TermuxCommandRunner(private val context: Context) {
                   --fix-broken install
               fi
             }
-        """.trimIndent()
-    }
-
-    private fun buildTavernInstallCommand(args: TavernInstallCommandArgs): String {
-        val quotedTarget = shellSingleQuoted(args.target.ifBlank { TavernInstallDefaults.Release.target })
-        val quotedRepoUrl = shellSingleQuoted(args.repoUrl)
-        val quotedPolicy = shellSingleQuoted(args.configPolicy.wireValue)
-        return """
-            set -u
-            ${buildSharedShellPrelude()}
-            ${buildTermuxAptSourceHelpers()}
-            target=$quotedTarget
-            OFFICIAL_REPO=$quotedRepoUrl
-            LUKOA_APT_CONFIG_POLICY=$quotedPolicy
-            if http_ok || is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
-              write_status "error" "Please stop SillyTavern before installing" true 77
-              cat "${'$'}STATUS_FILE"
-              exit 77
-            fi
-            ensure_install_packages() {
-              need=""
-              command -v git >/dev/null 2>&1 || need="${'$'}need git"
-              if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-                need="${'$'}need nodejs"
-              fi
-              command -v curl >/dev/null 2>&1 || need="${'$'}need curl"
-              if [ -z "${'$'}need" ]; then
-                return 0
-              fi
-              printf "step=pkg install%s\n" "${'$'}need"
-              run_apt_update
-              update_code="${'$'}?"
-              printf "installDependencyAptUpdateExitCode=%s\n" "${'$'}update_code"
-              if [ "${'$'}update_code" -ne 0 ]; then
-                return "${'$'}update_code"
-              fi
-              run_apt_install ${'$'}need
-              install_dependency_code="${'$'}?"
-              printf "installDependencyExitCode=%s\n" "${'$'}install_dependency_code"
-              if [ "${'$'}install_dependency_code" -eq 100 ]; then
-                printf "step=dpkg configure recovery before tavern install\n"
-                run_dpkg_configure
-                configure_code="${'$'}?"
-                printf "installDependencyDpkgConfigureExitCode=%s\n" "${'$'}configure_code"
-                if [ "${'$'}configure_code" -eq 0 ]; then
-                  printf "step=apt fix-broken install before tavern install\n"
-                  run_apt_fix_broken
-                  fix_code="${'$'}?"
-                  printf "installDependencyFixBrokenExitCode=%s\n" "${'$'}fix_code"
-                  if [ "${'$'}fix_code" -eq 0 ]; then
-                    run_apt_install ${'$'}need
-                    install_dependency_code="${'$'}?"
-                    printf "installDependencyRetryExitCode=%s\n" "${'$'}install_dependency_code"
-                  else
-                    install_dependency_code="${'$'}fix_code"
-                  fi
-                else
-                  install_dependency_code="${'$'}configure_code"
-                fi
-              fi
-              return "${'$'}install_dependency_code"
-            }
-            ensure_install_packages
-            dependency_code="${'$'}?"
-            if [ "${'$'}dependency_code" -ne 0 ]; then
-              write_status "error" "Termux dependency install failed before SillyTavern install" false "${'$'}dependency_code"
-              cat "${'$'}STATUS_FILE"
-              printf "\n==== SillyTavern install dependencies ====\n"
-              printf "exitCode=%s\n" "${'$'}dependency_code"
-              printf "==== end SillyTavern install ====\n"
-              exit "${'$'}dependency_code"
-            fi
-            adopt_detected_tavern_dir >/dev/null 2>&1 || true
-            collect_tavern_dir_candidates
-            if [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -gt 1 ] && [ ! -e "${'$'}TAVERN_DIR" ]; then
-              write_tavern_dir_error
-              cat "${'$'}STATUS_FILE"
-              emit_tavern_dir_candidates
-              exit "${'$'}(missing_tavern_dir_exit_code)"
-            fi
-            if [ -e "${'$'}TAVERN_DIR" ] && [ -n "${'$'}(ls -A "${'$'}TAVERN_DIR" 2>/dev/null || true)" ]; then
-              write_status "error" "SillyTavern directory already exists and is not empty" false 73
-              cat "${'$'}STATUS_FILE"
-              printf "\ndirectory=%s\n" "${'$'}TAVERN_DIR"
-              exit 73
-            fi
-            parent="${'$'}(dirname "${'$'}TAVERN_DIR")"
-            mkdir -p "${'$'}parent"
-            printf "\n[%s] ===== Lukoa launcher tavern install =====\n" "${'$'}(timestamp)" >> "${'$'}LOG_FILE"
-            printf "[%s] target=%s repo=%s\n" "${'$'}(timestamp)" "${'$'}target" "${'$'}OFFICIAL_REPO" >> "${'$'}LOG_FILE"
-            git clone -b "${'$'}target" "${'$'}OFFICIAL_REPO" "${'$'}TAVERN_DIR" >> "${'$'}LOG_FILE" 2>&1
-            clone_code="${'$'}?"
-            if [ "${'$'}clone_code" -ne 0 ]; then
-              write_status "error" "git clone failed; check tavern.log" false "${'$'}clone_code"
-              cat "${'$'}STATUS_FILE"
-              printf "\n==== Recent install log ====\n"
-              tail -n 120 "${'$'}LOG_FILE" 2>/dev/null || true
-              printf "==== end SillyTavern install ====\n"
-              exit "${'$'}clone_code"
-            fi
-            cd "${'$'}TAVERN_DIR" || {
-              write_status "error" "failed to enter SillyTavern directory" false 74
-              cat "${'$'}STATUS_FILE"
-              exit 74
-            }
-            npm_code=0
-            install_node_dependencies
-            npm_code="${'$'}?"
-            if [ "${'$'}npm_code" -eq 0 ]; then
-              write_status "installed" "SillyTavern installed successfully" false 0
-              code=0
-            else
-              write_status "error" "npm install failed; check tavern.log" false "${'$'}npm_code"
-              code="${'$'}npm_code"
-            fi
-            cat "${'$'}STATUS_FILE"
-            printf "\n==== SillyTavern install ====\n"
-            printf "directory=%s\n" "${'$'}TAVERN_DIR"
-            printf "target=%s\n" "${'$'}target"
-            printf "exitCode=%s\n" "${'$'}code"
-            printf "npmExitCode=%s\n" "${'$'}npm_code"
-            printf "\n==== Current SillyTavern version ====\n"
-            emit_git_version_info
-            printf "\n==== Recent install log ====\n"
-            tail -n 120 "${'$'}LOG_FILE" 2>/dev/null || true
-            printf "==== end SillyTavern install ====\n"
-            exit "${'$'}code"
-        """.trimIndent()
-    }
-
-    private fun buildTavernUpdateCommand(args: TavernVersionCommandArgs) : String {
-        val quotedTarget = shellSingleQuoted(args.target)
-        val quotedRepoUrl = shellSingleQuoted(args.repoUrl)
-        return """
-            set -u
-            ${buildSharedShellPrelude()}
-            requested_target=$quotedTarget
-            OFFICIAL_REPO=$quotedRepoUrl
-            ensure_tavern_mutation_ready "updating source files"
-            preflight_code="${'$'}?"
-            if [ "${'$'}preflight_code" -ne 0 ]; then
-              exit "${'$'}preflight_code"
-            fi
-            if [ -z "${'$'}requested_target" ]; then
-              write_status "error" "No SillyTavern update target selected" false 64
-              cat "${'$'}STATUS_FILE"
-              exit 64
-            fi
-
-            before_full="${'$'}(git rev-parse HEAD 2>/dev/null || printf unknown)"
-            before="${'$'}(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-            printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "${'$'}(timestamp)" >> "${'$'}LOG_FILE"
-            printf "[%s] before=%s target=%s repo=%s\n" "${'$'}(timestamp)" "${'$'}before_full" "${'$'}requested_target" "${'$'}OFFICIAL_REPO" >> "${'$'}LOG_FILE"
-
-            git fetch --all --tags --prune >> "${'$'}LOG_FILE" 2>&1
-            fetch_code="${'$'}?"
-            if [ "${'$'}fetch_code" -ne 0 ]; then
-              write_status "error" "git fetch failed; check tavern.log" false "${'$'}fetch_code"
-              cat "${'$'}STATUS_FILE"
-              printf "\n==== SillyTavern update ====\n"
-              printf "directory=%s\n" "${'$'}TAVERN_DIR"
-              printf "before=%s\n" "${'$'}before"
-              printf "after=%s\n" "${'$'}before"
-              printf "exitCode=%s\n" "${'$'}fetch_code"
-              printf "\n==== Recent update log ====\n"
-              tail -n 100 "${'$'}LOG_FILE" 2>/dev/null || true
-              printf "==== end SillyTavern update ====\n"
-              exit "${'$'}fetch_code"
-            fi
-
-            checkout_update_target "${'$'}requested_target"
-            git_code="${'$'}?"
-            after="${'$'}(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-            npm_code=0
-            if [ "${'$'}git_code" -eq 0 ]; then
-              printf "%s\n" "${'$'}before_full" > "${'$'}ROLLBACK_FILE"
-              printf "[%s] rollback target saved: %s\n" "${'$'}(timestamp)" "${'$'}before_full" >> "${'$'}LOG_FILE"
-              install_node_dependencies
-              npm_code="${'$'}?"
-            fi
-
-            if [ "${'$'}git_code" -eq 0 ] && [ "${'$'}npm_code" -eq 0 ]; then
-              write_status "updated" "SillyTavern source updated successfully" false 0
-              code=0
-            elif [ "${'$'}git_code" -eq 80 ]; then
-              write_status "error" "Could not find a remote branch to update" false 80
-              code=80
-            elif [ "${'$'}git_code" -ne 0 ]; then
-              write_status "error" "git update failed; check tavern.log" false "${'$'}git_code"
-              code="${'$'}git_code"
-            elif [ "${'$'}npm_code" -eq 69 ]; then
-              write_status "error" "npm command not found in Termux" false 69
-              code=69
-            else
-              write_status "error" "npm install failed; check tavern.log" false "${'$'}npm_code"
-              code="${'$'}npm_code"
-            fi
-
-            cat "${'$'}STATUS_FILE"
-            printf "\n==== SillyTavern update ====\n"
-            printf "directory=%s\n" "${'$'}TAVERN_DIR"
-            printf "target=%s\n" "${'$'}requested_target"
-            printf "repo=%s\n" "${'$'}OFFICIAL_REPO"
-            printf "before=%s\n" "${'$'}before"
-            printf "after=%s\n" "${'$'}after"
-            printf "exitCode=%s\n" "${'$'}code"
-            printf "npmExitCode=%s\n" "${'$'}npm_code"
-            if [ -s "${'$'}ROLLBACK_FILE" ]; then
-              printf "rollback.target=%s\n" "${'$'}(cat "${'$'}ROLLBACK_FILE" 2>/dev/null || true)"
-            fi
-            printf "\n==== Git status ====\n"
-            git status --short 2>/dev/null || true
-            printf "\n==== Recent update log ====\n"
-            tail -n 120 "${'$'}LOG_FILE" 2>/dev/null || true
-            printf "\n==== Current SillyTavern version ====\n"
-            emit_git_version_info
-            printf "==== end SillyTavern update ====\n"
-            exit "${'$'}code"
-        """.trimIndent()
-    }
-
-    private fun buildTavernRollbackCommand(args: TavernVersionCommandArgs): String {
-        val quotedTarget = shellSingleQuoted(args.target)
-        val quotedRepoUrl = shellSingleQuoted(args.repoUrl)
-        return """
-            set -u
-            ${buildSharedShellPrelude()}
-            requested_target=$quotedTarget
-            OFFICIAL_REPO=$quotedRepoUrl
-            ensure_tavern_mutation_ready "rolling back source files"
-            preflight_code="${'$'}?"
-            if [ "${'$'}preflight_code" -ne 0 ]; then
-              exit "${'$'}preflight_code"
-            fi
-            if [ -z "${'$'}requested_target" ]; then
-              write_status "error" "No SillyTavern rollback target selected" false 64
-              cat "${'$'}STATUS_FILE"
-              exit 64
-            fi
-
-            before_full="${'$'}(git rev-parse HEAD 2>/dev/null || printf unknown)"
-            before="${'$'}(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-            printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "${'$'}(timestamp)" >> "${'$'}LOG_FILE"
-            printf "[%s] before=%s target=%s repo=%s\n" "${'$'}(timestamp)" "${'$'}before_full" "${'$'}requested_target" "${'$'}OFFICIAL_REPO" >> "${'$'}LOG_FILE"
-
-            git fetch --all --tags --prune >> "${'$'}LOG_FILE" 2>&1
-            fetch_code="${'$'}?"
-            if [ "${'$'}fetch_code" -ne 0 ]; then
-              write_status "error" "git fetch failed before rollback; check tavern.log" false "${'$'}fetch_code"
-              cat "${'$'}STATUS_FILE"
-              printf "\n==== Recent rollback log ====\n"
-              tail -n 120 "${'$'}LOG_FILE" 2>/dev/null || true
-              printf "==== end SillyTavern rollback ====\n"
-              exit "${'$'}fetch_code"
-            fi
-            checkout_requested_target "${'$'}requested_target"
-            git_code="${'$'}?"
-            after="${'$'}(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-            npm_code=0
-            if [ "${'$'}git_code" -eq 0 ]; then
-              printf "%s\n" "${'$'}before_full" > "${'$'}ROLLBACK_FILE"
-              install_node_dependencies
-              npm_code="${'$'}?"
-            fi
-
-            if [ "${'$'}git_code" -eq 0 ] && [ "${'$'}npm_code" -eq 0 ]; then
-              write_status "rolled-back" "SillyTavern source rolled back successfully" false 0
-              code=0
-            elif [ "${'$'}git_code" -ne 0 ]; then
-              write_status "error" "git rollback failed; check tavern.log" false "${'$'}git_code"
-              code="${'$'}git_code"
-            elif [ "${'$'}npm_code" -eq 69 ]; then
-              write_status "error" "npm command not found in Termux" false 69
-              code=69
-            else
-              write_status "error" "npm install after rollback failed; check tavern.log" false "${'$'}npm_code"
-              code="${'$'}npm_code"
-            fi
-
-            cat "${'$'}STATUS_FILE"
-            printf "\n==== SillyTavern rollback ====\n"
-            printf "directory=%s\n" "${'$'}TAVERN_DIR"
-            printf "target=%s\n" "${'$'}requested_target"
-            printf "repo=%s\n" "${'$'}OFFICIAL_REPO"
-            printf "before=%s\n" "${'$'}before"
-            printf "after=%s\n" "${'$'}after"
-            printf "exitCode=%s\n" "${'$'}code"
-            printf "npmExitCode=%s\n" "${'$'}npm_code"
-            if [ -s "${'$'}ROLLBACK_FILE" ]; then
-              printf "rollback.target=%s\n" "${'$'}(cat "${'$'}ROLLBACK_FILE" 2>/dev/null || true)"
-            fi
-            printf "\n==== Recent rollback log ====\n"
-            tail -n 120 "${'$'}LOG_FILE" 2>/dev/null || true
-            printf "\n==== Current SillyTavern version ====\n"
-            emit_git_version_info
-            printf "==== end SillyTavern rollback ====\n"
-            exit "${'$'}code"
         """.trimIndent()
     }
 

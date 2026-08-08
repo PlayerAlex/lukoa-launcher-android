@@ -46,6 +46,38 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `install uses the bundled script with guarded dependency recovery`() {
+        assertTrue(runnerSource.contains("scriptCommand = \"install\""))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl, args.configPolicy.wireValue)"))
+        assertTrue(script.contains("wait_for_apt_locks()"))
+        assertTrue(script.contains("LUKOA_APT_CONFIG_POLICY=\"\${3:-keep}\""))
+        assertTrue(script.contains("installDependencyDpkgConfigureExitCode"))
+        assertTrue(script.contains("installDependencyFixBrokenExitCode"))
+        assertTrue(script.contains("installDependencyRetryExitCode"))
+    }
+
+    @Test
+    fun `update uses the bundled script and keeps managed upload changes safe`() {
+        assertTrue(runnerSource.contains("scriptCommand = \"update\""))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl)"))
+        assertTrue(script.contains("OFFICIAL_REPO=\"\${2:-\$OFFICIAL_REPO}\""))
+        assertTrue(script.contains("upload_limit_prepare_update"))
+        assertTrue(script.contains("uploadLimit.updateAction=restored-after-failure"))
+    }
+
+    @Test
+    fun `rollback uses the bundled script and restores managed upload changes`() {
+        assertTrue(runnerSource.contains("scriptCommand = \"rollback\""))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl)"))
+        assertTrue(script.contains("Managed upload limit could not be safely removed before rollback"))
+        assertTrue(script.contains("uploadLimit.rollbackAction=reapplied"))
+        assertTrue(script.contains("git fetch --all --tags --prune"))
+        assertFalse(runnerSource.contains("buildTavernInstallCommand"))
+        assertFalse(runnerSource.contains("buildTavernUpdateCommand"))
+        assertFalse(runnerSource.contains("buildTavernRollbackCommand"))
+    }
+
+    @Test
     fun `upload limit reset reads version default and preserves unrelated file changes`() {
         assertTrue(script.contains("cmd_upload_limit_reset"))
         assertTrue(script.contains("git show HEAD:src/server-main.js"))
