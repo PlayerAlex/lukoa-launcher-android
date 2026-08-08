@@ -8,6 +8,8 @@ data class TavernExtensionRecord(
     val displayName: String,
     val version: String,
     val hasManifest: Boolean,
+    val author: String = "",
+    val directoryKilobytes: Long? = null,
 )
 
 data class TavernExtensionSnapshot(
@@ -24,12 +26,13 @@ data class TavernExtensionManagementState(
 
 object TavernExtensionOutputParser {
     private const val HEADER = "==== SillyTavern extensions ===="
+    private const val FOOTER = "==== end SillyTavern extensions ===="
 
     fun parse(output: String): TavernExtensionSnapshot? {
-        if (!output.contains(HEADER)) return null
+        val block = extractLastCompleteBlock(output) ?: return null
         var rootDirectory = ""
         val extensions = mutableListOf<TavernExtensionRecord>()
-        output.lineSequence().forEach { rawLine ->
+        block.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
             when {
                 line.startsWith("extension.root=") -> {
@@ -38,7 +41,7 @@ object TavernExtensionOutputParser {
 
                 line.startsWith("extension.record=") -> {
                     val fields = line.substringAfter('=').split('|')
-                    if (fields.size != 4) return@forEach
+                    if (fields.size !in 4..6) return@forEach
                     val directoryName = decode(fields[0]) ?: return@forEach
                     if (TavernExtensionCommandCodec.validateDirectoryName(directoryName) != null) return@forEach
                     extensions += TavernExtensionRecord(
@@ -46,6 +49,10 @@ object TavernExtensionOutputParser {
                         displayName = decode(fields[1]).orEmpty().ifBlank { directoryName },
                         version = decode(fields[2]).orEmpty(),
                         hasManifest = fields[3] == "true",
+                        author = fields.getOrNull(4)?.let(::decode).orEmpty(),
+                        directoryKilobytes = fields.getOrNull(5)
+                            ?.toLongOrNull()
+                            ?.takeIf { it >= 0L },
                     )
                 }
             }
@@ -54,6 +61,14 @@ object TavernExtensionOutputParser {
             rootDirectory = rootDirectory,
             extensions = extensions.sortedBy { it.displayName.lowercase() },
         )
+    }
+
+    private fun extractLastCompleteBlock(output: String): String? {
+        val headerIndex = output.lastIndexOf(HEADER)
+        if (headerIndex < 0) return null
+        val footerIndex = output.indexOf(FOOTER, startIndex = headerIndex + HEADER.length)
+        if (footerIndex < 0) return null
+        return output.substring(headerIndex, footerIndex + FOOTER.length)
     }
 
     private fun decode(value: String): String? = try {

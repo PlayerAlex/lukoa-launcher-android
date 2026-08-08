@@ -16,7 +16,7 @@ class TavernExtensionManagementTest {
             """
             ==== SillyTavern extensions ====
             extension.root=${encoded("/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party")}
-            extension.record=${encoded("Extension-A")}|${encoded("清凉扩展")}|${encoded("1.2.3")}|true
+            extension.record=${encoded("Extension-A")}|${encoded("清凉扩展")}|${encoded("1.2.3")}|true|${encoded("Lukoa")}|1536
             ==== end SillyTavern extensions ====
             """.trimIndent(),
         )
@@ -27,6 +27,8 @@ class TavernExtensionManagementTest {
         assertEquals("清凉扩展", parsed?.extensions?.single()?.displayName)
         assertEquals("1.2.3", parsed?.extensions?.single()?.version)
         assertEquals(true, parsed?.extensions?.single()?.hasManifest)
+        assertEquals("Lukoa", parsed?.extensions?.single()?.author)
+        assertEquals(1536L, parsed?.extensions?.single()?.directoryKilobytes)
     }
 
     @Test
@@ -46,6 +48,38 @@ class TavernExtensionManagementTest {
     @Test
     fun `parser ignores unrelated or malformed output`() {
         assertNull(TavernExtensionOutputParser.parse("extension.record=broken"))
+    }
+
+    @Test
+    fun `parser rejects an incomplete extension block`() {
+        val output = """
+            ==== SillyTavern extensions ====
+            extension.root=
+        """.trimIndent()
+
+        assertNull(TavernExtensionOutputParser.parse(output))
+    }
+
+    @Test
+    fun `parser uses only the latest complete extension block`() {
+        fun encoded(value: String) = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+        val parsed = TavernExtensionOutputParser.parse(
+            """
+            ==== SillyTavern extensions ====
+            extension.root=${encoded("/old")}
+            extension.record=${encoded("Old-Extension")}|${encoded("旧扩展")}|${encoded("1.0")}|true
+            ==== end SillyTavern extensions ====
+            unrelated output
+            ==== SillyTavern extensions ====
+            extension.root=${encoded("/current")}
+            extension.record=${encoded("Current-Extension")}|${encoded("当前扩展")}|${encoded("2.0")}|true
+            ==== end SillyTavern extensions ====
+            """.trimIndent(),
+        )
+
+        assertEquals("/current", parsed?.rootDirectory)
+        assertEquals(listOf("Current-Extension"), parsed?.extensions?.map { it.directoryName })
     }
 
     @Test
@@ -69,4 +103,5 @@ class TavernExtensionManagementTest {
         assertNull(TavernExtensionCommandCodec.decodeDirectoryName("Li4"))
         assertNull(TavernExtensionCommandCodec.decodeDirectoryName("not valid base64 ***"))
     }
+
 }

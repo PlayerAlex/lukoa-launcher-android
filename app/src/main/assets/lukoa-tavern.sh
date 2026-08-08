@@ -3677,6 +3677,41 @@ function decodeDirectoryName(value) {
 
 function readExtensions(extensionRoot) {
   if (!fs.existsSync(extensionRoot)) return [];
+  const sizeScanBudget = { entries: 0, startedAt: Date.now() };
+  function directoryKilobytes(directory) {
+    let bytes = 0;
+    const pending = [directory];
+    while (pending.length > 0) {
+      if (sizeScanBudget.entries >= 50000 || Date.now() - sizeScanBudget.startedAt >= 5000) {
+        return null;
+      }
+      const current = pending.pop();
+      let entries = [];
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch (_) {
+        continue;
+      }
+      for (const entry of entries) {
+        sizeScanBudget.entries += 1;
+        if (sizeScanBudget.entries >= 50000 || Date.now() - sizeScanBudget.startedAt >= 5000) {
+          return null;
+        }
+        const entryPath = path.join(current, entry.name);
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          pending.push(entryPath);
+        } else if (entry.isFile()) {
+          try {
+            bytes += fs.statSync(entryPath).size;
+          } catch (_) {
+            // Keep the rest of the extension readable if one file disappears mid-scan.
+          }
+        }
+      }
+    }
+    return Math.ceil(bytes / 1024);
+  }
   return fs.readdirSync(extensionRoot, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
     .map(entry => {
@@ -3692,6 +3727,8 @@ function readExtensions(extensionRoot) {
         displayName: String(manifest?.display_name || manifest?.name || entry.name),
         version: String(manifest?.version || ''),
         hasManifest: manifest !== null,
+        author: String(manifest?.author || ''),
+        directoryKilobytes: directoryKilobytes(path.join(extensionRoot, entry.name)),
       };
     })
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
@@ -3725,7 +3762,7 @@ if (action === 'delete') {
 console.log('==== SillyTavern extensions ====');
 console.log(`extension.root=${encode(extensionRoot)}`);
 for (const extension of readExtensions(extensionRoot)) {
-  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}`);
+  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}`);
 }
 console.log('==== end SillyTavern extensions ====');
 NODE

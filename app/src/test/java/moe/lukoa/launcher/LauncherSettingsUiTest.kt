@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -420,6 +421,8 @@ class LauncherSettingsUiTest {
                                     displayName = "清凉扩展",
                                     version = "1.2.3",
                                     hasManifest = true,
+                                    author = "Lukoa",
+                                    directoryKilobytes = 1536,
                                 ),
                             ),
                             message = "已读取 1 个扩展。",
@@ -436,7 +439,9 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("版本：1.2.3 · 目录：Extension-A").assertIsDisplayed()
+        composeRule.onNodeWithText("版本：1.2.3 · 大小：1.5MB").assertIsDisplayed()
+        composeRule.onNodeWithText("作者：Lukoa").assertIsDisplayed()
+        composeRule.onNodeWithText("目录：Extension-A").assertIsDisplayed()
         composeRule.onNode(hasText("删除") and hasClickAction()).performClick()
         composeRule.onNodeWithText("当前实例：主实例").assertIsDisplayed()
         composeRule.onNodeWithText("目标目录：/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party/Extension-A")
@@ -473,6 +478,39 @@ class LauncherSettingsUiTest {
 
         composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
         composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
+    }
+
+    @Test
+    fun extensionManagementSection_searchesNameAuthorVersionAndDirectory() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            rootDirectory = "/extensions",
+                            extensions = listOf(
+                                TavernExtensionRecord("alpha-dir", "清凉扩展", "1.0", true, "Lukoa", 128),
+                                TavernExtensionRecord("beta-tools", "实用工具", "2.0", true, "Other", 256),
+                            ),
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        onRefresh = {},
+                        onDelete = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("搜索扩展").performScrollTo().performTextInput("Lukoa")
+        composeRule.onNodeWithText("显示 1 / 2 个扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("清凉扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("实用工具").assertDoesNotExist()
     }
 
     @Test

@@ -70,6 +70,10 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("repair_require_stopped || return"))
         assertTrue(script.contains("path.dirname(target) !== extensionRoot"))
         assertTrue(script.contains("targetStat.isSymbolicLink()"))
+        assertTrue(script.contains("directoryKilobytes(path.join(extensionRoot, entry.name))"))
+        assertTrue(script.contains("if (entry.isSymbolicLink()) continue"))
+        assertTrue(script.contains("sizeScanBudget.entries >= 50000"))
+        assertTrue(script.contains("Date.now() - sizeScanBudget.startedAt >= 5000"))
         assertTrue(script.contains("extensions-delete|tavern-extensions-delete"))
         assertFalse(script.contains("fs.rmSync(extensionRoot"))
     }

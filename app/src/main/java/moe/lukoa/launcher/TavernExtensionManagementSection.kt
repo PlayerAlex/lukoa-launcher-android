@@ -10,6 +10,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 
 @Composable
 fun TavernExtensionManagementSection(
@@ -31,7 +33,23 @@ fun TavernExtensionManagementSection(
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
 ) {
-    var pendingDelete by remember { mutableStateOf<TavernExtensionRecord?>(null) }
+    var pendingDelete by remember(instanceLabel, state.rootDirectory) {
+        mutableStateOf<TavernExtensionRecord?>(null)
+    }
+    var searchQuery by remember(instanceLabel, state.rootDirectory) { mutableStateOf("") }
+    val normalizedQuery = searchQuery.trim()
+    val visibleExtensions = if (normalizedQuery.isBlank()) {
+        state.extensions
+    } else {
+        state.extensions.filter { extension ->
+            sequenceOf(
+                extension.displayName,
+                extension.directoryName,
+                extension.version,
+                extension.author,
+            ).any { value -> value.contains(normalizedQuery, ignoreCase = true) }
+        }
+    }
     val deleteUnavailableHint = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再删除扩展。"
         tavernRunning -> "删除扩展前必须先停止酒馆，避免扩展文件仍在使用。"
@@ -88,7 +106,7 @@ fun TavernExtensionManagementSection(
                 InfoPopoverButton(
                     contentDescription = "查看扩展管理说明",
                     title = "扩展管理",
-                    body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展不会修改文件，酒馆运行时也可以使用。删除扩展前必须先停止酒馆，并会再次显示目标目录供你确认。",
+                    body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、目录和文件大小，不会修改文件；扩展较多时可以直接搜索。\n删除扩展前必须先停止酒馆，并会再次显示目标目录供你确认。",
                 )
             }
         },
@@ -128,18 +146,49 @@ fun TavernExtensionManagementSection(
             onClick = onRefresh,
         )
 
+        if (state.extensions.size > 1) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it.take(80) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("搜索扩展") },
+                placeholder = { Text("名称、作者、版本或目录") },
+                supportingText = {
+                    Text("显示 ${visibleExtensions.size} / ${state.extensions.size} 个扩展")
+                },
+                singleLine = true,
+                colors = lukoaTextFieldColors(LukoaColors.Primary),
+            )
+        }
+
         if (state.extensions.isNotEmpty()) {
-            SettingsEntryGroup {
-                state.extensions.forEachIndexed { index, extension ->
-                    TavernExtensionRow(
-                        extension = extension,
-                        deleteEnabled = !actionsLocked && !tavernRunning,
-                        deleteUnavailableHint = deleteUnavailableHint,
-                        onShowHint = onShowHint,
-                        onDelete = { pendingDelete = extension },
+            if (visibleExtensions.isEmpty()) {
+                SettingsEntryGroup {
+                    SettingsEntryRow(
+                        title = "没有匹配的扩展",
+                        detail = "请换一个名称、作者、版本或目录关键词。",
                     )
-                    if (index < state.extensions.lastIndex) SettingsEntryDivider()
                 }
+            } else {
+                SettingsEntryGroup {
+                    visibleExtensions.forEachIndexed { index, extension ->
+                        TavernExtensionRow(
+                            extension = extension,
+                            deleteEnabled = !actionsLocked && !tavernRunning,
+                            deleteUnavailableHint = deleteUnavailableHint,
+                            onShowHint = onShowHint,
+                            onDelete = { pendingDelete = extension },
+                        )
+                        if (index < visibleExtensions.lastIndex) SettingsEntryDivider()
+                    }
+                }
+            }
+        } else if (state.rootDirectory.isNotBlank() && !state.loading) {
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "当前没有第三方扩展",
+                    detail = "这个目录中暂时没有可管理的网页扩展。",
+                )
             }
         }
     }
@@ -174,10 +223,37 @@ private fun TavernExtensionRow(
                 text = buildString {
                     append("版本：")
                     append(extension.version.ifBlank { "未标注" })
-                    append(" · 目录：")
-                    append(extension.directoryName)
+                    append(" · 大小：")
+                    append(
+                        when (val kilobytes = extension.directoryKilobytes) {
+                            null -> "未知"
+                            in 0L until 1024L -> "${kilobytes}KB"
+                            in 1024L until 1024L * 1024L -> String.format(
+                                Locale.ROOT,
+                                "%.1fMB",
+                                kilobytes / 1024.0,
+                            )
+                            else -> String.format(
+                                Locale.ROOT,
+                                "%.1fGB",
+                                kilobytes / 1024.0 / 1024.0,
+                            )
+                        },
+                    )
                 },
                 color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (extension.author.isNotBlank()) {
+                Text(
+                    text = "作者：${extension.author}",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Text(
+                text = "目录：${extension.directoryName}",
+                color = LukoaColors.Dim,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (!extension.hasManifest) {
