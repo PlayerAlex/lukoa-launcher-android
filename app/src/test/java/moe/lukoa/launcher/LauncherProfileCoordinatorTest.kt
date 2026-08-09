@@ -7,6 +7,42 @@ import org.junit.Test
 
 class LauncherProfileCoordinatorTest {
     @Test
+    fun `clone confirmation dispatches recoverable task without registering profile early`() {
+        val pathState = LauncherPathSettingsState(TavernPathConfig())
+        var dispatchedTask: PendingLauncherTask? = null
+        var dispatchedCommand = ""
+        val coordinator = createCoordinator(
+            pathState = pathState,
+            onSavePath = { config -> TavernPathSaveResult(true, config, "saved") },
+            onRunProfileMutation = { task, _, _, command ->
+                dispatchedTask = task
+                dispatchedCommand = command
+            },
+        )
+
+        coordinator.requestCloneCurrentTavernProfile()
+
+        val confirmation = requireNotNull(pathState.pendingCloneConfirmation)
+        assertEquals("profile-2", confirmation.targetProfile.id)
+        assertEquals(1, pathState.config.availableProfiles.size)
+
+        coordinator.confirmCloneCurrentTavernProfile()
+
+        val task = requireNotNull(dispatchedTask)
+        assertEquals(PendingLauncherTaskKind.CloneTavernProfile, task.kind)
+        assertEquals("profile-2", task.profileId)
+        assertEquals("\$HOME/LukoaLauncher/SillyTavern2", task.targetPath)
+        val command = LauncherCommandCodec.decode(dispatchedCommand)
+        assertEquals("tavern-clone-profile-dir", command.name)
+        assertEquals(
+            task.targetPath,
+            TavernProfileMigrationCommandCodec.decode(command.argument)?.targetPath,
+        )
+        assertEquals(1, pathState.config.availableProfiles.size)
+        assertEquals(null, pathState.pendingCloneConfirmation)
+    }
+
+    @Test
     fun `invalid port is rejected before persistence`() {
         val pathState = LauncherPathSettingsState(TavernPathConfig())
         pathState.portInput = "not-a-port"
@@ -84,6 +120,7 @@ class LauncherProfileCoordinatorTest {
         onSavePath: (TavernPathConfig) -> TavernPathSaveResult,
         onStatus: (String, String, Boolean) -> Unit = { _, _, _ -> },
         onRefresh: (String) -> Unit = {},
+        onRunProfileMutation: (PendingLauncherTask, String, Long, String) -> Unit = { _, _, _, _ -> },
     ): LauncherProfileCoordinator {
         return LauncherProfileCoordinator(
             pathState = pathState,
@@ -91,7 +128,7 @@ class LauncherProfileCoordinatorTest {
             statusUpdate = onStatus,
             refreshActiveProfileState = onRefresh,
             blockIfPendingTaskExists = { false },
-            runProfileMutationPendingCommand = { _, _, _, _ -> },
+            runProfileMutationPendingCommand = onRunProfileMutation,
             beginBusy = { _, _ -> null },
             isOperationActive = { false },
             releaseBusy = {},

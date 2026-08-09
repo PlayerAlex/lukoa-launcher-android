@@ -23,6 +23,7 @@ fun LauncherProfileMutationDialogHost(
     onConfirmRemoval: () -> Unit,
     onConfirmMigration: () -> Unit,
     onConfirmCustomMigration: () -> Unit,
+    onConfirmClone: () -> Unit,
 ) {
     state.pendingRemovalConfirmation?.let { confirmation ->
         DeleteTavernProfileConfirmDialog(
@@ -38,6 +39,14 @@ fun LauncherProfileMutationDialogHost(
             actionsLocked = actionsLocked,
             onConfirm = onConfirmMigration,
             onDismiss = { state.pendingMigrationConfirmation = null },
+        )
+    }
+    state.pendingCloneConfirmation?.let { confirmation ->
+        TavernProfileCloneConfirmDialog(
+            confirmation = confirmation,
+            actionsLocked = actionsLocked,
+            onConfirm = onConfirmClone,
+            onDismiss = { state.pendingCloneConfirmation = null },
         )
     }
     if (state.showCustomMigrationDialog) {

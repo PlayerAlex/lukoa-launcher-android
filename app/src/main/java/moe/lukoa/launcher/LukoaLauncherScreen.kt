@@ -1649,6 +1649,45 @@ fun LukoaLauncherScreen(
                 )
             }
 
+            PendingLauncherTaskKind.CloneTavernProfile -> {
+                val clonedPath = TavernProfilePathMutationOutputParser.clonedTargetPath(output)
+                    ?: task.targetPath.takeIf { it.isNotBlank() }
+                    ?: return PendingTaskResolveResult(
+                        ok = false,
+                        message = "酒馆目录已经复制，但启动器没读到新分身目录。请在实例管理里手动检查。",
+                    )
+                if (!TavernComparablePath.same(clonedPath, task.targetPath)) {
+                    return PendingTaskResolveResult(
+                        ok = false,
+                        message = "复制结果目录与准备登记的分身目录不一致，启动器没有自动登记。",
+                    )
+                }
+                val existing = tavernPathConfig.availableProfiles.firstOrNull { it.id == task.profileId }
+                val targetProfile = existing ?: TavernProfileDefaults.profileForId(task.profileId).copy(
+                    name = task.targetLabel.ifBlank { TavernProfileDefaults.nameForId(task.profileId) },
+                    tavernDir = clonedPath,
+                )
+                val nextConfig = if (existing != null) {
+                    tavernPathConfig.withActiveProfile(existing.id)
+                } else {
+                    tavernPathConfig.addProfile(targetProfile, makeActive = true)
+                }
+                val saveResult = onSaveTavernPathConfig(nextConfig)
+                applyTavernPathSaveResult(saveResult)
+                if (!saveResult.saved) {
+                    return PendingTaskResolveResult(
+                        ok = false,
+                        message = "酒馆目录已经复制到${targetProfile.displayTavernDir}，但启动器登记新分身失败：${saveResult.message}",
+                    )
+                }
+                clearTransientTavernPathUiState()
+                PendingTaskResolveResult(
+                    ok = true,
+                    message = "已克隆并切换到${saveResult.config.activeProfileLabel}。原实例保持不变。",
+                    refreshTargets = PendingTaskRefreshTargets(startupState = true),
+                )
+            }
+
             else -> null
         }
     }
@@ -3413,6 +3452,7 @@ fun LukoaLauncherScreen(
         onConfirmRemoval = profileCoordinator::confirmRemoveCurrentTavernProfile,
         onConfirmMigration = profileCoordinator::confirmMigrateCurrentTavernPath,
         onConfirmCustomMigration = profileCoordinator::confirmCustomTavernPathMigrationDialog,
+        onConfirmClone = profileCoordinator::confirmCloneCurrentTavernProfile,
     )
 
     if (showUpdateDialog) {
@@ -3735,6 +3775,7 @@ fun LukoaLauncherScreen(
                             onTavernPortInputChange = { tavernPortInput = it },
                             onSelectTavernProfile = profileCoordinator::selectTavernProfile,
                             onAddTavernProfile = profileCoordinator::addTavernProfile,
+                            onCloneCurrentTavernProfile = profileCoordinator::requestCloneCurrentTavernProfile,
                             onRemoveCurrentTavernProfile = profileCoordinator::requestRemoveCurrentTavernProfile,
                             onMigrateToManagedTavernPath = profileCoordinator::requestMigrateToManagedTavernPath,
                             onMigrateToTraditionalTavernPath = profileCoordinator::requestMigrateToTraditionalTavernPath,

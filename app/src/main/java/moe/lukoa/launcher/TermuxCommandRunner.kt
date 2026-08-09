@@ -726,6 +726,37 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runCloneManagedProfileDirectory(encodedTargetPath: String?): CommandDispatch {
+        val targetArgs = TavernProfileMigrationCommandCodec.decode(encodedTargetPath)
+            ?: return CommandDispatch(
+                sent = false,
+                message = "克隆实例失败：目标路径参数损坏，请重新点一次。",
+                displayCommand = "tavern-clone-profile-dir",
+            )
+        val targetPath = TavernPathNormalizer.normalize(targetArgs.targetPath)
+        TavernPathValidator.validate(targetPath)?.let { reason ->
+            return CommandDispatch(
+                sent = false,
+                message = "克隆实例失败：目标目录无效。$reason",
+                displayCommand = "tavern-clone-profile-dir",
+            )
+        }
+        if (!TavernProfilePathPolicy.isLauncherManagedPath(targetPath)) {
+            return CommandDispatch(
+                sent = false,
+                message = "克隆实例失败：目标必须是启动器托管目录。",
+                displayCommand = "tavern-clone-profile-dir",
+            )
+        }
+        return runBundledScriptCommand(
+            command = "tavern-clone-profile-dir-direct",
+            scriptCommand = "tavern-clone-profile-dir",
+            scriptArgs = listOf(targetPath),
+            displayCommand = "tavern-clone-profile-dir",
+            background = false,
+        )
+    }
+
     fun requestReturnToLauncher(): CommandDispatch {
         val returnCommand = "am start --activity-clear-top --activity-single-top --activity-reorder-to-front -n ${context.packageName}/.MainActivity >/dev/null 2>&1"
         return runCommand(

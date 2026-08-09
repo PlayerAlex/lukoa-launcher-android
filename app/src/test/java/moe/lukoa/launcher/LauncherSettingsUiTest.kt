@@ -45,6 +45,31 @@ class LauncherSettingsUiTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun profileCloneDialog_explainsFullCopyBeforeConfirmation() {
+        var confirmCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                TavernProfileCloneConfirmDialog(
+                    confirmation = TavernProfileCloneConfirmation(
+                        sourceProfile = TavernProfile(),
+                        targetProfile = TavernProfileDefaults.profileForId("profile-2"),
+                    ),
+                    actionsLocked = false,
+                    onConfirm = { confirmCount += 1 },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("确认克隆当前实例").assertIsDisplayed()
+        composeRule.onNodeWithText("会完整复制当前酒馆目录，包括聊天、角色、扩展、程序和依赖。原实例不会被修改。")
+            .assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("开始克隆").performClick()
+        composeRule.runOnIdle { assertEquals(1, confirmCount) }
+    }
+
+    @Test
     fun infoIconButton_keepsAtLeast48DpTouchTarget() {
         composeRule.setContent {
             LukoaTheme {
@@ -510,7 +535,7 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("版本：1.2.3 · 大小：1.5 MB").assertIsDisplayed()
+        composeRule.onNodeWithText("版本：1.2.3 · 大小：1.5 MB").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("作者：Lukoa").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("完整路径：$extensionPath").performScrollTo().assertIsDisplayed()
         composeRule.onNode(hasText("复制路径") and hasClickAction()).performScrollTo().performClick()
@@ -1018,6 +1043,7 @@ class LauncherSettingsUiTest {
                         onTavernPortInputChange = {},
                         onSelectTavernProfile = {},
                         onAddTavernProfile = {},
+                        onCloneCurrentTavernProfile = {},
                         onRemoveCurrentTavernProfile = {},
                         onMigrateToManagedTavernPath = {},
                         onMigrateToTraditionalTavernPath = {},

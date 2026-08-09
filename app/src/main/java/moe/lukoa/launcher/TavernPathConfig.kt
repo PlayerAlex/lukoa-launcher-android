@@ -160,6 +160,14 @@ data class TavernPathConfig(
         )
     }
 
+    fun addProfile(profile: TavernProfile, makeActive: Boolean = true): TavernPathConfig {
+        if (availableProfiles.any { it.id == profile.id }) return withProfiles(availableProfiles, activeProfile.id)
+        return withProfiles(
+            availableProfiles + profile,
+            if (makeActive) profile.id else activeProfile.id,
+        )
+    }
+
     fun removeProfile(profileId: String): TavernPathConfig {
         if (profileId == TavernProfileDefaults.MAIN_PROFILE_ID) {
             return withProfiles(availableProfiles, activeProfile.id)
@@ -237,16 +245,28 @@ object TavernProfileDefaults {
 
     fun suggestedClone(existingProfiles: List<TavernProfile>): TavernProfile {
         val usedIds = existingProfiles.map { it.id }.toSet()
+        val usedPaths = existingProfiles.map { TavernComparablePath.normalize(it.normalizedTavernDir) }.toSet()
+        val usedPorts = existingProfiles.map { it.normalizedPort }.toSet()
         var slot = 2
-        while (usedIds.contains(profileIdForSlot(slot))) {
+        while (slot <= 65_536) {
+            val candidateId = profileIdForSlot(slot)
+            val candidatePath = defaultPathForSlot(slot)
+            val candidatePort = defaultPortForSlot(slot)
+            if (
+                candidateId !in usedIds &&
+                TavernComparablePath.normalize(candidatePath) !in usedPaths &&
+                candidatePort !in usedPorts
+            ) {
+                return TavernProfile(
+                    id = candidateId,
+                    name = nameForSlot(slot),
+                    tavernDir = candidatePath,
+                    port = candidatePort,
+                )
+            }
             slot += 1
         }
-        return TavernProfile(
-            id = profileIdForSlot(slot),
-            name = nameForSlot(slot),
-            tavernDir = defaultPathForSlot(slot),
-            port = defaultPortForSlot(slot),
-        )
+        error("没有可用的分身实例路径和端口。")
     }
 
     private fun profileIdForSlot(slot: Int): String {

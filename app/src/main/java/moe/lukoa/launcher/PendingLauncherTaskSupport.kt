@@ -72,7 +72,8 @@ object PendingLauncherTaskSupport {
             PendingLauncherTaskKind.RollbackTavern -> LauncherTab.Version
 
             PendingLauncherTaskKind.MigrateTavernDirectory,
-            PendingLauncherTaskKind.RemoveManagedProfileDirectory -> LauncherTab.Settings
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory,
+            PendingLauncherTaskKind.CloneTavernProfile -> LauncherTab.Settings
         }
     }
 
@@ -170,7 +171,8 @@ object PendingLauncherTaskSupport {
             PendingLauncherTaskKind.UpdateTavern,
             PendingLauncherTaskKind.RollbackTavern,
             PendingLauncherTaskKind.MigrateTavernDirectory,
-            PendingLauncherTaskKind.RemoveManagedProfileDirectory -> {
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory,
+            PendingLauncherTaskKind.CloneTavernProfile -> {
                 PendingTaskRefreshTargets(startupState = true)
             }
         }

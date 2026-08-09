@@ -72,6 +72,7 @@ fun SettingsSection(
     onTavernPortInputChange: (String) -> Unit,
     onSelectTavernProfile: (String) -> Unit,
     onAddTavernProfile: () -> Unit,
+    onCloneCurrentTavernProfile: () -> Unit,
     onRemoveCurrentTavernProfile: () -> Unit,
     onMigrateToManagedTavernPath: () -> Unit,
     onMigrateToTraditionalTavernPath: () -> Unit,
@@ -159,6 +160,7 @@ fun SettingsSection(
                     onSelectTavernProfile(profileId)
                 },
                 onAddProfile = onAddTavernProfile,
+                onCloneCurrentProfile = onCloneCurrentTavernProfile,
                 onRemoveCurrentProfile = onRemoveCurrentTavernProfile,
                 onDismiss = { activeDialog = null },
             )

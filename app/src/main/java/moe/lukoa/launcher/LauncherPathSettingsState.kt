@@ -12,6 +12,7 @@ class LauncherPathSettingsState(initialConfig: TavernPathConfig) {
     var showDirectoryChoiceDialog by mutableStateOf(false)
     var pendingRemovalConfirmation by mutableStateOf<TavernProfileRemovalConfirmation?>(null)
     var pendingMigrationConfirmation by mutableStateOf<TavernProfileMigrationConfirmation?>(null)
+    var pendingCloneConfirmation by mutableStateOf<TavernProfileCloneConfirmation?>(null)
     var showCustomMigrationDialog by mutableStateOf(false)
     var customMigrationPathInput by mutableStateOf("")
 
@@ -38,6 +39,7 @@ class LauncherPathSettingsState(initialConfig: TavernPathConfig) {
     fun clearTransientPathUi() {
         clearDirectoryChoice()
         pendingMigrationConfirmation = null
+        pendingCloneConfirmation = null
         showCustomMigrationDialog = false
         customMigrationPathInput = ""
     }

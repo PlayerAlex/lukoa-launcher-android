@@ -188,6 +188,26 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `profile clone is stopped managed staged and refuses shared external data`() {
+        val cloneBlock = script.substringAfter("cmd_clone_profile_dir() {")
+            .substringBefore("cmd_delete_managed_profile_dir() {")
+
+        assertTrue(script.contains("clone-profile-dir|tavern-clone-profile-dir"))
+        assertTrue(cloneBlock.contains("repair_require_stopped || return"))
+        assertTrue(cloneBlock.contains("managed_root=\"${'$'}(expand_launcher_path \"${'$'}LAUNCHER_TAVERN_ROOT_DIR\")\""))
+        assertTrue(cloneBlock.contains("[ \"${'$'}target_parent\" != \"${'$'}managed_root\" ]"))
+        assertTrue(cloneBlock.contains("^SillyTavern([2-9]|[1-9][0-9]+)${'$'}"))
+        assertTrue(cloneBlock.contains("path_is_inside \"${'$'}target\" \"${'$'}managed_root\""))
+        assertTrue(cloneBlock.contains("Clone target is outside the launcher managed root"))
+        assertTrue(cloneBlock.contains("Source uses an external dataRoot"))
+        assertTrue(cloneBlock.contains("find \"${'$'}TAVERN_DIR\" -type l"))
+        assertTrue(cloneBlock.contains(".lukoa-clone-staging-"))
+        assertTrue(cloneBlock.contains("cp -a \"${'$'}TAVERN_DIR/.\" \"${'$'}staging/\""))
+        assertTrue(cloneBlock.contains("mv \"${'$'}staging\" \"${'$'}target\""))
+        assertTrue(cloneBlock.contains("clonedTo="))
+    }
+
+    @Test
     fun `bundled script transport supports background stdin and bounded foreground compression`() {
         assertTrue(runnerSource.contains("putExtra(EXTRA_STDIN, it)"))
         assertTrue(runnerSource.contains("stdin = plan.stdin"))

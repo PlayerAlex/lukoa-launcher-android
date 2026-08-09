@@ -21,6 +21,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-restore" to 10 * 60_000L,
         "tavern-migrate-dir" to 10 * 60_000L,
         "tavern-delete-managed-profile-dir" to 10 * 60_000L,
+        "tavern-clone-profile-dir" to 30 * 60_000L,
         "start" to 60_000L,
         "stop" to 24_000L,
         "tavern-force-cleanup" to 24_000L,

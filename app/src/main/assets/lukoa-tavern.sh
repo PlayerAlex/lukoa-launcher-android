@@ -3408,6 +3408,95 @@ cmd_migrate_dir() {
   printf "==== end SillyTavern directory migration ====\n"
 }
 
+cmd_clone_profile_dir() {
+  write_command "clone-profile-dir"
+  target="${1:-}"
+  repair_require_stopped || return "$?"
+  [ -n "$target" ] || {
+    write_status "error" "No clone target directory was provided" false 64
+    emit_status
+    return 64
+  }
+  [ -d "$TAVERN_DIR" ] && [ -f "$TAVERN_DIR/package.json" ] || {
+    write_status "error" "Current SillyTavern directory is not ready to clone" false 66
+    emit_status
+    return 66
+  }
+  target="$(expand_launcher_path "$target")"
+  managed_root="$(expand_launcher_path "$LAUNCHER_TAVERN_ROOT_DIR")"
+  target_parent="$(dirname "$target")"
+  target_name="$(basename "$target")"
+  if [ "$target_parent" != "$managed_root" ] ||
+    ! printf "%s" "$target_name" | grep -Eq '^SillyTavern([2-9]|[1-9][0-9]+)$' ||
+    ! path_is_inside "$target" "$managed_root"; then
+    write_status "error" "Clone target is outside the launcher managed root" false 73
+    emit_status
+    return 73
+  fi
+  if path_is_inside "$target" "$TAVERN_DIR" || path_is_inside "$TAVERN_DIR" "$target"; then
+    write_status "error" "Clone source and target must not overlap" false 73
+    emit_status
+    return 73
+  fi
+  if [ -e "$target" ]; then
+    write_status "error" "Clone target directory already exists" false 73
+    emit_status
+    return 73
+  fi
+  source_data_root="$(resolve_tavern_data_root)"
+  if [ -z "$source_data_root" ] || ! path_is_inside "$source_data_root" "$TAVERN_DIR"; then
+    write_status "error" "Source uses an external dataRoot; independent clone is blocked" false 73
+    emit_status
+    return 73
+  fi
+  if find "$TAVERN_DIR" -type l -print -quit 2>/dev/null | grep -q .; then
+    write_status "error" "Source contains symbolic links; independent clone is blocked" false 73
+    emit_status
+    return 73
+  fi
+  mkdir -p "$target_parent" || {
+    write_status "error" "Failed to prepare clone target parent" false 73
+    emit_status
+    return 73
+  }
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  staging="$target_parent/.lukoa-clone-staging-$$-$stamp"
+  if [ -e "$staging" ]; then
+    write_status "error" "Clone staging directory already exists" false 73
+    emit_status
+    return 73
+  fi
+  mkdir -p "$staging" || {
+    write_status "error" "Failed to create clone staging directory" false 73
+    emit_status
+    return 73
+  }
+  if ! cp -a "$TAVERN_DIR/." "$staging/"; then
+    rm -rf "$staging"
+    write_status "error" "Failed to copy current SillyTavern into clone staging" false 74
+    emit_status
+    return 74
+  fi
+  if [ ! -f "$staging/package.json" ] || [ -L "$staging/package.json" ] || [ -e "$target" ]; then
+    rm -rf "$staging"
+    write_status "error" "Cloned SillyTavern failed validation or target became occupied" false 73
+    emit_status
+    return 73
+  fi
+  if ! mv "$staging" "$target"; then
+    rm -rf "$staging"
+    write_status "error" "Failed to place cloned SillyTavern directory" false 74
+    emit_status
+    return 74
+  fi
+  write_status "cloned-profile-dir" "SillyTavern instance cloned successfully" false 0
+  cat "$STATUS_FILE"
+  printf "\n==== SillyTavern profile clone ====\n"
+  printf "clonedFrom=%s\n" "$TAVERN_DIR"
+  printf "clonedTo=%s\n" "$target"
+  printf "==== end SillyTavern profile clone ====\n"
+}
+
 cmd_delete_managed_profile_dir() {
   write_command "delete-managed-profile-dir"
   if [ "${TAVERN_PROFILE_ID:-main}" = "main" ]; then
@@ -4639,6 +4728,10 @@ main() {
       ;;
     delete-managed-profile-dir|tavern-delete-managed-profile-dir)
       cmd_delete_managed_profile_dir
+      ;;
+    clone-profile-dir|tavern-clone-profile-dir)
+      shift
+      cmd_clone_profile_dir "$@"
       ;;
     *)
       write_status "error" "unknown command: $command" false 64

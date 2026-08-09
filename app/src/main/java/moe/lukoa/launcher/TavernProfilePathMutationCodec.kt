@@ -27,6 +27,8 @@ object TavernProfilePathMutationOutputParser {
 
     fun deletedProfilePath(output: String): String? = lineValue(output, "deleted.profileDir")
 
+    fun clonedTargetPath(output: String): String? = lineValue(output, "clonedTo")
+
     private fun lineValue(output: String, key: String): String? {
         return output.lineSequence()
             .map { it.trim() }

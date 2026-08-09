@@ -165,6 +165,46 @@ class LauncherProfileCoordinator(
         }
     }
 
+    fun requestCloneCurrentTavernProfile() {
+        when (
+            val decision = TavernProfileCloneGuard.evaluate(
+                config = pathState.config,
+                tavernRunning = isTavernRunning(),
+                tavernStarting = isTavernStarting(),
+                actionsLocked = isActionInProgress(),
+            )
+        ) {
+            is TavernProfileCloneDecision.Blocked -> statusUpdate(decision.message, "", false)
+            is TavernProfileCloneDecision.Confirm -> {
+                pathState.pendingCloneConfirmation = decision.confirmation
+            }
+        }
+    }
+
+    fun confirmCloneCurrentTavernProfile() {
+        val confirmation = pathState.pendingCloneConfirmation ?: return
+        if (blockIfPendingTaskExists("克隆酒馆实例")) return
+        pathState.pendingCloneConfirmation = null
+        val target = confirmation.targetProfile
+        runProfileMutationPendingCommand(
+            PendingLauncherTask(
+                kind = PendingLauncherTaskKind.CloneTavernProfile,
+                commandName = "tavern-clone-profile-dir",
+                detail = "把${confirmation.sourceProfile.normalizedName}克隆到${target.displayTavernDir}",
+                startedAtMillis = System.currentTimeMillis(),
+                targetLabel = target.normalizedName,
+                profileId = target.id,
+                targetPath = target.normalizedTavernDir,
+            ),
+            "克隆酒馆实例",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-clone-profile-dir"),
+            LauncherCommandCodec.encode(
+                "tavern-clone-profile-dir",
+                TavernProfileMigrationCommandCodec.encode(target.normalizedTavernDir),
+            ),
+        )
+    }
+
     fun requestRemoveCurrentTavernProfile() {
         when (
             val decision = TavernProfileRemovalGuard.evaluate(

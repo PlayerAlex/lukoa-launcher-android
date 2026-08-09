@@ -12,6 +12,7 @@ enum class PendingLauncherTaskKind(
     RollbackTavern("回退酒馆"),
     MigrateTavernDirectory("迁移酒馆目录"),
     RemoveManagedProfileDirectory("删除分身实例目录"),
+    CloneTavernProfile("克隆酒馆实例"),
     ManualBackup("创建酒馆备份"),
     RestoreBackup("应用酒馆备份"),
 }

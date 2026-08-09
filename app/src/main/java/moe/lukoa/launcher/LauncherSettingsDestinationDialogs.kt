@@ -24,6 +24,7 @@ internal fun TavernProfileManagementDialog(
     actionsLocked: Boolean,
     onSelectProfile: (String) -> Unit,
     onAddProfile: () -> Unit,
+    onCloneCurrentProfile: () -> Unit,
     onRemoveCurrentProfile: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -95,6 +96,13 @@ internal fun TavernProfileManagementDialog(
                         onClick = onRemoveCurrentProfile,
                     )
                 }
+                DialogActionButton(
+                    text = "克隆当前实例",
+                    enabled = !actionsLocked,
+                    tone = ActionTone.Warning,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onCloneCurrentProfile,
+                )
                 if (tavernPathConfig.hasMultipleProfiles && tavernPathConfig.isActiveProfileMain) {
                     Text(
                         text = "主实例默认保留。要删除分身，请先切换到对应分身。",

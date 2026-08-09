@@ -134,6 +134,52 @@ fun DeleteTavernProfileConfirmDialog(
 }
 
 @Composable
+fun TavernProfileCloneConfirmDialog(
+    confirmation: TavernProfileCloneConfirmation,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = "确认克隆当前实例",
+        titleTone = ActionTone.Warning,
+        confirmText = "开始克隆",
+        confirmTone = ActionTone.Warning,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "会完整复制当前酒馆目录，包括聊天、角色、扩展、程序和依赖。原实例不会被修改。",
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Elevated,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("来源实例", confirmation.sourceProfile.normalizedName)
+                VersionInfoLine("来源目录", confirmation.sourceProfile.displayTavernDir)
+                VersionInfoLine("新实例", confirmation.targetProfile.normalizedName)
+                VersionInfoLine("目标目录", confirmation.targetProfile.displayTavernDir)
+                VersionInfoLine("新端口", confirmation.targetProfile.normalizedPort.toString())
+            }
+        }
+        Text(
+            text = "目标必须是空的启动器托管目录。若当前实例使用外部 dataRoot 或包含符号链接，为避免两个实例共用数据，启动器会停止克隆。请先确认手机有足够空间。",
+            color = LukoaColors.Accent,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
 fun TavernProfileMigrationConfirmDialog(
     confirmation: TavernProfileMigrationConfirmation,
     actionsLocked: Boolean,
