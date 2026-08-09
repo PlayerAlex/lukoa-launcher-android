@@ -133,6 +133,32 @@ class LauncherVersionManagementUiTest {
         composeRule.runOnIdle { assertEquals(1, resetCount) }
     }
 
+    @Test
+    fun versionPage_showsLastOperationAndOpensSafetyBackupEntry() {
+        var openBackupCount = 0
+        setVersionPageContent(
+            target = versionChoice("1.14.0"),
+            lastOperationSummary = TavernVersionOperationSummary(
+                kind = TavernVersionActionKind.Update,
+                target = "1.14.0",
+                beforeRevision = "abc1234",
+                afterRevision = "def5678",
+                exitCode = 0,
+                npmExitCode = 0,
+                safetyBackupPath = "/backups/update-safe.tar.gz",
+            ),
+            onOpenSafetyBackup = { openBackupCount += 1 },
+        )
+
+        composeRule.onNodeWithText("上次执行结果").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("更新已完成").assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("到备份页查看安全备份")
+            .performScrollTo()
+            .performClick()
+        composeRule.runOnIdle { assertEquals(1, openBackupCount) }
+    }
+
     private fun setVersionPageContent(
         target: TavernVersionChoice,
         currentInfo: TavernVersionInfo = TavernVersionInfo(
@@ -144,9 +170,11 @@ class LauncherVersionManagementUiTest {
             describe = "1.13.0",
         ),
         uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
+        lastOperationSummary: TavernVersionOperationSummary? = null,
         onResetUploadLimit: () -> Unit = {},
         onUpdate: () -> Unit = {},
         onRollback: () -> Unit = {},
+        onOpenSafetyBackup: () -> Unit = {},
     ) {
         composeRule.setContent {
             LukoaTheme {
@@ -165,11 +193,13 @@ class LauncherVersionManagementUiTest {
                         ),
                         currentRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
                         selectedVersion = target,
+                        lastOperationSummary = lastOperationSummary,
                         onRefreshOfficialVersions = {},
                         onSelectVersion = {},
                         onTavernVersion = {},
                         onTavernUpdate = onUpdate,
                         onTavernRollback = onRollback,
+                        onOpenSafetyBackup = onOpenSafetyBackup,
                         uploadLimitStatus = uploadLimitStatus,
                         onResetUploadLimit = onResetUploadLimit,
                     )

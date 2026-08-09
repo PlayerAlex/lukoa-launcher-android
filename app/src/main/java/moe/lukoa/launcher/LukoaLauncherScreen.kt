@@ -177,6 +177,9 @@ fun LukoaLauncherScreen(
     var tavernVersionInfo by remember {
         mutableStateOf(if (startupRefreshSignal > 0) TavernVersionInfo() else cachedTavernVersionInfo)
     }
+    var lastTavernVersionOperationSummary by remember {
+        mutableStateOf<TavernVersionOperationSummary?>(null)
+    }
     var tavernInstallDetected by remember {
         mutableStateOf<Boolean?>(
             if (startupRefreshSignal > 0) {
@@ -289,6 +292,7 @@ fun LukoaLauncherScreen(
         uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
         tavernUserState = TavernUserManagementState(message = "已切换酒馆实例，请重新读取用户。")
         tavernExtensionState = TavernExtensionManagementState(message = "已切换酒馆实例，请重新读取扩展。")
+        lastTavernVersionOperationSummary = null
     }
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -1427,6 +1431,18 @@ fun LukoaLauncherScreen(
                 }
                 update(statusWithBackupPath, termuxOutput, ok, allowRunningInference = false)
                 if (finished) {
+                    val summaryKind = when (taskKind) {
+                            PendingLauncherTaskKind.UpdateTavern -> TavernVersionActionKind.Update
+                            PendingLauncherTaskKind.RollbackTavern -> TavernVersionActionKind.Rollback
+                            else -> null
+                        }
+                    if (summaryKind != null) {
+                        lastTavernVersionOperationSummary = TavernVersionOperationSummaryParser.parse(
+                            output = termuxOutput,
+                            kind = summaryKind,
+                            safetyBackupPath = safetyBackupPath,
+                        )
+                    }
                     clearPendingLauncherTask()
                     releaseBusy(operationToken)
                 }
@@ -3512,6 +3528,7 @@ fun LukoaLauncherScreen(
                             officialVersions = officialVersions,
                             currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                             selectedVersion = selectedTavernVersion,
+                            lastOperationSummary = lastTavernVersionOperationSummary,
                             onRefreshOfficialVersions = ::refreshOfficialVersions,
                             onSelectVersion = {
                                 selectedTavernVersion = it
@@ -3524,6 +3541,9 @@ fun LukoaLauncherScreen(
                             },
                             onTavernUpdate = ::requestTavernUpdate,
                             onTavernRollback = ::requestTavernRollback,
+                            onOpenSafetyBackup = {
+                                selectedTab = LauncherTab.Backup
+                            },
                             uploadLimitStatus = uploadLimitStatus,
                             onResetUploadLimit = ::resetUploadLimitToVersionDefault,
                         )

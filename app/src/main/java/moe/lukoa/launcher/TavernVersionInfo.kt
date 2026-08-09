@@ -122,6 +122,67 @@ object TavernVersionParser {
     }
 }
 
+data class TavernVersionOperationSummary(
+    val kind: TavernVersionActionKind,
+    val target: String,
+    val beforeRevision: String,
+    val afterRevision: String,
+    val exitCode: Int,
+    val npmExitCode: Int?,
+    val safetyBackupPath: String,
+) {
+    val succeeded: Boolean
+        get() = exitCode == 0 && (npmExitCode == null || npmExitCode == 0)
+
+    val revisionChanged: Boolean
+        get() = beforeRevision.isNotBlank() &&
+            afterRevision.isNotBlank() &&
+            beforeRevision != "unknown" &&
+            afterRevision != "unknown" &&
+            !beforeRevision.equals(afterRevision, ignoreCase = true)
+}
+
+object TavernVersionOperationSummaryParser {
+    fun parse(
+        output: String,
+        kind: TavernVersionActionKind,
+        safetyBackupPath: String,
+    ): TavernVersionOperationSummary? {
+        val action = when (kind) {
+            TavernVersionActionKind.Update -> "update"
+            TavernVersionActionKind.Rollback -> "rollback"
+        }
+        val header = "==== SillyTavern $action ===="
+        val footer = "==== end SillyTavern $action ===="
+        val start = output.lastIndexOf(header)
+        if (start < 0) return null
+        val end = output.indexOf(footer, start + header.length)
+        if (end < 0) return null
+        val values = mutableMapOf<String, String>()
+        output.substring(start + header.length, end).lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            val splitAt = line.indexOf('=')
+            if (splitAt <= 0) return@forEach
+            val key = line.substring(0, splitAt)
+            if (key in setOf("target", "before", "after", "exitCode", "npmExitCode")) {
+                values[key] = line.substring(splitAt + 1).trim().take(240)
+            }
+        }
+        val exitCode = values["exitCode"]?.toIntOrNull() ?: return null
+        val npmExitCode = values["npmExitCode"]?.toIntOrNull()
+        if (values.containsKey("npmExitCode") && npmExitCode == null) return null
+        return TavernVersionOperationSummary(
+            kind = kind,
+            target = values["target"].orEmpty(),
+            beforeRevision = values["before"].orEmpty(),
+            afterRevision = values["after"].orEmpty(),
+            exitCode = exitCode,
+            npmExitCode = npmExitCode,
+            safetyBackupPath = safetyBackupPath.trim().take(1024),
+        )
+    }
+}
+
 enum class TavernTargetRelation {
     Older,
     Same,

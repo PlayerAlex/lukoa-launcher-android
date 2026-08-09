@@ -63,11 +63,13 @@ fun VersionManagementSection(
     officialVersions: TavernOfficialVersions,
     currentRepoUrl: String,
     selectedVersion: TavernVersionChoice?,
+    lastOperationSummary: TavernVersionOperationSummary? = null,
     onRefreshOfficialVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
     onTavernVersion: () -> Unit,
     onTavernUpdate: () -> Unit,
     onTavernRollback: () -> Unit,
+    onOpenSafetyBackup: () -> Unit = {},
     uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
     onResetUploadLimit: () -> Unit = {},
 ) {
@@ -110,6 +112,72 @@ fun VersionManagementSection(
             onUpdate = onTavernUpdate,
             onRollback = onTavernRollback,
         )
+        lastOperationSummary?.let {
+            VersionOperationResultSection(
+                summary = it,
+                onOpenSafetyBackup = onOpenSafetyBackup,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VersionOperationResultSection(
+    summary: TavernVersionOperationSummary,
+    onOpenSafetyBackup: () -> Unit,
+) {
+    val actionText = when (summary.kind) {
+        TavernVersionActionKind.Update -> "更新"
+        TavernVersionActionKind.Rollback -> "回退"
+    }
+    val resultText = when {
+        !summary.succeeded -> "${actionText}未完成"
+        summary.revisionChanged -> "${actionText}已完成"
+        else -> "任务已完成，版本未变化"
+    }
+    val tone = if (summary.succeeded) LukoaColors.Primary else LukoaColors.Accent
+    SectionPanel(
+        title = "上次执行结果",
+        accentColor = tone,
+        headerAction = {
+            StatusPill(
+                text = resultText,
+                active = true,
+                toneColor = tone,
+                activeBackground = if (summary.succeeded) LukoaColors.PrimarySoft else LukoaColors.AccentSoft,
+            )
+        },
+    ) {
+        VersionInfoLine("执行目标", summary.target.ifBlank { "未读取" })
+        VersionInfoLine("执行前提交", summary.beforeRevision.ifBlank { "未读取" })
+        VersionInfoLine("执行后提交", summary.afterRevision.ifBlank { "未读取" })
+        VersionInfoLine(
+            "依赖安装",
+            when (summary.npmExitCode) {
+                null -> "未报告"
+                0 -> "已完成"
+                else -> "失败（代码 ${summary.npmExitCode}）"
+            },
+        )
+        Text(
+            text = if (summary.succeeded) {
+                "程序版本切换结果已经返回；安全备份仍保留，可在备份页查看。"
+            } else {
+                "操作没有完整成功。安全备份仍保留，请先查看日志或诊断，再决定是否恢复。"
+            },
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (summary.safetyBackupPath.isNotBlank()) {
+            VersionInfoLine("安全备份", summary.safetyBackupPath)
+            SecondaryActionButton(
+                text = "到备份页查看安全备份",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenSafetyBackup,
+            )
+        }
     }
 }
 
