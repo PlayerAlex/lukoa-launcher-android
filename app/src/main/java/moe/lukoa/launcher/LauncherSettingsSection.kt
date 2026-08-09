@@ -66,6 +66,8 @@ fun SettingsSection(
     tavernUserState: TavernUserManagementState,
     tavernExtensionState: TavernExtensionManagementState,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
+    backgroundTaskStatus: String,
+    backgroundTaskNeedsAttention: Boolean,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
     onTavernPathInputChange: (String) -> Unit,
@@ -127,6 +129,7 @@ fun SettingsSection(
     onCopyTavernExtensionPath: (String) -> Boolean,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
+    onOpenBackgroundTaskCenter: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
 ) {
@@ -391,6 +394,11 @@ fun SettingsSection(
                     onClick = { activeDialog = SettingsDialogDestination.HealthCheck },
                 )
             },
+        )
+        BackgroundTaskSettingsPanel(
+            status = backgroundTaskStatus,
+            needsAttention = backgroundTaskNeedsAttention,
+            onOpen = onOpenBackgroundTaskCenter,
         )
         DiagnosticsSettingsPanel(
             actionsLocked = actionsLocked,

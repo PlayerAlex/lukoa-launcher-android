@@ -70,6 +70,47 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun backgroundTaskCenter_checksSavedTaskAndShowsRecentResult() {
+        var checkCount = 0
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.RestoreBackup,
+            commandName = "tavern-restore",
+            detail = "正在只恢复酒馆用户数据",
+            startedAtMillis = 1L,
+            profileId = "main",
+        )
+        composeRule.setContent {
+            LukoaTheme {
+                BackgroundTaskCenterDialog(
+                    pendingTask = task,
+                    activeLockLabel = null,
+                    recentResults = listOf(
+                        TermuxResultDisplay(
+                            key = "backup-result",
+                            command = "tavern-backup",
+                            output = "archive=/safe.tar.gz",
+                            ok = true,
+                            timeMillis = 2L,
+                        ),
+                    ),
+                    onCheckPendingTask = { checkCount += 1 },
+                    onOpenPendingTaskPage = {},
+                    onAbandonPendingTask = {},
+                    onRefreshResults = {},
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("后台任务中心").assertIsDisplayed()
+        composeRule.onNodeWithText("应用酒馆备份").assertExists()
+        composeRule.onNodeWithText("创建酒馆备份").performScrollTo().assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("检查最新结果").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, checkCount) }
+    }
+
+    @Test
     fun infoIconButton_keepsAtLeast48DpTouchTarget() {
         composeRule.setContent {
             LukoaTheme {
@@ -1037,6 +1078,8 @@ class LauncherSettingsUiTest {
                         tavernUserState = TavernUserManagementState(),
                         tavernExtensionState = TavernExtensionManagementState(),
                         forceCleanupSuggestion = null,
+                        backgroundTaskStatus = "当前空闲",
+                        backgroundTaskNeedsAttention = false,
                         onTavernRepoInputChange = {},
                         onNpmRegistryInputChange = {},
                         onTavernPathInputChange = {},
@@ -1093,6 +1136,7 @@ class LauncherSettingsUiTest {
                         onCopyTavernExtensionPath = { true },
                         onClearLogs = {},
                         onExportDiagnostic = {},
+                        onOpenBackgroundTaskCenter = {},
                         onDecreaseTermuxReturnDelay = {},
                         onIncreaseTermuxReturnDelay = {},
                     )

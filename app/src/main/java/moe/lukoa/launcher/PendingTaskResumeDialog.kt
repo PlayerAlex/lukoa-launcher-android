@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -369,3 +372,211 @@ private fun formatPendingTaskTime(timeMillis: Long): String {
 }
 
 private val PENDING_TASK_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
+
+@Composable
+fun BackgroundTaskSettingsPanel(
+    status: String,
+    needsAttention: Boolean,
+    onOpen: () -> Unit,
+) {
+    SectionPanel(
+        title = "后台任务",
+        accentColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+    ) {
+        SettingsEntryRow(
+            title = "任务中心",
+            detail = "查看耗时操作、补查 Termux 返回结果，或前往任务对应页面。",
+            value = status,
+            valueColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+            valueAsPill = true,
+            highlightColor = if (needsAttention) LukoaColors.Accent else null,
+            onClick = onOpen,
+        )
+    }
+}
+
+@Composable
+fun BackgroundTaskCenterDialog(
+    pendingTask: PendingLauncherTask?,
+    activeLockLabel: String?,
+    recentResults: List<TermuxResultDisplay>,
+    onCheckPendingTask: () -> Unit,
+    onOpenPendingTaskPage: () -> Unit,
+    onAbandonPendingTask: () -> Unit,
+    onRefreshResults: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var confirmAbandon by remember(pendingTask?.kind, pendingTask?.startedAtMillis) { mutableStateOf(false) }
+
+    if (confirmAbandon && pendingTask != null) {
+        PendingTaskAbandonDialog(
+            task = pendingTask,
+            onConfirm = {
+                confirmAbandon = false
+                onAbandonPendingTask()
+            },
+            onDismiss = { confirmAbandon = false },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = { Text("后台任务中心") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                when {
+                    pendingTask != null -> {
+                        PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                        PendingTaskSummaryCard(task = pendingTask)
+                        ToneActionButton(
+                            text = "检查最新结果",
+                            enabled = true,
+                            tone = ActionTone.Safe,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onCheckPendingTask,
+                        )
+                        ToneActionButton(
+                            text = "前往对应页面",
+                            enabled = true,
+                            tone = ActionTone.Neutral,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenPendingTaskPage,
+                        )
+                        ToneActionButton(
+                            text = "不再跟踪这次操作",
+                            enabled = true,
+                            tone = ActionTone.Warning,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { confirmAbandon = true },
+                        )
+                    }
+
+                    !activeLockLabel.isNullOrBlank() -> {
+                        PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                        Text(
+                            text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
+                            color = LukoaColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+
+                    else -> BackgroundTaskIdleCard()
+                }
+
+                Text(
+                    text = "最近任务结果",
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (recentResults.isEmpty()) {
+                    Text(
+                        text = "还没有可显示的耗时任务结果。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    recentResults.forEach { result ->
+                        BackgroundTaskResultCard(result = result)
+                    }
+                }
+                ToneActionButton(
+                    text = "刷新最近结果",
+                    enabled = true,
+                    tone = ActionTone.Neutral,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onRefreshResults,
+                )
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                text = "关闭",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = {},
+    )
+}
+
+@Composable
+private fun BackgroundTaskIdleCard() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "当前没有待确认任务",
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "新的备份、恢复、版本操作和实例目录任务会自动出现在这里。",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackgroundTaskResultCard(result: TermuxResultDisplay) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = PendingLauncherTaskSupport.taskResultTitle(result),
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                StatusPill(
+                    text = if (result.ok) "成功" else "失败",
+                    active = result.ok,
+                    toneColor = if (result.ok) LukoaColors.Primary else LukoaColors.Danger,
+                    activeBackground = LukoaColors.Elevated,
+                )
+            }
+            PendingTaskInfoLine("完成时间", formatPendingTaskTime(result.timeMillis))
+            result.profileId.takeIf(String::isNotBlank)?.let {
+                PendingTaskInfoLine("实例", it)
+            }
+        }
+    }
+}

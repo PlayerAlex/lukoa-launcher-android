@@ -17,6 +17,35 @@ data class PendingTaskUiVisibility(
 )
 
 object PendingLauncherTaskSupport {
+    fun taskCenterStatus(
+        task: PendingLauncherTask?,
+        activeLockLabel: String?,
+    ): String {
+        return when {
+            task != null && !activeLockLabel.isNullOrBlank() -> "${task.title}进行中"
+            task != null -> "${task.title}待确认"
+            !activeLockLabel.isNullOrBlank() -> activeLockLabel
+            else -> "当前空闲"
+        }
+    }
+
+    fun recentTaskResults(
+        recentResults: List<TermuxResultDisplay>,
+        limit: Int = 4,
+    ): List<TermuxResultDisplay> {
+        if (limit <= 0) return emptyList()
+        return recentResults.asSequence()
+            .filter { TASK_RESULT_TITLES.containsKey(it.command) }
+            .sortedByDescending { it.timeMillis }
+            .distinctBy { it.key }
+            .take(limit)
+            .toList()
+    }
+
+    fun taskResultTitle(result: TermuxResultDisplay): String {
+        return TASK_RESULT_TITLES[result.command] ?: result.command.ifBlank { "后台任务" }
+    }
+
     fun uiVisibility(
         task: PendingLauncherTask?,
         operationActive: Boolean,
@@ -177,4 +206,15 @@ object PendingLauncherTaskSupport {
             }
         }
     }
+
+    private val TASK_RESULT_TITLES = mapOf(
+        "tavern-install" to "安装酒馆",
+        "tavern-update" to "更新酒馆",
+        "tavern-rollback" to "回退酒馆",
+        "tavern-backup" to "创建酒馆备份",
+        "tavern-restore" to "应用酒馆备份",
+        "tavern-migrate-dir" to "迁移酒馆目录",
+        "tavern-delete-managed-profile-dir" to "删除分身实例目录",
+        "tavern-clone-profile-dir" to "克隆酒馆实例",
+    )
 }

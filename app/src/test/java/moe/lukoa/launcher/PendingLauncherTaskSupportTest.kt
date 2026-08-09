@@ -8,6 +8,46 @@ import org.junit.Test
 
 class PendingLauncherTaskSupportTest {
     @Test
+    fun `task center keeps only latest distinct long task results`() {
+        val results = listOf(
+            TermuxResultDisplay("status", "status", "", true, timeMillis = 500L),
+            TermuxResultDisplay("restore", "tavern-restore", "", false, timeMillis = 400L),
+            TermuxResultDisplay("clone", "tavern-clone-profile-dir", "", true, timeMillis = 300L),
+            TermuxResultDisplay("clone", "tavern-clone-profile-dir", "duplicate", true, timeMillis = 200L),
+            TermuxResultDisplay("backup", "tavern-backup", "", true, timeMillis = 100L),
+        )
+
+        val recent = PendingLauncherTaskSupport.recentTaskResults(results, limit = 2)
+
+        assertEquals(listOf("restore", "clone"), recent.map { it.key })
+        assertEquals("应用酒馆备份", PendingLauncherTaskSupport.taskResultTitle(recent.first()))
+    }
+
+    @Test
+    fun `task center status distinguishes running pending and idle states`() {
+        val task = PendingLauncherTask(
+            kind = PendingLauncherTaskKind.UpdateTavern,
+            commandName = "tavern-update",
+            detail = "",
+            startedAtMillis = 1L,
+        )
+
+        assertEquals(
+            "更新酒馆进行中",
+            PendingLauncherTaskSupport.taskCenterStatus(task, "正在刷新状态"),
+        )
+        assertEquals(
+            "更新酒馆待确认",
+            PendingLauncherTaskSupport.taskCenterStatus(task, null),
+        )
+        assertEquals(
+            "正在刷新状态",
+            PendingLauncherTaskSupport.taskCenterStatus(null, "正在刷新状态"),
+        )
+        assertEquals("当前空闲", PendingLauncherTaskSupport.taskCenterStatus(null, null))
+    }
+
+    @Test
     fun `live operation keeps pending task in running state instead of recovery ui`() {
         val task = PendingLauncherTask(
             kind = PendingLauncherTaskKind.ManualBackup,

@@ -322,6 +322,8 @@ fun LukoaLauncherScreen(
             ),
         )
     }
+    var showBackgroundTaskCenter by rememberSaveable { mutableStateOf(false) }
+    var backgroundTaskCenterResults by remember { mutableStateOf<List<TermuxResultDisplay>>(emptyList()) }
     val actionInProgress = busyLabel != null
     val pendingTaskUiVisibility = PendingLauncherTaskSupport.uiVisibility(
         task = pendingLauncherTask,
@@ -2624,6 +2626,17 @@ fun LukoaLauncherScreen(
         )
     }
 
+    fun refreshBackgroundTaskCenterResults() {
+        backgroundTaskCenterResults = PendingLauncherTaskSupport.recentTaskResults(
+            onRecentTermuxResults(),
+        )
+    }
+
+    fun openBackgroundTaskCenter() {
+        refreshBackgroundTaskCenterResults()
+        showBackgroundTaskCenter = true
+    }
+
     fun resetUploadLimitToVersionDefault() {
         runGuarded(
             "恢复默认聊天文件大小",
@@ -3280,6 +3293,28 @@ fun LukoaLauncherScreen(
         )
     }
 
+    if (showBackgroundTaskCenter) {
+        BackgroundTaskCenterDialog(
+            pendingTask = pendingLauncherTask,
+            activeLockLabel = busyLabel,
+            recentResults = backgroundTaskCenterResults,
+            onCheckPendingTask = {
+                continuePendingLauncherTask()
+                refreshBackgroundTaskCenterResults()
+            },
+            onOpenPendingTaskPage = {
+                pendingLauncherTask?.let { selectedTab = PendingLauncherTaskSupport.defaultTab(it) }
+                showBackgroundTaskCenter = false
+            },
+            onAbandonPendingTask = {
+                abandonPendingLauncherTask()
+                showBackgroundTaskCenter = false
+            },
+            onRefreshResults = ::refreshBackgroundTaskCenterResults,
+            onDismiss = { showBackgroundTaskCenter = false },
+        )
+    }
+
     pendingFirstTavernStartGuide?.takeIf { showFirstTavernStartGuideDialog }?.let { guide ->
         FirstTavernStartGuideDialog(
             guide = guide,
@@ -3769,6 +3804,11 @@ fun LukoaLauncherScreen(
                             tavernUserState = tavernUserState,
                             tavernExtensionState = tavernExtensionState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
+                            backgroundTaskStatus = PendingLauncherTaskSupport.taskCenterStatus(
+                                pendingLauncherTask,
+                                busyLabel,
+                            ),
+                            backgroundTaskNeedsAttention = pendingLauncherTask != null,
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
                             onTavernPathInputChange = { tavernPathInput = it },
@@ -4027,6 +4067,7 @@ fun LukoaLauncherScreen(
                             },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
+                            onOpenBackgroundTaskCenter = ::openBackgroundTaskCenter,
                             onDecreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs - 100L)
                             },
