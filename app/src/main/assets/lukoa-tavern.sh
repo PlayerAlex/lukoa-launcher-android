@@ -3454,11 +3454,6 @@ cmd_reset_theme() {
     emit_status
     return 69
   }
-  if [ "$action" = "install" ] && ! command -v git >/dev/null 2>&1; then
-    write_status "error" "git command not found in Termux" false 69
-    emit_status
-    return 69
-  fi
   settings_candidates="$(find "$TAVERN_DIR/data" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
   settings_count="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | wc -l | tr -d ' ')"
   [ "$settings_count" = "1" ] || {
@@ -3775,14 +3770,21 @@ NODE
 run_tavern_extension_action() {
   action="${1:-list}"
   payload="${2:-}"
-  if [ "$action" != "list" ]; then
-    repair_require_stopped || return "$?"
-  fi
+  case "$action" in
+    delete|disable|enable|install)
+      repair_require_stopped || return "$?"
+      ;;
+  esac
   command -v node >/dev/null 2>&1 || {
     write_status "error" "node command not found in Termux" false 69
     emit_status
     return 69
   }
+  if { [ "$action" = "install" ] || [ "$action" = "check-updates" ]; } && ! command -v git >/dev/null 2>&1; then
+    write_status "error" "git command not found in Termux" false 69
+    emit_status
+    return 69
+  fi
   extension_root="$TAVERN_DIR/public/scripts/extensions/third-party"
   output="$(LUKOA_EXTENSION_ACTION="$action" LUKOA_EXTENSION_PAYLOAD="$payload" LUKOA_EXTENSION_ROOT="$extension_root" node --input-type=module <<'NODE'
 import fs from 'node:fs';
@@ -3856,7 +3858,97 @@ function decodeRepositoryUrl(value) {
   };
 }
 
-function readExtensions(extensionRoot, enabled) {
+const remoteCheckStartedAt = Date.now();
+
+function runGit(directory, args, timeout = 3000) {
+  const result = spawnSync(
+    'git',
+    ['-c', 'protocol.file.allow=never', '-c', 'protocol.ext.allow=never', '-C', directory, ...args],
+    {
+      encoding: 'utf8',
+      timeout,
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    },
+  );
+  if (result.error || result.status !== 0) return null;
+  return String(result.stdout || '').trim();
+}
+
+function publicGithubRepositoryUrl(value) {
+  if (!value || value.length > 240 || value.includes('%')) return '';
+  let repositoryUrl;
+  try {
+    repositoryUrl = new URL(value);
+  } catch (_) {
+    return '';
+  }
+  if (
+    repositoryUrl.protocol !== 'https:' || repositoryUrl.hostname.toLowerCase() !== 'github.com' ||
+    repositoryUrl.username || repositoryUrl.password || repositoryUrl.port ||
+    repositoryUrl.search || repositoryUrl.hash
+  ) return '';
+  const segments = repositoryUrl.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  if (segments.length !== 2) return '';
+  const owner = segments[0];
+  const rawRepository = segments[1];
+  const repository = rawRepository.toLowerCase().endsWith('.git')
+    ? rawRepository.slice(0, -4)
+    : rawRepository;
+  if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(repository)) return '';
+  return `https://github.com/${owner}/${repository}.git`;
+}
+
+function readGitMetadata(directory, checkRemote) {
+  const currentRevision = runGit(directory, ['rev-parse', 'HEAD']);
+  if (!currentRevision || !/^[0-9a-f]{40}$/i.test(currentRevision)) {
+    return { repositoryUrl: '', currentRevision: '', latestRevision: '', updateStatus: 'not_git' };
+  }
+  const repositoryUrl = publicGithubRepositoryUrl(
+    runGit(directory, ['remote', 'get-url', 'origin']) || '',
+  );
+  if (!repositoryUrl) {
+    return { repositoryUrl: '', currentRevision, latestRevision: '', updateStatus: 'unsupported_source' };
+  }
+  const worktreeStatus = runGit(directory, ['status', '--porcelain']);
+  if (worktreeStatus === null) {
+    return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
+  }
+  if (!checkRemote) {
+    return {
+      repositoryUrl,
+      currentRevision,
+      latestRevision: '',
+      updateStatus: worktreeStatus ? 'local_changes' : 'not_checked',
+    };
+  }
+  if (Date.now() - remoteCheckStartedAt >= 2 * 60 * 1000) {
+    return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
+  }
+  const branch = runGit(directory, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (!branch || branch === 'HEAD') {
+    return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
+  }
+  const remoteResult = runGit(
+    directory,
+    ['ls-remote', '--heads', repositoryUrl, `refs/heads/${branch}`],
+    15 * 1000,
+  );
+  const latestRevision = remoteResult?.split(/\s+/)[0] || '';
+  if (!/^[0-9a-f]{40}$/i.test(latestRevision)) {
+    return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
+  }
+  return {
+    repositoryUrl,
+    currentRevision,
+    latestRevision,
+    updateStatus: worktreeStatus
+      ? 'local_changes'
+      : currentRevision === latestRevision ? 'up_to_date' : 'update_available',
+  };
+}
+
+function readExtensions(extensionRoot, enabled, checkRemote = false) {
   if (!fs.existsSync(extensionRoot)) return [];
   const sizeScanBudget = { entries: 0, startedAt: Date.now() };
   function directoryKilobytes(directory) {
@@ -3903,14 +3995,16 @@ function readExtensions(extensionRoot, enabled) {
       } catch (_) {
         manifest = null;
       }
+      const directory = path.join(extensionRoot, entry.name);
       return {
         directoryName: entry.name,
         displayName: String(manifest?.display_name || manifest?.name || entry.name),
         version: String(manifest?.version || ''),
         hasManifest: manifest !== null,
         author: String(manifest?.author || ''),
-        directoryKilobytes: directoryKilobytes(path.join(extensionRoot, entry.name)),
+        directoryKilobytes: directoryKilobytes(directory),
         enabled,
+        ...readGitMetadata(directory, checkRemote),
       };
     })
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
@@ -4034,18 +4128,19 @@ if (action === 'delete') {
   } catch (_) {
     // Another safe staging operation may still be using this directory.
   }
-} else if (action !== 'list') {
+} else if (action !== 'list' && action !== 'check-updates') {
   fail('Unsupported extension action', 64);
 }
 
 console.log('==== SillyTavern extensions ====');
 console.log(`extension.root=${encode(extensionRoot)}`);
 console.log(`extension.disabledRoot=${encode(disabledRoot)}`);
+const checkRemote = action === 'check-updates';
 for (const extension of [
-  ...readExtensions(extensionRoot, true),
-  ...readExtensions(disabledRoot, false),
+  ...readExtensions(extensionRoot, true, checkRemote),
+  ...readExtensions(disabledRoot, false, checkRemote),
 ]) {
-  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}|${extension.enabled}`);
+  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}|${extension.enabled}|${encode(extension.repositoryUrl)}|${extension.currentRevision}|${extension.latestRevision}|${extension.updateStatus}`);
 }
 console.log('==== end SillyTavern extensions ====');
 NODE
@@ -4225,6 +4320,9 @@ main() {
     extensions-install|tavern-extensions-install)
       shift
       run_tavern_extension_action install "${1:-}"
+      ;;
+    extensions-check-updates|tavern-extensions-check-updates)
+      run_tavern_extension_action check-updates ""
       ;;
     log|logs|tail)
       cmd_log

@@ -49,6 +49,7 @@ class TermuxCommandTimeoutPolicyTest {
             "tavern-extensions-disable",
             "tavern-extensions-enable",
             "tavern-extensions-install",
+            "tavern-extensions-check-updates",
         )
 
         routedCommands.forEach { command ->

@@ -37,6 +37,7 @@ fun TavernExtensionManagementSettingsPanel(
     onDelete: (String) -> Unit,
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onInstall: (String) -> Unit = {},
+    onCheckUpdates: () -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
 ) {
@@ -68,6 +69,7 @@ fun TavernExtensionManagementSettingsPanel(
                             onDelete = onDelete,
                             onToggleEnabled = onToggleEnabled,
                             onInstall = onInstall,
+                            onCheckUpdates = onCheckUpdates,
                             onCopyPath = onCopyPath,
                             onShowHint = onShowHint,
                             showSectionContainer = false,
@@ -123,6 +125,7 @@ fun TavernExtensionManagementSection(
     onDelete: (String) -> Unit,
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onInstall: (String) -> Unit = {},
+    onCheckUpdates: () -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
@@ -146,6 +149,7 @@ fun TavernExtensionManagementSection(
                 extension.directoryName,
                 extension.version,
                 extension.author,
+                extension.repositoryUrl,
             ).any { value -> value.contains(normalizedQuery, ignoreCase = true) }
         }
     }
@@ -330,6 +334,20 @@ fun TavernExtensionManagementSection(
                 onShowHint = onShowHint,
                 onClick = onRefresh,
             )
+            SettingsFeedbackActionButton(
+                text = "检查更新",
+                modifier = Modifier.weight(1f),
+                enabled = !actionsLocked && !state.loading && state.extensions.isNotEmpty(),
+                accentColor = LukoaColors.Primary,
+                unavailableHint = when {
+                    actionsLocked -> "当前有其他任务正在处理，请等任务完成后再检查更新。"
+                    state.loading -> "正在读取扩展，请稍等。"
+                    state.extensions.isEmpty() -> "请先读取扩展列表。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
+                onClick = onCheckUpdates,
+            )
         }
 
         if (state.rootDirectory.isNotBlank()) {
@@ -509,6 +527,38 @@ private fun TavernExtensionRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (
+                extension.updateStatus != TavernExtensionUpdateStatus.NotChecked ||
+                extension.repositoryUrl.isNotBlank()
+            ) {
+                Text(
+                    text = extensionUpdateStatusText(extension.updateStatus),
+                    color = extensionUpdateStatusColor(extension.updateStatus),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (extension.repositoryUrl.isNotBlank()) {
+                Text(
+                    text = "来源：${extension.repositoryUrl}",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (extension.currentRevision.isNotBlank()) {
+                Text(
+                    text = buildString {
+                        append("当前：")
+                        append(extension.currentRevision.take(7))
+                        if (extension.latestRevision.isNotBlank()) {
+                            append(" · 远端：")
+                            append(extension.latestRevision.take(7))
+                        }
+                    },
+                    color = LukoaColors.Dim,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Text(
                 text = "完整路径：$fullPath",
                 color = LukoaColors.Dim,
@@ -567,3 +617,25 @@ internal fun extensionTargetDirectory(
     rootDirectory = if (extension.enabled) state.rootDirectory else state.disabledRootDirectory,
     directoryName = extension.directoryName,
 )
+
+private fun extensionUpdateStatusText(status: TavernExtensionUpdateStatus): String = when (status) {
+    TavernExtensionUpdateStatus.NotGitRepository -> "非 Git 安装，无法自动检查"
+    TavernExtensionUpdateStatus.UnsupportedSource -> "扩展来源暂不支持检查"
+    TavernExtensionUpdateStatus.NotChecked -> "尚未检查更新"
+    TavernExtensionUpdateStatus.UpToDate -> "已是最新"
+    TavernExtensionUpdateStatus.UpdateAvailable -> "发现更新"
+    TavernExtensionUpdateStatus.LocalChanges -> "检测到本地改动"
+    TavernExtensionUpdateStatus.CheckFailed -> "更新检查失败"
+}
+
+private fun extensionUpdateStatusColor(status: TavernExtensionUpdateStatus) = when (status) {
+    TavernExtensionUpdateStatus.UpToDate -> LukoaColors.Primary
+    TavernExtensionUpdateStatus.UpdateAvailable,
+    TavernExtensionUpdateStatus.LocalChanges,
+    TavernExtensionUpdateStatus.CheckFailed,
+    -> LukoaColors.Accent
+    TavernExtensionUpdateStatus.NotGitRepository,
+    TavernExtensionUpdateStatus.UnsupportedSource,
+    TavernExtensionUpdateStatus.NotChecked,
+    -> LukoaColors.TextSecondary
+}

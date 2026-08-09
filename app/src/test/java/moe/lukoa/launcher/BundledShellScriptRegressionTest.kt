@@ -98,7 +98,7 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `extension mutations are limited to stopped tavern direct child directories`() {
         assertTrue(script.contains("run_tavern_extension_action()"))
-        assertTrue(script.contains("if [ \"${'$'}action\" != \"list\" ]"))
+        assertTrue(script.contains("delete|disable|enable|install)"))
         assertTrue(script.contains("repair_require_stopped || return"))
         assertTrue(script.contains(".lukoa-disabled-third-party"))
         assertTrue(script.contains("path.dirname(target) !== root"))
@@ -106,7 +106,7 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("fs.renameSync(source, target)"))
         assertTrue(script.contains("Extension destination already exists"))
         assertTrue(script.contains("Disabled extension root must not be a symbolic link"))
-        assertTrue(script.contains("directoryKilobytes(path.join(extensionRoot, entry.name))"))
+        assertTrue(script.contains("directoryKilobytes(directory)"))
         assertTrue(script.contains("if (entry.isSymbolicLink()) continue"))
         assertTrue(script.contains("sizeScanBudget.entries >= 50000"))
         assertTrue(script.contains("Date.now() - sizeScanBudget.startedAt >= 5000"))
@@ -118,6 +118,11 @@ class BundledShellScriptRegressionTest {
 
     @Test
     fun `extension install validates a staged clone before atomic placement`() {
+        val extensionBlock = script.substringAfter("run_tavern_extension_action() {")
+            .substringBefore("run_tavern_user_action() {")
+        val resetThemeBlock = script.substringAfter("cmd_reset_theme() {")
+            .substringBefore("cmd_node_memory_set() {")
+
         assertTrue(script.contains("extensions-install|tavern-extensions-install"))
         assertTrue(script.contains(".lukoa-extension-staging"))
         assertTrue(script.contains("spawnSync('git', ['clone', '--depth', '1'"))
@@ -125,9 +130,25 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("manifest.json"))
         assertTrue(script.contains("manifestStat.isSymbolicLink()"))
         assertTrue(script.contains("GIT_TERMINAL_PROMPT: '0'"))
+        assertTrue(extensionBlock.contains("git command not found in Termux"))
+        assertFalse(resetThemeBlock.contains("git command not found in Termux"))
         assertTrue(script.contains("Extension destination already exists"))
         assertTrue(script.contains("fs.renameSync(stagingDirectory, target)"))
         assertFalse(script.contains("fs.renameSync(stagingDirectory, extensionRoot)"))
+    }
+
+    @Test
+    fun `extension update check is read only and time bounded`() {
+        val extensionBlock = script.substringAfter("run_tavern_extension_action() {")
+            .substringBefore("run_tavern_user_action() {")
+
+        assertTrue(script.contains("extensions-check-updates|tavern-extensions-check-updates"))
+        assertTrue(script.contains("'ls-remote', '--heads'"))
+        assertTrue(script.contains("15 * 1000"))
+        assertTrue(script.contains("Date.now() - remoteCheckStartedAt"))
+        assertTrue(script.contains("update_available"))
+        assertFalse(extensionBlock.contains("git merge"))
+        assertFalse(extensionBlock.contains("git pull"))
     }
 
     @Test

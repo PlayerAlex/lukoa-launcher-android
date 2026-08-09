@@ -4,6 +4,24 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
+enum class TavernExtensionUpdateStatus(val wireValue: String) {
+    NotGitRepository("not_git"),
+    UnsupportedSource("unsupported_source"),
+    NotChecked("not_checked"),
+    UpToDate("up_to_date"),
+    UpdateAvailable("update_available"),
+    LocalChanges("local_changes"),
+    CheckFailed("check_failed"),
+    ;
+
+    companion object {
+        fun fromWireValue(value: String?): TavernExtensionUpdateStatus = when {
+            value.isNullOrBlank() -> NotChecked
+            else -> entries.firstOrNull { it.wireValue == value } ?: CheckFailed
+        }
+    }
+}
+
 data class TavernExtensionRecord(
     val directoryName: String,
     val displayName: String,
@@ -12,6 +30,10 @@ data class TavernExtensionRecord(
     val author: String = "",
     val directoryKilobytes: Long? = null,
     val enabled: Boolean = true,
+    val repositoryUrl: String = "",
+    val currentRevision: String = "",
+    val latestRevision: String = "",
+    val updateStatus: TavernExtensionUpdateStatus = TavernExtensionUpdateStatus.NotChecked,
 )
 
 data class TavernExtensionSnapshot(
@@ -50,7 +72,7 @@ object TavernExtensionOutputParser {
 
                 line.startsWith("extension.record=") -> {
                     val fields = line.substringAfter('=').split('|')
-                    if (fields.size !in 4..7) return@forEach
+                    if (fields.size !in 4..11) return@forEach
                     val directoryName = decode(fields[0]) ?: return@forEach
                     if (TavernExtensionCommandCodec.validateDirectoryName(directoryName) != null) return@forEach
                     extensions += TavernExtensionRecord(
@@ -63,6 +85,10 @@ object TavernExtensionOutputParser {
                             ?.toLongOrNull()
                             ?.takeIf { it >= 0L },
                         enabled = fields.getOrNull(6) != "false",
+                        repositoryUrl = fields.getOrNull(7)?.let(::decode).orEmpty(),
+                        currentRevision = fields.getOrNull(8).orEmpty().takeIf(::isGitRevision).orEmpty(),
+                        latestRevision = fields.getOrNull(9).orEmpty().takeIf(::isGitRevision).orEmpty(),
+                        updateStatus = TavernExtensionUpdateStatus.fromWireValue(fields.getOrNull(10)),
                     )
                 }
             }
@@ -90,6 +116,9 @@ object TavernExtensionOutputParser {
     } catch (_: IllegalArgumentException) {
         null
     }
+
+    private fun isGitRevision(value: String): Boolean =
+        value.length in 7..40 && value.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
 }
 
 object TavernExtensionCommandCodec {

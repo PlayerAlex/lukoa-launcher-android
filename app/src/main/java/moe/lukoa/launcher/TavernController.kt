@@ -94,6 +94,7 @@ class TavernController(
             "tavern-extensions-disable" -> runner.runTavernExtensionSetEnabled(parsed.argument, false)
             "tavern-extensions-enable" -> runner.runTavernExtensionSetEnabled(parsed.argument, true)
             "tavern-extensions-install" -> runner.runTavernExtensionInstall(parsed.argument)
+            "tavern-extensions-check-updates" -> runner.runTavernExtensionCheckUpdates()
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
             "termux-repo-status" -> runner.runTermuxPackageMirrorStatus()
@@ -362,6 +363,7 @@ class TavernController(
             "tavern-extensions-disable" -> "正在停用选中的酒馆扩展。"
             "tavern-extensions-enable" -> "正在启用选中的酒馆扩展。"
             "tavern-extensions-install" -> "正在下载并校验酒馆扩展。"
+            "tavern-extensions-check-updates" -> "正在检查酒馆扩展更新。"
             "tavern-official-versions" -> "正在读取官方版本列表。"
             "termux-storage-permission" -> "正在请求 Termux 存储权限。"
             "termux-repo-status" -> "正在读取当前 Termux 包源。"
@@ -413,6 +415,7 @@ class TavernController(
             "tavern-extensions-disable" -> if (ok) "酒馆扩展已停用。" else "停用酒馆扩展失败，扩展目录未被删除。"
             "tavern-extensions-enable" -> if (ok) "酒馆扩展已启用。" else "启用酒馆扩展失败，停用副本仍然保留。"
             "tavern-extensions-install" -> if (ok) "酒馆扩展已安装，下次启动时生效。" else "安装酒馆扩展失败，没有覆盖已有扩展。"
+            "tavern-extensions-check-updates" -> if (ok) "扩展更新状态已刷新。" else "检查扩展更新失败，没有修改扩展文件。"
             "tavern-official-versions" -> if (ok) "官方版本列表已读取。" else "读取官方版本失败。"
             "termux-storage-permission" -> if (ok) "Termux 存储权限已可用。" else "Termux 存储权限还没打开。"
             "termux-repo-status" -> if (ok) "当前 Termux 包源已读取。" else "读取 Termux 包源失败。"

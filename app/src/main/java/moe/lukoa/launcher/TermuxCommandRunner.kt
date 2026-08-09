@@ -274,6 +274,14 @@ class TermuxCommandRunner(private val context: Context) {
         background = false,
     )
 
+    fun runTavernExtensionCheckUpdates(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-extensions-check-updates-direct",
+        scriptCommand = "extensions-check-updates",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-extensions-check-updates",
+        background = false,
+    )
+
     fun runTavernExtensionDelete(value: String?): CommandDispatch =
         runTavernExtensionMutation("delete", value)
 

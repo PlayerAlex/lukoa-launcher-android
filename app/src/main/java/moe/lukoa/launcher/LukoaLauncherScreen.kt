@@ -3919,6 +3919,32 @@ fun LukoaLauncherScreen(
                                 )
                             },
                             onInstallTavernExtension = ::runTavernExtensionInstall,
+                            onCheckTavernExtensionUpdates = {
+                                runGuarded(
+                                    "检查扩展更新",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis(
+                                        "tavern-extensions-check-updates",
+                                    ),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    tavernExtensionState = tavernExtensionState.copy(
+                                        loading = true,
+                                        message = "正在检查扩展更新…",
+                                    )
+                                    onCommand("tavern-extensions-check-updates") { newStatus, output, ok ->
+                                        guardedUpdate(newStatus, output, ok)
+                                        if (
+                                            !isTransientStatus(newStatus) &&
+                                            TavernExtensionOutputParser.parse(output) == null
+                                        ) {
+                                            tavernExtensionState = tavernExtensionState.copy(
+                                                loading = false,
+                                                message = "检查更新失败，没有修改扩展文件。",
+                                            )
+                                        }
+                                    }
+                                }
+                            },
                             onCopyTavernExtensionPath = { path ->
                                 onCopyText("扩展目录", path)
                             },

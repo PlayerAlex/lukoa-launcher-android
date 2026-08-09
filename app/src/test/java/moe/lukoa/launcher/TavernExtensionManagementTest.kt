@@ -57,6 +57,43 @@ class TavernExtensionManagementTest {
     }
 
     @Test
+    fun `parser reads git source and remote update status`() {
+        fun encoded(value: String) = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+
+        val parsed = TavernExtensionOutputParser.parse(
+            """
+            ==== SillyTavern extensions ====
+            extension.root=${encoded("/extensions")}
+            extension.record=${encoded("Mint")}|${encoded("Mint")}|${encoded("1.0")}|true|${encoded("Lukoa")}|64|true|${encoded("https://github.com/owner/Mint.git")}|abc1234|def5678|update_available
+            ==== end SillyTavern extensions ====
+            """.trimIndent(),
+        )
+
+        val extension = parsed?.extensions?.single()
+        assertEquals("https://github.com/owner/Mint.git", extension?.repositoryUrl)
+        assertEquals("abc1234", extension?.currentRevision)
+        assertEquals("def5678", extension?.latestRevision)
+        assertEquals(TavernExtensionUpdateStatus.UpdateAvailable, extension?.updateStatus)
+    }
+
+    @Test
+    fun `parser maps unknown update status to a safe failure state`() {
+        fun encoded(value: String) = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+        val parsed = TavernExtensionOutputParser.parse(
+            """
+            ==== SillyTavern extensions ====
+            extension.root=${encoded("/extensions")}
+            extension.record=${encoded("Mint")}|${encoded("Mint")}|${encoded("1.0")}|true|||true|${encoded("https://github.com/owner/Mint.git")}|||unexpected
+            ==== end SillyTavern extensions ====
+            """.trimIndent(),
+        )
+
+        assertEquals(TavernExtensionUpdateStatus.CheckFailed, parsed?.extensions?.single()?.updateStatus)
+    }
+
+    @Test
     fun `parser accepts an empty extension list`() {
         val parsed = TavernExtensionOutputParser.parse(
             """

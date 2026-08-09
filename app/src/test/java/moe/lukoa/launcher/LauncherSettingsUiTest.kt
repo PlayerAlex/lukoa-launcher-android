@@ -617,6 +617,55 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun extensionManagementSection_displaysAndChecksRemoteUpdateStatus() {
+        var checkCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            rootDirectory = "/extensions/third-party",
+                            extensions = listOf(
+                                TavernExtensionRecord(
+                                    directoryName = "Mint",
+                                    displayName = "Mint",
+                                    version = "1.0",
+                                    hasManifest = true,
+                                    repositoryUrl = "https://github.com/owner/Mint.git",
+                                    currentRevision = "abc1234",
+                                    latestRevision = "def5678",
+                                    updateStatus = TavernExtensionUpdateStatus.UpdateAvailable,
+                                ),
+                            ),
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = true,
+                        onRefresh = {},
+                        onDelete = {},
+                        onCheckUpdates = { checkCount += 1 },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("发现更新").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("来源：https://github.com/owner/Mint.git")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("当前：abc1234 · 远端：def5678")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNode(hasText("检查更新") and hasClickAction()).performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, checkCount) }
+    }
+
+    @Test
     fun extensionManagementSection_runningKeepsReadEnabledAndLocksDelete() {
         composeRule.setContent {
             LukoaTheme {
@@ -643,6 +692,7 @@ class LauncherSettingsUiTest {
 
         composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
         composeRule.onNode(hasText("安装扩展") and hasClickAction()).assertIsNotEnabled()
+        composeRule.onNode(hasText("检查更新") and hasClickAction()).assertIsEnabled()
         composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
         composeRule.onNode(hasText("停用") and hasClickAction()).assertIsNotEnabled()
     }
