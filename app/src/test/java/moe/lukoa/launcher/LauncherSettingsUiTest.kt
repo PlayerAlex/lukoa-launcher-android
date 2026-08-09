@@ -63,6 +63,32 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun autoBackupAdjustButtons_keepAtLeast48DpTouchTarget() {
+        composeRule.setContent {
+            LukoaTheme {
+                AutoBackupSettingsDialog(
+                    enabled = true,
+                    intervalMinutes = 60,
+                    keepCount = 5,
+                    actionsLocked = false,
+                    onDecreaseInterval = {},
+                    onIncreaseInterval = {},
+                    onDecreaseIntervalLarge = {},
+                    onIncreaseIntervalLarge = {},
+                    onDecreaseKeep = {},
+                    onIncreaseKeep = {},
+                    onDismiss = {},
+                )
+            }
+        }
+
+        val bounds = composeRule.onNodeWithText("少 10 分钟")
+            .fetchSemanticsNode()
+            .boundsInRoot
+        assertTrue("自动备份调节按钮触控高度不足：$bounds", bounds.height >= 48f)
+    }
+
+    @Test
     fun infoPopover_initiallyHiddenAndOpensLightweightExplanation() {
         composeRule.setContent {
             LukoaTheme {
@@ -216,8 +242,17 @@ class LauncherSettingsUiTest {
             .performClick()
 
         composeRule.onNodeWithText("v0.9.3-beta3 更新内容").assertIsDisplayed()
-        composeRule.onNodeWithText("0.9.3-beta3 版本更新日志：\n1. 新增自动备份保护\n2. 修复后台划掉后设置重置")
-            .assertIsDisplayed()
+        composeRule.onNodeWithText("0.9.3-beta3 版本更新日志：").assertIsDisplayed()
+        composeRule.onNodeWithText("新增功能：").assertIsDisplayed()
+        composeRule.onNodeWithText("1. 新增自动备份保护").assertIsDisplayed()
+        composeRule.onNodeWithText("修复更新：").assertIsDisplayed()
+        composeRule.onNodeWithText("1. 修复后台划掉后设置重置").assertIsDisplayed()
+
+        val versionTitleSize = textFontSize("0.9.3-beta3 版本更新日志：")
+        val sectionTitleSize = textFontSize("新增功能：")
+        val bodySize = textFontSize("1. 新增自动备份保护")
+        assertTrue("版本标题应大于分组标题", versionTitleSize > sectionTitleSize)
+        assertTrue("分组标题应大于更新正文", sectionTitleSize > bodySize)
     }
 
     @Test
@@ -304,6 +339,13 @@ class LauncherSettingsUiTest {
                 "ellipsized=${(0 until result.lineCount).any(result::isLineEllipsized)}",
             result.hasVisualOverflow,
         )
+    }
+
+    private fun textFontSize(text: String): Float {
+        val results = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithText(text)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+        return results.single().layoutInput.style.fontSize.value
     }
 
     @Test

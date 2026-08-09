@@ -61,8 +61,8 @@ fun UpdateAvailableDialog(
     val publishedText = remember(updateInfo.publishedAt) {
         formatGithubPublishedTime(updateInfo.publishedAt)
     }
-    val formattedReleaseNotes = remember(updateInfo.versionName, updateInfo.body) {
-        GithubReleaseNotesFormatter.format(updateInfo.versionName, updateInfo.body)
+    val releaseNotesDocument = remember(updateInfo.versionName, updateInfo.body) {
+        GithubReleaseNotesFormatter.parse(updateInfo.versionName, updateInfo.body)
     }
     val primaryActionText = when {
         downloading -> "下载中..."
@@ -146,16 +146,15 @@ fun UpdateAvailableDialog(
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
-                    Text(
-                        text = formattedReleaseNotes,
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 96.dp, max = 220.dp)
                             .verticalScroll(rememberScrollState())
                             .padding(12.dp),
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    ) {
+                        GithubReleaseNotesContent(document = releaseNotesDocument)
+                    }
                 }
                 Surface(
                     color = LukoaColors.Elevated,

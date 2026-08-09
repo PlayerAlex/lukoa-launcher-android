@@ -1,38 +1,72 @@
 package moe.lukoa.launcher
 
-private enum class GithubReleaseNoteSection(val priority: Int) {
-    New(0),
-    Optimize(1),
-    Fix(2),
-    Notice(3),
-    Other(4),
+internal data class GithubReleaseNotesDocument(
+    val versionTitle: String,
+    val sections: List<GithubReleaseNotesSection>,
+)
+
+internal data class GithubReleaseNotesSection(
+    val title: String,
+    val items: List<String>,
+)
+
+private enum class GithubReleaseNoteSection(
+    val title: String,
+) {
+    New("新增功能"),
+    Optimize("体验优化"),
+    Fix("修复更新"),
+    Notice("使用说明"),
+    Other("其他调整"),
 }
 
 object GithubReleaseNotesFormatter {
-    fun format(versionName: String, body: String): String {
+    internal fun parse(versionName: String, body: String): GithubReleaseNotesDocument {
         val normalizedVersion = versionName.trim().ifBlank { "当前" }
-        val items = parseItems(body)
-        if (items.isEmpty()) {
-            val fallback = cleanInlineMarkdown(body)
-                .lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotBlank() && !it.startsWith("#") }
-                .joinToString("\n")
-                .ifBlank { "这个版本没有填写更新说明。" }
-            return "${normalizedVersion} 版本更新日志：\n1. $fallback"
+        val items = parseItems(body).ifEmpty {
+            listOf(
+                GithubReleaseNoteSection.Other to cleanInlineMarkdown(body)
+                    .lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && !it.startsWith("#") }
+                    .joinToString("\n")
+                    .ifBlank { "这个版本没有填写更新说明。" },
+            )
         }
+        val sections = GithubReleaseNoteSection.entries.mapNotNull { section ->
+            items.asSequence()
+                .filter { it.first == section }
+                .map { it.second }
+                .distinct()
+                .toList()
+                .takeIf { it.isNotEmpty() }
+                ?.let { GithubReleaseNotesSection(title = section.title, items = it) }
+        }
+        return GithubReleaseNotesDocument(
+            versionTitle = "$normalizedVersion 版本更新日志：",
+            sections = sections,
+        )
+    }
+
+    fun format(versionName: String, body: String): String {
+        val document = parse(versionName, body)
         return buildString {
-            append("${normalizedVersion} 版本更新日志：")
-            items.forEachIndexed { index, item ->
-                append('\n')
-                append(index + 1)
-                append(". ")
-                append(item)
+            append(document.versionTitle)
+            document.sections.forEach { section ->
+                append("\n\n")
+                append(section.title)
+                append('：')
+                section.items.forEachIndexed { index, item ->
+                    append('\n')
+                    append(index + 1)
+                    append(". ")
+                    append(item)
+                }
             }
         }
     }
 
-    private fun parseItems(body: String): List<String> {
+    private fun parseItems(body: String): List<Pair<GithubReleaseNoteSection, String>> {
         val orderedItems = mutableListOf<Pair<GithubReleaseNoteSection, String>>()
         var currentSection = GithubReleaseNoteSection.Other
         var inCodeBlock = false
@@ -42,9 +76,7 @@ object GithubReleaseNotesFormatter {
                 inCodeBlock = !inCodeBlock
                 return@forEach
             }
-            if (inCodeBlock || line.isBlank()) {
-                return@forEach
-            }
+            if (inCodeBlock || line.isBlank()) return@forEach
             if (line.startsWith("#")) {
                 currentSection = sectionForHeading(line.trimStart('#').trim())
                 return@forEach
@@ -60,22 +92,15 @@ object GithubReleaseNotesFormatter {
             if (content.isBlank() || content == "本次更新") return@forEach
 
             val section = if (bulletText == null) {
-                sectionForHeading(content)
-                    .takeUnless { content.length > 24 && !content.contains('：') && !content.contains(':') }
-                    ?: currentSection
+                currentSection
             } else {
                 sectionForText(content, currentSection)
             }
-
             if (shouldKeepAsItem(content, bulletText != null, currentSection)) {
                 orderedItems += section to content.trimEnd('。', '：', ':')
             }
         }
-
-        return orderedItems
-            .sortedBy { it.first.priority }
-            .map { (_, text) -> text }
-            .distinct()
+        return orderedItems.distinctBy { it.second }
     }
 
     private fun shouldKeepAsItem(
@@ -97,7 +122,6 @@ object GithubReleaseNotesFormatter {
             normalized.contains("修复") -> GithubReleaseNoteSection.Fix
             normalized.contains("说明") || normalized.contains("提示") || normalized.contains("注意") || normalized.contains("已知") ->
                 GithubReleaseNoteSection.Notice
-
             else -> GithubReleaseNoteSection.Other
         }
     }
@@ -113,7 +137,6 @@ object GithubReleaseNotesFormatter {
             normalized.startsWith("修复") -> GithubReleaseNoteSection.Fix
             normalized.startsWith("说明") || normalized.startsWith("注意") || normalized.startsWith("提示") ->
                 GithubReleaseNoteSection.Notice
-
             else -> fallback
         }
     }

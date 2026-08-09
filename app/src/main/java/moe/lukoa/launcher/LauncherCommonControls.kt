@@ -4,6 +4,7 @@ import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -138,15 +139,20 @@ fun InfoIconButton(
     onClick: () -> Unit,
 ) {
     val feedbackClick = rememberFeedbackClick(onClick)
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .semantics { this.contentDescription = contentDescription }
-            .clickable(onClick = feedbackClick),
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = feedbackClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(20.dp),
             color = LukoaColors.Elevated,
             shape = LukoaCapsuleShape,
             border = BorderStroke(1.dp, LukoaColors.Border),
@@ -155,8 +161,8 @@ fun InfoIconButton(
                 Text(
                     text = "!",
                     color = accentColor,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
             }
