@@ -146,9 +146,13 @@ class TavernController(
         }
     }
 
-    fun refreshLogSnapshot(scope: CoroutineScope, updateTermuxLog: (String, Boolean) -> Unit) {
+    fun refreshLogSnapshot(
+        scope: CoroutineScope,
+        reason: LiveLogRefreshReason,
+        updateTermuxLog: (String, Boolean) -> Unit,
+    ) {
         val startTime = System.currentTimeMillis()
-        val dispatch = runner.runLiveLogDeltaSnapshot()
+        val dispatch = runner.runLiveLogDeltaSnapshot(reason)
         if (!dispatch.sent) {
             updateTermuxLog(dispatch.message, false)
             return

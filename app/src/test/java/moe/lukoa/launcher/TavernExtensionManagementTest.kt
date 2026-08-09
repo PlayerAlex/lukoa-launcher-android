@@ -104,4 +104,16 @@ class TavernExtensionManagementTest {
         assertNull(TavernExtensionCommandCodec.decodeDirectoryName("not valid base64 ***"))
     }
 
+    @Test
+    fun `extension target path does not invent an absolute root`() {
+        assertEquals(
+            "/extensions/Extension-A",
+            extensionTargetDirectory("/extensions/", "Extension-A"),
+        )
+        assertEquals(
+            "Extension-A",
+            extensionTargetDirectory("", "Extension-A"),
+        )
+    }
+
 }

@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import android.content.Context
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -14,6 +15,7 @@ object AutoBackupScheduler {
     private const val KEY_WORK_NAME = "work_name"
     private const val WORK_NAME_PREFIX = "lukoa_auto_backup_"
     private const val WORK_TAG = "lukoa_auto_backup"
+    internal const val INPUT_WORK_NAME = "auto_backup_work_name"
     private const val DUE_SOON_DELAY_MS = 5_000L
     private const val BUSY_RETRY_DELAY_MS = 2 * 60 * 1000L
     private const val DUPLICATE_GUARD_MS = 60 * 1000L
@@ -43,8 +45,12 @@ object AutoBackupScheduler {
         runScheduledBackup(context, source = "legacy-alarm")
     }
 
-    fun onWorkTriggered(context: Context) {
-        runScheduledBackup(context, source = "work")
+    fun onWorkTriggered(context: Context, executingWorkName: String?) {
+        runScheduledBackup(
+            context = context,
+            source = "work",
+            executingWorkName = executingWorkName,
+        )
     }
 
     fun cancel(context: Context) {
@@ -61,7 +67,11 @@ object AutoBackupScheduler {
         return prefs(context.applicationContext).getLong(KEY_NEXT_TRIGGER_AT, 0L)
     }
 
-    private fun runScheduledBackup(context: Context, source: String) {
+    private fun runScheduledBackup(
+        context: Context,
+        source: String,
+        executingWorkName: String? = null,
+    ) {
         val appContext = context.applicationContext
         val config = LauncherStateStore(appContext).readAutoBackupConfig()
         if (!config.enabled) {
@@ -79,7 +89,7 @@ object AutoBackupScheduler {
                     MIN_AUTO_BACKUP_INTERVAL_MINUTES,
                     MAX_AUTO_BACKUP_INTERVAL_MINUTES,
                 ) * 60_000L,
-                cancelPrevious = false,
+                executingWorkName = executingWorkName,
             )
             return
         }
@@ -92,7 +102,7 @@ object AutoBackupScheduler {
             scheduleAt(
                 context = appContext,
                 triggerAtMillis = now + BUSY_RETRY_DELAY_MS,
-                cancelPrevious = false,
+                executingWorkName = executingWorkName,
             )
             return
         }
@@ -112,7 +122,7 @@ object AutoBackupScheduler {
             scheduleAt(
                 context = appContext,
                 triggerAtMillis = now + BUSY_RETRY_DELAY_MS,
-                cancelPrevious = false,
+                executingWorkName = executingWorkName,
             )
             return
         }
@@ -123,7 +133,7 @@ object AutoBackupScheduler {
                 MIN_AUTO_BACKUP_INTERVAL_MINUTES,
                 MAX_AUTO_BACKUP_INTERVAL_MINUTES,
             ) * 60_000L,
-            cancelPrevious = false,
+            executingWorkName = executingWorkName,
         )
         prefs.edit().putLong(KEY_LAST_DISPATCH_AT, now).apply()
 
@@ -148,19 +158,28 @@ object AutoBackupScheduler {
     private fun scheduleAt(
         context: Context,
         triggerAtMillis: Long,
-        cancelPrevious: Boolean = true,
+        executingWorkName: String? = null,
     ) {
         val appContext = context.applicationContext
         val safeTriggerAt = triggerAtMillis.coerceAtLeast(System.currentTimeMillis() + 1_000L)
         val workName = "$WORK_NAME_PREFIX$safeTriggerAt"
         val prefs = prefs(appContext)
         val previousWorkName = prefs.getString(KEY_WORK_NAME, null)
-        if (cancelPrevious && !previousWorkName.isNullOrBlank() && previousWorkName != workName) {
-            WorkManager.getInstance(appContext).cancelUniqueWork(previousWorkName)
+        AutoBackupSchedulePolicy.staleWorkToCancel(
+            previousWorkName = previousWorkName,
+            executingWorkName = executingWorkName,
+            nextWorkName = workName,
+        )?.let { staleWorkName ->
+            WorkManager.getInstance(appContext).cancelUniqueWork(staleWorkName)
         }
 
         val delayMs = (safeTriggerAt - System.currentTimeMillis()).coerceAtLeast(1_000L)
         val request = OneTimeWorkRequestBuilder<AutoBackupWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putString(INPUT_WORK_NAME, workName)
+                    .build(),
+            )
             .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
             .addTag(WORK_TAG)
             .build()

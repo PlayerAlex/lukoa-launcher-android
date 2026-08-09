@@ -335,7 +335,7 @@ class LauncherBackupCoordinator(
         dismissDeleteBackupDialog()
         runLocalBackupLibraryOperation("删除酒馆备份") {
             val deleted = BackupLibraryFiles.deleteLibraryArchive(appContext, path)
-            val paths = readLocalBackupLibrary()
+            val paths = listLocalBackupLibrary()
             paths to "已删除备份：${deleted.fileName}。"
         }
     }
@@ -376,7 +376,7 @@ class LauncherBackupCoordinator(
         dismissCopyBackupDialog()
         runLocalBackupLibraryOperation("复制酒馆备份") {
             val copied = BackupLibraryFiles.copyLibraryArchive(appContext, normalized)
-            val paths = readLocalBackupLibrary()
+            val paths = listLocalBackupLibrary()
             paths to "已复制备份：${copied.fileName}。"
         }
     }
@@ -415,7 +415,7 @@ class LauncherBackupCoordinator(
         dismissRenameBackupDialog()
         runLocalBackupLibraryOperation("重命名酒馆备份") {
             val renamed = BackupLibraryFiles.renameLibraryArchive(appContext, normalized, normalizedName)
-            val paths = readLocalBackupLibrary()
+            val paths = listLocalBackupLibrary()
             paths to "已重命名为：${renamed.fileName}。"
         }
     }
@@ -446,7 +446,7 @@ class LauncherBackupCoordinator(
         }
         persistBackupHistory(listOf(importedPath) + state.backupHistory)
         runLocalBackupLibraryOperation("刷新酒馆备份列表") {
-            val paths = readLocalBackupLibrary()
+            val paths = listLocalBackupLibrary()
             val importedFileName = importedPath.replace('\\', '/').substringAfterLast('/')
             val mergedPaths = if (paths.any {
                     it.replace('\\', '/').substringAfterLast('/') == importedFileName
@@ -484,17 +484,14 @@ class LauncherBackupCoordinator(
         }
     }
 
-    private fun readLocalBackupLibrary(): List<String> {
+    private fun listLocalBackupLibrary(): List<String> {
         return BackupHistoryReducer.sanitize(
-            AutoBackupRetentionManager.enforceConfiguredLimit(
-                context = appContext,
-                reason = "backup-library-refresh",
-            ),
+            BackupLibraryFiles.listLibraryArchives(appContext),
         )
     }
 
     private fun readLocalBackupLibrarySnapshot(): BackupLibrarySnapshot {
-        val paths = readLocalBackupLibrary()
+        val paths = listLocalBackupLibrary()
         return BackupLibrarySnapshot(
             paths = paths,
             archiveDetails = readBackupArchiveDetails(paths),

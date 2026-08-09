@@ -245,7 +245,7 @@ private fun TavernUserManagementHeader(
         StatusPill(
             text = when {
                 actionsLocked -> "当前忙碌"
-                tavernRunning -> "运行中锁定"
+                tavernRunning -> "需先停止酒馆"
                 state.loading -> "读取中"
                 state.users.isEmpty() -> "未读取"
                 else -> "${state.users.size} 位用户"

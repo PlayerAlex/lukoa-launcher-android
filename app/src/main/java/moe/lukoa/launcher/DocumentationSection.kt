@@ -87,7 +87,7 @@ fun DocumentationSection(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "${DocCategory.entries.size} 章",
+                        text = "左右滑动 · ${DocCategory.entries.size} 章",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                     )

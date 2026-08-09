@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +46,7 @@ fun RepairToolsSettingsPanel(
     onShowHint: (String) -> Unit,
     leadingContent: (@Composable () -> Unit)? = null,
 ) {
-    var showDialog by remember { mutableStateOf(false) }
+    var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
 
     if (showDialog) {
         AlertDialog(
@@ -99,6 +100,7 @@ fun RepairToolsSettingsPanel(
             SettingsEntryRow(
                 title = "检查与修复",
                 detail = "当前实例：$instanceLabel。包含一键体检、依赖与主题修复、运行内存和聊天文件大小。",
+                detailMaxLines = Int.MAX_VALUE,
                 value = summaryText,
                 valueColor = summaryColor,
                 valueAsPill = true,
@@ -341,7 +343,7 @@ private fun RepairToolsHeader(actionsLocked: Boolean, tavernRunning: Boolean) {
         StatusPill(
             text = when {
                 actionsLocked -> "当前忙碌"
-                tavernRunning -> "运行中锁定"
+                tavernRunning -> "需先停止酒馆"
                 else -> "可使用"
             },
             active = true,

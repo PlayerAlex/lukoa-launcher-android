@@ -165,8 +165,8 @@ class MainActivity : ComponentActivity() {
                     onRecentTermuxResults = {
                         controller.recentTermuxResultDisplays()
                     },
-                    onRefreshLogs = { updateTermuxLog ->
-                        controller.refreshLogSnapshot(lifecycleScope, updateTermuxLog)
+                    onRefreshLogs = { reason, updateTermuxLog ->
+                        controller.refreshLogSnapshot(lifecycleScope, reason, updateTermuxLog)
                     },
                     onForegroundStart = { update ->
                         controller.handleForegroundStart(lifecycleScope, update)

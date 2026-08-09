@@ -81,6 +81,38 @@ class LauncherStateRestorationUiTest {
         composeRule.onNodeWithText("显示 1 / 2 个扩展").assertExists()
     }
 
+    @Test
+    fun `repair tools dialog survives state restoration`() {
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent {
+            LukoaTheme {
+                RepairToolsSettingsPanel(
+                    instanceLabel = "主实例",
+                    summaryText = "未体检",
+                    summaryColor = LukoaColors.TextSecondary,
+                    actionsLocked = false,
+                    tavernRunning = false,
+                    uploadLimitStatus = TavernUploadLimitStatus(),
+                    onRepairDependencies = {},
+                    onResetTheme = {},
+                    onSetNodeMemory = {},
+                    onCheckUploadLimit = {},
+                    onSetUploadLimit = {},
+                    onResetUploadLimit = {},
+                    onShowHint = {},
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("检查与修复").performClick()
+        composeRule.onNodeWithText("修复 npm 依赖").assertExists()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        composeRule.onNodeWithText("修复 npm 依赖").assertExists()
+    }
+
     private fun advancePastClickDebounce() {
         ShadowSystemClock.advanceBy(Duration.ofMillis(300L))
         composeRule.waitForIdle()

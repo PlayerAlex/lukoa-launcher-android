@@ -7,14 +7,14 @@ internal fun formatStorageKilobytes(kilobytes: Long): String {
     return when {
         safeKilobytes >= 1024L * 1024L -> String.format(
             Locale.ROOT,
-            "%.1fGB",
+            "%.1f GB",
             safeKilobytes / 1024.0 / 1024.0,
         )
         safeKilobytes >= 1024L -> String.format(
             Locale.ROOT,
-            "%.1fMB",
+            "%.1f MB",
             safeKilobytes / 1024.0,
         )
-        else -> "${safeKilobytes}KB"
+        else -> "$safeKilobytes KB"
     }
 }

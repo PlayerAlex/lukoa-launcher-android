@@ -452,6 +452,7 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("当前上传限制").performScrollTo().assertIsEnabled()
+        composeRule.onAllNodesWithText("需先停止酒馆").assertCountEquals(2)
         composeRule.onNodeWithText("酒馆正在运行；修改类操作需要先停止酒馆。")
             .assertDoesNotExist()
         composeRule.onNodeWithText("低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。")
@@ -469,6 +470,8 @@ class LauncherSettingsUiTest {
     @Test
     fun extensionManagementSection_confirmsExactTargetBeforeDelete() {
         var deletedDirectory = ""
+        var copiedPath = ""
+        val extensionPath = "/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party/Extension-A"
         composeRule.setContent {
             LukoaTheme {
                 Column(
@@ -496,6 +499,10 @@ class LauncherSettingsUiTest {
                         tavernRunning = false,
                         onRefresh = {},
                         onDelete = { deletedDirectory = it },
+                        onCopyPath = { path ->
+                            copiedPath = path
+                            true
+                        },
                     )
                 }
             }
@@ -503,12 +510,15 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("版本：1.2.3 · 大小：1.5MB").assertIsDisplayed()
-        composeRule.onNodeWithText("作者：Lukoa").assertIsDisplayed()
-        composeRule.onNodeWithText("目录：Extension-A").assertIsDisplayed()
-        composeRule.onNode(hasText("删除") and hasClickAction()).performClick()
+        composeRule.onNodeWithText("版本：1.2.3 · 大小：1.5 MB").assertIsDisplayed()
+        composeRule.onNodeWithText("作者：Lukoa").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("完整路径：$extensionPath").performScrollTo().assertIsDisplayed()
+        composeRule.onNode(hasText("复制路径") and hasClickAction()).performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(extensionPath, copiedPath) }
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("删除") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNodeWithText("当前实例：主实例").assertIsDisplayed()
-        composeRule.onNodeWithText("目标目录：/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party/Extension-A")
+        composeRule.onNodeWithText("目标目录：$extensionPath")
             .assertIsDisplayed()
         composeRule.onNode(hasText("确认删除") and hasClickAction()).performClick()
 
@@ -573,7 +583,7 @@ class LauncherSettingsUiTest {
 
         composeRule.onNodeWithText("搜索扩展").performScrollTo().performTextInput("Lukoa")
         composeRule.onNodeWithText("显示 1 / 2 个扩展").assertIsDisplayed()
-        composeRule.onNodeWithText("清凉扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("实用工具").assertDoesNotExist()
     }
 
@@ -603,7 +613,7 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
         composeRule.onNode(hasText("管理已安装扩展") and hasClickAction()).performClick()
         composeRule.onNodeWithText("读取扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("清凉扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithText("关闭").performClick()
         composeRule.onNodeWithText("读取扩展").assertDoesNotExist()
@@ -911,6 +921,7 @@ class LauncherSettingsUiTest {
                         onDeleteTavernUser = {},
                         onRefreshTavernExtensions = {},
                         onDeleteTavernExtension = {},
+                        onCopyTavernExtensionPath = { true },
                         onClearLogs = {},
                         onExportDiagnostic = {},
                         onDecreaseTermuxReturnDelay = {},

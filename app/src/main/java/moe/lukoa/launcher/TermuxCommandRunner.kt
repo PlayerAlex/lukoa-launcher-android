@@ -136,10 +136,13 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
-    fun runLiveLogDeltaSnapshot(): CommandDispatch {
+    fun runLiveLogDeltaSnapshot(reason: LiveLogRefreshReason): CommandDispatch {
         return runCommand(
             command = "log-live-delta",
-            args = listOf("-c", buildLiveLogDeltaCommand()),
+            args = listOf(
+                "-c",
+                buildLiveLogDeltaCommand(LiveLogRefreshPolicy.maxBytes(reason)),
+            ),
             nonce = null,
             executablePath = TERMUX_SH_PATH,
             displayCommand = "log",
@@ -1748,9 +1751,10 @@ class TermuxCommandRunner(private val context: Context) {
         """.trimIndent()
     }
 
-    private fun buildLiveLogDeltaCommand(): String {
+    private fun buildLiveLogDeltaCommand(maxBytes: Int): String {
         return """
             set -u
+            LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes
             ${buildSharedShellPrelude()}
             adopt_detected_tavern_dir >/dev/null 2>&1 || true
             if http_ok; then

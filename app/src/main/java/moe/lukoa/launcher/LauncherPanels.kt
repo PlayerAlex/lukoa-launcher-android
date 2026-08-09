@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -81,9 +82,12 @@ fun Header(
                 ) {
                     Text(
                         text = "露科亚启动器",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         color = LukoaColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -111,6 +115,7 @@ fun Header(
             }
             Surface(
                 modifier = Modifier
+                    .widthIn(max = 112.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = feedbackVersionClick),
                 color = if (showVersionUpdateBadge) {
@@ -138,6 +143,8 @@ fun Header(
                         color = if (showVersionUpdateBadge) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     if (showVersionUpdateBadge) {
                         Box(

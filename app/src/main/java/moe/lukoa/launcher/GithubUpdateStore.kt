@@ -69,11 +69,7 @@ class GithubUpdateStore(private val context: Context) {
         return GithubRepositorySaveResult(
             saved = true,
             repository = normalized,
-            message = if (normalized.isBlank()) {
-                "已清空 GitHub 仓库。启动器更新提醒已关闭。"
-            } else {
-                "已保存 GitHub 仓库：$normalized。"
-            },
+            message = "已保存 GitHub 仓库：$normalized。",
         )
     }
 

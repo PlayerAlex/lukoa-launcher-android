@@ -35,6 +35,7 @@ fun TavernExtensionManagementSettingsPanel(
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
+    onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
 ) {
     var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
@@ -63,6 +64,7 @@ fun TavernExtensionManagementSettingsPanel(
                             tavernRunning = tavernRunning,
                             onRefresh = onRefresh,
                             onDelete = onDelete,
+                            onCopyPath = onCopyPath,
                             onShowHint = onShowHint,
                             showSectionContainer = false,
                         )
@@ -115,6 +117,7 @@ fun TavernExtensionManagementSection(
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
+    onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
 ) {
@@ -204,6 +207,19 @@ fun TavernExtensionManagementSection(
             onClick = onRefresh,
         )
 
+        if (state.rootDirectory.isNotBlank()) {
+            SecondaryActionButton(
+                text = "复制扩展根目录",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    val copied = onCopyPath(state.rootDirectory)
+                    onShowHint(if (copied) "扩展根目录已复制。" else "复制扩展根目录失败。")
+                },
+            )
+        }
+
         if (state.extensions.size > 1) {
             OutlinedTextField(
                 value = searchQuery,
@@ -232,9 +248,11 @@ fun TavernExtensionManagementSection(
                     visibleExtensions.forEachIndexed { index, extension ->
                         TavernExtensionRow(
                             extension = extension,
+                            fullPath = extensionTargetDirectory(state.rootDirectory, extension.directoryName),
                             deleteEnabled = !actionsLocked && !tavernRunning,
                             deleteUnavailableHint = deleteUnavailableHint,
                             onShowHint = onShowHint,
+                            onCopyPath = onCopyPath,
                             onDelete = { pendingDelete = extension },
                         )
                         if (index < visibleExtensions.lastIndex) SettingsEntryDivider()
@@ -301,9 +319,11 @@ private fun extensionManagementStatusText(
 @Composable
 private fun TavernExtensionRow(
     extension: TavernExtensionRecord,
+    fullPath: String,
     deleteEnabled: Boolean,
     deleteUnavailableHint: String?,
     onShowHint: (String) -> Unit,
+    onCopyPath: (String) -> Boolean,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -346,7 +366,7 @@ private fun TavernExtensionRow(
                 )
             }
             Text(
-                text = "目录：${extension.directoryName}",
+                text = "完整路径：$fullPath",
                 color = LukoaColors.Dim,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -358,18 +378,31 @@ private fun TavernExtensionRow(
                 )
             }
         }
-        SettingsFeedbackActionButton(
-            text = "删除",
-            modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
-            enabled = deleteEnabled,
-            accentColor = LukoaColors.Danger,
-            unavailableHint = deleteUnavailableHint,
-            onShowHint = onShowHint,
-            onClick = onDelete,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SecondaryActionButton(
+                text = "复制路径",
+                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                onClick = {
+                    val copied = onCopyPath(fullPath)
+                    onShowHint(if (copied) "扩展路径已复制。" else "复制扩展路径失败。")
+                },
+            )
+            SettingsFeedbackActionButton(
+                text = "删除",
+                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                enabled = deleteEnabled,
+                accentColor = LukoaColors.Danger,
+                unavailableHint = deleteUnavailableHint,
+                onShowHint = onShowHint,
+                onClick = onDelete,
+            )
+        }
     }
 }
 
-private fun extensionTargetDirectory(rootDirectory: String, directoryName: String): String {
-    return rootDirectory.trimEnd('/', '\\') + "/" + directoryName
+internal fun extensionTargetDirectory(rootDirectory: String, directoryName: String): String {
+    val normalizedRoot = rootDirectory.trim().trimEnd('/', '\\')
+    return if (normalizedRoot.isBlank()) directoryName else "$normalizedRoot/$directoryName"
 }

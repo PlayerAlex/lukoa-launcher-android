@@ -9,7 +9,10 @@ class AutoBackupWorker(
     params: WorkerParameters,
 ) : Worker(appContext, params) {
     override fun doWork(): Result {
-        AutoBackupScheduler.onWorkTriggered(applicationContext)
+        AutoBackupScheduler.onWorkTriggered(
+            context = applicationContext,
+            executingWorkName = inputData.getString(AutoBackupScheduler.INPUT_WORK_NAME),
+        )
         return Result.success()
     }
 }

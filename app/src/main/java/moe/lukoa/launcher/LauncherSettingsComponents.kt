@@ -100,6 +100,7 @@ internal fun SettingsEntryDivider() {
 internal fun SettingsEntryRow(
     title: String,
     detail: String? = null,
+    detailMaxLines: Int = 2,
     value: String? = null,
     valueColor: Color = LukoaColors.TextPrimary,
     valueLayout: SettingsValueLayout = SettingsValueLayout.Trailing,
@@ -169,7 +170,7 @@ internal fun SettingsEntryRow(
                     text = detail,
                     color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
+                    maxLines = detailMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

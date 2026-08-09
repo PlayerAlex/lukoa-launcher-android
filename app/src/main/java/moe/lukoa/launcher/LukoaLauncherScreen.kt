@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,7 +79,7 @@ fun LukoaLauncherScreen(
     onCommand: (String, LauncherUpdate) -> Unit,
     onLatestTermuxResult: () -> TermuxResultDisplay?,
     onRecentTermuxResults: () -> List<TermuxResultDisplay>,
-    onRefreshLogs: ((String, Boolean) -> Unit) -> Unit,
+    onRefreshLogs: (LiveLogRefreshReason, (String, Boolean) -> Unit) -> Unit,
     onForegroundStart: (LauncherUpdate) -> Unit,
     onOpenTavern: (LauncherUpdate) -> Unit,
     onWakeTermux: (Long) -> TermuxWakeResult,
@@ -244,6 +245,7 @@ fun LukoaLauncherScreen(
     var startupRefreshToken by remember { mutableIntStateOf(0) }
     var startupGithubCheckPending by remember { mutableStateOf(false) }
     var foregroundResumeRefreshSignal by remember { mutableIntStateOf(0) }
+    var foregroundLogCatchUpPending by remember { mutableStateOf(true) }
     var hasObservedInitialResume by remember { mutableStateOf(false) }
     var healthCheckInFlight by remember { mutableStateOf(false) }
     var healthCheckToken by remember { mutableIntStateOf(0) }
@@ -277,7 +279,13 @@ fun LukoaLauncherScreen(
     var mirrorProbeStatus by mirrorSettingsState::probeStatus
     var termuxRepoStatus by mirrorSettingsState::termuxRepoStatus
     var customTermuxRepoInput by mirrorSettingsState::customTermuxRepoInput
+    val activeProfileChangeTracker = remember {
+        ActiveProfileChangeTracker(tavernPathConfig.activeProfile.id)
+    }
     LaunchedEffect(tavernPathConfig.activeProfile.id) {
+        if (!activeProfileChangeTracker.update(tavernPathConfig.activeProfile.id)) {
+            return@LaunchedEffect
+        }
         uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
         tavernUserState = TavernUserManagementState(message = "已切换酒馆实例，请重新读取用户。")
         tavernExtensionState = TavernExtensionManagementState(message = "已切换酒馆实例，请重新读取扩展。")
@@ -586,20 +594,25 @@ fun LukoaLauncherScreen(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _: LifecycleOwner, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val installed = onCheckTermuxInstalled()
-                val launcherBackgroundGranted = onCheckBackgroundRunPermission()
-                termuxInstalled = installed
-                runCommandPermissionGranted = installed && onCheckRunCommandPermission()
-                backgroundRunPermissionGranted = launcherBackgroundGranted
-                termuxBackgroundRunPermissionGranted = installed && onCheckTermuxBackgroundRunPermission()
-                allFilesAccessGranted = onCheckAllFilesAccessPermission()
-                installUnknownAppsGranted = onCheckInstallUnknownAppsPermission()
-                if (hasObservedInitialResume) {
-                    foregroundResumeRefreshSignal += 1
-                } else {
-                    hasObservedInitialResume = true
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val installed = onCheckTermuxInstalled()
+                    val launcherBackgroundGranted = onCheckBackgroundRunPermission()
+                    termuxInstalled = installed
+                    runCommandPermissionGranted = installed && onCheckRunCommandPermission()
+                    backgroundRunPermissionGranted = launcherBackgroundGranted
+                    termuxBackgroundRunPermissionGranted = installed && onCheckTermuxBackgroundRunPermission()
+                    allFilesAccessGranted = onCheckAllFilesAccessPermission()
+                    installUnknownAppsGranted = onCheckInstallUnknownAppsPermission()
+                    if (hasObservedInitialResume) {
+                        foregroundResumeRefreshSignal += 1
+                    } else {
+                        hasObservedInitialResume = true
+                    }
                 }
+
+                Lifecycle.Event.ON_STOP -> foregroundLogCatchUpPending = true
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -2132,29 +2145,14 @@ fun LukoaLauncherScreen(
         githubRepository = result.repository
         githubRepositoryInput = result.repository
         ignoredUpdateTag = ""
+        val message = if (result.saved) "已恢复默认仓库。" else result.message
         githubUpdateState = GithubUpdateUiState(
             repository = result.repository,
             channel = githubUpdateChannel,
-            message = if (result.saved) {
-                if (result.repository.isBlank()) {
-                    "已恢复默认仓库。当前未填写启动器更新仓库。"
-                } else {
-                    "已恢复默认仓库。"
-                }
-            } else {
-                result.message
-            },
+            message = message,
         )
         update(
-            if (result.saved) {
-                if (result.repository.isBlank()) {
-                    "已恢复默认仓库。当前未填写启动器更新仓库。"
-                } else {
-                    "已恢复默认仓库。"
-                }
-            } else {
-                result.message
-            },
+            message,
             "",
             result.saved,
             allowRunningInference = false,
@@ -3028,36 +3026,62 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(termuxInstalled, runCommandPermissionGranted, termuxExternalAppsBlocked) {
-        while (termuxInstalled && runCommandPermissionGranted && !termuxExternalAppsBlocked) {
-            if (!logRefreshInFlight) {
-                logRefreshInFlight = true
-                onRefreshLogs(::updateTermuxLogOnly)
+    LaunchedEffect(
+        lifecycleOwner,
+        termuxInstalled,
+        runCommandPermissionGranted,
+        termuxExternalAppsBlocked,
+    ) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            try {
+                while (termuxInstalled && runCommandPermissionGranted && !termuxExternalAppsBlocked) {
+                    if (!logRefreshInFlight) {
+                        val refreshReason = if (foregroundLogCatchUpPending) {
+                            LiveLogRefreshReason.ForegroundResume
+                        } else {
+                            LiveLogRefreshReason.Periodic
+                        }
+                        logRefreshInFlight = true
+                        onRefreshLogs(refreshReason) { termuxOutput, ok ->
+                            if (
+                                refreshReason == LiveLogRefreshReason.ForegroundResume &&
+                                ok &&
+                                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                            ) {
+                                foregroundLogCatchUpPending = false
+                            }
+                            updateTermuxLogOnly(termuxOutput, ok)
+                        }
+                    }
+                    delay(900)
+                }
+            } finally {
+                logRefreshInFlight = false
             }
-            delay(900)
         }
-        logRefreshInFlight = false
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            val latest = onLatestTermuxResult()
-            if (latest != null && latest.key != lastSyncedTermuxResultKey) {
-                if (latest.command == "log") {
-                    lastSyncedTermuxResultKey = latest.key
-                } else if (busyLabel == null && !logRefreshInFlight) {
-                    val signature = extractTermuxDisplayContent(latest.output).commandText.take(360)
-                    if (signature.isBlank()) {
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val latest = onLatestTermuxResult()
+                if (latest != null && latest.key != lastSyncedTermuxResultKey) {
+                    if (latest.command == "log") {
                         lastSyncedTermuxResultKey = latest.key
-                    } else if (!termuxLog.contains(signature)) {
-                        syncTermuxResult(latest)
-                        lastSyncedTermuxResultKey = latest.key
-                    } else {
-                        lastSyncedTermuxResultKey = latest.key
+                    } else if (busyLabel == null && !logRefreshInFlight) {
+                        val signature = extractTermuxDisplayContent(latest.output).commandText.take(360)
+                        if (signature.isBlank()) {
+                            lastSyncedTermuxResultKey = latest.key
+                        } else if (!termuxLog.contains(signature)) {
+                            syncTermuxResult(latest)
+                            lastSyncedTermuxResultKey = latest.key
+                        } else {
+                            lastSyncedTermuxResultKey = latest.key
+                        }
                     }
                 }
+                delay(800)
             }
-            delay(800)
         }
     }
 
@@ -3831,6 +3855,9 @@ fun LukoaLauncherScreen(
                                         }
                                     }
                                 }
+                            },
+                            onCopyTavernExtensionPath = { path ->
+                                onCopyText("扩展目录", path)
                             },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,

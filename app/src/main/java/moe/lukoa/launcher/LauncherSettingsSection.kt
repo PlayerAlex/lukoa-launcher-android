@@ -118,6 +118,7 @@ fun SettingsSection(
     onDeleteTavernUser: (String) -> Unit,
     onRefreshTavernExtensions: () -> Unit,
     onDeleteTavernExtension: (String) -> Unit,
+    onCopyTavernExtensionPath: (String) -> Boolean,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
@@ -351,6 +352,7 @@ fun SettingsSection(
             tavernRunning = tavernRunning,
             onRefresh = onRefreshTavernExtensions,
             onDelete = onDeleteTavernExtension,
+            onCopyPath = onCopyTavernExtensionPath,
             onShowHint = showHint,
         )
         RepairToolsSettingsPanel(

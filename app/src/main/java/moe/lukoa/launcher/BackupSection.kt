@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,13 +72,8 @@ fun BackupSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BackupOverviewCard(
-            activeInstanceLabel = activeInstanceLabel,
-            autoBackupEnabled = autoBackupEnabled,
-            manualBackupCount = manualBackups.size,
-            autoBackupCount = autoBackups.size,
-        )
         BackupActionsSection(
+            activeInstanceLabel = activeInstanceLabel,
             actionsLocked = actionsLocked,
             backupListRefreshing = backupListRefreshing,
             autoBackupEnabled = autoBackupEnabled,
@@ -108,6 +102,7 @@ fun BackupSection(
 
 @Composable
 private fun BackupActionsSection(
+    activeInstanceLabel: String,
     actionsLocked: Boolean,
     backupListRefreshing: Boolean,
     autoBackupEnabled: Boolean,
@@ -124,11 +119,22 @@ private fun BackupActionsSection(
         title = "备份操作",
         accentColor = LukoaColors.Primary,
         headerAction = {
-            InfoPopoverButton(
-                contentDescription = "查看备份操作说明",
-                title = "备份操作",
-                body = "生成手动备份会新增一份当前实例的数据，不会改动正在使用的酒馆。导入备份也只是把文件放进备份库，不会立即覆盖数据。\n自动备份会按设定时间保存，并只清理超过保留数量的旧自动备份。重要操作前仍建议手动备份一次。",
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = activeInstanceLabel,
+                    active = true,
+                    toneColor = LukoaColors.Primary,
+                    activeBackground = LukoaColors.PrimarySoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看备份操作说明",
+                    title = "备份操作",
+                    body = "这里只管理当前实例，不会影响其他实例。生成手动备份会新增一份当前数据，不会改动正在使用的酒馆。导入备份也只是把文件放进备份库，不会立即覆盖数据。\n自动备份会按设定时间保存，并只清理超过保留数量的旧自动备份。重要操作前仍建议手动备份一次。",
+                )
+            }
         },
     ) {
         SettingsGroupLabel("手动与文件")
@@ -278,58 +284,6 @@ private fun BackupLibrarySection(
             onRenameBackup = onRenameBackup,
             onDeleteBackup = onDeleteBackup,
         )
-    }
-}
-
-@Composable
-private fun BackupOverviewCard(
-    activeInstanceLabel: String,
-    autoBackupEnabled: Boolean,
-    manualBackupCount: Int,
-    autoBackupCount: Int,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = activeInstanceLabel,
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                StatusPill(
-                    text = if (autoBackupEnabled) "自动保护" else "手动保护",
-                    active = autoBackupEnabled,
-                    toneColor = if (autoBackupEnabled) LukoaColors.Primary else LukoaColors.TextSecondary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看备份内容说明",
-                    title = "备份会保存什么",
-                    body = "这里只管理当前实例，不会影响其他实例。\n备份会保存聊天、角色、世界书、插件、设置和密钥；可以重新下载的程序文件和缓存不会保存。\n生成和导入都不会改动酒馆，只有确认“应用并覆盖”后才会替换当前数据。",
-                )
-            }
-            Text(
-                text = "手动备份 $manualBackupCount 份  ·  自动备份 $autoBackupCount 份",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
     }
 }
 
@@ -536,14 +490,14 @@ private fun BackupRecordLine(
                 }
             }
             BackupActionRow {
-                BackupActionButton(
+                SecondaryActionButton(
                     text = "导出",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Primary,
                     modifier = Modifier.weight(1f),
                     onClick = onExport,
                 )
-                BackupActionButton(
+                SecondaryActionButton(
                     text = "复制",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Primary,
@@ -551,7 +505,7 @@ private fun BackupRecordLine(
                     onClick = onCopy,
                 )
             }
-            BackupActionButton(
+            SecondaryActionButton(
                 text = "重命名",
                 enabled = !actionsLocked,
                 accentColor = LukoaColors.Primary,
@@ -559,14 +513,14 @@ private fun BackupRecordLine(
                 onClick = onRename,
             )
             BackupActionRow {
-                BackupActionButton(
+                SecondaryActionButton(
                     text = "应用并覆盖",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Danger,
                     modifier = Modifier.weight(1.4f),
                     onClick = onApply,
                 )
-                BackupActionButton(
+                SecondaryActionButton(
                     text = "删除",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Danger,
@@ -599,23 +553,6 @@ private fun BackupActionRow(content: RowScopeContent) {
 }
 
 private typealias RowScopeContent = @Composable androidx.compose.foundation.layout.RowScope.() -> Unit
-
-@Composable
-private fun BackupActionButton(
-    text: String,
-    enabled: Boolean,
-    accentColor: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    SecondaryActionButton(
-        text = text,
-        enabled = enabled,
-        accentColor = accentColor,
-        modifier = modifier,
-        onClick = onClick,
-    )
-}
 
 private fun backupLocationLabel(path: String): String {
     return when {
