@@ -240,7 +240,7 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("sd-ui-test.tar.gz").assertExists()
         composeRule.onNodeWithText("~/SillyTavern").assertExists()
         composeRule.onNodeWithText(
-            "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
+            "完整恢复会替换当前酒馆程序和全部数据。",
         ).assertExists()
         composeRule.onNode(hasText("确认应用") and hasClickAction()).performClick()
 
@@ -272,6 +272,41 @@ class LauncherComposeUiTest {
             assertEquals(0, confirmCount)
             assertEquals(1, dismissCount)
         }
+    }
+
+    @Test
+    fun restorePreview_showsContentAndAllowsUserDataOnlySelection() {
+        composeRule.setContent {
+            LukoaTheme {
+                var mode by remember { mutableStateOf(BackupRestoreMode.Full) }
+                ApplyBackupPreviewDialog(
+                    preview = restorePreview().copy(
+                        contentSummary = BackupArchiveContentSummary(
+                            entryCount = 42,
+                            hasUserData = true,
+                            hasExtensions = true,
+                            hasConfiguration = true,
+                            hasLukoaManifest = true,
+                            truncated = false,
+                        ),
+                    ),
+                    restoreMode = mode,
+                    onRestoreModeChange = { mode = it },
+                    onConfirm = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("备份内容预览").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("用户数据 · 扩展/插件 · 酒馆配置")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("只恢复用户数据").performScrollTo().performClick()
+        composeRule.onNodeWithText(
+            "只恢复用户数据会保留当前酒馆程序，只替换聊天、角色、世界书和用户设置。",
+        ).performScrollTo().assertIsDisplayed()
     }
 
     private fun advancePastClickDebounce() {

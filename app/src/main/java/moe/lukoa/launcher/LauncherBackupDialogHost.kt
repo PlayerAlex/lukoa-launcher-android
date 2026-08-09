@@ -66,6 +66,8 @@ fun LauncherBackupOperationDialogHost(
     if (state.showApplyBackupPreviewDialog && activeApplyBackupPreview != null) {
         ApplyBackupPreviewDialog(
             preview = activeApplyBackupPreview,
+            restoreMode = state.applyBackupRestoreMode,
+            onRestoreModeChange = { state.applyBackupRestoreMode = it },
             onConfirm = coordinator::applySelectedBackup,
             onDismiss = coordinator::dismissApplyBackupPreview,
         )

@@ -6,11 +6,20 @@ data class TavernRestoreAftercare(
     val externalDataRootRestored: String = "",
     val externalDataRootPrevious: String = "",
     val dependencyNotice: String = "",
+    val restoreMode: String = "full",
 )
 
 object TavernRestoreAftercareMessage {
     fun successMessage(output: String): String {
         val aftercare = parse(output)
+        if (aftercare.restoreMode == BackupRestoreMode.UserDataOnly.wireValue) {
+            val lines = mutableListOf("酒馆用户数据已恢复。程序版本和扩展没有改变。")
+            if (aftercare.previousDirectory.isNotBlank() && aftercare.previousDirectory != "none") {
+                lines += "恢复前的旧用户数据目录已保留：${aftercare.previousDirectory}"
+            }
+            lines += "恢复后先启动酒馆检查聊天、角色和世界书是否正常。"
+            return lines.joinToString("\n")
+        }
         val lines = mutableListOf("酒馆备份已应用。")
         if (aftercare.previousDirectory.isNotBlank() && aftercare.previousDirectory != "none") {
             lines += "恢复前的旧酒馆目录已保留：${aftercare.previousDirectory}"
@@ -36,6 +45,7 @@ object TavernRestoreAftercareMessage {
             externalDataRootRestored = output.lineValue("externalDataRootRestored").orEmpty(),
             externalDataRootPrevious = output.lineValue("externalDataRootPrevious").orEmpty(),
             dependencyNotice = output.lineValue("notice").orEmpty(),
+            restoreMode = output.lineValue("restoreMode").orEmpty().ifBlank { BackupRestoreMode.Full.wireValue },
         )
     }
 

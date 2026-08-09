@@ -37,4 +37,21 @@ class BackupCommandCodecTest {
         assertNull(BackupCommandCodec.decodeExportTo("still-broken"))
         assertNull(BackupCommandCodec.decodeRename(null))
     }
+
+    @Test
+    fun `restore args keep archive and selected scope`() {
+        val encoded = BackupCommandCodec.encodeRestore(
+            archivePath = "/storage/emulated/0/Download/LukoaLauncher/backups/sd/demo.tar.gz",
+            mode = BackupRestoreMode.UserDataOnly,
+        )
+
+        val decoded = BackupCommandCodec.decodeRestore(encoded)
+        requireNotNull(decoded)
+        assertEquals(
+            "/storage/emulated/0/Download/LukoaLauncher/backups/sd/demo.tar.gz",
+            decoded.archivePath,
+        )
+        assertEquals(BackupRestoreMode.UserDataOnly, decoded.mode)
+        assertNull(BackupCommandCodec.decodeRestore("broken"))
+    }
 }

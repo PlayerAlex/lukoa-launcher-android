@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -397,6 +398,8 @@ fun ApplyBackupPreviewLoadingDialog(
 @Composable
 fun ApplyBackupPreviewDialog(
     preview: BackupRestorePreview,
+    restoreMode: BackupRestoreMode = BackupRestoreMode.Full,
+    onRestoreModeChange: (BackupRestoreMode) -> Unit = {},
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -409,7 +412,11 @@ fun ApplyBackupPreviewDialog(
         onDismiss = onDismiss,
     ) {
         Text(
-            text = "会把选中的备份直接恢复到酒馆目录，并覆盖当前酒馆数据。",
+            text = if (restoreMode == BackupRestoreMode.Full) {
+                "完整恢复会替换当前酒馆程序和全部数据。"
+            } else {
+                "只恢复用户数据会保留当前酒馆程序，只替换聊天、角色、世界书和用户设置。"
+            },
             color = LukoaColors.Danger,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
@@ -447,6 +454,77 @@ fun ApplyBackupPreviewDialog(
                 )
             }
         }
+        val content = preview.contentSummary
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "备份内容预览",
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (content != null) {
+                    Text(
+                        text = buildString {
+                            append("已读取 ${content.entryCount} 个条目")
+                            if (content.truncated) append("（列表较大，仅检查前 ${content.entryCount} 个）")
+                        },
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        text = listOfNotNull(
+                            "用户数据".takeIf { content.hasUserData },
+                            "扩展/插件".takeIf { content.hasExtensions },
+                            "酒馆配置".takeIf { content.hasConfiguration },
+                        ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text(
+                        text = "无法读取内容清单：${preview.contentReadError.ifBlank { "备份格式不兼容" }}",
+                        color = LukoaColors.Accent,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+        Text(
+            text = "恢复范围",
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        RestoreModeChoice(
+            title = "完整恢复",
+            detail = "恢复程序、配置、扩展和用户数据；这是原来的默认行为。",
+            selected = restoreMode == BackupRestoreMode.Full,
+            enabled = true,
+            onClick = { onRestoreModeChange(BackupRestoreMode.Full) },
+        )
+        RestoreModeChoice(
+            title = "只恢复用户数据",
+            detail = "保留当前程序版本和扩展，只恢复聊天、角色、世界书和用户设置。",
+            selected = restoreMode == BackupRestoreMode.UserDataOnly,
+            enabled = content?.hasUserData == true,
+            onClick = { onRestoreModeChange(BackupRestoreMode.UserDataOnly) },
+        )
+        if (content?.hasUserData != true) {
+            Text(
+                text = "没有在内容清单里确认到用户数据，因此不能选择“只恢复用户数据”。",
+                color = LukoaColors.Accent,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Danger.copy(alpha = 0.08f),
@@ -454,11 +532,54 @@ fun ApplyBackupPreviewDialog(
             border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.28f)),
         ) {
             Text(
-                text = "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。",
+                text = if (restoreMode == BackupRestoreMode.Full) {
+                    "确认后会覆盖这个目录里的当前酒馆内容。聊天、角色、配置和插件都会按这个备份恢复。"
+                } else {
+                    "确认后只会替换当前实例的数据目录。启动器会先把现有数据目录移到旁边，失败时自动恢复。"
+                },
                 modifier = Modifier.padding(12.dp),
                 color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun RestoreModeChoice(
+    title: String,
+    detail: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (selected) LukoaColors.PrimarySoft else LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (selected) LukoaColors.Primary else LukoaColors.Border),
+        onClick = onClick,
+        enabled = enabled,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = null, enabled = enabled)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = detail,
+                    color = if (enabled) LukoaColors.TextSecondary else LukoaColors.Dim,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

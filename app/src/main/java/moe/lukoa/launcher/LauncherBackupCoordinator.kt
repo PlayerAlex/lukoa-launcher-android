@@ -202,6 +202,7 @@ class LauncherBackupCoordinator(
         previewJob?.cancel()
         val request = previewRequestCoordinator.begin(normalized)
         state.applyBackupPath = normalized
+        state.applyBackupRestoreMode = BackupRestoreMode.Full
         state.applyBackupPreview = null
         state.showApplyBackupPreviewDialog = false
         state.applyBackupPreviewRequest = request
@@ -250,6 +251,7 @@ class LauncherBackupCoordinator(
             return
         }
         val archivePath = state.applyBackupPath.trim()
+        val restoreMode = state.applyBackupRestoreMode
         LauncherInputGuards.validateBackupArchivePath(archivePath)?.let { reason ->
             statusUpdate("备份路径无效，不能应用：$reason", "", false)
             return
@@ -270,7 +272,11 @@ class LauncherBackupCoordinator(
             PendingLauncherTask(
                 kind = PendingLauncherTaskKind.RestoreBackup,
                 commandName = "tavern-restore",
-                detail = "正在应用酒馆备份",
+                detail = if (restoreMode == BackupRestoreMode.Full) {
+                    "正在完整恢复酒馆备份"
+                } else {
+                    "正在只恢复酒馆用户数据"
+                },
                 startedAtMillis = System.currentTimeMillis(),
                 archivePath = archivePath,
                 profileId = activeProfileId(),
@@ -278,7 +284,8 @@ class LauncherBackupCoordinator(
             "应用酒馆备份",
             TermuxCommandTimeoutPolicy.operationLockMillis("tavern-restore"),
         ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-restore", archivePath), guardedUpdate)
+            val payload = BackupCommandCodec.encodeRestore(archivePath, restoreMode)
+            onCommand(LauncherCommandCodec.encode("tavern-restore", payload), guardedUpdate)
         }
     }
 

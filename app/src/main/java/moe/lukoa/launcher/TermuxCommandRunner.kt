@@ -673,7 +673,9 @@ class TermuxCommandRunner(private val context: Context) {
     }
 
     fun runTavernRestore(archivePath: String?): CommandDispatch {
-        val safePath = archivePath.orEmpty().trim()
+        val restoreArgs = BackupCommandCodec.decodeRestore(archivePath)
+        val safePath = restoreArgs?.archivePath ?: archivePath.orEmpty().trim()
+        val restoreMode = restoreArgs?.mode ?: BackupRestoreMode.Full
         LauncherInputGuards.validateBackupArchivePath(safePath)?.let { reason ->
             return CommandDispatch(
                 sent = false,
@@ -684,7 +686,7 @@ class TermuxCommandRunner(private val context: Context) {
         return runBundledScriptCommand(
             command = "tavern-restore-direct",
             scriptCommand = "tavern-restore",
-            scriptArgs = listOf(safePath),
+            scriptArgs = listOf(safePath, restoreMode.wireValue),
             displayCommand = "tavern-restore",
             background = false,
         )

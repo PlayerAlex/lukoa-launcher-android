@@ -173,6 +173,21 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `selective restore only swaps the resolved user data directory`() {
+        val restoreBlock = script.substringAfter("cmd_restore() {")
+            .substringBefore("cmd_migrate_dir() {")
+
+        assertTrue(restoreBlock.contains("restore_mode=\"${'$'}{2:-full}\""))
+        assertTrue(restoreBlock.contains("full|user-data"))
+        assertTrue(restoreBlock.contains("resolve_tavern_data_root"))
+        assertTrue(restoreBlock.contains("restoreUserDataOnly=1"))
+        assertTrue(restoreBlock.contains("mv \"${'$'}current_data_root\" \"${'$'}data_rollback_dir\""))
+        assertTrue(restoreBlock.contains("mv \"${'$'}restore_data_source\" \"${'$'}current_data_root\""))
+        assertTrue(restoreBlock.contains("restoreMode=user-data"))
+        assertTrue(restoreBlock.contains("restoreMode=full"))
+    }
+
+    @Test
     fun `bundled script transport supports background stdin and bounded foreground compression`() {
         assertTrue(runnerSource.contains("putExtra(EXTRA_STDIN, it)"))
         assertTrue(runnerSource.contains("stdin = plan.stdin"))

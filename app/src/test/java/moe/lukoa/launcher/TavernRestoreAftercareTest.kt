@@ -35,4 +35,20 @@ class TavernRestoreAftercareTest {
         assertTrue(message.contains("酒馆备份已应用"))
         assertTrue(message.contains("先重新检测酒馆版本，再启动酒馆"))
     }
+
+    @Test
+    fun `user data restore message does not claim program files were replaced`() {
+        val message = TavernRestoreAftercareMessage.successMessage(
+            """
+                restoreMode=user-data
+                restoreUserDataOnly=1
+                restoredTo=/data/data/com.termux/files/home/SillyTavern/data
+                previousDirectory=/data/data/com.termux/files/home/SillyTavern/data.lukoa-before-restore-20260809
+            """.trimIndent(),
+        )
+
+        assertTrue(message.contains("用户数据已恢复"))
+        assertTrue(message.contains("旧用户数据目录已保留"))
+        assertTrue(message.contains("程序版本和扩展没有改变"))
+    }
 }

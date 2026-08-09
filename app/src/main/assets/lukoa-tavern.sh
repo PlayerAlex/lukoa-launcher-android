@@ -3036,11 +3036,20 @@ cmd_backup_import() {
 cmd_restore() {
   write_command "restore"
   archive="${1:-}"
+  restore_mode="${2:-full}"
   if [ -z "$archive" ]; then
     write_status "error" "No backup archive path was provided" false 64
     emit_status
     return 64
   fi
+  case "$restore_mode" in
+    full|user-data) ;;
+    *)
+      write_status "error" "Unsupported backup restore mode" false 64
+      emit_status
+      return 64
+      ;;
+  esac
 
   if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
     write_status "error" "Please stop SillyTavern before applying a backup" true 77
@@ -3130,6 +3139,99 @@ cmd_restore() {
     return 73
   fi
 
+  if [ "$restore_mode" = "user-data" ]; then
+    backup_source_root="$(manifest_value_from_archive "$restore_archive" "source" || true)"
+    backup_resolved_data_root="$(manifest_value_from_archive "$restore_archive" "resolvedDataRoot" || true)"
+    backup_external_data_root="$(manifest_value_from_archive "$restore_archive" "externalDataRoot" || true)"
+    restore_data_source=""
+    if [ -n "$backup_external_data_root" ] && [ "$backup_external_data_root" != "none" ]; then
+      backup_external_base="$(basename "$backup_external_data_root" 2>/dev/null || true)"
+      case "$backup_external_base" in
+        ""|"."|".."|*/*|*\\*) ;;
+        *) restore_data_source="$temp_dir/$backup_external_base" ;;
+      esac
+    elif [ -n "$backup_source_root" ] && [ -n "$backup_resolved_data_root" ]; then
+      case "$backup_resolved_data_root" in
+        "$backup_source_root"/*)
+          backup_data_relative="${backup_resolved_data_root#"$backup_source_root"/}"
+          case "$backup_data_relative" in
+            ""|"."|".."|/*|*"../"*|../*|*/..|*\\*) ;;
+            *) restore_data_source="$restore_source_dir/$backup_data_relative" ;;
+          esac
+          ;;
+      esac
+    fi
+    if [ -z "$restore_data_source" ] || [ ! -d "$restore_data_source" ] || [ -L "$restore_data_source" ]; then
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Backup does not contain a safe user data directory" false 73
+      emit_status
+      return 73
+    fi
+    if find "$restore_data_source" -type l -print -quit 2>/dev/null | grep -q .; then
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "User data restore is blocked because the backup contains symbolic links" false 73
+      emit_status
+      return 73
+    fi
+    current_data_root="$(resolve_tavern_data_root)"
+    if [ -z "$current_data_root" ] || [ "$current_data_root" = "$TAVERN_DIR" ] || path_is_inside "$TAVERN_DIR" "$current_data_root"; then
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Current dataRoot is unsafe for selective restore" false 73
+      emit_status
+      return 73
+    fi
+    if [ -L "$current_data_root" ]; then
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Current dataRoot must not be a symbolic link" false 73
+      emit_status
+      return 73
+    fi
+    data_parent="$(dirname "$current_data_root")"
+    data_base="$(basename "$current_data_root")"
+    mkdir -p "$data_parent" || {
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Failed to prepare current dataRoot parent" false 73
+      emit_status
+      return 73
+    }
+    data_rollback_dir="$data_parent/$data_base.lukoa-before-restore-$stamp"
+    if [ -e "$data_rollback_dir" ]; then
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Selective restore safety directory already exists" false 73
+      emit_status
+      return 73
+    fi
+    if [ -e "$current_data_root" ]; then
+      if ! mv "$current_data_root" "$data_rollback_dir" 2>>"$error_file"; then
+        safe_remove_restore_temp_dir "$temp_dir"
+        write_status "error" "Failed to move current user data aside" false 74
+        emit_status
+        return 74
+      fi
+    else
+      data_rollback_dir=""
+    fi
+    if ! mv "$restore_data_source" "$current_data_root" 2>>"$error_file"; then
+      [ -n "$data_rollback_dir" ] && [ -e "$data_rollback_dir" ] && mv "$data_rollback_dir" "$current_data_root" 2>/dev/null || true
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "Failed to place restored user data; original data was restored if possible" false 74
+      emit_status
+      return 74
+    fi
+    safe_remove_restore_temp_dir "$temp_dir"
+    write_status "restored-user-data" "SillyTavern user data restored successfully" false 0
+    cat "$STATUS_FILE"
+    printf "\n==== SillyTavern restore ====\n"
+    printf "archive=%s\n" "$restore_archive"
+    printf "restoreMode=user-data\n"
+    printf "restoreUserDataOnly=1\n"
+    printf "restoredTo=%s\n" "$current_data_root"
+    printf "previousDirectory=%s\n" "${data_rollback_dir:-none}"
+    printf "notice=Current SillyTavern program files and extensions were kept unchanged.\n"
+    printf "==== end SillyTavern restore ====\n"
+    return 0
+  fi
+
   parent="$(dirname "$TAVERN_DIR")"
   base="$(basename "$TAVERN_DIR")"
   mkdir -p "$parent"
@@ -3206,6 +3308,7 @@ cmd_restore() {
   cat "$STATUS_FILE"
   printf "\n==== SillyTavern restore ====\n"
   printf "archive=%s\n" "$restore_archive"
+  printf "restoreMode=full\n"
   printf "restoredTo=%s\n" "$TAVERN_DIR"
   printf "previousDirectory=%s\n" "${rollback_dir:-none}"
   printf "preRestoreSafetyBackup=%s\n" "${pre_restore_archive:-none}"

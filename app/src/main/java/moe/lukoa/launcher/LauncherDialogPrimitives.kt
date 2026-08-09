@@ -66,7 +66,17 @@ internal fun RiskyActionDialogScaffold(
         titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                content()
+            }
+        },
         confirmButton = {
             DialogActionButton(
                 text = confirmText,

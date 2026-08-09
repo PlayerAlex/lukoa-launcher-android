@@ -30,6 +30,7 @@ class LauncherBackupUiState(initialState: LauncherUiState) {
     var manualBackupName by mutableStateOf("")
     var applyBackupPath by mutableStateOf("")
     var applyBackupPreview by mutableStateOf<BackupRestorePreview?>(null)
+    var applyBackupRestoreMode by mutableStateOf(BackupRestoreMode.Full)
     var applyBackupPreviewRequest by mutableStateOf<BackupRestorePreviewRequest?>(null)
     var storagePermissionRetryArchivePath by mutableStateOf("")
     var selectedBackupPath by mutableStateOf("")
