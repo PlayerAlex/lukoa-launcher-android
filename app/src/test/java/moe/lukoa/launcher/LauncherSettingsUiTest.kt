@@ -526,6 +526,55 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun extensionManagementSection_confirmsReversibleDisable() {
+        var toggledDirectory = ""
+        var desiredEnabled = true
+        val enabledPath = "/extensions/third-party/Extension-A"
+        val disabledPath = "/extensions/.lukoa-disabled-third-party/Extension-A"
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            rootDirectory = "/extensions/third-party",
+                            disabledRootDirectory = "/extensions/.lukoa-disabled-third-party",
+                            extensions = listOf(
+                                TavernExtensionRecord("Extension-A", "清凉扩展", "1.2.3", true),
+                            ),
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        onRefresh = {},
+                        onDelete = {},
+                        onToggleEnabled = { directoryName, enabled ->
+                            toggledDirectory = directoryName
+                            desiredEnabled = enabled
+                        },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("已启用").performScrollTo().assertIsDisplayed()
+        composeRule.onNode(hasText("停用") and hasClickAction()).performScrollTo().performClick()
+        composeRule.onNodeWithText("停用酒馆扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("当前位置：$enabledPath").assertIsDisplayed()
+        composeRule.onNodeWithText("停用后位置：$disabledPath").assertIsDisplayed()
+        composeRule.onNode(hasText("确认停用") and hasClickAction()).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("Extension-A", toggledDirectory)
+            assertEquals(false, desiredEnabled)
+        }
+    }
+
+    @Test
     fun extensionManagementSection_runningKeepsReadEnabledAndLocksDelete() {
         composeRule.setContent {
             LukoaTheme {
@@ -552,6 +601,7 @@ class LauncherSettingsUiTest {
 
         composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
         composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
+        composeRule.onNode(hasText("停用") and hasClickAction()).assertIsNotEnabled()
     }
 
     @Test

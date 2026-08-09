@@ -16,19 +16,44 @@ class TavernExtensionManagementTest {
             """
             ==== SillyTavern extensions ====
             extension.root=${encoded("/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party")}
-            extension.record=${encoded("Extension-A")}|${encoded("清凉扩展")}|${encoded("1.2.3")}|true|${encoded("Lukoa")}|1536
+            extension.disabledRoot=${encoded("/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/.lukoa-disabled-third-party")}
+            extension.record=${encoded("Extension-A")}|${encoded("清凉扩展")}|${encoded("1.2.3")}|true|${encoded("Lukoa")}|1536|true
+            extension.record=${encoded("Extension-B")}|${encoded("停用扩展")}|${encoded("2.0.0")}|true|${encoded("Lukoa")}|512|false
             ==== end SillyTavern extensions ====
             """.trimIndent(),
         )
 
         assertNotNull(parsed)
         assertEquals("/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/third-party", parsed?.rootDirectory)
-        assertEquals("Extension-A", parsed?.extensions?.single()?.directoryName)
-        assertEquals("清凉扩展", parsed?.extensions?.single()?.displayName)
-        assertEquals("1.2.3", parsed?.extensions?.single()?.version)
-        assertEquals(true, parsed?.extensions?.single()?.hasManifest)
-        assertEquals("Lukoa", parsed?.extensions?.single()?.author)
-        assertEquals(1536L, parsed?.extensions?.single()?.directoryKilobytes)
+        assertEquals(
+            "/data/data/com.termux/files/home/SillyTavern/public/scripts/extensions/.lukoa-disabled-third-party",
+            parsed?.disabledRootDirectory,
+        )
+        val enabled = parsed?.extensions?.first { it.directoryName == "Extension-A" }
+        assertEquals("清凉扩展", enabled?.displayName)
+        assertEquals("1.2.3", enabled?.version)
+        assertEquals(true, enabled?.hasManifest)
+        assertEquals("Lukoa", enabled?.author)
+        assertEquals(1536L, enabled?.directoryKilobytes)
+        assertEquals(true, enabled?.enabled)
+        assertEquals(false, parsed?.extensions?.first { it.directoryName == "Extension-B" }?.enabled)
+    }
+
+    @Test
+    fun `parser keeps legacy records enabled`() {
+        fun encoded(value: String) = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+
+        val parsed = TavernExtensionOutputParser.parse(
+            """
+            ==== SillyTavern extensions ====
+            extension.root=${encoded("/extensions")}
+            extension.record=${encoded("Legacy")}|${encoded("旧版记录")}|${encoded("1.0")}|true|${encoded("Lukoa")}|64
+            ==== end SillyTavern extensions ====
+            """.trimIndent(),
+        )
+
+        assertEquals(true, parsed?.extensions?.single()?.enabled)
     }
 
     @Test
@@ -113,6 +138,26 @@ class TavernExtensionManagementTest {
         assertEquals(
             "Extension-A",
             extensionTargetDirectory("", "Extension-A"),
+        )
+    }
+
+    @Test
+    fun `extension state selects the matching enabled or disabled root`() {
+        val state = TavernExtensionManagementState(
+            rootDirectory = "/extensions/third-party",
+            disabledRootDirectory = "/extensions/.lukoa-disabled-third-party",
+        )
+
+        assertEquals(
+            "/extensions/third-party/Enabled",
+            extensionTargetDirectory(state, TavernExtensionRecord("Enabled", "Enabled", "", true)),
+        )
+        assertEquals(
+            "/extensions/.lukoa-disabled-third-party/Disabled",
+            extensionTargetDirectory(
+                state,
+                TavernExtensionRecord("Disabled", "Disabled", "", true, enabled = false),
+            ),
         )
     }
 

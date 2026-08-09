@@ -35,6 +35,7 @@ fun TavernExtensionManagementSettingsPanel(
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
+    onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
 ) {
@@ -64,6 +65,7 @@ fun TavernExtensionManagementSettingsPanel(
                             tavernRunning = tavernRunning,
                             onRefresh = onRefresh,
                             onDelete = onDelete,
+                            onToggleEnabled = onToggleEnabled,
                             onCopyPath = onCopyPath,
                             onShowHint = onShowHint,
                             showSectionContainer = false,
@@ -98,7 +100,7 @@ fun TavernExtensionManagementSettingsPanel(
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "管理已安装扩展",
-                detail = "当前实例：$instanceLabel。进入后可读取、搜索和删除第三方网页扩展。",
+                detail = "当前实例：$instanceLabel。进入后可读取、搜索、启停和删除第三方网页扩展。",
                 value = "打开",
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
@@ -117,11 +119,15 @@ fun TavernExtensionManagementSection(
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
+    onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
 ) {
     var pendingDelete by remember(instanceLabel, state.rootDirectory) {
+        mutableStateOf<TavernExtensionRecord?>(null)
+    }
+    var pendingToggle by remember(instanceLabel, state.rootDirectory, state.disabledRootDirectory) {
         mutableStateOf<TavernExtensionRecord?>(null)
     }
     var searchQuery by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
@@ -143,9 +149,14 @@ fun TavernExtensionManagementSection(
         tavernRunning -> "删除扩展前必须先停止酒馆，避免扩展文件仍在使用。"
         else -> null
     }
+    val toggleUnavailableHint = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再启用或停用扩展。"
+        tavernRunning -> "启用或停用扩展前必须先停止酒馆，避免运行中的文件被移动。"
+        else -> null
+    }
 
     pendingDelete?.let { extension ->
-        val targetDirectory = extensionTargetDirectory(state.rootDirectory, extension.directoryName)
+        val targetDirectory = extensionTargetDirectory(state, extension)
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("删除酒馆扩展") },
@@ -167,6 +178,46 @@ fun TavernExtensionManagementSection(
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingDelete = null }) { Text("取消") }
+            },
+        )
+    }
+
+    pendingToggle?.let { extension ->
+        val desiredEnabled = !extension.enabled
+        val actionText = if (desiredEnabled) "启用" else "停用"
+        val currentDirectory = extensionTargetDirectory(state, extension)
+        val destinationDirectory = extensionTargetDirectory(
+            state,
+            extension.copy(enabled = desiredEnabled),
+        )
+        AlertDialog(
+            onDismissRequest = { pendingToggle = null },
+            title = { Text("${actionText}酒馆扩展") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("扩展：${extension.displayName}")
+                    Text("当前实例：$instanceLabel")
+                    Text("当前位置：$currentDirectory")
+                    Text("${actionText}后位置：$destinationDirectory")
+                    Text(
+                        if (desiredEnabled) {
+                            "启用会把扩展原样移回酒馆扩展目录，下次启动酒馆时生效。"
+                        } else {
+                            "停用只会移动扩展目录，不会删除扩展文件；之后可以随时重新启用。"
+                        },
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingToggle = null
+                        onToggleEnabled(extension.directoryName, desiredEnabled)
+                    },
+                ) { Text("确认$actionText") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingToggle = null }) { Text("取消") }
             },
         )
     }
@@ -248,11 +299,14 @@ fun TavernExtensionManagementSection(
                     visibleExtensions.forEachIndexed { index, extension ->
                         TavernExtensionRow(
                             extension = extension,
-                            fullPath = extensionTargetDirectory(state.rootDirectory, extension.directoryName),
+                            fullPath = extensionTargetDirectory(state, extension),
+                            toggleEnabled = !actionsLocked && !tavernRunning,
+                            toggleUnavailableHint = toggleUnavailableHint,
                             deleteEnabled = !actionsLocked && !tavernRunning,
                             deleteUnavailableHint = deleteUnavailableHint,
                             onShowHint = onShowHint,
                             onCopyPath = onCopyPath,
+                            onToggleEnabled = { pendingToggle = extension },
                             onDelete = { pendingDelete = extension },
                         )
                         if (index < visibleExtensions.lastIndex) SettingsEntryDivider()
@@ -300,7 +354,7 @@ private fun TavernExtensionManagementHeader(
         InfoPopoverButton(
             contentDescription = "查看扩展管理说明",
             title = "扩展管理",
-            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、目录和文件大小，不会修改文件；扩展较多时可以直接搜索。\n删除扩展前必须先停止酒馆，并会再次显示目标目录供你确认。",
+            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、启停状态、目录和文件大小；扩展较多时可以直接搜索。\n启停扩展会在酒馆停止时安全移动扩展目录，不会删除文件；删除前也必须停止酒馆并确认目标目录。",
         )
     }
 }
@@ -320,10 +374,13 @@ private fun extensionManagementStatusText(
 private fun TavernExtensionRow(
     extension: TavernExtensionRecord,
     fullPath: String,
+    toggleEnabled: Boolean,
+    toggleUnavailableHint: String?,
     deleteEnabled: Boolean,
     deleteUnavailableHint: String?,
     onShowHint: (String) -> Unit,
     onCopyPath: (String) -> Boolean,
+    onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -337,12 +394,25 @@ private fun TavernExtensionRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = extension.displayName,
-                color = LukoaColors.TextPrimary,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = extension.displayName,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (extension.enabled) "已启用" else "已停用",
+                    color = if (extension.enabled) LukoaColors.Primary else LukoaColors.Accent,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Text(
                 text = buildString {
                     append("版本：")
@@ -390,6 +460,15 @@ private fun TavernExtensionRow(
                 },
             )
             SettingsFeedbackActionButton(
+                text = if (extension.enabled) "停用" else "启用",
+                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                enabled = toggleEnabled,
+                accentColor = if (extension.enabled) LukoaColors.Accent else LukoaColors.Primary,
+                unavailableHint = toggleUnavailableHint,
+                onShowHint = onShowHint,
+                onClick = onToggleEnabled,
+            )
+            SettingsFeedbackActionButton(
                 text = "删除",
                 modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
                 enabled = deleteEnabled,
@@ -406,3 +485,11 @@ internal fun extensionTargetDirectory(rootDirectory: String, directoryName: Stri
     val normalizedRoot = rootDirectory.trim().trimEnd('/', '\\')
     return if (normalizedRoot.isBlank()) directoryName else "$normalizedRoot/$directoryName"
 }
+
+internal fun extensionTargetDirectory(
+    state: TavernExtensionManagementState,
+    extension: TavernExtensionRecord,
+): String = extensionTargetDirectory(
+    rootDirectory = if (extension.enabled) state.rootDirectory else state.disabledRootDirectory,
+    directoryName = extension.directoryName,
+)

@@ -96,17 +96,23 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
-    fun `extension deletion is limited to a stopped tavern direct child directory`() {
+    fun `extension mutations are limited to stopped tavern direct child directories`() {
         assertTrue(script.contains("run_tavern_extension_action()"))
-        assertTrue(script.contains("if (action === 'delete')"))
+        assertTrue(script.contains("if [ \"${'$'}action\" != \"list\" ]"))
         assertTrue(script.contains("repair_require_stopped || return"))
-        assertTrue(script.contains("path.dirname(target) !== extensionRoot"))
+        assertTrue(script.contains(".lukoa-disabled-third-party"))
+        assertTrue(script.contains("path.dirname(target) !== root"))
         assertTrue(script.contains("targetStat.isSymbolicLink()"))
+        assertTrue(script.contains("fs.renameSync(source, target)"))
+        assertTrue(script.contains("Extension destination already exists"))
+        assertTrue(script.contains("Disabled extension root must not be a symbolic link"))
         assertTrue(script.contains("directoryKilobytes(path.join(extensionRoot, entry.name))"))
         assertTrue(script.contains("if (entry.isSymbolicLink()) continue"))
         assertTrue(script.contains("sizeScanBudget.entries >= 50000"))
         assertTrue(script.contains("Date.now() - sizeScanBudget.startedAt >= 5000"))
         assertTrue(script.contains("extensions-delete|tavern-extensions-delete"))
+        assertTrue(script.contains("extensions-disable|tavern-extensions-disable"))
+        assertTrue(script.contains("extensions-enable|tavern-extensions-enable"))
         assertFalse(script.contains("fs.rmSync(extensionRoot"))
     }
 

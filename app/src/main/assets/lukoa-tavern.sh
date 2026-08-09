@@ -3770,7 +3770,7 @@ NODE
 run_tavern_extension_action() {
   action="${1:-list}"
   payload="${2:-}"
-  if [ "$action" = "delete" ]; then
+  if [ "$action" != "list" ]; then
     repair_require_stopped || return "$?"
   fi
   command -v node >/dev/null 2>&1 || {
@@ -3786,6 +3786,7 @@ import path from 'node:path';
 const action = process.env.LUKOA_EXTENSION_ACTION || 'list';
 const payload = process.env.LUKOA_EXTENSION_PAYLOAD || '';
 const configuredRoot = path.resolve(process.env.LUKOA_EXTENSION_ROOT || 'public/scripts/extensions/third-party');
+const configuredDisabledRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-disabled-third-party');
 const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
 
 function fail(message, code) {
@@ -3807,7 +3808,7 @@ function decodeDirectoryName(value) {
   return decoded;
 }
 
-function readExtensions(extensionRoot) {
+function readExtensions(extensionRoot, enabled) {
   if (!fs.existsSync(extensionRoot)) return [];
   const sizeScanBudget = { entries: 0, startedAt: Date.now() };
   function directoryKilobytes(directory) {
@@ -3861,20 +3862,36 @@ function readExtensions(extensionRoot) {
         hasManifest: manifest !== null,
         author: String(manifest?.author || ''),
         directoryKilobytes: directoryKilobytes(path.join(extensionRoot, entry.name)),
+        enabled,
       };
     })
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
 }
 
-let extensionRoot = configuredRoot;
-if (action === 'delete') {
-  const directoryName = decodeDirectoryName(payload);
-  if (!fs.existsSync(configuredRoot)) fail('Extension root does not exist', 66);
-  extensionRoot = fs.realpathSync(configuredRoot);
-  const target = path.resolve(extensionRoot, directoryName);
-  if (path.dirname(target) !== extensionRoot || target === extensionRoot) {
+function resolveRoot(configured, createIfMissing = false, rejectSymlink = false) {
+  if (!fs.existsSync(configured)) {
+    if (!createIfMissing) return null;
+    fs.mkdirSync(configured, { recursive: true });
+  }
+  const configuredStat = fs.lstatSync(configured);
+  if (rejectSymlink && configuredStat.isSymbolicLink()) {
+    fail('Disabled extension root must not be a symbolic link', 64);
+  }
+  const root = fs.realpathSync(configured);
+  const rootStat = fs.statSync(root);
+  if (!rootStat.isDirectory()) fail('Extension root is not a directory', 64);
+  return root;
+}
+
+function childTarget(root, directoryName) {
+  const target = path.resolve(root, directoryName);
+  if (path.dirname(target) !== root || target === root) {
     fail('Extension target escaped the extension root', 64);
   }
+  return target;
+}
+
+function requireRegularDirectory(target) {
   let targetStat;
   try {
     targetStat = fs.lstatSync(target);
@@ -3884,17 +3901,49 @@ if (action === 'delete') {
   if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) {
     fail('Extension target is not a regular directory', 64);
   }
+}
+
+const directoryName = action === 'list' ? '' : decodeDirectoryName(payload);
+let extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
+let disabledRoot = resolveRoot(configuredDisabledRoot, false, true) || configuredDisabledRoot;
+
+if (action === 'delete') {
+  const candidates = [extensionRoot, disabledRoot]
+    .filter(root => fs.existsSync(root))
+    .map(root => childTarget(root, directoryName))
+    .filter(target => fs.existsSync(target));
+  if (candidates.length === 0) fail('Extension directory does not exist', 66);
+  if (candidates.length > 1) fail('Extension directory exists in both enabled and disabled roots', 73);
+  const target = candidates[0];
+  requireRegularDirectory(target);
   fs.rmSync(target, { recursive: true, force: false });
+} else if (action === 'disable' || action === 'enable') {
+  const sourceRoot = action === 'disable'
+    ? resolveRoot(configuredRoot)
+    : resolveRoot(configuredDisabledRoot, false, true);
+  if (!sourceRoot) fail('Extension source root does not exist', 66);
+  const destinationRoot = action === 'disable'
+    ? resolveRoot(configuredDisabledRoot, true, true)
+    : resolveRoot(configuredRoot, true);
+  const source = childTarget(sourceRoot, directoryName);
+  const target = childTarget(destinationRoot, directoryName);
+  requireRegularDirectory(source);
+  if (fs.existsSync(target)) fail('Extension destination already exists', 73);
+  fs.renameSync(source, target);
+  extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
+  disabledRoot = resolveRoot(configuredDisabledRoot, false, true) || configuredDisabledRoot;
 } else if (action !== 'list') {
   fail('Unsupported extension action', 64);
-} else if (fs.existsSync(configuredRoot)) {
-  extensionRoot = fs.realpathSync(configuredRoot);
 }
 
 console.log('==== SillyTavern extensions ====');
 console.log(`extension.root=${encode(extensionRoot)}`);
-for (const extension of readExtensions(extensionRoot)) {
-  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}`);
+console.log(`extension.disabledRoot=${encode(disabledRoot)}`);
+for (const extension of [
+  ...readExtensions(extensionRoot, true),
+  ...readExtensions(disabledRoot, false),
+]) {
+  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}|${extension.enabled}`);
 }
 console.log('==== end SillyTavern extensions ====');
 NODE
@@ -4062,6 +4111,14 @@ main() {
     extensions-delete|tavern-extensions-delete)
       shift
       run_tavern_extension_action delete "${1:-}"
+      ;;
+    extensions-disable|tavern-extensions-disable)
+      shift
+      run_tavern_extension_action disable "${1:-}"
+      ;;
+    extensions-enable|tavern-extensions-enable)
+      shift
+      run_tavern_extension_action enable "${1:-}"
       ;;
     log|logs|tail)
       cmd_log

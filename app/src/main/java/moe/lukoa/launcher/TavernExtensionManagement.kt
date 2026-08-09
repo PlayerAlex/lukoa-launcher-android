@@ -10,15 +10,18 @@ data class TavernExtensionRecord(
     val hasManifest: Boolean,
     val author: String = "",
     val directoryKilobytes: Long? = null,
+    val enabled: Boolean = true,
 )
 
 data class TavernExtensionSnapshot(
     val rootDirectory: String,
+    val disabledRootDirectory: String,
     val extensions: List<TavernExtensionRecord>,
 )
 
 data class TavernExtensionManagementState(
     val rootDirectory: String = "",
+    val disabledRootDirectory: String = "",
     val extensions: List<TavernExtensionRecord> = emptyList(),
     val loading: Boolean = false,
     val message: String = "尚未读取当前酒馆的扩展。",
@@ -31,6 +34,7 @@ object TavernExtensionOutputParser {
     fun parse(output: String): TavernExtensionSnapshot? {
         val block = extractLastCompleteBlock(output) ?: return null
         var rootDirectory = ""
+        var disabledRootDirectory = ""
         val extensions = mutableListOf<TavernExtensionRecord>()
         block.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
@@ -39,9 +43,13 @@ object TavernExtensionOutputParser {
                     rootDirectory = decode(line.substringAfter('=')) ?: rootDirectory
                 }
 
+                line.startsWith("extension.disabledRoot=") -> {
+                    disabledRootDirectory = decode(line.substringAfter('=')) ?: disabledRootDirectory
+                }
+
                 line.startsWith("extension.record=") -> {
                     val fields = line.substringAfter('=').split('|')
-                    if (fields.size !in 4..6) return@forEach
+                    if (fields.size !in 4..7) return@forEach
                     val directoryName = decode(fields[0]) ?: return@forEach
                     if (TavernExtensionCommandCodec.validateDirectoryName(directoryName) != null) return@forEach
                     extensions += TavernExtensionRecord(
@@ -53,13 +61,18 @@ object TavernExtensionOutputParser {
                         directoryKilobytes = fields.getOrNull(5)
                             ?.toLongOrNull()
                             ?.takeIf { it >= 0L },
+                        enabled = fields.getOrNull(6) != "false",
                     )
                 }
             }
         }
         return TavernExtensionSnapshot(
             rootDirectory = rootDirectory,
-            extensions = extensions.sortedBy { it.displayName.lowercase() },
+            disabledRootDirectory = disabledRootDirectory,
+            extensions = extensions.sortedWith(
+                compareByDescending<TavernExtensionRecord> { it.enabled }
+                    .thenBy { it.displayName.lowercase() },
+            ),
         )
     }
 

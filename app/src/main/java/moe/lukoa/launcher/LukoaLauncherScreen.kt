@@ -766,6 +766,7 @@ fun LukoaLauncherScreen(
         TavernExtensionOutputParser.parse(termuxOutput)?.let { snapshot ->
             tavernExtensionState = TavernExtensionManagementState(
                 rootDirectory = snapshot.rootDirectory,
+                disabledRootDirectory = snapshot.disabledRootDirectory,
                 extensions = snapshot.extensions,
                 message = "已读取 ${snapshot.extensions.size} 个扩展。",
             )
@@ -3002,6 +3003,44 @@ fun LukoaLauncherScreen(
         requestTavernVersionAction(TavernVersionActionKind.Update)
     }
 
+    fun runTavernExtensionMutation(
+        directoryName: String,
+        commandName: String,
+        busyText: String,
+        stoppedRequirementText: String,
+    ) {
+        val validationError = TavernExtensionCommandCodec.validateDirectoryName(directoryName)
+        when {
+            tavernRunning -> update(
+                stoppedRequirementText,
+                "",
+                false,
+                allowRunningInference = false,
+            )
+
+            validationError != null -> update(
+                "扩展目录无效：$validationError",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+
+            else -> {
+                val payload = TavernExtensionCommandCodec.encodeDirectoryName(directoryName)
+                runGuarded(
+                    busyText,
+                    TermuxCommandTimeoutPolicy.operationLockMillis(commandName),
+                    allowRunningInference = false,
+                ) { guardedUpdate ->
+                    onCommand(
+                        LauncherCommandCodec.encode(commandName, payload),
+                        guardedUpdate,
+                    )
+                }
+            }
+        }
+    }
+
     LaunchedEffect(selectedTab) {
         if (pagerState.currentPage != selectedTab.ordinal) {
             pagerState.animateScrollToPage(
@@ -3825,36 +3864,25 @@ fun LukoaLauncherScreen(
                                 }
                             },
                             onDeleteTavernExtension = { directoryName ->
-                                val validationError = TavernExtensionCommandCodec.validateDirectoryName(directoryName)
-                                when {
-                                    tavernRunning -> update(
-                                        "删除扩展前必须先停止酒馆。",
-                                        "",
-                                        false,
-                                        allowRunningInference = false,
-                                    )
-
-                                    validationError != null -> update(
-                                        "扩展目录无效：$validationError",
-                                        "",
-                                        false,
-                                        allowRunningInference = false,
-                                    )
-
-                                    else -> {
-                                        val payload = TavernExtensionCommandCodec.encodeDirectoryName(directoryName)
-                                        runGuarded(
-                                            "删除酒馆扩展",
-                                            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-delete"),
-                                            allowRunningInference = false,
-                                        ) { guardedUpdate ->
-                                            onCommand(
-                                                LauncherCommandCodec.encode("tavern-extensions-delete", payload),
-                                                guardedUpdate,
-                                            )
-                                        }
-                                    }
-                                }
+                                runTavernExtensionMutation(
+                                    directoryName = directoryName,
+                                    commandName = "tavern-extensions-delete",
+                                    busyText = "删除酒馆扩展",
+                                    stoppedRequirementText = "删除扩展前必须先停止酒馆。",
+                                )
+                            },
+                            onToggleTavernExtension = { directoryName, enabled ->
+                                val actionText = if (enabled) "启用" else "停用"
+                                runTavernExtensionMutation(
+                                    directoryName = directoryName,
+                                    commandName = if (enabled) {
+                                        "tavern-extensions-enable"
+                                    } else {
+                                        "tavern-extensions-disable"
+                                    },
+                                    busyText = "${actionText}酒馆扩展",
+                                    stoppedRequirementText = "${actionText}扩展前必须先停止酒馆。",
+                                )
                             },
                             onCopyTavernExtensionPath = { path ->
                                 onCopyText("扩展目录", path)

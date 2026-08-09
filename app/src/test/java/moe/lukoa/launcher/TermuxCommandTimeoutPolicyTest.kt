@@ -44,6 +44,10 @@ class TermuxCommandTimeoutPolicyTest {
             "tavern-restore",
             "tavern-migrate-dir",
             "tavern-delete-managed-profile-dir",
+            "tavern-extensions-list",
+            "tavern-extensions-delete",
+            "tavern-extensions-disable",
+            "tavern-extensions-enable",
         )
 
         routedCommands.forEach { command ->

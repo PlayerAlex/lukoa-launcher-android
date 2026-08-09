@@ -118,6 +118,7 @@ fun SettingsSection(
     onDeleteTavernUser: (String) -> Unit,
     onRefreshTavernExtensions: () -> Unit,
     onDeleteTavernExtension: (String) -> Unit,
+    onToggleTavernExtension: (String, Boolean) -> Unit = { _, _ -> },
     onCopyTavernExtensionPath: (String) -> Boolean,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
@@ -352,6 +353,7 @@ fun SettingsSection(
             tavernRunning = tavernRunning,
             onRefresh = onRefreshTavernExtensions,
             onDelete = onDeleteTavernExtension,
+            onToggleEnabled = onToggleTavernExtension,
             onCopyPath = onCopyTavernExtensionPath,
             onShowHint = showHint,
         )
