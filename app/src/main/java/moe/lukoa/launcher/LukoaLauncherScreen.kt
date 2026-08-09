@@ -3945,6 +3945,22 @@ fun LukoaLauncherScreen(
                                     }
                                 }
                             },
+                            onUpdateTavernExtension = { directoryName ->
+                                runTavernExtensionMutation(
+                                    directoryName = directoryName,
+                                    commandName = "tavern-extensions-update",
+                                    busyText = "更新酒馆扩展",
+                                    stoppedRequirementText = "更新扩展前必须先停止酒馆。",
+                                )
+                            },
+                            onRollbackTavernExtension = { directoryName ->
+                                runTavernExtensionMutation(
+                                    directoryName = directoryName,
+                                    commandName = "tavern-extensions-rollback",
+                                    busyText = "回退酒馆扩展",
+                                    stoppedRequirementText = "回退扩展前必须先停止酒馆。",
+                                )
+                            },
                             onCopyTavernExtensionPath = { path ->
                                 onCopyText("扩展目录", path)
                             },

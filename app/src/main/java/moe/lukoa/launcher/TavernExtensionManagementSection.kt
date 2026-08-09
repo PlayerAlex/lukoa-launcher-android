@@ -38,6 +38,8 @@ fun TavernExtensionManagementSettingsPanel(
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onInstall: (String) -> Unit = {},
     onCheckUpdates: () -> Unit = {},
+    onUpdate: (String) -> Unit = {},
+    onRollback: (String) -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
 ) {
@@ -70,6 +72,8 @@ fun TavernExtensionManagementSettingsPanel(
                             onToggleEnabled = onToggleEnabled,
                             onInstall = onInstall,
                             onCheckUpdates = onCheckUpdates,
+                            onUpdate = onUpdate,
+                            onRollback = onRollback,
                             onCopyPath = onCopyPath,
                             onShowHint = onShowHint,
                             showSectionContainer = false,
@@ -126,6 +130,8 @@ fun TavernExtensionManagementSection(
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
     onInstall: (String) -> Unit = {},
     onCheckUpdates: () -> Unit = {},
+    onUpdate: (String) -> Unit = {},
+    onRollback: (String) -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
@@ -134,6 +140,12 @@ fun TavernExtensionManagementSection(
         mutableStateOf<TavernExtensionRecord?>(null)
     }
     var pendingToggle by remember(instanceLabel, state.rootDirectory, state.disabledRootDirectory) {
+        mutableStateOf<TavernExtensionRecord?>(null)
+    }
+    var pendingUpdate by remember(instanceLabel, state.rootDirectory, state.disabledRootDirectory) {
+        mutableStateOf<TavernExtensionRecord?>(null)
+    }
+    var pendingRollback by remember(instanceLabel, state.rootDirectory, state.disabledRootDirectory) {
         mutableStateOf<TavernExtensionRecord?>(null)
     }
     var showInstallDialog by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf(false) }
@@ -230,6 +242,59 @@ fun TavernExtensionManagementSection(
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingToggle = null }) { Text("取消") }
+            },
+        )
+    }
+
+    pendingUpdate?.let { extension ->
+        AlertDialog(
+            onDismissRequest = { pendingUpdate = null },
+            title = { Text("更新酒馆扩展") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("扩展：${extension.displayName}")
+                    Text("当前实例：$instanceLabel")
+                    Text("版本：${extension.currentRevision.take(7)} → ${extension.latestRevision.take(7)}")
+                    Text("启动器会重新下载已检查的公开 GitHub 版本，校验清单后再替换原目录。")
+                    Text("当前扩展会保留为最近一次快照；替换失败时会自动恢复，不会直接在原目录执行 git pull。")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingUpdate = null
+                        onUpdate(extension.directoryName)
+                    },
+                ) { Text("确认更新") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingUpdate = null }) { Text("取消") }
+            },
+        )
+    }
+
+    pendingRollback?.let { extension ->
+        AlertDialog(
+            onDismissRequest = { pendingRollback = null },
+            title = { Text("回退酒馆扩展") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("扩展：${extension.displayName}")
+                    Text("当前实例：$instanceLabel")
+                    Text("回到快照：${extension.rollbackRevision.take(7)}")
+                    Text("启动器会交换当前目录与最近一次更新前快照。回退后仍会保留现在的版本，必要时可以再次切换回来。")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingRollback = null
+                        onRollback(extension.directoryName)
+                    },
+                ) { Text("确认回退") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingRollback = null }) { Text("取消") }
             },
         )
     }
@@ -389,6 +454,16 @@ fun TavernExtensionManagementSection(
             } else {
                 SettingsEntryGroup {
                     visibleExtensions.forEachIndexed { index, extension ->
+                        val updateDisabledReason = TavernExtensionActionPolicy.updateDisabledReason(
+                            extension = extension,
+                            actionsLocked = actionsLocked,
+                            tavernRunning = tavernRunning,
+                        )
+                        val rollbackDisabledReason = TavernExtensionActionPolicy.rollbackDisabledReason(
+                            extension = extension,
+                            actionsLocked = actionsLocked,
+                            tavernRunning = tavernRunning,
+                        )
                         TavernExtensionRow(
                             extension = extension,
                             fullPath = extensionTargetDirectory(state, extension),
@@ -396,9 +471,15 @@ fun TavernExtensionManagementSection(
                             toggleUnavailableHint = toggleUnavailableHint,
                             deleteEnabled = !actionsLocked && !tavernRunning,
                             deleteUnavailableHint = deleteUnavailableHint,
+                            updateEnabled = updateDisabledReason == null,
+                            updateUnavailableHint = updateDisabledReason,
+                            rollbackEnabled = rollbackDisabledReason == null,
+                            rollbackUnavailableHint = rollbackDisabledReason,
                             onShowHint = onShowHint,
                             onCopyPath = onCopyPath,
                             onToggleEnabled = { pendingToggle = extension },
+                            onUpdate = { pendingUpdate = extension },
+                            onRollback = { pendingRollback = extension },
                             onDelete = { pendingDelete = extension },
                         )
                         if (index < visibleExtensions.lastIndex) SettingsEntryDivider()
@@ -446,7 +527,7 @@ private fun TavernExtensionManagementHeader(
         InfoPopoverButton(
             contentDescription = "查看扩展管理说明",
             title = "扩展管理",
-            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n可以粘贴公开 GitHub 仓库地址安装扩展；启动器会先下载到暂存区并校验清单，不会覆盖同名目录。\n读取扩展会显示名称、版本、作者、启停状态、目录和文件大小；启停和删除前也必须停止酒馆并确认目标。",
+            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n可以粘贴公开 GitHub 仓库地址安装扩展；启动器会先下载到暂存区并校验清单，不会覆盖同名目录。\n检查到公开 GitHub 更新后，可以安全替换并保留最近一次快照；更新、回退、启停和删除前都必须停止酒馆。",
         )
     }
 }
@@ -470,9 +551,15 @@ private fun TavernExtensionRow(
     toggleUnavailableHint: String?,
     deleteEnabled: Boolean,
     deleteUnavailableHint: String?,
+    updateEnabled: Boolean,
+    updateUnavailableHint: String?,
+    rollbackEnabled: Boolean,
+    rollbackUnavailableHint: String?,
     onShowHint: (String) -> Unit,
     onCopyPath: (String) -> Boolean,
     onToggleEnabled: () -> Unit,
+    onUpdate: () -> Unit,
+    onRollback: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -559,6 +646,13 @@ private fun TavernExtensionRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (extension.rollbackRevision.isNotBlank()) {
+                Text(
+                    text = "可回退快照：${extension.rollbackRevision.take(7)}",
+                    color = LukoaColors.Dim,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Text(
                 text = "完整路径：$fullPath",
                 color = LukoaColors.Dim,
@@ -591,6 +685,24 @@ private fun TavernExtensionRow(
                 unavailableHint = toggleUnavailableHint,
                 onShowHint = onShowHint,
                 onClick = onToggleEnabled,
+            )
+            SettingsFeedbackActionButton(
+                text = "更新",
+                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                enabled = updateEnabled,
+                accentColor = LukoaColors.Primary,
+                unavailableHint = updateUnavailableHint,
+                onShowHint = onShowHint,
+                onClick = onUpdate,
+            )
+            SettingsFeedbackActionButton(
+                text = "回退",
+                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                enabled = rollbackEnabled,
+                accentColor = LukoaColors.Accent,
+                unavailableHint = rollbackUnavailableHint,
+                onShowHint = onShowHint,
+                onClick = onRollback,
             )
             SettingsFeedbackActionButton(
                 text = "删除",

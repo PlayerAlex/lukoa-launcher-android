@@ -65,7 +65,7 @@ class TavernExtensionManagementTest {
             """
             ==== SillyTavern extensions ====
             extension.root=${encoded("/extensions")}
-            extension.record=${encoded("Mint")}|${encoded("Mint")}|${encoded("1.0")}|true|${encoded("Lukoa")}|64|true|${encoded("https://github.com/owner/Mint.git")}|abc1234|def5678|update_available
+            extension.record=${encoded("Mint")}|${encoded("Mint")}|${encoded("1.0")}|true|${encoded("Lukoa")}|64|true|${encoded("https://github.com/owner/Mint.git")}|abc1234|def5678|update_available|987fedc
             ==== end SillyTavern extensions ====
             """.trimIndent(),
         )
@@ -75,6 +75,68 @@ class TavernExtensionManagementTest {
         assertEquals("abc1234", extension?.currentRevision)
         assertEquals("def5678", extension?.latestRevision)
         assertEquals(TavernExtensionUpdateStatus.UpdateAvailable, extension?.updateStatus)
+        assertEquals("987fedc", extension?.rollbackRevision)
+    }
+
+    @Test
+    fun `update is allowed only for a checked clean newer github revision while tavern is stopped`() {
+        val ready = TavernExtensionRecord(
+            directoryName = "Mint",
+            displayName = "Mint",
+            version = "1.0",
+            hasManifest = true,
+            repositoryUrl = "https://github.com/owner/Mint.git",
+            currentRevision = "abc1234",
+            latestRevision = "def5678",
+            updateStatus = TavernExtensionUpdateStatus.UpdateAvailable,
+        )
+
+        assertNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, false))
+        assertNotNull(TavernExtensionActionPolicy.updateDisabledReason(ready, true, false))
+        assertNotNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, true))
+        assertNotNull(
+            TavernExtensionActionPolicy.updateDisabledReason(
+                ready.copy(updateStatus = TavernExtensionUpdateStatus.LocalChanges),
+                false,
+                false,
+            ),
+        )
+        assertNotNull(
+            TavernExtensionActionPolicy.updateDisabledReason(
+                ready.copy(repositoryUrl = "https://example.com/owner/Mint.git"),
+                false,
+                false,
+            ),
+        )
+        assertNotNull(
+            TavernExtensionActionPolicy.updateDisabledReason(
+                ready.copy(latestRevision = ready.currentRevision),
+                false,
+                false,
+            ),
+        )
+    }
+
+    @Test
+    fun `rollback requires a validated snapshot revision and stopped tavern`() {
+        val ready = TavernExtensionRecord(
+            directoryName = "Mint",
+            displayName = "Mint",
+            version = "1.0",
+            hasManifest = true,
+            rollbackRevision = "abc1234",
+        )
+
+        assertNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, false, false))
+        assertNotNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, true, false))
+        assertNotNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, false, true))
+        assertNotNull(
+            TavernExtensionActionPolicy.rollbackDisabledReason(
+                ready.copy(rollbackRevision = ""),
+                false,
+                false,
+            ),
+        )
     }
 
     @Test

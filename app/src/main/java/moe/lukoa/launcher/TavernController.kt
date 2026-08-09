@@ -95,6 +95,8 @@ class TavernController(
             "tavern-extensions-enable" -> runner.runTavernExtensionSetEnabled(parsed.argument, true)
             "tavern-extensions-install" -> runner.runTavernExtensionInstall(parsed.argument)
             "tavern-extensions-check-updates" -> runner.runTavernExtensionCheckUpdates()
+            "tavern-extensions-update" -> runner.runTavernExtensionUpdate(parsed.argument)
+            "tavern-extensions-rollback" -> runner.runTavernExtensionRollback(parsed.argument)
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
             "termux-repo-status" -> runner.runTermuxPackageMirrorStatus()

@@ -98,7 +98,7 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `extension mutations are limited to stopped tavern direct child directories`() {
         assertTrue(script.contains("run_tavern_extension_action()"))
-        assertTrue(script.contains("delete|disable|enable|install)"))
+        assertTrue(script.contains("delete|disable|enable|install|update|rollback)"))
         assertTrue(script.contains("repair_require_stopped || return"))
         assertTrue(script.contains(".lukoa-disabled-third-party"))
         assertTrue(script.contains("path.dirname(target) !== root"))
@@ -149,6 +149,27 @@ class BundledShellScriptRegressionTest {
         assertTrue(script.contains("update_available"))
         assertFalse(extensionBlock.contains("git merge"))
         assertFalse(extensionBlock.contains("git pull"))
+    }
+
+    @Test
+    fun `extension update and rollback use validated atomic directory swaps`() {
+        val extensionBlock = script.substringAfter("run_tavern_extension_action() {")
+            .substringBefore("run_tavern_user_action() {")
+
+        assertTrue(extensionBlock.contains("delete|disable|enable|install|update|rollback)"))
+        assertTrue(script.contains("extensions-update|tavern-extensions-update"))
+        assertTrue(script.contains("extensions-rollback|tavern-extensions-rollback"))
+        assertTrue(extensionBlock.contains(".lukoa-extension-rollbacks"))
+        assertTrue(extensionBlock.contains("updateStatus !== 'update_available'"))
+        assertTrue(extensionBlock.contains("Extension has local changes or no verified update"))
+        assertTrue(extensionBlock.contains("validateExtensionManifest"))
+        assertTrue(extensionBlock.contains("fs.renameSync(target, rollbackTarget)"))
+        assertTrue(extensionBlock.contains("fs.renameSync(stagingDirectory, target)"))
+        assertTrue(extensionBlock.contains("fs.renameSync(rollbackTarget, target)"))
+        assertTrue(extensionBlock.contains("Extension target is not a regular directory"))
+        assertTrue(extensionBlock.contains("Extension target escaped the extension root"))
+        assertFalse(extensionBlock.contains("git pull"))
+        assertFalse(extensionBlock.contains("git merge"))
     }
 
     @Test

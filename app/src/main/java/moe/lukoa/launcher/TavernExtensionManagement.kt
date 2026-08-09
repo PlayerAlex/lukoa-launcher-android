@@ -34,6 +34,7 @@ data class TavernExtensionRecord(
     val currentRevision: String = "",
     val latestRevision: String = "",
     val updateStatus: TavernExtensionUpdateStatus = TavernExtensionUpdateStatus.NotChecked,
+    val rollbackRevision: String = "",
 )
 
 data class TavernExtensionSnapshot(
@@ -72,7 +73,7 @@ object TavernExtensionOutputParser {
 
                 line.startsWith("extension.record=") -> {
                     val fields = line.substringAfter('=').split('|')
-                    if (fields.size !in 4..11) return@forEach
+                    if (fields.size !in 4..12) return@forEach
                     val directoryName = decode(fields[0]) ?: return@forEach
                     if (TavernExtensionCommandCodec.validateDirectoryName(directoryName) != null) return@forEach
                     extensions += TavernExtensionRecord(
@@ -89,6 +90,7 @@ object TavernExtensionOutputParser {
                         currentRevision = fields.getOrNull(8).orEmpty().takeIf(::isGitRevision).orEmpty(),
                         latestRevision = fields.getOrNull(9).orEmpty().takeIf(::isGitRevision).orEmpty(),
                         updateStatus = TavernExtensionUpdateStatus.fromWireValue(fields.getOrNull(10)),
+                        rollbackRevision = fields.getOrNull(11).orEmpty().takeIf(::isGitRevision).orEmpty(),
                     )
                 }
             }
@@ -118,6 +120,42 @@ object TavernExtensionOutputParser {
     }
 
     private fun isGitRevision(value: String): Boolean =
+        value.length in 7..40 && value.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
+}
+
+object TavernExtensionActionPolicy {
+    fun updateDisabledReason(
+        extension: TavernExtensionRecord,
+        actionsLocked: Boolean,
+        tavernRunning: Boolean,
+    ): String? = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再更新扩展。"
+        tavernRunning -> "更新扩展前必须先停止酒馆，避免运行中的文件被替换。"
+        extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges ->
+            "扩展包含本地改动，为避免覆盖你的修改，启动器不会自动更新。"
+        extension.updateStatus != TavernExtensionUpdateStatus.UpdateAvailable ->
+            "请先检查更新；只有确认发现新版本且没有本地改动时才能更新。"
+        TavernExtensionCommandCodec.normalizeRepositoryUrl(extension.repositoryUrl) == null ->
+            "扩展来源不是受支持的公开 GitHub 仓库，无法安全更新。"
+        !isRevision(extension.currentRevision) || !isRevision(extension.latestRevision) ->
+            "扩展版本信息不完整，请重新检查更新。"
+        extension.currentRevision.equals(extension.latestRevision, ignoreCase = true) ->
+            "当前扩展已经是检查到的最新版本。"
+        else -> null
+    }
+
+    fun rollbackDisabledReason(
+        extension: TavernExtensionRecord,
+        actionsLocked: Boolean,
+        tavernRunning: Boolean,
+    ): String? = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再回退扩展。"
+        tavernRunning -> "回退扩展前必须先停止酒馆，避免运行中的文件被替换。"
+        !isRevision(extension.rollbackRevision) -> "这个扩展还没有可用的更新前快照。"
+        else -> null
+    }
+
+    private fun isRevision(value: String): Boolean =
         value.length in 7..40 && value.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
 }
 

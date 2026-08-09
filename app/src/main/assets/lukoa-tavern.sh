@@ -3771,7 +3771,7 @@ run_tavern_extension_action() {
   action="${1:-list}"
   payload="${2:-}"
   case "$action" in
-    delete|disable|enable|install)
+    delete|disable|enable|install|update|rollback)
       repair_require_stopped || return "$?"
       ;;
   esac
@@ -3780,7 +3780,7 @@ run_tavern_extension_action() {
     emit_status
     return 69
   }
-  if { [ "$action" = "install" ] || [ "$action" = "check-updates" ]; } && ! command -v git >/dev/null 2>&1; then
+  if { [ "$action" = "install" ] || [ "$action" = "check-updates" ] || [ "$action" = "update" ] || [ "$action" = "rollback" ]; } && ! command -v git >/dev/null 2>&1; then
     write_status "error" "git command not found in Termux" false 69
     emit_status
     return 69
@@ -3796,6 +3796,7 @@ const payload = process.env.LUKOA_EXTENSION_PAYLOAD || '';
 const configuredRoot = path.resolve(process.env.LUKOA_EXTENSION_ROOT || 'public/scripts/extensions/third-party');
 const configuredDisabledRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-disabled-third-party');
 const configuredStagingRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-extension-staging');
+const configuredRollbackRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-extension-rollbacks');
 const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
 
 function fail(message, code) {
@@ -4005,9 +4006,27 @@ function readExtensions(extensionRoot, enabled, checkRemote = false) {
         directoryKilobytes: directoryKilobytes(directory),
         enabled,
         ...readGitMetadata(directory, checkRemote),
+        rollbackRevision: readRollbackRevision(entry.name),
       };
     })
     .sort((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
+function readRollbackRevision(directoryName) {
+  if (!fs.existsSync(configuredRollbackRoot)) return '';
+  try {
+    const rootStat = fs.lstatSync(configuredRollbackRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return '';
+    const rollbackRoot = fs.realpathSync(configuredRollbackRoot);
+    const rollbackTarget = childTarget(rollbackRoot, directoryName);
+    if (!fs.existsSync(rollbackTarget)) return '';
+    const targetStat = fs.lstatSync(rollbackTarget);
+    if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) return '';
+    const revision = runGit(rollbackTarget, ['rev-parse', 'HEAD']);
+    return revision && /^[0-9a-f]{40}$/i.test(revision) ? revision : '';
+  } catch (_) {
+    return '';
+  }
 }
 
 function resolveRoot(configured, createIfMissing = false, rejectSymlink = false) {
@@ -4043,6 +4062,36 @@ function requireRegularDirectory(target) {
   if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) {
     fail('Extension target is not a regular directory', 64);
   }
+}
+
+function validateExtensionManifest(directory) {
+  const manifestFile = childTarget(directory, 'manifest.json');
+  try {
+    const manifestStat = fs.lstatSync(manifestFile);
+    if (manifestStat.isSymbolicLink() || !manifestStat.isFile()) {
+      throw new Error('manifest must be a regular file');
+    }
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+      throw new Error('manifest must be an object');
+    }
+  } catch (error) {
+    throw new Error('Extension manifest.json is missing or invalid', { cause: error });
+  }
+}
+
+function findInstalledExtension(directoryName) {
+  const candidates = [
+    { root: extensionRoot, enabled: true },
+    { root: disabledRoot, enabled: false },
+  ]
+    .filter(candidate => fs.existsSync(candidate.root))
+    .map(candidate => ({ ...candidate, target: childTarget(candidate.root, directoryName) }))
+    .filter(candidate => fs.existsSync(candidate.target));
+  if (candidates.length === 0) fail('Extension directory does not exist', 66);
+  if (candidates.length > 1) fail('Extension directory exists in both enabled and disabled roots', 73);
+  requireRegularDirectory(candidates[0].target);
+  return candidates[0];
 }
 
 const repository = action === 'install' ? decodeRepositoryUrl(payload) : null;
@@ -4104,16 +4153,8 @@ if (action === 'delete') {
     fail('Extension git clone failed', clone.status || 74);
   }
   requireRegularDirectory(stagingDirectory);
-  const manifestFile = childTarget(stagingDirectory, 'manifest.json');
   try {
-    const manifestStat = fs.lstatSync(manifestFile);
-    if (manifestStat.isSymbolicLink() || !manifestStat.isFile()) {
-      throw new Error('manifest must be a regular file');
-    }
-    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-      throw new Error('manifest must be an object');
-    }
+    validateExtensionManifest(stagingDirectory);
   } catch (_) {
     fs.rmSync(stagingDirectory, { recursive: true, force: true });
     fail('Extension manifest.json is missing or invalid', 65);
@@ -4128,6 +4169,89 @@ if (action === 'delete') {
   } catch (_) {
     // Another safe staging operation may still be using this directory.
   }
+} else if (action === 'update') {
+  const installed = findInstalledExtension(directoryName);
+  const target = installed.target;
+  const metadata = readGitMetadata(target, true);
+  if (metadata.updateStatus !== 'update_available') {
+    fail('Extension has local changes or no verified update', 78);
+  }
+  const branch = runGit(target, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (!branch || branch === 'HEAD') fail('Extension branch could not be verified', 65);
+  const stagingRoot = resolveRoot(configuredStagingRoot, true, true);
+  const stagingDirectory = childTarget(stagingRoot, `update-${process.pid}-${Date.now()}`);
+  const clone = spawnSync(
+    'git',
+    ['clone', '--depth', '1', '--branch', branch, metadata.repositoryUrl, stagingDirectory],
+    {
+      encoding: 'utf8',
+      timeout: 5 * 60 * 1000,
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    },
+  );
+  if (clone.error || clone.status !== 0) {
+    if (clone.stderr) console.error(String(clone.stderr).slice(-2000));
+    if (fs.existsSync(stagingDirectory)) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    fail('Extension git clone failed', clone.status || 74);
+  }
+  requireRegularDirectory(stagingDirectory);
+  try {
+    validateExtensionManifest(stagingDirectory);
+  } catch (_) {
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    fail('Extension manifest.json is missing or invalid', 65);
+  }
+  const stagedRevision = runGit(stagingDirectory, ['rev-parse', 'HEAD']);
+  if (!stagedRevision || stagedRevision.toLowerCase() !== metadata.latestRevision.toLowerCase()) {
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    fail('Downloaded extension revision did not match the checked update', 65);
+  }
+  const rollbackRoot = resolveRoot(configuredRollbackRoot, true, true);
+  const rollbackTarget = childTarget(rollbackRoot, directoryName);
+  if (fs.existsSync(rollbackTarget)) {
+    requireRegularDirectory(rollbackTarget);
+    fs.rmSync(rollbackTarget, { recursive: true, force: false });
+  }
+  fs.renameSync(target, rollbackTarget);
+  try {
+    fs.renameSync(stagingDirectory, target);
+  } catch (error) {
+    fs.renameSync(rollbackTarget, target);
+    if (fs.existsSync(stagingDirectory)) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    throw error;
+  }
+} else if (action === 'rollback') {
+  const installed = findInstalledExtension(directoryName);
+  const rollbackRoot = resolveRoot(configuredRollbackRoot, false, true);
+  if (!rollbackRoot) fail('Extension rollback snapshot does not exist', 66);
+  const rollbackTarget = childTarget(rollbackRoot, directoryName);
+  requireRegularDirectory(rollbackTarget);
+  try {
+    validateExtensionManifest(rollbackTarget);
+  } catch (_) {
+    fail('Extension manifest.json is missing or invalid', 65);
+  }
+  const rollbackRevision = runGit(rollbackTarget, ['rev-parse', 'HEAD']);
+  if (!rollbackRevision || !/^[0-9a-f]{40}$/i.test(rollbackRevision)) {
+    fail('Extension rollback snapshot is not a valid Git revision', 65);
+  }
+  const stagingRoot = resolveRoot(configuredStagingRoot, true, true);
+  const swapDirectory = childTarget(stagingRoot, `rollback-${process.pid}-${Date.now()}`);
+  fs.renameSync(installed.target, swapDirectory);
+  try {
+    fs.renameSync(rollbackTarget, installed.target);
+  } catch (error) {
+    fs.renameSync(swapDirectory, installed.target);
+    throw error;
+  }
+  try {
+    fs.renameSync(swapDirectory, rollbackTarget);
+  } catch (error) {
+    fs.renameSync(installed.target, rollbackTarget);
+    fs.renameSync(swapDirectory, installed.target);
+    throw error;
+  }
 } else if (action !== 'list' && action !== 'check-updates') {
   fail('Unsupported extension action', 64);
 }
@@ -4140,7 +4264,7 @@ for (const extension of [
   ...readExtensions(extensionRoot, true, checkRemote),
   ...readExtensions(disabledRoot, false, checkRemote),
 ]) {
-  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}|${extension.enabled}|${encode(extension.repositoryUrl)}|${extension.currentRevision}|${extension.latestRevision}|${extension.updateStatus}`);
+  console.log(`extension.record=${encode(extension.directoryName)}|${encode(extension.displayName)}|${encode(extension.version)}|${extension.hasManifest}|${encode(extension.author)}|${extension.directoryKilobytes}|${extension.enabled}|${encode(extension.repositoryUrl)}|${extension.currentRevision}|${extension.latestRevision}|${extension.updateStatus}|${extension.rollbackRevision}`);
 }
 console.log('==== end SillyTavern extensions ====');
 NODE
@@ -4323,6 +4447,14 @@ main() {
       ;;
     extensions-check-updates|tavern-extensions-check-updates)
       run_tavern_extension_action check-updates ""
+      ;;
+    extensions-update|tavern-extensions-update)
+      shift
+      run_tavern_extension_action update "${1:-}"
+      ;;
+    extensions-rollback|tavern-extensions-rollback)
+      shift
+      run_tavern_extension_action rollback "${1:-}"
       ;;
     log|logs|tail)
       cmd_log

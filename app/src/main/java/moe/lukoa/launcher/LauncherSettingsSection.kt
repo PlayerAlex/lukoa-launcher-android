@@ -121,6 +121,8 @@ fun SettingsSection(
     onToggleTavernExtension: (String, Boolean) -> Unit = { _, _ -> },
     onInstallTavernExtension: (String) -> Unit = {},
     onCheckTavernExtensionUpdates: () -> Unit = {},
+    onUpdateTavernExtension: (String) -> Unit = {},
+    onRollbackTavernExtension: (String) -> Unit = {},
     onCopyTavernExtensionPath: (String) -> Boolean,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
@@ -358,6 +360,8 @@ fun SettingsSection(
             onToggleEnabled = onToggleTavernExtension,
             onInstall = onInstallTavernExtension,
             onCheckUpdates = onCheckTavernExtensionUpdates,
+            onUpdate = onUpdateTavernExtension,
+            onRollback = onRollbackTavernExtension,
             onCopyPath = onCopyTavernExtensionPath,
             onShowHint = showHint,
         )

@@ -288,6 +288,12 @@ class TermuxCommandRunner(private val context: Context) {
     fun runTavernExtensionSetEnabled(value: String?, enabled: Boolean): CommandDispatch =
         runTavernExtensionMutation(if (enabled) "enable" else "disable", value)
 
+    fun runTavernExtensionUpdate(value: String?): CommandDispatch =
+        runTavernExtensionMutation("update", value)
+
+    fun runTavernExtensionRollback(value: String?): CommandDispatch =
+        runTavernExtensionMutation("rollback", value)
+
     fun runTavernExtensionInstall(value: String?): CommandDispatch {
         val encodedRepositoryUrl = value.orEmpty().trim()
         if (TavernExtensionCommandCodec.decodeRepositoryUrl(encodedRepositoryUrl) == null) {
