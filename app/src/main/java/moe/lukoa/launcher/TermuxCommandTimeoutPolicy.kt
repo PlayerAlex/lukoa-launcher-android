@@ -41,6 +41,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-extensions-delete" to 2 * 60_000L,
         "tavern-extensions-disable" to 2 * 60_000L,
         "tavern-extensions-enable" to 2 * 60_000L,
+        "tavern-extensions-install" to 10 * 60_000L,
         "tavern-backup-list" to 24_000L,
         "tavern-version-startup" to 4_000L,
         "tavern-official-versions" to 60_000L,

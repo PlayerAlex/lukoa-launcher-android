@@ -36,6 +36,7 @@ fun TavernExtensionManagementSettingsPanel(
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
+    onInstall: (String) -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
 ) {
@@ -66,6 +67,7 @@ fun TavernExtensionManagementSettingsPanel(
                             onRefresh = onRefresh,
                             onDelete = onDelete,
                             onToggleEnabled = onToggleEnabled,
+                            onInstall = onInstall,
                             onCopyPath = onCopyPath,
                             onShowHint = onShowHint,
                             showSectionContainer = false,
@@ -120,6 +122,7 @@ fun TavernExtensionManagementSection(
     onRefresh: () -> Unit,
     onDelete: (String) -> Unit,
     onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
+    onInstall: (String) -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
@@ -130,6 +133,8 @@ fun TavernExtensionManagementSection(
     var pendingToggle by remember(instanceLabel, state.rootDirectory, state.disabledRootDirectory) {
         mutableStateOf<TavernExtensionRecord?>(null)
     }
+    var showInstallDialog by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf(false) }
+    var repositoryInput by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
     var searchQuery by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
     val normalizedQuery = searchQuery.trim()
     val visibleExtensions = if (normalizedQuery.isBlank()) {
@@ -154,6 +159,9 @@ fun TavernExtensionManagementSection(
         tavernRunning -> "启用或停用扩展前必须先停止酒馆，避免运行中的文件被移动。"
         else -> null
     }
+    val repositoryError = repositoryInput.takeIf { it.isNotBlank() }
+        ?.let(TavernExtensionCommandCodec::validateRepositoryUrl)
+    val normalizedRepository = TavernExtensionCommandCodec.normalizeRepositoryUrl(repositoryInput)
 
     pendingDelete?.let { extension ->
         val targetDirectory = extensionTargetDirectory(state, extension)
@@ -222,6 +230,53 @@ fun TavernExtensionManagementSection(
         )
     }
 
+    if (showInstallDialog) {
+        val directoryName = normalizedRepository
+            ?.let(TavernExtensionCommandCodec::repositoryDirectoryName)
+            .orEmpty()
+        val targetDirectory = directoryName.takeIf { it.isNotBlank() }
+            ?.let { extensionTargetDirectory(state.rootDirectory, it) }
+        AlertDialog(
+            onDismissRequest = { showInstallDialog = false },
+            title = { Text("安装酒馆扩展") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("当前实例：$instanceLabel")
+                    OutlinedTextField(
+                        value = repositoryInput,
+                        onValueChange = { repositoryInput = it.take(240) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("GitHub 扩展地址") },
+                        placeholder = { Text("https://github.com/作者/扩展名") },
+                        supportingText = {
+                            Text(repositoryError ?: "仅支持公开 GitHub 仓库地址。")
+                        },
+                        isError = repositoryError != null,
+                        singleLine = true,
+                        colors = lukoaTextFieldColors(LukoaColors.Primary),
+                    )
+                    normalizedRepository?.let { Text("来源：$it") }
+                    targetDirectory?.let { Text("目标目录：$it") }
+                    Text("启动器会先下载到暂存区并检查扩展清单，不会覆盖同名的已启用或已停用扩展。")
+                    Text("安装完成后扩展默认启用，下次启动酒馆时生效。")
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !actionsLocked && !tavernRunning && normalizedRepository != null,
+                    onClick = {
+                        val repositoryUrl = normalizedRepository ?: return@Button
+                        showInstallDialog = false
+                        onInstall(repositoryUrl)
+                    },
+                ) { Text("确认安装") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showInstallDialog = false }) { Text("取消") }
+            },
+        )
+    }
+
     val content: @Composable () -> Unit = {
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -244,19 +299,38 @@ fun TavernExtensionManagementSection(
             }
         }
 
-        SettingsFeedbackActionButton(
-            text = if (state.loading) "读取中..." else "读取扩展",
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !actionsLocked && !state.loading,
-            accentColor = LukoaColors.Primary,
-            unavailableHint = when {
-                actionsLocked -> "当前有其他任务正在处理，请等任务完成后再读取扩展。"
-                state.loading -> "正在读取扩展，请稍等。"
-                else -> null
-            },
-            onShowHint = onShowHint,
-            onClick = onRefresh,
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SettingsFeedbackActionButton(
+                text = "安装扩展",
+                modifier = Modifier.weight(1f),
+                enabled = !actionsLocked && !tavernRunning && state.rootDirectory.isNotBlank(),
+                accentColor = LukoaColors.Primary,
+                unavailableHint = when {
+                    actionsLocked -> "当前有其他任务正在处理，请等任务完成后再安装扩展。"
+                    tavernRunning -> "安装扩展前必须先停止酒馆。"
+                    state.rootDirectory.isBlank() -> "请先读取扩展，确认当前实例的扩展目录。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
+                onClick = { showInstallDialog = true },
+            )
+            SettingsFeedbackActionButton(
+                text = if (state.loading) "读取中..." else "读取扩展",
+                modifier = Modifier.weight(1f),
+                enabled = !actionsLocked && !state.loading,
+                accentColor = LukoaColors.Primary,
+                unavailableHint = when {
+                    actionsLocked -> "当前有其他任务正在处理，请等任务完成后再读取扩展。"
+                    state.loading -> "正在读取扩展，请稍等。"
+                    else -> null
+                },
+                onShowHint = onShowHint,
+                onClick = onRefresh,
+            )
+        }
 
         if (state.rootDirectory.isNotBlank()) {
             SecondaryActionButton(
@@ -354,7 +428,7 @@ private fun TavernExtensionManagementHeader(
         InfoPopoverButton(
             contentDescription = "查看扩展管理说明",
             title = "扩展管理",
-            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n读取扩展会显示名称、版本、作者、启停状态、目录和文件大小；扩展较多时可以直接搜索。\n启停扩展会在酒馆停止时安全移动扩展目录，不会删除文件；删除前也必须停止酒馆并确认目标目录。",
+            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n可以粘贴公开 GitHub 仓库地址安装扩展；启动器会先下载到暂存区并校验清单，不会覆盖同名目录。\n读取扩展会显示名称、版本、作者、启停状态、目录和文件大小；启停和删除前也必须停止酒馆并确认目标。",
         )
     }
 }

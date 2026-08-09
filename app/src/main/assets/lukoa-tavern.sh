@@ -3454,6 +3454,11 @@ cmd_reset_theme() {
     emit_status
     return 69
   }
+  if [ "$action" = "install" ] && ! command -v git >/dev/null 2>&1; then
+    write_status "error" "git command not found in Termux" false 69
+    emit_status
+    return 69
+  fi
   settings_candidates="$(find "$TAVERN_DIR/data" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
   settings_count="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | wc -l | tr -d ' ')"
   [ "$settings_count" = "1" ] || {
@@ -3782,11 +3787,13 @@ run_tavern_extension_action() {
   output="$(LUKOA_EXTENSION_ACTION="$action" LUKOA_EXTENSION_PAYLOAD="$payload" LUKOA_EXTENSION_ROOT="$extension_root" node --input-type=module <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const action = process.env.LUKOA_EXTENSION_ACTION || 'list';
 const payload = process.env.LUKOA_EXTENSION_PAYLOAD || '';
 const configuredRoot = path.resolve(process.env.LUKOA_EXTENSION_ROOT || 'public/scripts/extensions/third-party');
 const configuredDisabledRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-disabled-third-party');
+const configuredStagingRoot = path.resolve(path.dirname(configuredRoot), '.lukoa-extension-staging');
 const encode = value => Buffer.from(String(value ?? ''), 'utf8').toString('base64url');
 
 function fail(message, code) {
@@ -3806,6 +3813,47 @@ function decodeDirectoryName(value) {
     fail('Unsafe extension directory name', 64);
   }
   return decoded;
+}
+
+function decodeRepositoryUrl(value) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) fail('Invalid extension repository payload', 64);
+  const buffer = Buffer.from(value, 'base64url');
+  if (buffer.toString('base64url') !== value) fail('Invalid extension repository payload', 64);
+  const decoded = buffer.toString('utf8');
+  if (!decoded || decoded.length > 240 || decoded.includes('%') || /[\u0000-\u001f\u007f]/.test(decoded)) {
+    fail('Invalid extension repository URL', 64);
+  }
+  let repositoryUrl;
+  try {
+    repositoryUrl = new URL(decoded);
+  } catch (_) {
+    fail('Invalid extension repository URL', 64);
+  }
+  if (
+    repositoryUrl.protocol !== 'https:' || repositoryUrl.hostname.toLowerCase() !== 'github.com' ||
+    repositoryUrl.username || repositoryUrl.password || repositoryUrl.port ||
+    repositoryUrl.search || repositoryUrl.hash
+  ) {
+    fail('Invalid extension repository URL', 64);
+  }
+  const segments = repositoryUrl.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  if (segments.length !== 2) fail('Invalid extension repository URL', 64);
+  const owner = segments[0];
+  const rawRepository = segments[1];
+  const directoryName = rawRepository.toLowerCase().endsWith('.git')
+    ? rawRepository.slice(0, -4)
+    : rawRepository;
+  if (
+    !owner || !directoryName || owner === '.' || owner === '..' ||
+    directoryName === '.' || directoryName === '..' ||
+    !/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(directoryName)
+  ) {
+    fail('Invalid extension repository URL', 64);
+  }
+  return {
+    repositoryUrl: `https://github.com/${owner}/${directoryName}.git`,
+    directoryName,
+  };
 }
 
 function readExtensions(extensionRoot, enabled) {
@@ -3903,7 +3951,10 @@ function requireRegularDirectory(target) {
   }
 }
 
-const directoryName = action === 'list' ? '' : decodeDirectoryName(payload);
+const repository = action === 'install' ? decodeRepositoryUrl(payload) : null;
+const directoryName = action === 'list' || action === 'install'
+  ? ''
+  : decodeDirectoryName(payload);
 let extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
 let disabledRoot = resolveRoot(configuredDisabledRoot, false, true) || configuredDisabledRoot;
 
@@ -3932,6 +3983,57 @@ if (action === 'delete') {
   fs.renameSync(source, target);
   extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
   disabledRoot = resolveRoot(configuredDisabledRoot, false, true) || configuredDisabledRoot;
+} else if (action === 'install') {
+  extensionRoot = resolveRoot(configuredRoot, true);
+  disabledRoot = resolveRoot(configuredDisabledRoot, false, true) || configuredDisabledRoot;
+  const target = childTarget(extensionRoot, repository.directoryName);
+  const disabledTarget = childTarget(disabledRoot, repository.directoryName);
+  if (fs.existsSync(target) || fs.existsSync(disabledTarget)) {
+    fail('Extension destination already exists', 73);
+  }
+  const stagingRoot = resolveRoot(configuredStagingRoot, true, true);
+  const stagingDirectory = childTarget(
+    stagingRoot,
+    `install-${process.pid}-${Date.now()}`,
+  );
+  const clone = spawnSync('git', ['clone', '--depth', '1', repository.repositoryUrl, stagingDirectory], {
+    encoding: 'utf8',
+    timeout: 5 * 60 * 1000,
+    maxBuffer: 1024 * 1024,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  if (clone.error || clone.status !== 0) {
+    if (clone.stderr) console.error(String(clone.stderr).slice(-2000));
+    if (fs.existsSync(stagingDirectory)) {
+      fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    }
+    fail('Extension git clone failed', clone.status || 74);
+  }
+  requireRegularDirectory(stagingDirectory);
+  const manifestFile = childTarget(stagingDirectory, 'manifest.json');
+  try {
+    const manifestStat = fs.lstatSync(manifestFile);
+    if (manifestStat.isSymbolicLink() || !manifestStat.isFile()) {
+      throw new Error('manifest must be a regular file');
+    }
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+      throw new Error('manifest must be an object');
+    }
+  } catch (_) {
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    fail('Extension manifest.json is missing or invalid', 65);
+  }
+  if (fs.existsSync(target) || fs.existsSync(disabledTarget)) {
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    fail('Extension destination already exists', 73);
+  }
+  fs.renameSync(stagingDirectory, target);
+  try {
+    fs.rmdirSync(stagingRoot);
+  } catch (_) {
+    // Another safe staging operation may still be using this directory.
+  }
 } else if (action !== 'list') {
   fail('Unsupported extension action', 64);
 }
@@ -4119,6 +4221,10 @@ main() {
     extensions-enable|tavern-extensions-enable)
       shift
       run_tavern_extension_action enable "${1:-}"
+      ;;
+    extensions-install|tavern-extensions-install)
+      shift
+      run_tavern_extension_action install "${1:-}"
       ;;
     log|logs|tail)
       cmd_log

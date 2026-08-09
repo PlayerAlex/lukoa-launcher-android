@@ -3041,6 +3041,40 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun runTavernExtensionInstall(repositoryUrl: String) {
+        val normalizedRepository = TavernExtensionCommandCodec.normalizeRepositoryUrl(repositoryUrl)
+        val validationError = TavernExtensionCommandCodec.validateRepositoryUrl(repositoryUrl)
+        when {
+            tavernRunning -> update(
+                "安装扩展前必须先停止酒馆。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+
+            validationError != null || normalizedRepository == null -> update(
+                validationError ?: "GitHub 扩展地址无效。",
+                "",
+                false,
+                allowRunningInference = false,
+            )
+
+            else -> {
+                val payload = TavernExtensionCommandCodec.encodeRepositoryUrl(normalizedRepository)
+                runGuarded(
+                    "安装酒馆扩展",
+                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-install"),
+                    allowRunningInference = false,
+                ) { guardedUpdate ->
+                    onCommand(
+                        LauncherCommandCodec.encode("tavern-extensions-install", payload),
+                        guardedUpdate,
+                    )
+                }
+            }
+        }
+    }
+
     LaunchedEffect(selectedTab) {
         if (pagerState.currentPage != selectedTab.ordinal) {
             pagerState.animateScrollToPage(
@@ -3884,6 +3918,7 @@ fun LukoaLauncherScreen(
                                     stoppedRequirementText = "${actionText}扩展前必须先停止酒馆。",
                                 )
                             },
+                            onInstallTavernExtension = ::runTavernExtensionInstall,
                             onCopyTavernExtensionPath = { path ->
                                 onCopyText("扩展目录", path)
                             },

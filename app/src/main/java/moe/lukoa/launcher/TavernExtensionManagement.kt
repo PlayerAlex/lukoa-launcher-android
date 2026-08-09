@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
@@ -92,6 +93,8 @@ object TavernExtensionOutputParser {
 }
 
 object TavernExtensionCommandCodec {
+    private val repositorySegmentPattern = Regex("^[A-Za-z0-9._-]+$")
+
     fun encodeDirectoryName(directoryName: String): String {
         require(validateDirectoryName(directoryName) == null) { "unsafe extension directory name" }
         return Base64.getUrlEncoder().withoutPadding()
@@ -107,6 +110,43 @@ object TavernExtensionCommandCodec {
         return decoded.takeIf { validateDirectoryName(it) == null }
     }
 
+    fun encodeRepositoryUrl(repositoryUrl: String): String {
+        val normalized = requireNotNull(normalizeRepositoryUrl(repositoryUrl)) {
+            "unsafe extension repository URL"
+        }
+        return Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(normalized.toByteArray(StandardCharsets.UTF_8))
+    }
+
+    fun decodeRepositoryUrl(encoded: String): String? {
+        val decoded = try {
+            String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        return normalizeRepositoryUrl(decoded)
+    }
+
+    fun normalizeRepositoryUrl(value: String): String? {
+        val parsed = parseRepositoryUrl(value) ?: return null
+        return "https://github.com/${parsed.first}/${parsed.second}.git"
+    }
+
+    fun repositoryDirectoryName(value: String): String? =
+        parseRepositoryUrl(value)?.second
+
+    fun validateRepositoryUrl(value: String): String? {
+        val normalized = value.trim()
+        return when {
+            normalized.isBlank() -> "GitHub 扩展地址不能为空。"
+            normalized.length > 240 -> "GitHub 扩展地址太长。"
+            normalized.any { it.code < 32 || it.code == 127 } -> "GitHub 扩展地址不能包含控制字符。"
+            parseRepositoryUrl(normalized) == null ->
+                "请输入完整的公开 GitHub 仓库地址，例如 https://github.com/作者/扩展名。"
+            else -> null
+        }
+    }
+
     fun validateDirectoryName(value: String): String? = when {
         value.isBlank() -> "扩展目录名不能为空。"
         value != value.trim() -> "扩展目录名首尾不能包含空格。"
@@ -115,5 +155,32 @@ object TavernExtensionCommandCodec {
         value.any { it == '/' || it == '\\' } -> "扩展目录名不能包含路径分隔符。"
         value.any { it.code < 32 || it.code == 127 } -> "扩展目录名不能包含控制字符。"
         else -> null
+    }
+
+    private fun parseRepositoryUrl(value: String): Pair<String, String>? {
+        val normalized = value.trim().trimEnd('/')
+        if (normalized.isBlank() || normalized.length > 240 || '%' in normalized) return null
+        if (normalized.any { it.code < 32 || it.code == 127 }) return null
+        val uri = try {
+            URI(normalized)
+        } catch (_: Exception) {
+            return null
+        }
+        if (!uri.scheme.equals("https", ignoreCase = true)) return null
+        if (!uri.host.equals("github.com", ignoreCase = true)) return null
+        if (uri.userInfo != null || uri.port != -1 || uri.query != null || uri.fragment != null) return null
+        val segments = uri.rawPath.orEmpty().trim('/').split('/')
+        if (segments.size != 2) return null
+        val owner = segments[0]
+        val rawRepository = segments[1]
+        val repository = if (rawRepository.endsWith(".git", ignoreCase = true)) {
+            rawRepository.dropLast(4)
+        } else {
+            rawRepository
+        }
+        if (owner == "." || owner == ".." || repository == "." || repository == "..") return null
+        if (!repositorySegmentPattern.matches(owner) || !repositorySegmentPattern.matches(repository)) return null
+        if (owner.isBlank() || repository.isBlank()) return null
+        return owner to repository
     }
 }

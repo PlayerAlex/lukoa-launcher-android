@@ -117,6 +117,20 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `extension install validates a staged clone before atomic placement`() {
+        assertTrue(script.contains("extensions-install|tavern-extensions-install"))
+        assertTrue(script.contains(".lukoa-extension-staging"))
+        assertTrue(script.contains("spawnSync('git', ['clone', '--depth', '1'"))
+        assertTrue(script.contains("Invalid extension repository URL"))
+        assertTrue(script.contains("manifest.json"))
+        assertTrue(script.contains("manifestStat.isSymbolicLink()"))
+        assertTrue(script.contains("GIT_TERMINAL_PROMPT: '0'"))
+        assertTrue(script.contains("Extension destination already exists"))
+        assertTrue(script.contains("fs.renameSync(stagingDirectory, target)"))
+        assertFalse(script.contains("fs.renameSync(stagingDirectory, extensionRoot)"))
+    }
+
+    @Test
     fun `bundled script transport supports background stdin and bounded foreground compression`() {
         assertTrue(runnerSource.contains("putExtra(EXTRA_STDIN, it)"))
         assertTrue(runnerSource.contains("stdin = plan.stdin"))

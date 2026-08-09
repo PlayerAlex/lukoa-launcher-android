@@ -575,6 +575,48 @@ class LauncherSettingsUiTest {
     }
 
     @Test
+    fun extensionManagementSection_confirmsGithubInstallTarget() {
+        var installedRepository = ""
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernExtensionManagementSection(
+                        state = TavernExtensionManagementState(
+                            rootDirectory = "/extensions/third-party",
+                            disabledRootDirectory = "/extensions/.lukoa-disabled-third-party",
+                        ),
+                        instanceLabel = "主实例",
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        onRefresh = {},
+                        onDelete = {},
+                        onInstall = { installedRepository = it },
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNode(hasText("安装扩展") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("安装酒馆扩展").assertIsDisplayed()
+        composeRule.onNodeWithText("GitHub 扩展地址")
+            .performTextInput("https://github.com/owner/Extension-A")
+        composeRule.onNodeWithText("来源：https://github.com/owner/Extension-A.git").assertIsDisplayed()
+        composeRule.onNodeWithText("目标目录：/extensions/third-party/Extension-A").assertIsDisplayed()
+        composeRule.onNode(hasText("确认安装") and hasClickAction()).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("https://github.com/owner/Extension-A.git", installedRepository)
+        }
+    }
+
+    @Test
     fun extensionManagementSection_runningKeepsReadEnabledAndLocksDelete() {
         composeRule.setContent {
             LukoaTheme {
@@ -600,6 +642,7 @@ class LauncherSettingsUiTest {
         }
 
         composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
+        composeRule.onNode(hasText("安装扩展") and hasClickAction()).assertIsNotEnabled()
         composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
         composeRule.onNode(hasText("停用") and hasClickAction()).assertIsNotEnabled()
     }

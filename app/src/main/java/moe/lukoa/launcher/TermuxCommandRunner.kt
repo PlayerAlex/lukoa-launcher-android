@@ -280,6 +280,24 @@ class TermuxCommandRunner(private val context: Context) {
     fun runTavernExtensionSetEnabled(value: String?, enabled: Boolean): CommandDispatch =
         runTavernExtensionMutation(if (enabled) "enable" else "disable", value)
 
+    fun runTavernExtensionInstall(value: String?): CommandDispatch {
+        val encodedRepositoryUrl = value.orEmpty().trim()
+        if (TavernExtensionCommandCodec.decodeRepositoryUrl(encodedRepositoryUrl) == null) {
+            return CommandDispatch(
+                false,
+                "GitHub 扩展地址参数无效。",
+                displayCommand = "tavern-extensions-install",
+            )
+        }
+        return runBundledScriptCommand(
+            command = "tavern-extensions-install-direct",
+            scriptCommand = "extensions-install",
+            scriptArgs = listOf(encodedRepositoryUrl),
+            displayCommand = "tavern-extensions-install",
+            background = false,
+        )
+    }
+
     private fun runTavernExtensionMutation(action: String, value: String?): CommandDispatch {
         val encodedDirectoryName = value.orEmpty().trim()
         if (TavernExtensionCommandCodec.decodeDirectoryName(encodedDirectoryName) == null) {

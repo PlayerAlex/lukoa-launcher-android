@@ -130,6 +130,60 @@ class TavernExtensionManagementTest {
     }
 
     @Test
+    fun `github repository guard normalizes a public extension repository`() {
+        assertEquals(
+            "https://github.com/owner/Extension-A.git",
+            TavernExtensionCommandCodec.normalizeRepositoryUrl(
+                " https://github.com/owner/Extension-A/ ",
+            ),
+        )
+        assertEquals(
+            "Extension-A",
+            TavernExtensionCommandCodec.repositoryDirectoryName(
+                "https://github.com/owner/Extension-A.git",
+            ),
+        )
+    }
+
+    @Test
+    fun `github repository guard rejects unsafe or ambiguous sources`() {
+        listOf(
+            "",
+            "http://github.com/owner/repo",
+            "https://example.com/owner/repo",
+            "https://user:token@github.com/owner/repo",
+            "https://github.com/owner/repo?ref=main",
+            "https://github.com/owner/repo/extra",
+            "https://github.com/../repo",
+            "https://github.com/owner/repo name",
+        ).forEach { unsafe ->
+            assertNotNull(
+                "expected rejection for <$unsafe>",
+                TavernExtensionCommandCodec.validateRepositoryUrl(unsafe),
+            )
+        }
+    }
+
+    @Test
+    fun `encoded github repository round trips only when safe`() {
+        val encoded = TavernExtensionCommandCodec.encodeRepositoryUrl(
+            "https://github.com/owner/Extension-A",
+        )
+
+        assertEquals(
+            "https://github.com/owner/Extension-A.git",
+            TavernExtensionCommandCodec.decodeRepositoryUrl(encoded),
+        )
+        assertNull(
+            TavernExtensionCommandCodec.decodeRepositoryUrl(
+                Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    "https://example.com/owner/repo".toByteArray(StandardCharsets.UTF_8),
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun `extension target path does not invent an absolute root`() {
         assertEquals(
             "/extensions/Extension-A",

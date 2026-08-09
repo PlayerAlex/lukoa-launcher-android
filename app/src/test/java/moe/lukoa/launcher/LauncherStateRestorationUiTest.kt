@@ -82,6 +82,37 @@ class LauncherStateRestorationUiTest {
     }
 
     @Test
+    fun `extension install dialog and repository survive state restoration`() {
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent {
+            LukoaTheme {
+                TavernExtensionManagementSettingsPanel(
+                    state = TavernExtensionManagementState(
+                        rootDirectory = "~/SillyTavern/public/scripts/extensions/third-party",
+                    ),
+                    instanceLabel = "主实例",
+                    actionsLocked = false,
+                    tavernRunning = false,
+                    onRefresh = {},
+                    onDelete = {},
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("管理已安装扩展").performClick()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("安装扩展").performClick()
+        composeRule.onNodeWithText("GitHub 扩展地址")
+            .performTextInput("https://github.com/owner/mint")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        composeRule.onNodeWithText("安装酒馆扩展").assertExists()
+        composeRule.onNodeWithText("https://github.com/owner/mint").assertExists()
+    }
+
+    @Test
     fun `repair tools dialog survives state restoration`() {
         val restoration = StateRestorationTester(composeRule)
         restoration.setContent {
