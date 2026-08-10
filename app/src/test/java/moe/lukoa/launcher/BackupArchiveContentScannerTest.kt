@@ -54,6 +54,29 @@ class BackupArchiveContentScannerTest {
     }
 
     @Test
+    fun `scanner does not mistake nested character assets for cards or presets`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/characters/真正的角色卡.png",
+            "SillyTavern/data/default-user/characters/真正的角色卡/emotions/joy.png",
+            "SillyTavern/data/default-user/characters/真正的角色卡/emotions/neutral.webp",
+            "SillyTavern/data/default-user/characters/真正的角色卡/context/Alpaca.json",
+            "SillyTavern/data/default-user/instruct/真正的预设.json",
+            "SillyTavern/data/default-user/instruct/资源目录/ChatML.json",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("真正的角色卡"),
+            summary.group(BackupArchiveContentKind.CharacterCards)?.names,
+        )
+        assertEquals(
+            listOf("真正的预设"),
+            summary.group(BackupArchiveContentKind.Presets)?.names,
+        )
+    }
+
+    @Test
     fun `scanner rejects traversal and marks oversized listings truncated`() {
         val unsafe = tarGzip("../outside.txt")
         runCatching { BackupArchiveContentScanner.scan(ByteArrayInputStream(unsafe)) }

@@ -180,19 +180,29 @@ class LauncherBackupCoordinator(
         state.showApplyBackupPathDialog = false
     }
 
-    fun dismissApplyBackupPreview() {
-        state.showApplyBackupPreviewDialog = false
-        state.applyBackupPreview = null
+    fun dismissBackupPreview() {
+        state.backupPreviewUiState = BackupPreviewUiState.Hidden
     }
 
-    fun cancelApplyBackupPreviewLoading() {
+    fun cancelBackupPreviewLoading() {
         previewRequestCoordinator.cancel()
         previewJob?.cancel()
         previewJob = null
-        state.applyBackupPreviewRequest = null
+        state.backupPreviewUiState = BackupPreviewUiState.Hidden
     }
 
     fun openApplyBackupPreview(path: String): Boolean {
+        return openBackupPreview(path, BackupPreviewPurpose.Apply)
+    }
+
+    fun openBackupContentsPreview(path: String): Boolean {
+        return openBackupPreview(path, BackupPreviewPurpose.ViewContents)
+    }
+
+    private fun openBackupPreview(
+        path: String,
+        purpose: BackupPreviewPurpose,
+    ): Boolean {
         val normalized = path.trim()
         LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
             statusUpdate("备份路径无效：$reason", "", false)
@@ -200,12 +210,12 @@ class LauncherBackupCoordinator(
         }
 
         previewJob?.cancel()
-        val request = previewRequestCoordinator.begin(normalized)
-        state.applyBackupPath = normalized
-        state.applyBackupRestoreMode = BackupRestoreMode.Full
-        state.applyBackupPreview = null
-        state.showApplyBackupPreviewDialog = false
-        state.applyBackupPreviewRequest = request
+        val request = previewRequestCoordinator.begin(normalized, purpose)
+        if (purpose == BackupPreviewPurpose.Apply) {
+            state.applyBackupPath = normalized
+            state.applyBackupRestoreMode = BackupRestoreMode.Full
+        }
+        state.backupPreviewUiState = BackupPreviewUiState.Loading(request)
         val targetDirectory = restoreTargetDirectory()
         previewJob = scope.launch {
             try {
@@ -216,19 +226,25 @@ class LauncherBackupCoordinator(
                         restoreTargetDir = targetDirectory,
                     )
                 }
-                if (!previewRequestCoordinator.accepts(request, state.applyBackupPath)) return@launch
+                val activePath = (state.backupPreviewUiState as? BackupPreviewUiState.Loading)
+                    ?.request
+                    ?.archivePath
+                    .orEmpty()
+                if (!previewRequestCoordinator.accepts(request, activePath)) return@launch
                 previewRequestCoordinator.finish(request)
-                state.applyBackupPreviewRequest = null
                 previewJob = null
-                state.applyBackupPreview = preview
-                state.showApplyBackupPreviewDialog = true
+                state.backupPreviewUiState = BackupPreviewUiState.Ready(preview, purpose)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                if (!previewRequestCoordinator.accepts(request, state.applyBackupPath)) return@launch
+                val activePath = (state.backupPreviewUiState as? BackupPreviewUiState.Loading)
+                    ?.request
+                    ?.archivePath
+                    .orEmpty()
+                if (!previewRequestCoordinator.accepts(request, activePath)) return@launch
                 previewRequestCoordinator.finish(request)
-                state.applyBackupPreviewRequest = null
                 previewJob = null
+                state.backupPreviewUiState = BackupPreviewUiState.Hidden
                 statusUpdate("读取备份信息失败：${error.message ?: "请刷新备份库后重试。"}", "", false)
             }
         }
@@ -247,7 +263,7 @@ class LauncherBackupCoordinator(
 
     fun applySelectedBackup() {
         if (blockIfPendingTaskExists("应用备份")) {
-            dismissApplyBackupPreview()
+            dismissBackupPreview()
             return
         }
         val archivePath = state.applyBackupPath.trim()
@@ -262,12 +278,12 @@ class LauncherBackupCoordinator(
         }
         if (isTermuxStoragePermissionBlocked() && isSharedStorageBackupPath(archivePath)) {
             state.storagePermissionRetryArchivePath = archivePath
-            dismissApplyBackupPreview()
+            dismissBackupPreview()
             state.showTermuxStoragePermissionDialog = true
             statusUpdate("应用备份前需要先给 Termux 存储权限。", "", false)
             return
         }
-        dismissApplyBackupPreview()
+        dismissBackupPreview()
         runPendingCommand(
             PendingLauncherTask(
                 kind = PendingLauncherTaskKind.RestoreBackup,

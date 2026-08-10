@@ -55,22 +55,30 @@ fun LauncherBackupOperationDialogHost(
         )
     }
 
-    state.applyBackupPreviewRequest?.let { request ->
-        ApplyBackupPreviewLoadingDialog(
-            archivePath = request.archivePath,
-            onDismiss = coordinator::cancelApplyBackupPreviewLoading,
-        )
-    }
-
-    val activeApplyBackupPreview = state.applyBackupPreview
-    if (state.showApplyBackupPreviewDialog && activeApplyBackupPreview != null) {
-        ApplyBackupPreviewDialog(
-            preview = activeApplyBackupPreview,
-            restoreMode = state.applyBackupRestoreMode,
-            onRestoreModeChange = { state.applyBackupRestoreMode = it },
-            onConfirm = coordinator::applySelectedBackup,
-            onDismiss = coordinator::dismissApplyBackupPreview,
-        )
+    when (val previewState = state.backupPreviewUiState) {
+        BackupPreviewUiState.Hidden -> Unit
+        is BackupPreviewUiState.Loading -> {
+            ApplyBackupPreviewLoadingDialog(
+                archivePath = previewState.request.archivePath,
+                onDismiss = coordinator::cancelBackupPreviewLoading,
+            )
+        }
+        is BackupPreviewUiState.Ready -> {
+            if (previewState.purpose == BackupPreviewPurpose.Apply) {
+                ApplyBackupPreviewDialog(
+                    preview = previewState.preview,
+                    restoreMode = state.applyBackupRestoreMode,
+                    onRestoreModeChange = { state.applyBackupRestoreMode = it },
+                    onConfirm = coordinator::applySelectedBackup,
+                    onDismiss = coordinator::dismissBackupPreview,
+                )
+            } else {
+                BackupContentsPreviewDialog(
+                    preview = previewState.preview,
+                    onDismiss = coordinator::dismissBackupPreview,
+                )
+            }
+        }
     }
 
     if (state.showTermuxStoragePermissionDialog) {

@@ -140,22 +140,25 @@ object BackupArchiveContentScanner {
         }
 
         val charactersIndex = lowerSegments.indexOf("characters")
-        if (charactersIndex >= 0 && lowerFileName.substringAfterLast('.', "") in setOf("png", "json", "webp")) {
+        if (
+            isDirectUserDataFile(lowerSegments, charactersIndex) &&
+            lowerFileName.substringAfterLast('.', "") in setOf("png", "json", "webp")
+        ) {
             return BackupArchiveContentKind.CharacterCards to displayFileName
         }
 
         val regexIndex = lowerSegments.indexOf("regex")
-        if (regexIndex >= 0 && lowerFileName.endsWith(".json")) {
+        if (isDirectUserDataFile(lowerSegments, regexIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.RegexScripts to displayFileName
         }
 
         val presetIndex = lowerSegments.indexOfFirst { it in PRESET_DIRECTORY_NAMES }
-        if (presetIndex >= 0 && lowerFileName.endsWith(".json")) {
+        if (isDirectUserDataFile(lowerSegments, presetIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.Presets to displayFileName
         }
 
         val chatsIndex = lowerSegments.indexOf("chats")
-        if (chatsIndex >= 0) {
+        if (isUserDataDirectory(lowerSegments, chatsIndex)) {
             val chatName = originalSegments.getOrNull(chatsIndex + 1)
                 ?.takeIf { chatsIndex + 1 < originalSegments.lastIndex }
                 ?: displayFileName
@@ -163,10 +166,20 @@ object BackupArchiveContentScanner {
         }
 
         val worldsIndex = lowerSegments.indexOfFirst { it == "worlds" || it == "world-info" }
-        if (worldsIndex >= 0 && lowerFileName.endsWith(".json")) {
+        if (isDirectUserDataFile(lowerSegments, worldsIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.WorldBooks to displayFileName
         }
         return null
+    }
+
+    private fun isDirectUserDataFile(segments: List<String>, directoryIndex: Int): Boolean {
+        return isUserDataDirectory(segments, directoryIndex) && directoryIndex == segments.lastIndex - 1
+    }
+
+    private fun isUserDataDirectory(segments: List<String>, directoryIndex: Int): Boolean {
+        return directoryIndex >= 2 &&
+            segments.getOrNull(directoryIndex - 2) == "data" &&
+            directoryIndex < segments.lastIndex
     }
 
     private fun validateEntryName(value: String): String {

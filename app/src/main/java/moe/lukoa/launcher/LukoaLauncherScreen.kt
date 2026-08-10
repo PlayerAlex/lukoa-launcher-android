@@ -3758,7 +3758,7 @@ fun LukoaLauncherScreen(
                         }
                         LauncherTab.Backup -> BackupSection(
                             activeInstanceLabel = tavernPathConfig.activeProfileLabel,
-                            actionsLocked = actionInProgress || backupUiState.applyBackupPreviewRequest != null,
+                            actionsLocked = actionInProgress || backupUiState.backupPreviewUiState is BackupPreviewUiState.Loading,
                             backupListRefreshing = backupUiState.backupListRefreshing,
                             autoBackupEnabled = autoBackupEnabled,
                             autoBackupIntervalMinutes = autoBackupIntervalMinutes,
@@ -3769,6 +3769,7 @@ fun LukoaLauncherScreen(
                             onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
                             onRefreshBackups = { backupCoordinator.refreshBackupList() },
                             onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
+                            onPreviewBackup = backupCoordinator::openBackupContentsPreview,
                             onApplyBackup = backupCoordinator::requestApplyBackup,
                             onCopyBackup = backupCoordinator::requestCopyBackup,
                             onRenameBackup = backupCoordinator::requestRenameBackup,

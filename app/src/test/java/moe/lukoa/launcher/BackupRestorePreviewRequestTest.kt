@@ -18,6 +18,24 @@ class BackupRestorePreviewRequestTest {
     }
 
     @Test
+    fun `preview request keeps browse and apply purposes separate`() {
+        val coordinator = BackupRestorePreviewRequestCoordinator()
+        val browseRequest = coordinator.begin(
+            "/storage/browse.tar.gz",
+            BackupPreviewPurpose.ViewContents,
+        )
+        val applyRequest = coordinator.begin(
+            "/storage/apply.tar.gz",
+            BackupPreviewPurpose.Apply,
+        )
+
+        assertEquals(BackupPreviewPurpose.ViewContents, browseRequest.purpose)
+        assertEquals(BackupPreviewPurpose.Apply, applyRequest.purpose)
+        assertFalse(coordinator.accepts(browseRequest, browseRequest.archivePath))
+        assertTrue(coordinator.accepts(applyRequest, applyRequest.archivePath))
+    }
+
+    @Test
     fun `old path preview is rejected after selection changes`() {
         val coordinator = BackupRestorePreviewRequestCoordinator()
         val request = coordinator.begin("/storage/old.tar.gz")

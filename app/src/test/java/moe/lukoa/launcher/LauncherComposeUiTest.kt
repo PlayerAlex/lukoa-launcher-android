@@ -144,6 +144,7 @@ class LauncherComposeUiTest {
     fun backupLibrary_riskyRecordActionsPassExactArchivePath() {
         val archivePath =
             "/storage/emulated/0/Download/LukoaLauncher/backups/sd/sd-ui-test.tar.gz"
+        var previewedPath: String? = null
         var appliedPath: String? = null
         var renamedPath: String? = null
         var deletedPath: String? = null
@@ -175,6 +176,7 @@ class LauncherComposeUiTest {
                         onToggleAutoBackup = {},
                         onRefreshBackups = {},
                         onOpenAutoBackupSettings = {},
+                        onPreviewBackup = { previewedPath = it },
                         onApplyBackup = { appliedPath = it },
                         onCopyBackup = {},
                         onRenameBackup = { renamedPath = it },
@@ -202,6 +204,10 @@ class LauncherComposeUiTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText("2.0 KB").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(archivePath).performScrollTo().assertIsDisplayed()
+        composeRule.onNode(hasText("查看内容") and hasClickAction())
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
         composeRule.onNode(hasText("重命名") and hasClickAction())
             .performScrollTo()
             .assertIsDisplayed()
@@ -214,10 +220,58 @@ class LauncherComposeUiTest {
             .performClick()
 
         composeRule.runOnIdle {
+            assertEquals(archivePath, previewedPath)
             assertEquals(archivePath, appliedPath)
             assertEquals(archivePath, renamedPath)
             assertEquals(archivePath, deletedPath)
         }
+    }
+
+    @Test
+    fun backupContentsPreview_isReadOnlyAndShowsGroupedNames() {
+        var dismissCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                BackupContentsPreviewDialog(
+                    preview = restorePreview().copy(
+                        contentSummary = BackupArchiveContentSummary(
+                            entryCount = 2,
+                            hasUserData = true,
+                            hasExtensions = false,
+                            hasConfiguration = false,
+                            hasLukoaManifest = true,
+                            truncated = false,
+                            groups = listOf(
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.CharacterCards,
+                                    entryCount = 1,
+                                    names = listOf("清凉角色"),
+                                    namesTruncated = false,
+                                ),
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.Presets,
+                                    entryCount = 1,
+                                    names = listOf("薄荷预设"),
+                                    namesTruncated = false,
+                                ),
+                            ),
+                        ),
+                    ),
+                    onDismiss = { dismissCount += 1 },
+                )
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("查看备份内容").assertIsDisplayed()
+        composeRule.onNodeWithText("确认应用").assertDoesNotExist()
+        composeRule.onNodeWithText("恢复范围").assertDoesNotExist()
+        composeRule.onNodeWithText("角色卡").performScrollTo().performClick()
+        composeRule.onNodeWithText("清凉角色").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("预设").performScrollTo().performClick()
+        composeRule.onNodeWithText("薄荷预设").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("关闭").performClick()
+        composeRule.runOnIdle { assertEquals(1, dismissCount) }
     }
 
     @Test

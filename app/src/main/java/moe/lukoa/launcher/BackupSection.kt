@@ -45,6 +45,7 @@ fun BackupSection(
     onToggleAutoBackup: () -> Unit,
     onRefreshBackups: () -> Unit,
     onOpenAutoBackupSettings: () -> Unit,
+    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
     onRenameBackup: (String) -> Unit,
@@ -91,6 +92,7 @@ fun BackupSection(
             autoBackups = autoBackups,
             backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
+            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -232,6 +234,7 @@ private fun BackupLibrarySection(
     autoBackups: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
     actionsLocked: Boolean,
+    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
@@ -255,7 +258,7 @@ private fun BackupLibrarySection(
                 InfoPopoverButton(
                     contentDescription = "查看备份库说明",
                     title = "备份库里的操作",
-                    body = "导出会把备份另存到你选择的位置；复制会在备份库里再留一份。\n重命名只改变文件名，不会改变备份内容。\n“应用并覆盖”会用备份替换当前实例的数据；“删除”会永久移除这份备份。这两个红色操作都会再次要求确认。",
+                    body = "“查看内容”只读取并分类备份，不会修改任何文件。\n导出会把备份另存到你选择的位置；复制会在备份库里再留一份；重命名只改变文件名。\n“应用并覆盖”会用备份替换当前实例的数据；“删除”会永久移除这份备份。这两个红色操作都会再次要求确认。",
                 )
             }
         },
@@ -266,6 +269,7 @@ private fun BackupLibrarySection(
             backups = manualBackups,
             backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
+            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -278,6 +282,7 @@ private fun BackupLibrarySection(
             backups = autoBackups,
             backupArchiveDetails = backupArchiveDetails,
             actionsLocked = actionsLocked,
+            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -331,6 +336,7 @@ private fun BackupLibraryGroup(
     backups: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
     actionsLocked: Boolean,
+    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
@@ -380,6 +386,7 @@ private fun BackupLibraryGroup(
                     sizeBytes = findBackupArchiveDetails(backupArchiveDetails, path)?.size,
                     backupType = title,
                     actionsLocked = actionsLocked,
+                    onPreview = { onPreviewBackup(path) },
                     onApply = { onApplyBackup(path) },
                     onExport = { onExportBackup(path) },
                     onCopy = { onCopyBackup(path) },
@@ -410,6 +417,7 @@ private fun BackupRecordLine(
     sizeBytes: Long?,
     backupType: String,
     actionsLocked: Boolean,
+    onPreview: () -> Unit,
     onApply: () -> Unit,
     onExport: () -> Unit,
     onCopy: () -> Unit,
@@ -491,12 +499,21 @@ private fun BackupRecordLine(
             }
             BackupActionRow {
                 SecondaryActionButton(
+                    text = "查看内容",
+                    enabled = !actionsLocked,
+                    accentColor = LukoaColors.Primary,
+                    modifier = Modifier.weight(1f),
+                    onClick = onPreview,
+                )
+                SecondaryActionButton(
                     text = "导出",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Primary,
                     modifier = Modifier.weight(1f),
                     onClick = onExport,
                 )
+            }
+            BackupActionRow {
                 SecondaryActionButton(
                     text = "复制",
                     enabled = !actionsLocked,
@@ -504,14 +521,14 @@ private fun BackupRecordLine(
                     modifier = Modifier.weight(1f),
                     onClick = onCopy,
                 )
+                SecondaryActionButton(
+                    text = "重命名",
+                    enabled = !actionsLocked,
+                    accentColor = LukoaColors.Primary,
+                    modifier = Modifier.weight(1f),
+                    onClick = onRename,
+                )
             }
-            SecondaryActionButton(
-                text = "重命名",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onRename,
-            )
             BackupActionRow {
                 SecondaryActionButton(
                     text = "应用并覆盖",

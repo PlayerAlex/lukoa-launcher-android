@@ -21,7 +21,6 @@ class LauncherBackupUiState(initialState: LauncherUiState) {
     var showManualBackupDialog by mutableStateOf(false)
     var showAutoBackupSettingsDialog by mutableStateOf(false)
     var showApplyBackupPathDialog by mutableStateOf(false)
-    var showApplyBackupPreviewDialog by mutableStateOf(false)
     var showTermuxStoragePermissionDialog by mutableStateOf(false)
     var showCopyBackupDialog by mutableStateOf(false)
     var showRenameBackupDialog by mutableStateOf(false)
@@ -29,9 +28,8 @@ class LauncherBackupUiState(initialState: LauncherUiState) {
 
     var manualBackupName by mutableStateOf("")
     var applyBackupPath by mutableStateOf("")
-    var applyBackupPreview by mutableStateOf<BackupRestorePreview?>(null)
     var applyBackupRestoreMode by mutableStateOf(BackupRestoreMode.Full)
-    var applyBackupPreviewRequest by mutableStateOf<BackupRestorePreviewRequest?>(null)
+    var backupPreviewUiState by mutableStateOf<BackupPreviewUiState>(BackupPreviewUiState.Hidden)
     var storagePermissionRetryArchivePath by mutableStateOf("")
     var selectedBackupPath by mutableStateOf("")
     var renameBackupName by mutableStateOf("")

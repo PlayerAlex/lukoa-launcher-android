@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -401,6 +403,45 @@ fun ApplyBackupPreviewLoadingDialog(
 }
 
 @Composable
+fun BackupContentsPreviewDialog(
+    preview: BackupRestorePreview,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.Primary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = { Text("查看备份内容") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "这里只读取并分类备份内容，不会应用、覆盖、移动或删除任何文件。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                BackupPreviewMetadataCard(preview = preview, includeRestoreTarget = false)
+                BackupContentPreviewCard(preview)
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                text = "关闭",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = {},
+    )
+}
+
+@Composable
 fun ApplyBackupPreviewDialog(
     preview: BackupRestorePreview,
     restoreMode: BackupRestoreMode = BackupRestoreMode.Full,
@@ -436,79 +477,9 @@ fun ApplyBackupPreviewDialog(
             color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Elevated,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                VersionInfoLine("备份名", preview.backupName)
-                VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
-                VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
-                VersionInfoLine("恢复到", preview.restoreTargetDir)
-                Text(
-                    text = preview.archivePath,
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        BackupPreviewMetadataCard(preview = preview, includeRestoreTarget = true)
         val content = preview.contentSummary
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = "备份内容预览",
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (content != null) {
-                    Text(
-                        text = buildString {
-                            append("已完成内容分类")
-                            if (content.truncated) append("（备份较大，分类基于前 ${content.entryCount} 个条目）")
-                        },
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    if (content.groups.isEmpty()) {
-                        Text(
-                            text = listOfNotNull(
-                                "用户数据".takeIf { content.hasUserData },
-                                "扩展/插件".takeIf { content.hasExtensions },
-                                "酒馆配置".takeIf { content.hasConfiguration },
-                            ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
-                            color = LukoaColors.TextPrimary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    } else {
-                        content.groups.forEach { group ->
-                            BackupContentGroupRow(group)
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "无法读取内容清单：${preview.contentReadError.ifBlank { "备份格式不兼容" }}",
-                        color = LukoaColors.Accent,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        }
+        BackupContentPreviewCard(preview)
         Text(
             text = "恢复范围",
             color = LukoaColors.TextPrimary,
@@ -552,6 +523,92 @@ fun ApplyBackupPreviewDialog(
                 color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun BackupPreviewMetadataCard(
+    preview: BackupRestorePreview,
+    includeRestoreTarget: Boolean,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Elevated,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            VersionInfoLine("备份名", preview.backupName)
+            VersionInfoLine("备份时间", formatBackupRestorePreviewTime(preview.modifiedAtMillis))
+            VersionInfoLine("文件大小", formatBackupRestorePreviewSize(preview.sizeBytes))
+            if (includeRestoreTarget) {
+                VersionInfoLine("恢复到", preview.restoreTargetDir)
+            }
+            Text(
+                text = preview.archivePath,
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
+    val content = preview.contentSummary
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "备份内容预览",
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (content != null) {
+                Text(
+                    text = buildString {
+                        append("已完成内容分类")
+                        if (content.truncated) append("（备份较大，分类基于前 ${content.entryCount} 个条目）")
+                    },
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (content.groups.isEmpty()) {
+                    Text(
+                        text = listOfNotNull(
+                            "用户数据".takeIf { content.hasUserData },
+                            "扩展/插件".takeIf { content.hasExtensions },
+                            "酒馆配置".takeIf { content.hasConfiguration },
+                        ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    content.groups.forEach { group ->
+                        BackupContentGroupRow(group)
+                    }
+                }
+            } else {
+                Text(
+                    text = "无法读取内容清单：${preview.contentReadError.ifBlank { "备份格式不兼容" }}",
+                    color = LukoaColors.Accent,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
