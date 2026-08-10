@@ -7,6 +7,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.performClick
@@ -27,7 +30,7 @@ class LauncherVersionManagementUiTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun versionPage_usesContinuousFlowAndOnlyShowsRelevantAction() {
+    fun versionPage_newerTargetEnablesUpdateAndDisablesRollback() {
         var updateCount = 0
         var rollbackCount = 0
         setVersionPageContent(
@@ -36,16 +39,20 @@ class LauncherVersionManagementUiTest {
             onRollback = { rollbackCount += 1 },
         )
 
-        composeRule.onNodeWithText("当前安装").assertIsDisplayed()
+        composeRule.onNodeWithText("当前版本").assertIsDisplayed()
+        composeRule.onAllNodesWithText("目标版本").assertCountEquals(2)
         composeRule.onNodeWithText("版本分区").assertDoesNotExist()
         composeRule.onNodeWithText("提交").assertDoesNotExist()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("查看技术信息").performScrollTo().performClick()
+        composeRule.onNodeWithText("查看版本详情").performScrollTo().performClick()
         composeRule.onNodeWithText("提交").performScrollTo().assertIsDisplayed()
 
-        composeRule.onNodeWithText("执行回退").assertDoesNotExist()
-        composeRule.onNodeWithText("执行更新")
+        composeRule.onNodeWithText("回退版本")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+        composeRule.onNodeWithText("更新版本")
             .performScrollTo()
             .assertIsDisplayed()
             .assertIsEnabled()
@@ -58,16 +65,18 @@ class LauncherVersionManagementUiTest {
     }
 
     @Test
-    fun versionPage_olderTargetOnlyShowsRollbackAction() {
+    fun versionPage_olderTargetDisablesUpdateAndEnablesRollback() {
         var rollbackCount = 0
         setVersionPageContent(
             target = versionChoice("1.12.0"),
             onRollback = { rollbackCount += 1 },
         )
 
-        composeRule.onNodeWithText("执行更新").assertDoesNotExist()
+        composeRule.onNodeWithText("更新版本")
+            .performScrollTo()
+            .assertIsNotEnabled()
         advancePastClickDebounce()
-        composeRule.onNodeWithText("执行回退")
+        composeRule.onNodeWithText("回退版本")
             .performScrollTo()
             .assertIsEnabled()
             .performClick()
@@ -97,7 +106,7 @@ class LauncherVersionManagementUiTest {
         composeRule.onNodeWithText(
             "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("检测到的文件").assertIsDisplayed()
+        composeRule.onNodeWithText("检测到的文件").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -194,9 +203,8 @@ class LauncherVersionManagementUiTest {
                         currentRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
                         selectedVersion = target,
                         lastOperationSummary = lastOperationSummary,
-                        onRefreshOfficialVersions = {},
+                        onRefreshAllVersions = {},
                         onSelectVersion = {},
-                        onTavernVersion = {},
                         onTavernUpdate = onUpdate,
                         onTavernRollback = onRollback,
                         onOpenSafetyBackup = onOpenSafetyBackup,

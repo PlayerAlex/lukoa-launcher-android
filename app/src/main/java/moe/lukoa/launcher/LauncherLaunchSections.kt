@@ -15,19 +15,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
+private val launchTips = listOf(
+    "遇到困难？可以导出日志，方便检查问题。",
+    "酒馆启动后，点“返回酒馆”即可重新打开网页。",
+    "更新或恢复前，建议先创建一份手动备份。",
+)
 
 
 @Composable
 fun TavernControlSection(
     tavernRunning: Boolean,
     tavernStarting: Boolean,
+    tavernVersion: String,
     actionInProgress: Boolean,
     busyLabel: String?,
     wakeEnabled: Boolean,
@@ -45,19 +56,18 @@ fun TavernControlSection(
     )
     val openTavernClick = rememberFeedbackClick(onOpenTavern)
     val exportClick = rememberFeedbackClick(onExportLog)
+    var tipIndex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(4_200L)
+            tipIndex = (tipIndex + 1) % launchTips.size
+        }
+    }
     val statusText = when {
         actionInProgress -> busyLabel ?: "处理中"
         tavernStarting -> "启动中"
         tavernRunning -> "运行中"
         else -> "未运行"
-    }
-    val statusDetail = when {
-        actionInProgress -> "正在执行操作，完成后按钮会恢复。"
-        tavernStarting -> "正在等待酒馆打开网页。"
-        tavernRunning -> "酒馆已运行，主按钮会切换为停止。"
-        primaryEnabled -> "酒馆未运行，可以直接启动。"
-        primaryDisabledReason != null -> primaryDisabledReason
-        else -> "等待检测结果。"
     }
     val primaryText = tavernPrimaryActionLabel(
         tavernRunning = tavernRunning,
@@ -71,21 +81,87 @@ fun TavernControlSection(
         shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
         else -> LukoaColors.Primary
     }
-    SectionPanel(title = "酒馆控制", accentColor = LukoaColors.Primary) {
-        TavernControlStatusCard(
-            statusText = statusText,
-            statusDetail = statusDetail,
-            statusActive = tavernRunning || tavernStarting || actionInProgress,
-            statusTone = LukoaColors.Primary,
-            wakeEnabled = !actionInProgress && wakeEnabled,
-            onWake = wakeClick,
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = "当前状态",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = statusText,
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "当前酒馆版本",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        text = tavernVersion.ifBlank { "未读取" },
+                        color = LukoaColors.Primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        text = "tip:",
+                        color = LukoaColors.Primary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = launchTips[tipIndex],
+                        modifier = Modifier.weight(1f),
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+        SecondaryActionButton(
+            text = "唤醒 Termux 并返回",
+            enabled = !actionInProgress && wakeEnabled,
+            accentColor = LukoaColors.Primary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            onClick = wakeClick,
         )
         Button(
             onClick = primaryClick,
             enabled = !actionInProgress && primaryEnabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (actionInProgress) LukoaColors.Elevated else primaryColor,
@@ -123,66 +199,6 @@ fun TavernControlSection(
                 enabled = !actionInProgress,
                 modifier = Modifier.weight(1f),
                 onClick = exportClick,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TavernControlStatusCard(
-    statusText: String,
-    statusDetail: String,
-    statusActive: Boolean,
-    statusTone: androidx.compose.ui.graphics.Color,
-    wakeEnabled: Boolean,
-    onWake: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text(
-                        text = "当前控制状态",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = statusDetail,
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                StatusPill(
-                    text = statusText,
-                    active = statusActive,
-                    toneColor = if (statusActive) statusTone else LukoaColors.TextSecondary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-            }
-            SecondaryActionButton(
-                text = "唤醒 Termux 并返回",
-                enabled = wakeEnabled,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onWake,
             )
         }
     }

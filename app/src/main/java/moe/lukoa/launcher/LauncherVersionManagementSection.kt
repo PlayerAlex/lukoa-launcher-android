@@ -64,15 +64,15 @@ fun VersionManagementSection(
     currentRepoUrl: String,
     selectedVersion: TavernVersionChoice?,
     lastOperationSummary: TavernVersionOperationSummary? = null,
-    onRefreshOfficialVersions: () -> Unit,
+    onRefreshAllVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
-    onTavernVersion: () -> Unit,
     onTavernUpdate: () -> Unit,
     onTavernRollback: () -> Unit,
     onOpenSafetyBackup: () -> Unit = {},
     uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
     onResetUploadLimit: () -> Unit = {},
 ) {
+    var showTechnicalDetails by rememberSaveable { mutableStateOf(false) }
     val actionState = TavernVersionActionGuards.evaluate(
         current = tavernVersionInfo,
         target = selectedVersion,
@@ -86,25 +86,35 @@ fun VersionManagementSection(
         current = tavernVersionInfo,
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        CurrentVersionSection(
-            tavernVersionInfo = tavernVersionInfo,
-            actionsLocked = actionsLocked,
-            tavernRunning = tavernRunning || tavernStarting,
-            uploadLimitStatus = uploadLimitStatus,
-            onResetUploadLimit = onResetUploadLimit,
-            onRefreshCurrentVersion = onTavernVersion,
-        )
-        TargetVersionSection(
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        VersionTargetPickerRow(
             officialVersions = officialVersions,
             versionChoices = versionChoices,
-            currentRepoUrl = currentRepoUrl,
             selectedVersion = selectedVersion,
             actionsLocked = actionsLocked,
-            onRefreshOfficialVersions = onRefreshOfficialVersions,
+            onRefreshAllVersions = onRefreshAllVersions,
             onSelectVersion = onSelectVersion,
         )
-        VersionExecutionSection(
+        VersionOverviewCard(
+            currentVersion = tavernVersionInfo.displayVersion,
+            currentDirectory = tavernVersionInfo.directory,
+            versionSource = repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl }),
+            selectedVersion = selectedVersion,
+        )
+        if (tavernVersionInfo.hasLocalChanges) {
+            LocalChangesNotice(
+                directory = tavernVersionInfo.directory,
+                changedFilesPreview = tavernVersionInfo.changedFilesPreview,
+                likelyUploadLimitChange = TavernLocalChangesGuidance.isLikelyUploadLimitChange(
+                    versionInfo = tavernVersionInfo,
+                    uploadLimitStatus = uploadLimitStatus,
+                ),
+                actionsLocked = actionsLocked,
+                tavernRunning = tavernRunning || tavernStarting,
+                onResetUploadLimit = onResetUploadLimit,
+            )
+        }
+        VersionActionRow(
             currentVersionInfo = tavernVersionInfo,
             selectedVersion = selectedVersion,
             actionState = actionState,
@@ -112,12 +122,187 @@ fun VersionManagementSection(
             onUpdate = onTavernUpdate,
             onRollback = onTavernRollback,
         )
+        if (tavernVersionInfo.hasData) {
+            SecondaryActionButton(
+                text = if (showTechnicalDetails) "收起版本详情" else "查看版本详情",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { showTechnicalDetails = !showTechnicalDetails },
+            )
+            if (showTechnicalDetails) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = LukoaColors.Elevated,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        VersionInfoLine("分支", tavernVersionInfo.branch.ifBlank { "未读取" })
+                        VersionInfoLine("提交", tavernVersionInfo.commit.ifBlank { "未读取" })
+                        VersionInfoLine("Git 描述", tavernVersionInfo.describe.ifBlank { "未读取" })
+                        VersionInfoLine("回退点", tavernVersionInfo.rollbackDisplay)
+                    }
+                }
+            }
+        }
         lastOperationSummary?.let {
             VersionOperationResultSection(
                 summary = it,
                 onOpenSafetyBackup = onOpenSafetyBackup,
             )
         }
+    }
+}
+
+@Composable
+private fun VersionTargetPickerRow(
+    officialVersions: TavernOfficialVersions,
+    versionChoices: TavernOfficialVersions,
+    selectedVersion: TavernVersionChoice?,
+    actionsLocked: Boolean,
+    onRefreshAllVersions: () -> Unit,
+    onSelectVersion: (TavernVersionChoice) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(
+            text = "目标版本",
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OfficialVersionChooser(
+                officialVersions = versionChoices,
+                officialListLoaded = officialVersions.hasData,
+                selectedVersion = selectedVersion,
+                actionsLocked = actionsLocked,
+                refreshEnabled = false,
+                showRefreshButton = false,
+                emptyStateText = if (officialVersions.hasData) "当前版本已从列表中隐藏" else "先读取官方版本",
+                modifier = Modifier.weight(1f),
+                onRefreshOfficialVersions = {},
+                onSelectVersion = onSelectVersion,
+            )
+            SecondaryActionButton(
+                text = "重新读取",
+                enabled = !actionsLocked,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.weight(0.52f),
+                onClick = onRefreshAllVersions,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VersionOverviewCard(
+    currentVersion: String,
+    currentDirectory: String,
+    versionSource: String,
+    selectedVersion: TavernVersionChoice?,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                VersionEndpoint(
+                    label = "当前版本",
+                    value = currentVersion.ifBlank { "未读取" },
+                    color = LukoaColors.TextPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "→",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                VersionEndpoint(
+                    label = "目标版本",
+                    value = selectedVersion?.label ?: "尚未选择",
+                    color = if (selectedVersion != null) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            HorizontalDivider(color = LukoaColors.Border)
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                VersionInfoLine("当前酒馆位置", currentDirectory.ifBlank { "未读取" })
+                VersionInfoLine("版本来源", versionSource)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VersionActionRow(
+    currentVersionInfo: TavernVersionInfo,
+    selectedVersion: TavernVersionChoice?,
+    actionState: TavernVersionActionState,
+    actionsLocked: Boolean,
+    onUpdate: () -> Unit,
+    onRollback: () -> Unit,
+) {
+    val updateEnabled = !actionsLocked && actionState.updateAvailable
+    val rollbackEnabled = !actionsLocked && actionState.rollbackAvailable
+    val message = when {
+        actionsLocked -> "当前有其他任务正在处理，请稍后再试。"
+        currentVersionInfo.notInstalled -> "当前还没有安装酒馆，请先回到启动页完成安装。"
+        !currentVersionInfo.hasData -> "尚未读取当前酒馆版本，请先重新读取。"
+        selectedVersion == null -> "请先选择目标版本。"
+        actionState.relation == TavernTargetRelation.Same -> "目标版本与当前版本相同，无需更新或回退。"
+        updateEnabled -> "目标版本高于当前版本，可以更新；回退暂不可用。"
+        rollbackEnabled -> "目标版本低于当前版本，可以回退；更新暂不可用。"
+        else -> actionState.updateDisabledReason
+            ?: actionState.rollbackDisabledReason
+            ?: "当前条件不满足，请先处理上方提示。"
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SecondaryActionButton(
+                text = "更新版本",
+                enabled = updateEnabled,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.weight(1f),
+                onClick = onUpdate,
+            )
+            SecondaryActionButton(
+                text = "回退版本",
+                enabled = rollbackEnabled,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.weight(1f),
+                onClick = onRollback,
+            )
+        }
+        Text(
+            text = message,
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -716,6 +901,8 @@ private fun OfficialVersionChooser(
     actionsLocked: Boolean,
     refreshEnabled: Boolean = !actionsLocked,
     emptyStateText: String = "先读取官方版本",
+    showRefreshButton: Boolean = true,
+    modifier: Modifier = Modifier,
     onRefreshOfficialVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
 ) {
@@ -745,7 +932,10 @@ private fun OfficialVersionChooser(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { expanded = true },
@@ -841,13 +1031,15 @@ private fun OfficialVersionChooser(
             }
         }
 
-        SecondaryActionButton(
-            text = if (officialListLoaded) "刷新官方版本" else "读取官方版本",
-            enabled = refreshEnabled,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onRefreshOfficialVersions,
-        )
+        if (showRefreshButton) {
+            SecondaryActionButton(
+                text = if (officialListLoaded) "刷新官方版本" else "读取官方版本",
+                enabled = refreshEnabled,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onRefreshOfficialVersions,
+            )
+        }
     }
 }
 

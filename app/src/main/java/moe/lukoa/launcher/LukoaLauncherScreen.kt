@@ -1819,6 +1819,43 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun refreshVersionManagementData() {
+        val canReadCurrentVersion =
+            termuxInstalled &&
+                runCommandPermissionGranted &&
+                !termuxExternalAppsBlocked
+        val operationToken = beginBusy("刷新版本信息", 25_000L) ?: return
+        var remainingTasks = if (canReadCurrentVersion) 2 else 1
+
+        fun finishOneTask() {
+            remainingTasks -= 1
+            if (remainingTasks <= 0 && isBusyOperationActive(operationToken)) {
+                tavernVersionCheckInFlight = false
+                releaseBusy(operationToken)
+            }
+        }
+
+        update("正在刷新当前酒馆版本和可选版本。", "", false, allowRunningInference = false)
+        if (canReadCurrentVersion) {
+            tavernVersionCheckInFlight = true
+            onCommand("tavern-version") { newStatus, termuxOutput, ok ->
+                if (!isBusyOperationActive(operationToken)) return@onCommand
+                update(newStatus, termuxOutput, ok, allowRunningInference = false)
+                if (!isTransientStatus(newStatus)) {
+                    finishOneTask()
+                }
+            }
+        }
+        onFetchOfficialTavernVersions(tavernMirrorConfig) { result ->
+            if (!isBusyOperationActive(operationToken)) return@onFetchOfficialTavernVersions
+            if (result.ok && result.versions.hasData) {
+                applyOfficialVersions(result.versions)
+            }
+            update(result.message, "", result.ok, allowRunningInference = false)
+            finishOneTask()
+        }
+    }
+
     fun enterTavernInstallFlow() {
         tavernInstallDetected = false
         if (selectedTavernVersion == null) {
@@ -3251,6 +3288,12 @@ fun LukoaLauncherScreen(
         }
     }
 
+    LaunchedEffect(secondaryPage) {
+        if (secondaryPage == LauncherSecondaryPage.VersionManagement && !actionInProgress) {
+            refreshVersionManagementData()
+        }
+    }
+
     LaunchedEffect(pagerState.settledPage) {
         val pagerTab = LauncherTab.entries[pagerState.settledPage]
         pagerInteractionLocked = false
@@ -3785,6 +3828,7 @@ fun LukoaLauncherScreen(
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
+                                tavernVersion = tavernVersionInfo.displayVersion,
                                 actionInProgress = actionInProgress,
                                 busyLabel = busyLabel,
                                 wakeEnabled = termuxInstalled,
@@ -3822,13 +3866,13 @@ fun LukoaLauncherScreen(
                                 onQuickFixAction = ::runLauncherQuickFixAction,
                             )
                             LogPanel(
-                                title = "酒馆运行日志",
+                                title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Primary,
                                 maxVisibleLines = null,
                             )
                             LogPanel(
-                                title = "App 操作反馈",
+                                title = "启动器运行日志",
                                 content = appLog,
                                 accentColor = LukoaColors.TextSecondary,
                             )
@@ -4097,19 +4141,10 @@ fun LukoaLauncherScreen(
                                 currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
                                 selectedVersion = selectedTavernVersion,
                                 lastOperationSummary = lastTavernVersionOperationSummary,
-                                onRefreshOfficialVersions = ::refreshOfficialVersions,
+                                onRefreshAllVersions = ::refreshVersionManagementData,
                                 onSelectVersion = {
                                     selectedTavernVersion = it
                                     pendingTavernVersionActionConfirmation = null
-                                },
-                                onTavernVersion = {
-                                    runGuarded(
-                                        "重新检测酒馆版本",
-                                        18000L,
-                                        allowRunningInference = false,
-                                    ) { guardedUpdate ->
-                                        onCommand("tavern-version", guardedUpdate)
-                                    }
                                 },
                                 onTavernUpdate = ::requestTavernUpdate,
                                 onTavernRollback = ::requestTavernRollback,
@@ -4121,13 +4156,12 @@ fun LukoaLauncherScreen(
                             )
 
                             LauncherSecondaryPage.Backup -> BackupSection(
-                                activeInstanceLabel = tavernPathConfig.activeProfileLabel,
+                                tavernRunning = tavernRunning,
+                                tavernStarting = tavernStarting,
                                 actionsLocked = actionInProgress ||
                                     backupUiState.backupPreviewUiState is BackupPreviewUiState.Loading,
                                 backupListRefreshing = backupUiState.backupListRefreshing,
                                 autoBackupEnabled = autoBackupEnabled,
-                                autoBackupIntervalMinutes = autoBackupIntervalMinutes,
-                                autoBackupKeepCount = autoBackupKeepCount,
                                 backupHistory = backupHistory,
                                 backupArchiveDetails = backupUiState.backupArchiveDetails,
                                 backupContentStates = backupUiState.backupContentStates,

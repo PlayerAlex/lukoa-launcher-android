@@ -218,12 +218,11 @@ class LauncherComposeUiTest {
                         .verticalScroll(rememberScrollState()),
                 ) {
                     BackupSection(
-                        activeInstanceLabel = "主实例",
+                        tavernRunning = false,
+                        tavernStarting = false,
                         actionsLocked = false,
                         backupListRefreshing = false,
                         autoBackupEnabled = false,
-                        autoBackupIntervalMinutes = 60,
-                        autoBackupKeepCount = 5,
                         backupHistory = listOf(archivePath),
                         backupArchiveDetails = mapOf(
                             archivePath to BackupLibraryArchiveDetails(
@@ -287,9 +286,9 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("备份概览").assertDoesNotExist()
         composeRule.onNodeWithText("快速操作").assertDoesNotExist()
         composeRule.onNodeWithText("手动保护").assertDoesNotExist()
-        composeRule.onNodeWithText("备份操作").assertExists()
-        composeRule.onNodeWithText("主实例").assertExists()
-        composeRule.onNodeWithText("修改自动规则").assertExists()
+        composeRule.onNodeWithText("当前状态：").assertExists()
+        composeRule.onNodeWithText("创建手动备份").assertExists()
+        composeRule.onNodeWithText("自动备份规则").assertExists()
         composeRule.onNodeWithText("备份库").assertExists()
         composeRule.onNodeWithText("sd-ui-test.tar.gz")
             .performScrollTo()
@@ -317,10 +316,16 @@ class LauncherComposeUiTest {
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNode(hasText("应用并覆盖") and hasClickAction())
+        composeRule.onNode(hasText("应用") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNode(hasText("真的吗？") and hasClickAction())
             .performScrollTo()
             .performClick()
         composeRule.onNode(hasText("删除") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        composeRule.onNode(hasText("真的吗？") and hasClickAction())
             .performScrollTo()
             .performClick()
 

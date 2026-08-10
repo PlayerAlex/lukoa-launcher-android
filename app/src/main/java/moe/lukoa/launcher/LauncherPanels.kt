@@ -114,49 +114,31 @@ fun Header(
                     }
                 }
             }
-            Surface(
+            Box(
                 modifier = Modifier
                     .widthIn(max = 112.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = feedbackVersionClick),
-                color = if (showVersionUpdateBadge) {
-                    LukoaColors.PrimarySoft
-                } else {
-                    LukoaColors.Elevated
-                },
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (showVersionUpdateBadge) {
-                        LukoaColors.Primary.copy(alpha = 0.5f)
-                    } else {
-                        LukoaColors.Border
-                    },
-                ),
+                    .clickable(onClick = feedbackVersionClick)
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = "v$versionName",
-                        color = if (showVersionUpdateBadge) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                Text(
+                    text = "v$versionName",
+                    modifier = Modifier.padding(end = if (showVersionUpdateBadge) 8.dp else 0.dp),
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (showVersionUpdateBadge) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(7.dp)
+                            .background(
+                                color = LukoaColors.Danger,
+                                shape = RoundedCornerShape(4.dp),
+                            ),
                     )
-                    if (showVersionUpdateBadge) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    color = LukoaColors.Primary,
-                                    shape = RoundedCornerShape(4.dp),
-                                ),
-                        )
-                    }
                 }
             }
         }
