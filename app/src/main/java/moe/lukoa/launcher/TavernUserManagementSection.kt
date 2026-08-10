@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -52,9 +52,15 @@ fun TavernUserManagementSettingsPanel(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 560.dp),
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Text(
+                        text = "这里管理当前酒馆实例中的登录账户。读取和修改前需要先停止酒馆，删除账户时仍会保留对应的数据目录。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     dialogStateHolder.SaveableStateProvider("user-management-dialog") {
                         TavernUserManagementSection(
                             state = state,
@@ -145,6 +151,7 @@ fun TavernUserManagementSection(
     }
 
     val content: @Composable () -> Unit = {
+        ManagementDialogSectionTitle("当前实例与状态")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
@@ -161,10 +168,11 @@ fun TavernUserManagementSection(
                 highlightColor = LukoaColors.Primary,
             )
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ManagementDialogSectionTitle("可用操作")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFeedbackActionButton(
                 text = if (state.loading) "读取中..." else "读取用户",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !state.loading && !tavernRunning,
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
@@ -176,7 +184,7 @@ fun TavernUserManagementSection(
             )
             SettingsFeedbackActionButton(
                 text = "新增用户",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning,
                 accentColor = LukoaColors.Primary,
                 unavailableHint = userActionsUnavailableHint,
@@ -184,15 +192,11 @@ fun TavernUserManagementSection(
                 onClick = { createDialog = true },
             )
         }
+        ManagementDialogSectionTitle("酒馆用户")
         if (state.users.isNotEmpty()) {
-            SettingsEntryGroup(
-                modifier = Modifier.heightIn(max = 360.dp),
-            ) {
-                LazyColumn {
-                    itemsIndexed(
-                        items = state.users,
-                        key = { _, user -> user.handle },
-                    ) { index, user ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.users.forEach { user ->
+                    SettingsEntryGroup {
                         val isLastAdmin = user.admin && adminCount <= 1
                         TavernUserRow(
                             user = user,
@@ -206,11 +210,15 @@ fun TavernUserManagementSection(
                             onShowHint = onShowHint,
                             onDelete = { deleteUser = user },
                         )
-                        if (index < state.users.lastIndex) {
-                            SettingsEntryDivider()
-                        }
                     }
                 }
+            }
+        } else {
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "尚未读取用户",
+                    detail = "点击“读取用户”后，这里会按账户分别显示。",
+                )
             }
         }
     }

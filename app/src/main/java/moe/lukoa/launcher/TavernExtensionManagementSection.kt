@@ -61,6 +61,11 @@ fun TavernExtensionManagementSettingsPanel(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Text(
+                        text = "这里管理当前酒馆实例的第三方网页扩展。各扩展会分开显示，安装、更新、回退、启停或删除前请先停止酒馆。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     dialogStateHolder.SaveableStateProvider("extension-management-dialog") {
                         TavernExtensionManagementSection(
                             state = state,
@@ -97,14 +102,7 @@ fun TavernExtensionManagementSettingsPanel(
         title = "扩展管理",
         accentColor = LukoaColors.Primary,
         containerColor = LukoaColors.Elevated,
-        headerAction = {
-            StatusPill(
-                text = extensionManagementStatusText(state, actionsLocked),
-                active = actionsLocked || state.loading || state.rootDirectory.isNotBlank(),
-                toneColor = if (actionsLocked) LukoaColors.Accent else LukoaColors.Primary,
-                activeBackground = if (actionsLocked) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
-            )
-        },
+        headerAction = { TavernExtensionManagementHeader(state, actionsLocked) },
     ) {
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -348,6 +346,7 @@ fun TavernExtensionManagementSection(
     }
 
     val content: @Composable () -> Unit = {
+        ManagementDialogSectionTitle("当前实例与状态")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
@@ -369,13 +368,11 @@ fun TavernExtensionManagementSection(
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        ManagementDialogSectionTitle("可用操作")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFeedbackActionButton(
                 text = "安装扩展",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !tavernRunning && state.rootDirectory.isNotBlank(),
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
@@ -389,7 +386,7 @@ fun TavernExtensionManagementSection(
             )
             SettingsFeedbackActionButton(
                 text = if (state.loading) "读取中..." else "读取扩展",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !state.loading,
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
@@ -402,7 +399,7 @@ fun TavernExtensionManagementSection(
             )
             SettingsFeedbackActionButton(
                 text = "检查更新",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !actionsLocked && !state.loading && state.extensions.isNotEmpty(),
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
@@ -444,6 +441,7 @@ fun TavernExtensionManagementSection(
             )
         }
 
+        ManagementDialogSectionTitle("已安装扩展")
         if (state.extensions.isNotEmpty()) {
             if (visibleExtensions.isEmpty()) {
                 SettingsEntryGroup {
@@ -453,8 +451,9 @@ fun TavernExtensionManagementSection(
                     )
                 }
             } else {
-                SettingsEntryGroup {
-                    visibleExtensions.forEachIndexed { index, extension ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    visibleExtensions.forEach { extension ->
+                        SettingsEntryGroup {
                         val updateDisabledReason = TavernExtensionActionPolicy.updateDisabledReason(
                             extension = extension,
                             actionsLocked = actionsLocked,
@@ -483,7 +482,7 @@ fun TavernExtensionManagementSection(
                             onRollback = { pendingRollback = extension },
                             onDelete = { pendingDelete = extension },
                         )
-                        if (index < visibleExtensions.lastIndex) SettingsEntryDivider()
+                        }
                     }
                 }
             }

@@ -13,7 +13,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -136,6 +135,27 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("检查最新结果").performScrollTo().performClick()
         composeRule.runOnIdle { assertEquals(1, checkCount) }
+    }
+
+    @Test
+    fun backgroundTaskSettingsPanel_matchesManagementEntryHierarchy() {
+        var openCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                BackgroundTaskSettingsPanel(
+                    status = "有待确认",
+                    needsAttention = true,
+                    onOpen = { openCount += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("管理后台任务").assertIsDisplayed()
+        composeRule.onNodeWithText("有待确认").assertIsDisplayed()
+        composeRule.onNodeWithText("打开").assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("管理后台任务").performClick()
+        composeRule.runOnIdle { assertEquals(1, openCount) }
     }
 
     @Test
@@ -849,6 +869,9 @@ class LauncherSettingsUiTest {
 
         advancePastClickDebounce()
         composeRule.onNode(hasText("管理已安装扩展") and hasClickAction()).performClick()
+        composeRule.onNodeWithText("当前实例与状态").assertIsDisplayed()
+        composeRule.onNodeWithText("可用操作").assertIsDisplayed()
+        composeRule.onNodeWithText("已安装扩展").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("读取扩展").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
 
@@ -960,6 +983,9 @@ class LauncherSettingsUiTest {
 
         advancePastClickDebounce()
         composeRule.onNodeWithText("管理酒馆用户").performScrollTo().performClick()
+        composeRule.onNodeWithText("当前实例与状态").assertIsDisplayed()
+        composeRule.onNodeWithText("可用操作").assertIsDisplayed()
+        composeRule.onNodeWithText("酒馆用户").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("删除").performScrollTo().assertIsNotEnabled()
     }
 
@@ -995,8 +1021,7 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("管理酒馆用户").performClick()
         composeRule.onNodeWithText("读取用户").assertExists()
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(29)
-        composeRule.onNodeWithText("用户 30").assertIsDisplayed()
+        composeRule.onNodeWithText("用户 30").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("关闭").performClick()
         composeRule.onNodeWithText("读取用户").assertDoesNotExist()
     }

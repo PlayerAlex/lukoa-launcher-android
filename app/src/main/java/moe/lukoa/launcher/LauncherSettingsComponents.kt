@@ -89,6 +89,19 @@ internal fun SettingsGroupLabel(title: String) {
 }
 
 @Composable
+internal fun ManagementDialogSectionTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { heading() },
+        color = LukoaColors.TextPrimary,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+    )
+}
+
+@Composable
 internal fun SettingsEntryDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 14.dp),

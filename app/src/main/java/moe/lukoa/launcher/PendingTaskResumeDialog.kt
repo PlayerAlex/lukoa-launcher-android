@@ -380,16 +380,34 @@ fun BackgroundTaskSettingsPanel(
     onOpen: () -> Unit,
 ) {
     SectionPanel(
-        title = "后台任务",
+        title = "任务中心",
         accentColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
         containerColor = LukoaColors.Elevated,
+        headerAction = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusPill(
+                    text = status,
+                    active = needsAttention,
+                    toneColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+                    activeBackground = if (needsAttention) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+                )
+                InfoPopoverButton(
+                    contentDescription = "查看任务中心说明",
+                    title = "任务中心",
+                    body = "这里记录安装、更新、回退、备份和恢复等耗时操作。进入后可以补查 Termux 返回结果，或前往任务对应页面。\n查看结果不会重新执行原任务。",
+                )
+            }
+        },
     ) {
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "任务中心",
+                title = "管理后台任务",
                 detail = "查看耗时操作、补查 Termux 返回结果，或前往任务对应页面。",
-                value = status,
-                valueColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+                value = "打开",
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 highlightColor = if (needsAttention) LukoaColors.Accent else null,
                 onClick = onOpen,
@@ -481,12 +499,7 @@ fun BackgroundTaskCenterDialog(
                     else -> BackgroundTaskIdleCard()
                 }
 
-                Text(
-                    text = "最近任务结果",
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+                ManagementDialogSectionTitle("最近任务结果")
                 if (recentResults.isEmpty()) {
                     Text(
                         text = "还没有可显示的耗时任务结果。",

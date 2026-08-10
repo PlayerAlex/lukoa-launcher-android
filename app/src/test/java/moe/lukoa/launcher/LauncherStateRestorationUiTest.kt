@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import java.time.Duration
 import org.junit.Rule
@@ -102,7 +103,7 @@ class LauncherStateRestorationUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("管理已安装扩展").performClick()
         advancePastClickDebounce()
-        composeRule.onNodeWithText("安装扩展").performClick()
+        composeRule.onNodeWithText("安装扩展").performScrollTo().performClick()
         composeRule.onNodeWithText("GitHub 扩展地址")
             .performTextInput("https://github.com/owner/mint")
 
