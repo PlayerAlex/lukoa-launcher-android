@@ -259,7 +259,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "users-list",
         scriptArgs = emptyList(),
         displayCommand = "tavern-users-list",
-        background = false,
     )
 
     fun runTavernUserCreate(value: String?): CommandDispatch = runTavernUserMutation("create", value)
@@ -271,7 +270,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "extensions-list",
         scriptArgs = emptyList(),
         displayCommand = "tavern-extensions-list",
-        background = false,
     )
 
     fun runTavernExtensionCheckUpdates(): CommandDispatch = runBundledScriptCommand(
@@ -279,7 +277,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "extensions-check-updates",
         scriptArgs = emptyList(),
         displayCommand = "tavern-extensions-check-updates",
-        background = false,
     )
 
     fun runTavernExtensionDelete(value: String?): CommandDispatch =
@@ -375,7 +372,6 @@ class TermuxCommandRunner(private val context: Context) {
             nonce = null,
             executablePath = TERMUX_SH_PATH,
             displayCommand = "termux-repo-status",
-            background = false,
         )
     }
 
@@ -811,7 +807,9 @@ class TermuxCommandRunner(private val context: Context) {
         nonce: String?,
         executablePath: String = TERMUX_SCRIPT_PATH,
         displayCommand: String = command,
-        background: Boolean = true,
+        background: Boolean = TermuxCommandPresentationPolicy
+            .forCommand(displayCommand)
+            .runsInBackground,
         stdin: String? = null,
     ): CommandDispatch {
         if (!isTermuxInstalled()) {
@@ -898,7 +896,9 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand: String,
         scriptArgs: List<String>,
         displayCommand: String,
-        background: Boolean = true,
+        background: Boolean = TermuxCommandPresentationPolicy
+            .forCommand(displayCommand)
+            .runsInBackground,
         nonce: String? = null,
     ): CommandDispatch {
         val scriptText = try {

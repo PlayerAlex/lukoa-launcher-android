@@ -30,6 +30,9 @@ class LauncherModuleBoundaryTest {
     private val githubUpdateStoreSource by lazy {
         File("src/main/java/moe/lukoa/launcher/GithubUpdateStore.kt").readText(Charsets.UTF_8)
     }
+    private val termuxRunnerSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt").readText(Charsets.UTF_8)
+    }
 
     @Test
     fun `settings dialogs share one saveable destination`() {
@@ -103,5 +106,15 @@ class LauncherModuleBoundaryTest {
         assertTrue(commonControlsSource.contains("sizeIn(minWidth = 48.dp, minHeight = 48.dp)"))
         assertTrue(commonControlsSource.contains("indication = null"))
         assertTrue(commonControlsSource.contains("modifier = Modifier.size(20.dp)"))
+    }
+
+    @Test
+    fun `termux command defaults use the centralized presentation policy`() {
+        val defaultUsages = Regex(
+            "background: Boolean = TermuxCommandPresentationPolicy\\s*\\.forCommand\\(displayCommand\\)",
+        ).findAll(termuxRunnerSource).count()
+
+        assertTrue("直接命令和内置脚本命令都必须经过同一展示策略", defaultUsages >= 2)
+        assertFalse(termuxRunnerSource.contains("background: Boolean = true"))
     }
 }
