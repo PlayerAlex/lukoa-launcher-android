@@ -12,6 +12,28 @@ import org.junit.Test
 
 class BackupArchiveContentScannerTest {
     @Test
+    fun `scanner groups named user content without returning the raw archive listing`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/characters/Mint.png",
+            "SillyTavern/data/default-user/OpenAI Settings/CoolPreset.json",
+            "SillyTavern/data/default-user/regex/CleanRegex.json",
+            "SillyTavern/data/default-user/chats/Mint/2026-08-10.jsonl",
+            "SillyTavern/data/default-user/worlds/MintWorld.json",
+            "SillyTavern/public/scripts/extensions/third-party/MintTools/manifest.json",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(listOf("Mint"), summary.group(BackupArchiveContentKind.CharacterCards)?.names)
+        assertEquals(listOf("CoolPreset"), summary.group(BackupArchiveContentKind.Presets)?.names)
+        assertEquals(listOf("CleanRegex"), summary.group(BackupArchiveContentKind.RegexScripts)?.names)
+        assertEquals(listOf("Mint"), summary.group(BackupArchiveContentKind.Chats)?.names)
+        assertEquals(listOf("MintWorld"), summary.group(BackupArchiveContentKind.WorldBooks)?.names)
+        assertEquals(listOf("MintTools"), summary.group(BackupArchiveContentKind.Extensions)?.names)
+        assertEquals(6, summary.groups.sumOf { it.entryCount })
+    }
+
+    @Test
     fun `scanner summarizes user data extensions config and manifest without extracting`() {
         val archive = tarGzip(
             "SillyTavern/data/default-user/chats/chat.jsonl",

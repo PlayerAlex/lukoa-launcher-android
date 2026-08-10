@@ -288,6 +288,26 @@ class LauncherComposeUiTest {
                             hasConfiguration = true,
                             hasLukoaManifest = true,
                             truncated = false,
+                            groups = listOf(
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.CharacterCards,
+                                    entryCount = 2,
+                                    names = listOf("Mint", "Aqua"),
+                                    namesTruncated = false,
+                                ),
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.Presets,
+                                    entryCount = 1,
+                                    names = listOf("CoolPreset"),
+                                    namesTruncated = false,
+                                ),
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.RegexScripts,
+                                    entryCount = 1,
+                                    names = listOf("CleanRegex"),
+                                    namesTruncated = false,
+                                ),
+                            ),
                         ),
                     ),
                     restoreMode = mode,
@@ -300,9 +320,13 @@ class LauncherComposeUiTest {
         advancePastClickDebounce()
 
         composeRule.onNodeWithText("备份内容预览").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("用户数据 · 扩展/插件 · 酒馆配置")
-            .performScrollTo()
-            .assertIsDisplayed()
+        composeRule.onNodeWithText("角色卡").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("预设").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("正则").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Mint").assertDoesNotExist()
+        composeRule.onNodeWithText("角色卡").performScrollTo().performClick()
+        composeRule.onNodeWithText("Mint").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Aqua").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("只恢复用户数据").performScrollTo().performClick()
         composeRule.onNodeWithText(
             "只恢复用户数据会保留当前酒馆程序，只替换聊天、角色、世界书和用户设置。",

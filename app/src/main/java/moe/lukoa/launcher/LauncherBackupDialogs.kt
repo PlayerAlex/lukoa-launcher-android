@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +21,10 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -474,21 +479,27 @@ fun ApplyBackupPreviewDialog(
                 if (content != null) {
                     Text(
                         text = buildString {
-                            append("已读取 ${content.entryCount} 个条目")
-                            if (content.truncated) append("（列表较大，仅检查前 ${content.entryCount} 个）")
+                            append("已完成内容分类")
+                            if (content.truncated) append("（备份较大，分类基于前 ${content.entryCount} 个条目）")
                         },
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text(
-                        text = listOfNotNull(
-                            "用户数据".takeIf { content.hasUserData },
-                            "扩展/插件".takeIf { content.hasExtensions },
-                            "酒馆配置".takeIf { content.hasConfiguration },
-                        ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    if (content.groups.isEmpty()) {
+                        Text(
+                            text = listOfNotNull(
+                                "用户数据".takeIf { content.hasUserData },
+                                "扩展/插件".takeIf { content.hasExtensions },
+                                "酒馆配置".takeIf { content.hasConfiguration },
+                            ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
+                            color = LukoaColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    } else {
+                        content.groups.forEach { group ->
+                            BackupContentGroupRow(group)
+                        }
+                    }
                 } else {
                     Text(
                         text = "无法读取内容清单：${preview.contentReadError.ifBlank { "备份格式不兼容" }}",
@@ -541,6 +552,68 @@ fun ApplyBackupPreviewDialog(
                 color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
+    var expanded by remember(group.kind, group.entryCount, group.names) { mutableStateOf(false) }
+    val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = feedbackClick),
+        color = LukoaColors.Elevated,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = group.kind.title,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "${group.entryCount} 项 · ${if (expanded) "收起" else "展开"}",
+                    color = LukoaColors.Primary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            if (expanded) {
+                if (group.names.isEmpty()) {
+                    Text(
+                        text = "已识别内容，但没有可展示的名称。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    group.names.forEach { name ->
+                        Text(
+                            text = name,
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (group.namesTruncated) {
+                        Text(
+                            text = "还有更多内容未展开列出。",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            }
         }
     }
 }
