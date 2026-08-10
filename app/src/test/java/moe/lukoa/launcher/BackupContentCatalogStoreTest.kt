@@ -37,10 +37,17 @@ class BackupContentCatalogStoreTest {
             truncated = false,
             groups = listOf(
                 BackupArchiveContentGroup(
-                    kind = BackupArchiveContentKind.CharacterCards,
+                    kind = BackupArchiveContentKind.Chats,
                     entryCount = 1,
-                    names = listOf("薄荷"),
+                    names = emptyList(),
                     namesTruncated = false,
+                    children = listOf(
+                        BackupArchiveContentNode(
+                            title = "薄荷",
+                            entryCount = 1,
+                            names = listOf("第一次聊天"),
+                        ),
+                    ),
                 ),
             ),
         )
@@ -56,7 +63,7 @@ class BackupContentCatalogStoreTest {
     }
 
     @Test
-    fun `legacy catalog is ignored after scanner schema changes`() {
+    fun `legacy catalogs are ignored after scanner schema changes`() {
         val details = archiveDetails(size = 2_048L, modifiedAtMillis = 123L)
         val legacyCatalog = JSONObject().put(
             details.termuxReadablePath.lowercase(),
@@ -73,6 +80,7 @@ class BackupContentCatalogStoreTest {
         context.getSharedPreferences(BackupContentCatalogStore.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString("catalog_v1", legacyCatalog.toString())
+            .putString("catalog_v2", legacyCatalog.toString())
             .commit()
 
         assertNull(BackupContentCatalogStore(context).read(details))

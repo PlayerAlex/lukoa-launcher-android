@@ -76,7 +76,8 @@ class BackupContentCatalogStore(context: Context) {
                             .put("kind", group.kind.name)
                             .put("entryCount", group.entryCount)
                             .put("names", JSONArray(group.names))
-                            .put("namesTruncated", group.namesTruncated),
+                            .put("namesTruncated", group.namesTruncated)
+                            .put("children", group.children.toJson()),
                     )
                 }
             },
@@ -102,6 +103,7 @@ class BackupContentCatalogStore(context: Context) {
                         entryCount = groupJson.optInt("entryCount", names.size),
                         names = names,
                         namesTruncated = groupJson.optBoolean("namesTruncated", false),
+                        children = groupJson.optJSONArray("children")?.toNodes() ?: emptyList(),
                     ),
                 )
             }
@@ -117,12 +119,52 @@ class BackupContentCatalogStore(context: Context) {
         )
     }.getOrNull()
 
+    private fun List<BackupArchiveContentNode>.toJson(): JSONArray = JSONArray().apply {
+        forEach { node ->
+            put(
+                JSONObject()
+                    .put("title", node.title)
+                    .put("entryCount", node.entryCount)
+                    .put("names", JSONArray(node.names))
+                    .put("children", node.children.toJson()),
+            )
+        }
+    }
+
+    private fun JSONArray.toNodes(depth: Int = 0): List<BackupArchiveContentNode> {
+        if (depth > MAX_CATALOG_TREE_DEPTH) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val nodeJson = optJSONObject(index) ?: continue
+                val title = nodeJson.optString("title").trim().takeIf(String::isNotBlank)
+                    ?: continue
+                val namesJson = nodeJson.optJSONArray("names") ?: JSONArray()
+                val names = buildList {
+                    for (nameIndex in 0 until namesJson.length()) {
+                        namesJson.optString(nameIndex).takeIf(String::isNotBlank)?.let(::add)
+                    }
+                }
+                add(
+                    BackupArchiveContentNode(
+                        title = title,
+                        entryCount = nodeJson.optInt("entryCount", names.size),
+                        names = names,
+                        children = nodeJson.optJSONArray("children")
+                            ?.toNodes(depth + 1)
+                            ?: emptyList(),
+                    ),
+                )
+            }
+        }
+    }
+
     private fun normalizePath(path: String): String {
         return path.trim().replace('\\', '/').lowercase(Locale.ROOT)
     }
 
     companion object {
         const val PREFS_NAME = "lukoa_backup_content_catalog"
-        private const val KEY_CATALOG = "catalog_v2"
+        private const val KEY_CATALOG = "catalog_v3"
+        private const val MAX_CATALOG_TREE_DEPTH = 8
     }
 }

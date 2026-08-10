@@ -7,7 +7,9 @@ import org.json.JSONObject
 
 data class BackupArchiveJsonInspection(
     val extensionDisplayName: String? = null,
-    val tavernHelperScriptNames: List<String> = emptyList(),
+    val globalTavernHelperScriptNames: List<String> = emptyList(),
+    val presetTavernHelperScriptNames: List<String> = emptyList(),
+    val localTavernHelperScriptNames: List<String> = emptyList(),
 )
 
 object BackupArchiveJsonInspector {
@@ -18,71 +20,80 @@ object BackupArchiveJsonInspector {
         if (bytes.isEmpty()) return BackupArchiveJsonInspection()
         return runCatching {
             val root = JSONObject(String(bytes, StandardCharsets.UTF_8))
-            val scriptNames = linkedSetOf<String>()
-            var visitedNodes = 0
-
-            fun collectScripts(value: Any?, depth: Int) {
-                if (value == null || value === JSONObject.NULL) return
-                if (depth > MAX_SCRIPT_TREE_DEPTH || visitedNodes >= MAX_SCRIPT_TREE_NODES) return
-                visitedNodes += 1
-                when (value) {
-                    is JSONArray -> {
-                        for (index in 0 until value.length()) {
-                            collectScripts(value.opt(index), depth + 1)
-                        }
-                    }
-                    is JSONObject -> {
-                        val type = value.optString("type").trim().lowercase(Locale.ROOT)
-                        if (type == "script") {
-                            val name = value.optString("name").trim().ifBlank {
-                                value.optJSONObject("value")?.optString("name")?.trim().orEmpty()
-                            }
-                            if (name.isNotBlank()) scriptNames += name.take(120)
-                        } else {
-                            value.opt("scripts")?.let { collectScripts(it, depth + 1) }
-                            value.opt("value")?.let { collectScripts(it, depth + 1) }
-                            if (type.isBlank()) {
-                                val keys = value.keys()
-                                while (keys.hasNext()) {
-                                    val key = keys.next()
-                                    if (key != "scripts" && key != "value") {
-                                        collectScripts(value.opt(key), depth + 1)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            val globalScriptNames = linkedSetOf<String>()
+            val presetScriptNames = linkedSetOf<String>()
+            val localScriptNames = linkedSetOf<String>()
 
             val extensionSettings = root.optJSONObject("extension_settings")
             extensionSettings
                 ?.optJSONObject("tavern_helper")
                 ?.optJSONObject("script")
                 ?.opt("scripts")
-                ?.let { collectScripts(it, 0) }
+                ?.let { globalScriptNames += collectScriptNames(it) }
             extensionSettings
                 ?.optJSONObject("TavernHelper")
                 ?.optJSONObject("script")
                 ?.opt("scriptsRepository")
-                ?.let { collectScripts(it, 0) }
+                ?.let { globalScriptNames += collectScriptNames(it) }
             root.optJSONObject("extensions")
                 ?.optJSONObject("tavern_helper")
                 ?.opt("scripts")
-                ?.let { collectScripts(it, 0) }
+                ?.let { presetScriptNames += collectScriptNames(it) }
             root.optJSONObject("data")
                 ?.optJSONObject("extensions")
                 ?.optJSONObject("tavern_helper")
                 ?.opt("scripts")
-                ?.let { collectScripts(it, 0) }
+                ?.let { localScriptNames += collectScriptNames(it) }
 
             BackupArchiveJsonInspection(
                 extensionDisplayName = root.optString("display_name")
                     .trim()
                     .takeIf(String::isNotBlank)
                     ?.take(120),
-                tavernHelperScriptNames = scriptNames.toList(),
+                globalTavernHelperScriptNames = globalScriptNames.toList(),
+                presetTavernHelperScriptNames = presetScriptNames.toList(),
+                localTavernHelperScriptNames = localScriptNames.toList(),
             )
         }.getOrDefault(BackupArchiveJsonInspection())
+    }
+
+    private fun collectScriptNames(root: Any?): List<String> {
+        val scriptNames = linkedSetOf<String>()
+        var visitedNodes = 0
+
+        fun visit(value: Any?, depth: Int) {
+            if (value == null || value === JSONObject.NULL) return
+            if (depth > MAX_SCRIPT_TREE_DEPTH || visitedNodes >= MAX_SCRIPT_TREE_NODES) return
+            visitedNodes += 1
+            when (value) {
+                is JSONArray -> {
+                    for (index in 0 until value.length()) visit(value.opt(index), depth + 1)
+                }
+                is JSONObject -> {
+                    val type = value.optString("type").trim().lowercase(Locale.ROOT)
+                    if (type == "script") {
+                        val name = value.optString("name").trim().ifBlank {
+                            value.optJSONObject("value")?.optString("name")?.trim().orEmpty()
+                        }
+                        if (name.isNotBlank()) scriptNames += name.take(120)
+                    } else {
+                        value.opt("scripts")?.let { visit(it, depth + 1) }
+                        value.opt("value")?.let { visit(it, depth + 1) }
+                        if (type.isBlank()) {
+                            val keys = value.keys()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                if (key != "scripts" && key != "value") {
+                                    visit(value.opt(key), depth + 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        visit(root, 0)
+        return scriptNames.toList()
     }
 }

@@ -23,6 +23,9 @@ class BackupArchiveContentScannerTest {
             "SillyTavern/data/default-user/OpenAI Settings/CoolPreset.json",
             "SillyTavern/data/default-user/regex/CleanRegex.json",
             "SillyTavern/data/default-user/chats/Mint/2026-08-10.jsonl",
+            "SillyTavern/data/default-user/chats/Mint/2026-08-11.jsonl",
+            "SillyTavern/data/default-user/chats/Aqua/first.jsonl",
+            "SillyTavern/data/default-user/group chats/Friends.jsonl",
             "SillyTavern/data/default-user/worlds/MintWorld.json",
             "SillyTavern/public/scripts/extensions/third-party/MintTools/manifest.json",
         )
@@ -32,10 +35,29 @@ class BackupArchiveContentScannerTest {
         assertEquals(listOf("Mint"), summary.group(BackupArchiveContentKind.CharacterCards)?.names)
         assertEquals(listOf("CoolPreset"), summary.group(BackupArchiveContentKind.Presets)?.names)
         assertEquals(listOf("CleanRegex"), summary.group(BackupArchiveContentKind.RegexScripts)?.names)
-        assertEquals(listOf("Mint"), summary.group(BackupArchiveContentKind.Chats)?.names)
+        assertEquals(
+            listOf(
+                BackupArchiveContentNode(
+                    title = "Mint",
+                    entryCount = 2,
+                    names = listOf("2026-08-10", "2026-08-11"),
+                ),
+                BackupArchiveContentNode(
+                    title = "Aqua",
+                    entryCount = 1,
+                    names = listOf("first"),
+                ),
+                BackupArchiveContentNode(
+                    title = "群聊",
+                    entryCount = 1,
+                    names = listOf("Friends"),
+                ),
+            ),
+            summary.group(BackupArchiveContentKind.Chats)?.children,
+        )
         assertEquals(listOf("MintWorld"), summary.group(BackupArchiveContentKind.WorldBooks)?.names)
         assertEquals(listOf("MintTools"), summary.group(BackupArchiveContentKind.Extensions)?.names)
-        assertEquals(6, summary.groups.sumOf { it.entryCount })
+        assertEquals(9, summary.groups.sumOf { it.entryCount })
     }
 
     @Test
@@ -189,16 +211,39 @@ class BackupArchiveContentScannerTest {
             listOf("清凉薄荷", "自定义 CSS"),
             summary.group(BackupArchiveContentKind.Beautification)?.names,
         )
+        val scriptGroup = summary.group(BackupArchiveContentKind.TavernHelperScripts)
+        assertEquals(emptyList<String>(), scriptGroup?.names)
         assertEquals(
             listOf(
-                "启动整理",
-                "嵌套脚本",
-                "旧版脚本",
-                "旧版嵌套",
-                "预设脚本",
-                "角色脚本",
+                BackupArchiveContentNode(
+                    title = "全局脚本",
+                    entryCount = 4,
+                    names = listOf("启动整理", "嵌套脚本", "旧版脚本", "旧版嵌套"),
+                ),
+                BackupArchiveContentNode(
+                    title = "预设脚本",
+                    entryCount = 1,
+                    children = listOf(
+                        BackupArchiveContentNode(
+                            title = "清凉预设",
+                            entryCount = 1,
+                            names = listOf("预设脚本"),
+                        ),
+                    ),
+                ),
+                BackupArchiveContentNode(
+                    title = "局部脚本",
+                    entryCount = 1,
+                    children = listOf(
+                        BackupArchiveContentNode(
+                            title = "脚本角色",
+                            entryCount = 1,
+                            names = listOf("角色脚本"),
+                        ),
+                    ),
+                ),
             ),
-            summary.group(BackupArchiveContentKind.TavernHelperScripts)?.names,
+            scriptGroup?.children,
         )
     }
 
@@ -231,6 +276,12 @@ class BackupArchiveContentScannerTest {
         val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(tarGzip(*manyEntries)))
         assertTrue(summary.truncated)
         assertEquals(BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES, summary.entryCount)
+        val chatGroup = summary.group(BackupArchiveContentKind.Chats)
+        assertFalse(chatGroup?.namesTruncated ?: true)
+        assertEquals(
+            BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES,
+            chatGroup?.children?.single()?.names?.size,
+        )
     }
 
     private fun tarGzip(vararg entries: String): ByteArray {

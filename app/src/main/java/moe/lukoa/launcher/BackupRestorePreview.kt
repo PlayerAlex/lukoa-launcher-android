@@ -30,8 +30,16 @@ enum class BackupArchiveContentKind(
 data class BackupArchiveContentGroup(
     val kind: BackupArchiveContentKind,
     val entryCount: Int,
-    val names: List<String>,
-    val namesTruncated: Boolean,
+    val names: List<String> = emptyList(),
+    val namesTruncated: Boolean = false,
+    val children: List<BackupArchiveContentNode> = emptyList(),
+)
+
+data class BackupArchiveContentNode(
+    val title: String,
+    val entryCount: Int,
+    val names: List<String> = emptyList(),
+    val children: List<BackupArchiveContentNode> = emptyList(),
 )
 
 data class BackupArchiveContentSummary(
@@ -50,7 +58,6 @@ data class BackupArchiveContentSummary(
 
 object BackupArchiveContentScanner {
     const val MAX_PREVIEW_ENTRIES = 2_000
-    const val MAX_CATEGORY_NAMES = 80
     const val MAX_INSPECTABLE_JSON_BYTES = 2 * 1024 * 1024
     private const val MAX_ENTRY_SIZE = 100L * 1024L * 1024L * 1024L
     private const val MAX_TOTAL_DECLARED_SIZE = 1_000L * 1024L * 1024L * 1024L
@@ -67,6 +74,7 @@ object BackupArchiveContentScanner {
         val categoryNames = BackupArchiveContentKind.entries
             .associateWith { linkedSetOf<String>() }
             .toMutableMap()
+        val hierarchy = BackupArchiveContentHierarchyBuilder()
         GzipCompressorInputStream(input).use { gzip ->
             TarArchiveInputStream(gzip).use { tar ->
                 while (true) {
@@ -121,20 +129,33 @@ object BackupArchiveContentScanner {
                             fallbackName
                         }
                         categoryCounts[kind] = categoryCounts.getValue(kind) + 1
-                        if (name.isNotBlank() && categoryNames.getValue(kind).size < MAX_CATEGORY_NAMES) {
+                        if (kind == BackupArchiveContentKind.Chats) {
+                            findChatLocation(originalSegments, segments)?.let { (source, chat) ->
+                                hierarchy.recordChat(source, chat)
+                            }
+                        } else if (name.isNotBlank()) {
                             categoryNames.getValue(kind) += name.take(120)
                         }
                     }
-                    jsonInspection.tavernHelperScriptNames.forEach { name ->
-                        val kind = BackupArchiveContentKind.TavernHelperScripts
-                        categoryCounts[kind] = categoryCounts.getValue(kind) + 1
-                        if (categoryNames.getValue(kind).size < MAX_CATEGORY_NAMES) {
-                            categoryNames.getValue(kind) += name
-                        }
+                    hierarchy.recordGlobalScripts(
+                        jsonInspection.globalTavernHelperScriptNames,
+                    )
+                    if (pathClassification?.first == BackupArchiveContentKind.Presets) {
+                        hierarchy.recordPresetScripts(
+                            pathClassification.second,
+                            jsonInspection.presetTavernHelperScriptNames,
+                        )
+                    }
+                    if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
+                        hierarchy.recordLocalScripts(
+                            pathClassification.second,
+                            jsonInspection.localTavernHelperScriptNames,
+                        )
                     }
                 }
             }
         }
+        categoryCounts[BackupArchiveContentKind.TavernHelperScripts] = hierarchy.scriptCount
         return BackupArchiveContentSummary(
             entryCount = entryCount,
             hasUserData = hasUserData,
@@ -150,7 +171,8 @@ object BackupArchiveContentScanner {
                     kind = kind,
                     entryCount = count,
                     names = names,
-                    namesTruncated = count > names.size,
+                    namesTruncated = false,
+                    children = hierarchy.childrenFor(kind),
                 )
             },
         )
@@ -230,6 +252,10 @@ object BackupArchiveContentScanner {
                 ?: displayFileName
             return BackupArchiveContentKind.Chats to chatName
         }
+        val groupChatsIndex = lowerSegments.indexOf("group chats")
+        if (isUserDataDirectory(lowerSegments, groupChatsIndex)) {
+            return BackupArchiveContentKind.Chats to "群聊"
+        }
 
         val worldsIndex = lowerSegments.indexOfFirst { it == "worlds" || it == "world-info" }
         if (isDirectUserDataFile(lowerSegments, worldsIndex) && lowerFileName.endsWith(".json")) {
@@ -266,6 +292,25 @@ object BackupArchiveContentScanner {
         }
         return lowerSegments.lastOrNull() == "settings.json" &&
             isDirectUserRootFile(lowerSegments)
+    }
+
+    private fun findChatLocation(
+        originalSegments: List<String>,
+        lowerSegments: List<String>,
+    ): Pair<String, String>? {
+        val displayFileName = originalSegments.lastOrNull()
+            ?.substringBeforeLast('.', originalSegments.last())
+            .orEmpty()
+        val groupChatsIndex = lowerSegments.indexOf("group chats")
+        if (isUserDataDirectory(lowerSegments, groupChatsIndex)) {
+            return "群聊" to displayFileName
+        }
+        val chatsIndex = lowerSegments.indexOf("chats")
+        if (!isUserDataDirectory(lowerSegments, chatsIndex)) return null
+        val source = originalSegments.getOrNull(chatsIndex + 1)
+            ?.takeIf { chatsIndex + 1 < originalSegments.lastIndex }
+            ?: "未分类聊天"
+        return source to displayFileName
     }
 
     private fun readCurrentEntry(tar: TarArchiveInputStream, size: Int): ByteArray {
@@ -307,6 +352,97 @@ object BackupArchiveContentScanner {
         "context",
         "sysprompt",
     )
+}
+
+private class BackupArchiveContentHierarchyBuilder {
+    private data class Bucket(
+        var entryCount: Int = 0,
+        val names: LinkedHashSet<String> = linkedSetOf(),
+    )
+
+    private val chats = linkedMapOf<String, Bucket>()
+    private val globalScripts = linkedSetOf<String>()
+    private val presetScripts = linkedMapOf<String, Bucket>()
+    private val localScripts = linkedMapOf<String, Bucket>()
+
+    val scriptCount: Int
+        get() = globalScripts.size +
+            presetScripts.values.sumOf { it.entryCount } +
+            localScripts.values.sumOf { it.entryCount }
+
+    fun recordChat(source: String, chatName: String) {
+        val bucket = chats.getOrPut(source) { Bucket() }
+        bucket.entryCount += 1
+        if (chatName.isNotBlank()) bucket.names += chatName.take(120)
+    }
+
+    fun recordGlobalScripts(names: List<String>) {
+        globalScripts += names
+    }
+
+    fun recordPresetScripts(presetName: String, names: List<String>) {
+        recordScripts(presetScripts, presetName, names)
+    }
+
+    fun recordLocalScripts(characterName: String, names: List<String>) {
+        recordScripts(localScripts, characterName, names)
+    }
+
+    fun childrenFor(kind: BackupArchiveContentKind): List<BackupArchiveContentNode> {
+        return when (kind) {
+            BackupArchiveContentKind.Chats -> chats.toNodes()
+            BackupArchiveContentKind.TavernHelperScripts -> buildList {
+                if (globalScripts.isNotEmpty()) {
+                    add(
+                        BackupArchiveContentNode(
+                            title = "全局脚本",
+                            entryCount = globalScripts.size,
+                            names = globalScripts.toList(),
+                        ),
+                    )
+                }
+                addScope("预设脚本", presetScripts)
+                addScope("局部脚本", localScripts)
+            }
+            else -> emptyList()
+        }
+    }
+
+    private fun recordScripts(
+        target: LinkedHashMap<String, Bucket>,
+        sourceName: String,
+        names: List<String>,
+    ) {
+        if (names.isEmpty()) return
+        val bucket = target.getOrPut(sourceName) { Bucket() }
+        names.forEach { name ->
+            if (bucket.names.add(name)) bucket.entryCount += 1
+        }
+    }
+
+    private fun MutableList<BackupArchiveContentNode>.addScope(
+        title: String,
+        sources: LinkedHashMap<String, Bucket>,
+    ) {
+        if (sources.isEmpty()) return
+        add(
+            BackupArchiveContentNode(
+                title = title,
+                entryCount = sources.values.sumOf { it.entryCount },
+                children = sources.toNodes(),
+            ),
+        )
+    }
+
+    private fun LinkedHashMap<String, Bucket>.toNodes(): List<BackupArchiveContentNode> {
+        return map { (title, bucket) ->
+            BackupArchiveContentNode(
+                title = title,
+                entryCount = bucket.entryCount,
+                names = bucket.names.toList(),
+            )
+        }
+    }
 }
 
 data class BackupRestorePreview(
