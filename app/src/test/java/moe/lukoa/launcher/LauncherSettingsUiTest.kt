@@ -870,7 +870,7 @@ class LauncherSettingsUiTest {
         advancePastClickDebounce()
         composeRule.onNode(hasText("管理已安装扩展") and hasClickAction()).performClick()
         composeRule.onNodeWithText("当前实例与状态").assertIsDisplayed()
-        composeRule.onNodeWithText("可用操作").assertIsDisplayed()
+        composeRule.onNodeWithText("可用操作").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("已安装扩展").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("读取扩展").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()

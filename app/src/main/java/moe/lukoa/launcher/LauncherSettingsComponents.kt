@@ -102,6 +102,43 @@ internal fun ManagementDialogSectionTitle(title: String) {
 }
 
 @Composable
+internal fun ManagementDialogIntroCard(text: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+internal fun ManagementDialogActionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ManagementDialogSectionTitle(title)
+        SettingsEntryGroup {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
 internal fun SettingsEntryDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 14.dp),

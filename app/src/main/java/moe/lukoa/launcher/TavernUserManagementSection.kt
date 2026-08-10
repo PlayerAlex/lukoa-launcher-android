@@ -56,10 +56,8 @@ fun TavernUserManagementSettingsPanel(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = "这里管理当前酒馆实例中的登录账户。读取和修改前需要先停止酒馆，删除账户时仍会保留对应的数据目录。",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
+                    ManagementDialogIntroCard(
+                        "这里管理当前酒馆实例中的登录账户。读取和修改前需要先停止酒馆，删除账户时仍会保留对应的数据目录。",
                     )
                     dialogStateHolder.SaveableStateProvider("user-management-dialog") {
                         TavernUserManagementSection(
@@ -168,8 +166,7 @@ fun TavernUserManagementSection(
                 highlightColor = LukoaColors.Primary,
             )
         }
-        ManagementDialogSectionTitle("可用操作")
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ManagementDialogActionCard("可用操作") {
             SettingsFeedbackActionButton(
                 text = if (state.loading) "读取中..." else "读取用户",
                 modifier = Modifier.fillMaxWidth(),

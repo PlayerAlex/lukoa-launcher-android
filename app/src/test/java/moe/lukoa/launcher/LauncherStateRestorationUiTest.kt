@@ -40,7 +40,7 @@ class LauncherStateRestorationUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("管理酒馆用户").performClick()
         advancePastClickDebounce()
-        composeRule.onNodeWithText("新增用户").performClick()
+        composeRule.onNodeWithText("新增用户").performScrollTo().performClick()
         composeRule.onNodeWithText("登录标识").performTextInput("alice")
         composeRule.onNodeWithText("显示名称").performTextInput("清凉用户")
 

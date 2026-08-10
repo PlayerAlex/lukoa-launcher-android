@@ -39,6 +39,12 @@ class LauncherModuleBoundaryTest {
     private val pendingTaskUiSource by lazy {
         File("src/main/java/moe/lukoa/launcher/PendingTaskResumeDialog.kt").readText(Charsets.UTF_8)
     }
+    private val userManagementSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/TavernUserManagementSection.kt").readText(Charsets.UTF_8)
+    }
+    private val extensionManagementSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/TavernExtensionManagementSection.kt").readText(Charsets.UTF_8)
+    }
 
     @Test
     fun `settings dialogs share one saveable destination`() {
@@ -135,5 +141,22 @@ class LauncherModuleBoundaryTest {
             .substringBefore("fun BackgroundTaskCenterDialog(")
         assertTrue(taskSettingsBlock.contains("containerColor = LukoaColors.Elevated"))
         assertTrue(taskSettingsBlock.contains("SettingsEntryGroup"))
+    }
+
+    @Test
+    fun `all management dialogs share intro and action cards`() {
+        listOf(userManagementSource, extensionManagementSource, pendingTaskUiSource).forEach { source ->
+            assertTrue(source.contains("ManagementDialogIntroCard("))
+            assertTrue(source.contains("ManagementDialogActionCard("))
+        }
+
+        val taskSettingsBlock = pendingTaskUiSource
+            .substringAfter("fun BackgroundTaskSettingsPanel(")
+            .substringBefore("fun BackgroundTaskCenterDialog(")
+        assertTrue(
+            taskSettingsBlock.contains(
+                "highlightColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary",
+            ),
+        )
     }
 }

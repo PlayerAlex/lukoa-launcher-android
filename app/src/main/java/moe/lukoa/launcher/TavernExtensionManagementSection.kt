@@ -61,10 +61,8 @@ fun TavernExtensionManagementSettingsPanel(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = "这里管理当前酒馆实例的第三方网页扩展。各扩展会分开显示，安装、更新、回退、启停或删除前请先停止酒馆。",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
+                    ManagementDialogIntroCard(
+                        "这里管理当前酒馆实例的第三方网页扩展。各扩展会分开显示，安装、更新、回退、启停或删除前请先停止酒馆。",
                     )
                     dialogStateHolder.SaveableStateProvider("extension-management-dialog") {
                         TavernExtensionManagementSection(
@@ -368,8 +366,7 @@ fun TavernExtensionManagementSection(
             }
         }
 
-        ManagementDialogSectionTitle("可用操作")
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ManagementDialogActionCard("可用操作") {
             SettingsFeedbackActionButton(
                 text = "安装扩展",
                 modifier = Modifier.fillMaxWidth(),
@@ -411,34 +408,34 @@ fun TavernExtensionManagementSection(
                 onShowHint = onShowHint,
                 onClick = onCheckUpdates,
             )
-        }
 
-        if (state.rootDirectory.isNotBlank()) {
-            SecondaryActionButton(
-                text = "复制扩展根目录",
-                enabled = true,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    val copied = onCopyPath(state.rootDirectory)
-                    onShowHint(if (copied) "扩展根目录已复制。" else "复制扩展根目录失败。")
-                },
-            )
-        }
+            if (state.rootDirectory.isNotBlank()) {
+                SecondaryActionButton(
+                    text = "复制扩展根目录",
+                    enabled = true,
+                    accentColor = LukoaColors.Primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val copied = onCopyPath(state.rootDirectory)
+                        onShowHint(if (copied) "扩展根目录已复制。" else "复制扩展根目录失败。")
+                    },
+                )
+            }
 
-        if (state.extensions.size > 1) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it.take(80) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("搜索扩展") },
-                placeholder = { Text("名称、作者、版本或目录") },
-                supportingText = {
-                    Text("显示 ${visibleExtensions.size} / ${state.extensions.size} 个扩展")
-                },
-                singleLine = true,
-                colors = lukoaTextFieldColors(LukoaColors.Primary),
-            )
+            if (state.extensions.size > 1) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it.take(80) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("搜索扩展") },
+                    placeholder = { Text("名称、作者、版本或目录") },
+                    supportingText = {
+                        Text("显示 ${visibleExtensions.size} / ${state.extensions.size} 个扩展")
+                    },
+                    singleLine = true,
+                    colors = lukoaTextFieldColors(LukoaColors.Primary),
+                )
+            }
         }
 
         ManagementDialogSectionTitle("已安装扩展")
