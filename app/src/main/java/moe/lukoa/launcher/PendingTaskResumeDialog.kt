@@ -202,7 +202,7 @@ private fun PendingTaskStateHeader(activeLockLabel: String?) {
     val taskMayBeRunning = !activeLockLabel.isNullOrBlank()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = if (taskMayBeRunning) LukoaColors.AccentSoft else LukoaColors.Elevated,
+        color = if (taskMayBeRunning) LukoaColors.AccentSoft else LukoaColors.Surface,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(
             1.dp,
@@ -237,7 +237,7 @@ private fun PendingTaskSummaryCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
+        color = LukoaColors.Surface,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
@@ -382,16 +382,19 @@ fun BackgroundTaskSettingsPanel(
     SectionPanel(
         title = "后台任务",
         accentColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
     ) {
-        SettingsEntryRow(
-            title = "任务中心",
-            detail = "查看耗时操作、补查 Termux 返回结果，或前往任务对应页面。",
-            value = status,
-            valueColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
-            valueAsPill = true,
-            highlightColor = if (needsAttention) LukoaColors.Accent else null,
-            onClick = onOpen,
-        )
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "任务中心",
+                detail = "查看耗时操作、补查 Termux 返回结果，或前往任务对应页面。",
+                value = status,
+                valueColor = if (needsAttention) LukoaColors.Accent else LukoaColors.Primary,
+                valueAsPill = true,
+                highlightColor = if (needsAttention) LukoaColors.Accent else null,
+                onClick = onOpen,
+            )
+        }
     }
 }
 

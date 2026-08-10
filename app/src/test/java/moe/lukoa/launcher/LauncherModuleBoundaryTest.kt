@@ -33,6 +33,12 @@ class LauncherModuleBoundaryTest {
     private val termuxRunnerSource by lazy {
         File("src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt").readText(Charsets.UTF_8)
     }
+    private val settingsComponentsSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/LauncherSettingsComponents.kt").readText(Charsets.UTF_8)
+    }
+    private val pendingTaskUiSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/PendingTaskResumeDialog.kt").readText(Charsets.UTF_8)
+    }
 
     @Test
     fun `settings dialogs share one saveable destination`() {
@@ -116,5 +122,18 @@ class LauncherModuleBoundaryTest {
 
         assertTrue("直接命令和内置脚本命令都必须经过同一展示策略", defaultUsages >= 2)
         assertFalse(termuxRunnerSource.contains("background: Boolean = true"))
+    }
+
+    @Test
+    fun `settings and task center share elevated outer and deep inset roles`() {
+        assertTrue(launcherPanelsSource.contains("containerColor: Color = LukoaColors.Surface"))
+        assertTrue(launcherPanelsSource.contains("color = containerColor"))
+        assertTrue(settingsComponentsSource.contains("color = LukoaColors.Surface"))
+
+        val taskSettingsBlock = pendingTaskUiSource
+            .substringAfter("fun BackgroundTaskSettingsPanel(")
+            .substringBefore("fun BackgroundTaskCenterDialog(")
+        assertTrue(taskSettingsBlock.contains("containerColor = LukoaColors.Elevated"))
+        assertTrue(taskSettingsBlock.contains("SettingsEntryGroup"))
     }
 }

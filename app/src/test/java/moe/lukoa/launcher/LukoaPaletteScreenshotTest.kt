@@ -96,6 +96,7 @@ class LukoaPaletteScreenshotTest {
                     SectionPanel(
                         title = "实例与运行环境",
                         accentColor = LukoaColors.Primary,
+                        containerColor = LukoaColors.Elevated,
                     ) {
                         SettingsEntryGroup {
                             SettingsEntryRow(

@@ -96,6 +96,7 @@ fun TavernExtensionManagementSettingsPanel(
     SectionPanel(
         title = "扩展管理",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = {
             StatusPill(
                 text = extensionManagementStatusText(state, actionsLocked),

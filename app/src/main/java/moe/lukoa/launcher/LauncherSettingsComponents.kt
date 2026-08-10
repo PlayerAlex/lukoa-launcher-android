@@ -67,7 +67,7 @@ internal fun SettingsEntryGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
+        color = LukoaColors.Surface,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {

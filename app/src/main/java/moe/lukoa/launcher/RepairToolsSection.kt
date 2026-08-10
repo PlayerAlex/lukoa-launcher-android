@@ -94,6 +94,7 @@ fun RepairToolsSettingsPanel(
     SectionPanel(
         title = "修复工具",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = { RepairToolsHeader(actionsLocked, tavernRunning) },
     ) {
         SettingsEntryGroup {

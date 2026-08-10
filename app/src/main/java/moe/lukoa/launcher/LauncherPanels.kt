@@ -32,6 +32,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -275,13 +276,14 @@ fun OverviewPanel(
 @Composable
 fun SectionPanel(
     title: String,
-    accentColor: androidx.compose.ui.graphics.Color,
+    accentColor: Color,
+    containerColor: Color = LukoaColors.Surface,
     headerAction: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
+        color = containerColor,
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 0.dp,
     ) {

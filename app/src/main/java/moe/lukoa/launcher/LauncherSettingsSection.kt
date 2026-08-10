@@ -494,6 +494,7 @@ internal fun LauncherUpdateSettingsPanel(
     SectionPanel(
         title = "启动器更新",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -627,6 +628,7 @@ internal fun InstanceManagementPanel(
     SectionPanel(
         title = "实例与运行环境",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -722,6 +724,7 @@ private fun DiagnosticsSettingsPanel(
     SectionPanel(
         title = "诊断与日志",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = {
             InfoPopoverButton(
                 contentDescription = "查看诊断与日志说明",

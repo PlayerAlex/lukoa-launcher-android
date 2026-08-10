@@ -85,6 +85,7 @@ fun TavernUserManagementSettingsPanel(
     SectionPanel(
         title = "用户管理",
         accentColor = LukoaColors.Primary,
+        containerColor = LukoaColors.Elevated,
         headerAction = {
             TavernUserManagementHeader(
                 state = state,
