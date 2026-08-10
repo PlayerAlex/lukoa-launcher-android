@@ -70,7 +70,7 @@ class BackupContentCatalogStore(context: Context) {
         .put(
             "groups",
             JSONArray().apply {
-                groups.forEach { group ->
+                displayGroups.forEach { group ->
                     put(
                         JSONObject()
                             .put("kind", group.kind.name)
@@ -164,7 +164,7 @@ class BackupContentCatalogStore(context: Context) {
 
     companion object {
         const val PREFS_NAME = "lukoa_backup_content_catalog"
-        private const val KEY_CATALOG = "catalog_v3"
+        private const val KEY_CATALOG = "catalog_v4"
         private const val MAX_CATALOG_TREE_DEPTH = 8
     }
 }

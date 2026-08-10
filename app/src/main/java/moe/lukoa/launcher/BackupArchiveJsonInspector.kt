@@ -24,17 +24,21 @@ object BackupArchiveJsonInspector {
             val presetScriptNames = linkedSetOf<String>()
             val localScriptNames = linkedSetOf<String>()
 
-            val extensionSettings = root.optJSONObject("extension_settings")
-            extensionSettings
-                ?.optJSONObject("tavern_helper")
-                ?.optJSONObject("script")
-                ?.opt("scripts")
-                ?.let { globalScriptNames += collectScriptNames(it) }
-            extensionSettings
-                ?.optJSONObject("TavernHelper")
-                ?.optJSONObject("script")
-                ?.opt("scriptsRepository")
-                ?.let { globalScriptNames += collectScriptNames(it) }
+            listOfNotNull(
+                root.optJSONObject("extension_settings"),
+                root.optJSONObject("extensions"),
+            ).forEach { extensionSettings ->
+                extensionSettings
+                    .optJSONObject("tavern_helper")
+                    ?.optJSONObject("script")
+                    ?.opt("scripts")
+                    ?.let { globalScriptNames += collectScriptNames(it) }
+                extensionSettings
+                    .optJSONObject("TavernHelper")
+                    ?.optJSONObject("script")
+                    ?.opt("scriptsRepository")
+                    ?.let { globalScriptNames += collectScriptNames(it) }
+            }
             root.optJSONObject("extensions")
                 ?.optJSONObject("tavern_helper")
                 ?.opt("scripts")

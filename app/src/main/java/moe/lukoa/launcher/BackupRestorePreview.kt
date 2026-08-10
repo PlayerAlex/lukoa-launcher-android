@@ -24,7 +24,29 @@ enum class BackupArchiveContentKind(
     TavernHelperScripts("酒馆助手脚本"),
     Chats("聊天记录"),
     WorldBooks("世界书"),
-    Extensions("扩展/插件"),
+    Extensions("扩展/插件");
+
+    companion object {
+        val displayOrder: List<BackupArchiveContentKind> = listOf(
+            GenerationTemplates,
+            PromptTemplates,
+            Beautification,
+            Presets,
+            TavernHelperScripts,
+            CharacterCards,
+            WorldBooks,
+            Chats,
+            RegexScripts,
+            Extensions,
+        )
+
+        private val displayRanks = displayOrder.withIndex().associate { (index, kind) ->
+            kind to index
+        }
+    }
+
+    val displayRank: Int
+        get() = displayRanks.getValue(this)
 }
 
 data class BackupArchiveContentGroup(
@@ -56,9 +78,13 @@ data class BackupArchiveContentSummary(
     }
 }
 
+val BackupArchiveContentSummary.displayGroups: List<BackupArchiveContentGroup>
+    get() = groups.sortedBy { it.kind.displayRank }
+
 object BackupArchiveContentScanner {
     const val MAX_PREVIEW_ENTRIES = 2_000
     const val MAX_INSPECTABLE_JSON_BYTES = 2 * 1024 * 1024
+    private const val MAX_INSPECTABLE_SETTINGS_JSON_BYTES = 16 * 1024 * 1024
     private const val MAX_ENTRY_SIZE = 100L * 1024L * 1024L * 1024L
     private const val MAX_TOTAL_DECLARED_SIZE = 1_000L * 1024L * 1024L * 1024L
 
@@ -113,7 +139,7 @@ object BackupArchiveContentScanner {
                     val jsonInspection = if (
                         !entry.isDirectory &&
                         fileName.endsWith(".json") &&
-                        entry.size in 1..MAX_INSPECTABLE_JSON_BYTES.toLong() &&
+                        entry.size in 1..maxInspectableJsonBytes(segments).toLong() &&
                         shouldInspectJson(segments, pathClassification?.first)
                     ) {
                         BackupArchiveJsonInspector.inspect(
@@ -163,7 +189,7 @@ object BackupArchiveContentScanner {
             hasConfiguration = hasConfiguration,
             hasLukoaManifest = hasLukoaManifest,
             truncated = truncated,
-            groups = BackupArchiveContentKind.entries.mapNotNull { kind ->
+            groups = BackupArchiveContentKind.displayOrder.mapNotNull { kind ->
                 val count = categoryCounts.getValue(kind)
                 if (count <= 0) return@mapNotNull null
                 val names = categoryNames.getValue(kind).toList()
@@ -292,6 +318,17 @@ object BackupArchiveContentScanner {
         }
         return lowerSegments.lastOrNull() == "settings.json" &&
             isDirectUserRootFile(lowerSegments)
+    }
+
+    private fun maxInspectableJsonBytes(lowerSegments: List<String>): Int {
+        return if (
+            lowerSegments.lastOrNull() == "settings.json" &&
+            isDirectUserRootFile(lowerSegments)
+        ) {
+            MAX_INSPECTABLE_SETTINGS_JSON_BYTES
+        } else {
+            MAX_INSPECTABLE_JSON_BYTES
+        }
     }
 
     private fun findChatLocation(

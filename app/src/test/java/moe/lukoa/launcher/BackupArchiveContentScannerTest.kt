@@ -248,6 +248,131 @@ class BackupArchiveContentScannerTest {
     }
 
     @Test
+    fun `scanner reads global tavern helper scripts from large user settings`() {
+        val padding = "x".repeat(BackupArchiveContentScanner.MAX_INSPECTABLE_JSON_BYTES)
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/settings.json" to
+                """
+                {
+                  "extension_settings": {
+                    "tavern_helper": {
+                      "script": {
+                        "scripts": [
+                          {"type":"script","name":"Large global script"}
+                        ]
+                      }
+                    }
+                  },
+                  "padding": "$padding"
+                }
+                """.trimIndent(),
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("Large global script"),
+            summary.group(BackupArchiveContentKind.TavernHelperScripts)
+                ?.children
+                ?.single()
+                ?.names,
+        )
+    }
+
+    @Test
+    fun `scanner accepts extensions as alternate global settings root`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/settings.json" to
+                """
+                {
+                  "extensions": {
+                    "tavern_helper": {
+                      "script": {
+                        "scripts": [
+                          {"type":"script","name":"Alternate root script"}
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.trimIndent(),
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("Alternate root script"),
+            summary.group(BackupArchiveContentKind.TavernHelperScripts)
+                ?.children
+                ?.single()
+                ?.names,
+        )
+    }
+
+    @Test
+    fun `scanner returns backup content groups in product display order`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/NovelAI Settings/Generation.json" to "{}",
+            "SillyTavern/data/default-user/instruct/Prompt.json" to "{}",
+            "SillyTavern/data/default-user/themes/Theme.json" to "{}",
+            "SillyTavern/data/default-user/OpenAI Settings/Preset.json" to "{}",
+            "SillyTavern/data/default-user/settings.json" to
+                """{"extension_settings":{"tavern_helper":{"script":{"scripts":[{"type":"script","name":"Global"}]}}}}""",
+            "SillyTavern/data/default-user/characters/Character.png" to "card",
+            "SillyTavern/data/default-user/worlds/World.json" to "{}",
+            "SillyTavern/data/default-user/chats/Character/Chat.jsonl" to "{}",
+            "SillyTavern/data/default-user/regex/Regex.json" to "{}",
+            "SillyTavern/public/scripts/extensions/third-party/Extension/manifest.json" to "{}",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf(
+                BackupArchiveContentKind.GenerationTemplates,
+                BackupArchiveContentKind.PromptTemplates,
+                BackupArchiveContentKind.Beautification,
+                BackupArchiveContentKind.Presets,
+                BackupArchiveContentKind.TavernHelperScripts,
+                BackupArchiveContentKind.CharacterCards,
+                BackupArchiveContentKind.WorldBooks,
+                BackupArchiveContentKind.Chats,
+                BackupArchiveContentKind.RegexScripts,
+                BackupArchiveContentKind.Extensions,
+            ),
+            summary.groups.map(BackupArchiveContentGroup::kind),
+        )
+    }
+
+    @Test
+    fun `display groups normalize summaries loaded from an older cache`() {
+        val summary = BackupArchiveContentSummary(
+            entryCount = 4,
+            hasUserData = true,
+            hasExtensions = false,
+            hasConfiguration = false,
+            hasLukoaManifest = true,
+            truncated = false,
+            groups = listOf(
+                BackupArchiveContentGroup(BackupArchiveContentKind.Chats, 1),
+                BackupArchiveContentGroup(BackupArchiveContentKind.CharacterCards, 1),
+                BackupArchiveContentGroup(BackupArchiveContentKind.Presets, 1),
+                BackupArchiveContentGroup(BackupArchiveContentKind.GenerationTemplates, 1),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                BackupArchiveContentKind.GenerationTemplates,
+                BackupArchiveContentKind.Presets,
+                BackupArchiveContentKind.CharacterCards,
+                BackupArchiveContentKind.Chats,
+            ),
+            summary.displayGroups.map(BackupArchiveContentGroup::kind),
+        )
+    }
+
+    @Test
     fun `scanner falls back to extension directory and skips oversized json inspection`() {
         val oversizedJson = " ".repeat(BackupArchiveContentScanner.MAX_INSPECTABLE_JSON_BYTES + 1)
         val archive = tarGzip(

@@ -559,7 +559,7 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
-                    content.groups.forEach { group ->
+                    content.displayGroups.forEach { group ->
                         BackupContentGroupRow(group)
                     }
                 }

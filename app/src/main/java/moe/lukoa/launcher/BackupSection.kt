@@ -532,7 +532,7 @@ private fun BackupRecordLine(
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 } else {
-                                    summary.groups.forEach { group ->
+                                    summary.displayGroups.forEach { group ->
                                         BackupContentGroupRow(group)
                                     }
                                 }
