@@ -662,6 +662,47 @@ valid_version_target() {
   return 0
 }
 
+run_with_live_log() {
+  live_code_file="$STATE_DIR/live-command-exit-$$"
+  rm -f "$live_code_file" 2>/dev/null || true
+  printf "\n>>>"
+  for live_arg in "$@"; do
+    printf " %s" "$live_arg"
+  done
+  printf "\n"
+  {
+    "$@"
+    printf "%s" "$?" > "$live_code_file"
+  } 2>&1 | tee -a "$LOG_FILE"
+  live_code="$(cat "$live_code_file" 2>/dev/null || printf 74)"
+  rm -f "$live_code_file" 2>/dev/null || true
+  case "$live_code" in
+    ''|*[!0-9]*) live_code=74 ;;
+  esac
+  return "$live_code"
+}
+
+emit_version_operation_return_hint() {
+  operation_label="$1"
+  operation_code="$2"
+  printf "\n"
+  if [ "$operation_code" -eq 0 ]; then
+    printf "✅ %s完成。\n" "$operation_label"
+  else
+    printf "❌ %s未完成（退出码：%s），请保留上方输出用于排查。\n" "$operation_label" "$operation_code"
+  fi
+  printf "现在可以返回露科亚启动器继续下一步。\n"
+}
+
+run_version_operation_with_hint() {
+  operation_label="$1"
+  shift
+  "$@"
+  operation_code="$?"
+  emit_version_operation_return_hint "$operation_label" "$operation_code"
+  return "$operation_code"
+}
+
 checkout_requested_target() {
   target="$1"
   if [ -z "$target" ]; then
@@ -672,18 +713,18 @@ checkout_requested_target() {
   fi
   if git show-ref --verify --quiet "refs/remotes/origin/$target"; then
     if git show-ref --verify --quiet "refs/heads/$target"; then
-      git checkout "$target" >> "$LOG_FILE" 2>&1 &&
-        git merge --ff-only "origin/$target" >> "$LOG_FILE" 2>&1
+      run_with_live_log git checkout "$target" &&
+        run_with_live_log git merge --ff-only "origin/$target"
     else
-      git checkout -B "$target" "origin/$target" >> "$LOG_FILE" 2>&1
+      run_with_live_log git checkout -B "$target" "origin/$target"
     fi
     return "$?"
   fi
   if git show-ref --verify --quiet "refs/tags/$target"; then
-    git checkout "tags/$target" >> "$LOG_FILE" 2>&1
+    run_with_live_log git checkout "tags/$target"
     return "$?"
   fi
-  git checkout "$target" >> "$LOG_FILE" 2>&1
+  run_with_live_log git checkout "$target"
 }
 
 checkout_update_target() {
@@ -695,7 +736,7 @@ checkout_update_target() {
   current_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf HEAD)"
   upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
   if [ "$current_branch" != "HEAD" ] && [ -n "$upstream" ]; then
-    git pull --ff-only >> "$LOG_FILE" 2>&1
+    run_with_live_log git pull --ff-only
     return "$?"
   fi
 
@@ -708,10 +749,10 @@ checkout_update_target() {
   fi
 
   if git show-ref --verify --quiet "refs/heads/$target_branch"; then
-    git checkout "$target_branch" >> "$LOG_FILE" 2>&1 &&
-      git merge --ff-only "origin/$target_branch" >> "$LOG_FILE" 2>&1
+    run_with_live_log git checkout "$target_branch" &&
+      run_with_live_log git merge --ff-only "origin/$target_branch"
   else
-    git checkout -B "$target_branch" "origin/$target_branch" >> "$LOG_FILE" 2>&1
+    run_with_live_log git checkout -B "$target_branch" "origin/$target_branch"
   fi
 }
 
@@ -766,7 +807,7 @@ install_node_dependencies() {
   if [ -n "${NPM_REGISTRY:-}" ]; then
     printf "[%s] npm registry=%s\n" "$(timestamp)" "$NPM_REGISTRY" >> "$LOG_FILE"
   fi
-  npm install --no-audit --no-fund >> "$LOG_FILE" 2>&1
+  run_with_live_log npm install --no-audit --no-fund
   npm_code="$?"
   cleanup_install_generated_changes
   return "$npm_code"
@@ -1538,7 +1579,7 @@ cmd_install() {
   mkdir -p "$parent"
   printf "\n[%s] ===== Lukoa launcher tavern install =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] target=%s repo=%s\n" "$(timestamp)" "$target" "$OFFICIAL_REPO" >> "$LOG_FILE"
-  git clone -b "$target" "$OFFICIAL_REPO" "$TAVERN_DIR" >> "$LOG_FILE" 2>&1
+  run_with_live_log git clone -b "$target" "$OFFICIAL_REPO" "$TAVERN_DIR"
   clone_code="$?"
   if [ "$clone_code" -ne 0 ]; then
     write_status "error" "git clone failed; check tavern.log" false "$clone_code"
@@ -1612,7 +1653,7 @@ cmd_update() {
   printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
-  git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
+  run_with_live_log git fetch --all --tags --prune
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
     [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
@@ -1729,7 +1770,7 @@ cmd_rollback() {
   printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
-  git fetch --all --tags --prune >> "$LOG_FILE" 2>&1
+  run_with_live_log git fetch --all --tags --prune
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
     [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
@@ -4674,15 +4715,15 @@ main() {
       ;;
     install|tavern-install)
       shift
-      cmd_install "$@"
+      run_version_operation_with_hint "安装" cmd_install "$@"
       ;;
     update|tavern-update)
       shift
-      cmd_update "$@"
+      run_version_operation_with_hint "更新" cmd_update "$@"
       ;;
     rollback|tavern-rollback)
       shift
-      cmd_rollback "$@"
+      run_version_operation_with_hint "回退" cmd_rollback "$@"
       ;;
     version|tavern-version)
       cmd_version

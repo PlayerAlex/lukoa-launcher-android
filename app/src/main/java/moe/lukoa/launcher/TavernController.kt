@@ -125,6 +125,13 @@ class TavernController(
         update(dispatchMessage(parsed.name, dispatch), "", false)
         if (!dispatch.sent) return
 
+        if (dispatch.presentation == TermuxCommandPresentation.Foreground) {
+            scope.launch {
+                delay(250)
+                runner.wakeTermux()
+            }
+        }
+
         scope.launch {
             val result = waitForResult(
                 executionId = dispatch.executionId,

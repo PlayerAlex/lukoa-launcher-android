@@ -12,6 +12,9 @@ class BundledShellScriptRegressionTest {
     private val runnerSource by lazy {
         File("src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt").readText(Charsets.UTF_8)
     }
+    private val controllerSource by lazy {
+        File("src/main/java/moe/lukoa/launcher/TavernController.kt").readText(Charsets.UTF_8)
+    }
 
     @Test
     fun `shell defaults main profile to traditional path and clones to managed paths`() {
@@ -214,5 +217,28 @@ class BundledShellScriptRegressionTest {
         assertTrue(runnerSource.contains("TermuxScriptTransport.Stdin"))
         assertTrue(runnerSource.contains("TermuxScriptTransport.CompressedArgument"))
         assertFalse(runnerSource.contains("LUKOA_LAUNCHER_SCRIPT_EOF"))
+    }
+
+    @Test
+    fun `foreground commands wake termux using the actual dispatch presentation`() {
+        assertTrue(runnerSource.contains("val presentation: TermuxCommandPresentation"))
+        assertTrue(runnerSource.contains("presentation = if (background)"))
+        assertTrue(controllerSource.contains("dispatch.presentation == TermuxCommandPresentation.Foreground"))
+        assertTrue(controllerSource.contains("runner.wakeTermux()"))
+    }
+
+    @Test
+    fun `version operations stream progress and finish with a launcher return hint`() {
+        val mainBlock = script.substringAfter("main() {")
+
+        assertTrue(script.contains("run_with_live_log()"))
+        assertTrue(script.contains("run_with_live_log git clone"))
+        assertTrue(script.contains("run_with_live_log git fetch --all --tags --prune"))
+        assertTrue(script.contains("run_with_live_log npm install --no-audit --no-fund"))
+        assertTrue(script.contains("emit_version_operation_return_hint()"))
+        assertTrue(mainBlock.contains("run_version_operation_with_hint \"安装\" cmd_install"))
+        assertTrue(mainBlock.contains("run_version_operation_with_hint \"更新\" cmd_update"))
+        assertTrue(mainBlock.contains("run_version_operation_with_hint \"回退\" cmd_rollback"))
+        assertTrue(script.contains("现在可以返回露科亚启动器继续下一步。"))
     }
 }

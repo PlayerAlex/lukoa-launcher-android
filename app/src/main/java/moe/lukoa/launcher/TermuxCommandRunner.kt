@@ -16,6 +16,7 @@ data class CommandDispatch(
     val executionId: Int = 0,
     val nonce: String? = null,
     val displayCommand: String = "",
+    val presentation: TermuxCommandPresentation = TermuxCommandPresentation.Background,
 )
 
 class TermuxCommandRunner(private val context: Context) {
@@ -863,6 +864,11 @@ class TermuxCommandRunner(private val context: Context) {
                 executionId = executionId,
                 nonce = dispatchNonce,
                 displayCommand = displayCommand,
+                presentation = if (background) {
+                    TermuxCommandPresentation.Background
+                } else {
+                    TermuxCommandPresentation.Foreground
+                },
             )
         } catch (security: SecurityException) {
             CommandDispatch(
