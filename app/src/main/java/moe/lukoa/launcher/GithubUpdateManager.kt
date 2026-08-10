@@ -62,6 +62,11 @@ data class GithubUpdateUiState(
 
     val canInstallUpdate: Boolean
         get() = hasUpdate && latest?.apkDownloadUrl?.isNotBlank() == true && !checking && !downloading
+
+    fun shouldPromptUpdate(ignoredTag: String, manual: Boolean): Boolean {
+        val update = latest ?: return false
+        return update.isNewer && (manual || update.tagName != ignoredTag)
+    }
 }
 
 class GithubUpdateManager(private val context: Context) {

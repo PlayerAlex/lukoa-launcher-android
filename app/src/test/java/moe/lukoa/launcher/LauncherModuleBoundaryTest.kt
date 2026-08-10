@@ -92,7 +92,7 @@ class LauncherModuleBoundaryTest {
     fun `default github repository flow has no unreachable blank success branch`() {
         val restoreDefaultBlock = screenSource
             .substringAfter("fun restoreDefaultGithubRepository()")
-            .substringBefore("fun clearCurrentGithubUpdateBadge()")
+            .substringBefore("fun ignoreCurrentGithubUpdate()")
 
         assertFalse(githubUpdateStoreSource.contains("if (normalized.isBlank())"))
         assertFalse(restoreDefaultBlock.contains("if (result.repository.isBlank())"))

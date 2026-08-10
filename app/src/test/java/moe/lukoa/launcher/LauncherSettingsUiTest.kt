@@ -45,6 +45,34 @@ class LauncherSettingsUiTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun updateDialog_offersInstallOrIgnoreCurrentVersion() {
+        var installCount = 0
+        var ignoreCount = 0
+        composeRule.setContent {
+            LukoaTheme {
+                UpdateAvailableDialog(
+                    updateInfo = updateInfo(isNewer = true),
+                    currentVersionName = "0.9.3-beta39",
+                    downloading = false,
+                    onInstall = { installCount += 1 },
+                    onOpenRelease = {},
+                    onIgnoreVersion = { ignoreCount += 1 },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("立即更新").assertIsDisplayed()
+        composeRule.onNodeWithText("忽略这个版本").performScrollTo().assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("忽略这个版本").performScrollTo().performClick()
+        composeRule.runOnIdle {
+            assertEquals(0, installCount)
+            assertEquals(1, ignoreCount)
+        }
+    }
+
+    @Test
     fun profileCloneDialog_explainsFullCopyBeforeConfirmation() {
         var confirmCount = 0
         composeRule.setContent {

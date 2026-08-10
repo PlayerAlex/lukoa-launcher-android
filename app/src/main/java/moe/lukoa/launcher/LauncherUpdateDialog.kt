@@ -55,7 +55,7 @@ fun UpdateAvailableDialog(
     downloading: Boolean,
     onInstall: () -> Unit,
     onOpenRelease: () -> Unit,
-    onClearBadge: () -> Unit,
+    onIgnoreVersion: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val publishedText = remember(updateInfo.publishedAt) {
@@ -162,7 +162,7 @@ fun UpdateAvailableDialog(
                     border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
                     Text(
-                        text = "清除红点后，这个版本不会再自动弹出提醒，但你之后仍然可以手动点右上角版本查看。",
+                        text = "忽略后，这个版本不会再自动弹出提醒，但你之后仍然可以手动点右上角版本查看。",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
@@ -187,11 +187,11 @@ fun UpdateAvailableDialog(
                         onClick = onOpenRelease,
                     )
                     ToneActionButton(
-                        text = "清除红点",
+                        text = "忽略这个版本",
                         enabled = true,
                         tone = ActionTone.Neutral,
                         modifier = Modifier.weight(1f),
-                        onClick = onClearBadge,
+                        onClick = onIgnoreVersion,
                     )
                 }
                 ToneActionButton(

@@ -2092,9 +2092,7 @@ fun LukoaLauncherScreen(
         onCheckGithubUpdate(repository, githubUpdateChannel) { result ->
             val nextLatest = result.info ?: githubUpdateState.latest
             val nextCurrentRelease = result.currentInfo ?: githubUpdateState.currentRelease
-            val shouldPrompt = result.info?.isNewer == true &&
-                (manual || result.info.tagName != ignoredUpdateTag)
-            githubUpdateState = githubUpdateState.copy(
+            val nextState = githubUpdateState.copy(
                 repository = repository,
                 channel = githubUpdateChannel,
                 checking = false,
@@ -2103,6 +2101,11 @@ fun LukoaLauncherScreen(
                 currentRelease = nextCurrentRelease,
                 message = result.message,
                 lastCheckedText = "刚刚检查",
+            )
+            githubUpdateState = nextState
+            val shouldPrompt = nextState.shouldPromptUpdate(
+                ignoredTag = ignoredUpdateTag,
+                manual = manual,
             )
             if (shouldPrompt) {
                 showUpdateDialog = true
@@ -2220,13 +2223,13 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun clearCurrentGithubUpdateBadge() {
+    fun ignoreCurrentGithubUpdate() {
         val latest = githubUpdateState.latest ?: return
         ignoredUpdateTag = latest.tagName
         onIgnoreGithubUpdate(latest.tagName)
         showUpdateDialog = false
         update(
-            "已清除 v${latest.versionName} 的更新红点，这个版本不会再自动弹出提醒。",
+            "已忽略 v${latest.versionName}，这个版本不会再自动弹出提醒。",
             "",
             true,
             allowRunningInference = false,
@@ -3504,7 +3507,7 @@ fun LukoaLauncherScreen(
                     val result = onOpenGithubRelease(latest)
                     update(result.message, "", result.ok, allowRunningInference = false)
                 },
-                onClearBadge = ::clearCurrentGithubUpdateBadge,
+                onIgnoreVersion = ::ignoreCurrentGithubUpdate,
                 onDismiss = { showUpdateDialog = false },
             )
         }
