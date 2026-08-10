@@ -22,7 +22,9 @@ enum class BackupArchiveContentKind(
         "提示词模板",
         "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
     ),
+    Beautification("酒馆美化"),
     RegexScripts("正则"),
+    TavernHelperScripts("酒馆助手脚本"),
     Chats("聊天记录"),
     WorldBooks("世界书"),
     Extensions("扩展/插件"),
@@ -52,6 +54,7 @@ data class BackupArchiveContentSummary(
 object BackupArchiveContentScanner {
     const val MAX_PREVIEW_ENTRIES = 2_000
     const val MAX_CATEGORY_NAMES = 80
+    const val MAX_INSPECTABLE_JSON_BYTES = 2 * 1024 * 1024
     private const val MAX_ENTRY_SIZE = 100L * 1024L * 1024L * 1024L
     private const val MAX_TOTAL_DECLARED_SIZE = 1_000L * 1024L * 1024L * 1024L
 
@@ -95,14 +98,41 @@ object BackupArchiveContentScanner {
                         segments.any { it in setOf("chats", "characters", "groups", "worlds") }
                     hasExtensions = hasExtensions || segments.any { it == "extensions" || it == "plugins" }
                     hasConfiguration = hasConfiguration || fileName in setOf("config.yaml", "config.yml")
-                    classifyContent(
-                        originalSegments = normalized.split('/').filter(String::isNotBlank),
+                    val originalSegments = normalized.split('/').filter(String::isNotBlank)
+                    val pathClassification = classifyContent(
+                        originalSegments = originalSegments,
                         lowerSegments = segments,
                         isDirectory = entry.isDirectory,
-                    )?.let { (kind, name) ->
+                        entrySize = entry.size,
+                    )
+                    val jsonInspection = if (
+                        !entry.isDirectory &&
+                        fileName.endsWith(".json") &&
+                        entry.size in 1..MAX_INSPECTABLE_JSON_BYTES.toLong() &&
+                        shouldInspectJson(segments, pathClassification?.first)
+                    ) {
+                        BackupArchiveJsonInspector.inspect(
+                            readCurrentEntry(tar, entry.size.toInt()),
+                        )
+                    } else {
+                        BackupArchiveJsonInspection()
+                    }
+                    pathClassification?.let { (kind, fallbackName) ->
+                        val name = if (kind == BackupArchiveContentKind.Extensions) {
+                            jsonInspection.extensionDisplayName ?: fallbackName
+                        } else {
+                            fallbackName
+                        }
                         categoryCounts[kind] = categoryCounts.getValue(kind) + 1
                         if (name.isNotBlank() && categoryNames.getValue(kind).size < MAX_CATEGORY_NAMES) {
                             categoryNames.getValue(kind) += name.take(120)
+                        }
+                    }
+                    jsonInspection.tavernHelperScriptNames.forEach { name ->
+                        val kind = BackupArchiveContentKind.TavernHelperScripts
+                        categoryCounts[kind] = categoryCounts.getValue(kind) + 1
+                        if (categoryNames.getValue(kind).size < MAX_CATEGORY_NAMES) {
+                            categoryNames.getValue(kind) += name
                         }
                     }
                 }
@@ -133,6 +163,7 @@ object BackupArchiveContentScanner {
         originalSegments: List<String>,
         lowerSegments: List<String>,
         isDirectory: Boolean,
+        entrySize: Long,
     ): Pair<BackupArchiveContentKind, String>? {
         if (isDirectory || originalSegments.isEmpty()) return null
         val lowerFileName = lowerSegments.last()
@@ -183,6 +214,18 @@ object BackupArchiveContentScanner {
             return BackupArchiveContentKind.PromptTemplates to displayFileName
         }
 
+        val themesIndex = lowerSegments.indexOf("themes")
+        if (isDirectUserDataFile(lowerSegments, themesIndex) && lowerFileName.endsWith(".json")) {
+            return BackupArchiveContentKind.Beautification to displayFileName
+        }
+        if (
+            lowerFileName == "user.css" &&
+            entrySize > 0L &&
+            isDirectUserRootFile(lowerSegments)
+        ) {
+            return BackupArchiveContentKind.Beautification to "自定义 CSS"
+        }
+
         val chatsIndex = lowerSegments.indexOf("chats")
         if (isUserDataDirectory(lowerSegments, chatsIndex)) {
             val chatName = originalSegments.getOrNull(chatsIndex + 1)
@@ -206,6 +249,37 @@ object BackupArchiveContentScanner {
         return directoryIndex >= 2 &&
             segments.getOrNull(directoryIndex - 2) == "data" &&
             directoryIndex < segments.lastIndex
+    }
+
+    private fun isDirectUserRootFile(segments: List<String>): Boolean {
+        val dataIndex = segments.indexOf("data")
+        return dataIndex >= 0 && dataIndex + 2 == segments.lastIndex
+    }
+
+    private fun shouldInspectJson(
+        lowerSegments: List<String>,
+        pathKind: BackupArchiveContentKind?,
+    ): Boolean {
+        if (
+            pathKind == BackupArchiveContentKind.Extensions ||
+            pathKind == BackupArchiveContentKind.Presets ||
+            pathKind == BackupArchiveContentKind.CharacterCards
+        ) {
+            return true
+        }
+        return lowerSegments.lastOrNull() == "settings.json" &&
+            isDirectUserRootFile(lowerSegments)
+    }
+
+    private fun readCurrentEntry(tar: TarArchiveInputStream, size: Int): ByteArray {
+        val bytes = ByteArray(size)
+        var offset = 0
+        while (offset < size) {
+            val read = tar.read(bytes, offset, size - offset)
+            if (read <= 0) error("备份内文件内容不完整。")
+            offset += read
+        }
+        return bytes
     }
 
     private fun validateEntryName(value: String): String {

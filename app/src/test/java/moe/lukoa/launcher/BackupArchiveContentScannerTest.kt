@@ -9,7 +9,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class BackupArchiveContentScannerTest {
     @Test
     fun `scanner groups named user content without returning the raw archive listing`() {
@@ -106,6 +111,115 @@ class BackupArchiveContentScannerTest {
     }
 
     @Test
+    fun `scanner reads extension display names and tavern helper scripts from supported json`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/regex/CleanRegex.json" to "{}",
+            "SillyTavern/data/default-user/themes/清凉薄荷.json" to "{}",
+            "SillyTavern/data/default-user/user.css" to ":root { --mint: #6db5a4; }",
+            "SillyTavern/public/scripts/extensions/third-party/JS-Slash-Runner/manifest.json" to
+                """{"display_name":"酒馆助手","author":"KAKAA"}""",
+            "SillyTavern/data/default-user/settings.json" to
+                """
+                {
+                  "extension_settings": {
+                    "tavern_helper": {
+                      "script": {
+                        "scripts": [
+                          {"type":"script","name":"启动整理"},
+                          {"type":"folder","name":"工具箱","scripts":[
+                            {"type":"script","name":"嵌套脚本"}
+                          ]}
+                        ]
+                      }
+                    },
+                    "TavernHelper": {
+                      "script": {
+                        "scriptsRepository": [
+                          {"type":"script","value":{"name":"旧版脚本"}},
+                          {"type":"folder","name":"旧工具箱","value":[
+                            {"type":"script","value":{"name":"旧版嵌套"}}
+                          ]}
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.trimIndent(),
+            "SillyTavern/data/default-user/OpenAI Settings/清凉预设.json" to
+                """
+                {
+                  "extensions": {
+                    "tavern_helper": {
+                      "scripts": [
+                        {"type":"script","name":"预设脚本"}
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            "SillyTavern/data/default-user/characters/脚本角色.json" to
+                """
+                {
+                  "data": {
+                    "extensions": {
+                      "tavern_helper": {
+                        "scripts": [
+                          {"type":"script","name":"角色脚本"}
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.trimIndent(),
+            "SillyTavern/node_modules/fake/package.json" to
+                """{"extensions":{"tavern_helper":{"scripts":[{"type":"script","name":"依赖伪数据"}]}}}""",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("CleanRegex"),
+            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+        )
+        assertEquals(
+            listOf("酒馆助手"),
+            summary.group(BackupArchiveContentKind.Extensions)?.names,
+        )
+        assertEquals(
+            listOf("清凉薄荷", "自定义 CSS"),
+            summary.group(BackupArchiveContentKind.Beautification)?.names,
+        )
+        assertEquals(
+            listOf(
+                "启动整理",
+                "嵌套脚本",
+                "旧版脚本",
+                "旧版嵌套",
+                "预设脚本",
+                "角色脚本",
+            ),
+            summary.group(BackupArchiveContentKind.TavernHelperScripts)?.names,
+        )
+    }
+
+    @Test
+    fun `scanner falls back to extension directory and skips oversized json inspection`() {
+        val oversizedJson = " ".repeat(BackupArchiveContentScanner.MAX_INSPECTABLE_JSON_BYTES + 1)
+        val archive = tarGzip(
+            "SillyTavern/public/scripts/extensions/third-party/PlainExtension/manifest.json" to "{}",
+            "SillyTavern/data/default-user/settings.json" to oversizedJson,
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("PlainExtension"),
+            summary.group(BackupArchiveContentKind.Extensions)?.names,
+        )
+        assertEquals(null, summary.group(BackupArchiveContentKind.TavernHelperScripts))
+    }
+
+    @Test
     fun `scanner rejects traversal and marks oversized listings truncated`() {
         val unsafe = tarGzip("../outside.txt")
         runCatching { BackupArchiveContentScanner.scan(ByteArrayInputStream(unsafe)) }
@@ -120,13 +234,19 @@ class BackupArchiveContentScannerTest {
     }
 
     private fun tarGzip(vararg entries: String): ByteArray {
+        return tarGzip(*entries.map { it to "" }.toTypedArray())
+    }
+
+    private fun tarGzip(vararg entries: Pair<String, String>): ByteArray {
         val bytes = ByteArrayOutputStream()
         GzipCompressorOutputStream(bytes).use { gzip ->
             TarArchiveOutputStream(gzip).use { tar ->
                 tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
-                entries.forEach { name ->
-                    val entry = TarArchiveEntry(name).apply { size = 0L }
+                entries.forEach { (name, content) ->
+                    val contentBytes = content.toByteArray(Charsets.UTF_8)
+                    val entry = TarArchiveEntry(name).apply { size = contentBytes.size.toLong() }
                     tar.putArchiveEntry(entry)
+                    tar.write(contentBytes)
                     tar.closeArchiveEntry()
                 }
                 tar.finish()

@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -52,6 +53,29 @@ class BackupContentCatalogStoreTest {
                 details.copy(size = details.size + 1L),
             ),
         )
+    }
+
+    @Test
+    fun `legacy catalog is ignored after scanner schema changes`() {
+        val details = archiveDetails(size = 2_048L, modifiedAtMillis = 123L)
+        val legacyCatalog = JSONObject().put(
+            details.termuxReadablePath.lowercase(),
+            JSONObject()
+                .put("size", details.size)
+                .put("modifiedAtMillis", details.modifiedAtMillis)
+                .put(
+                    "summary",
+                    JSONObject()
+                        .put("entryCount", 1)
+                        .put("hasUserData", true),
+                ),
+        )
+        context.getSharedPreferences(BackupContentCatalogStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString("catalog_v1", legacyCatalog.toString())
+            .commit()
+
+        assertNull(BackupContentCatalogStore(context).read(details))
     }
 
     private fun archiveDetails(size: Long, modifiedAtMillis: Long) = BackupLibraryArchiveDetails(
