@@ -11,9 +11,20 @@ import kotlin.math.pow
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 
-enum class BackupArchiveContentKind(val title: String) {
+enum class BackupArchiveContentKind(
+    val title: String,
+    val detail: String = "",
+) {
     CharacterCards("角色卡"),
     Presets("预设"),
+    GenerationTemplates(
+        "酒馆参数模板",
+        "包含 NovelAI、TextGen 和 KoboldAI 参数文件，其中可能有酒馆自带模板。",
+    ),
+    PromptTemplates(
+        "提示词模板",
+        "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
+    ),
     RegexScripts("正则"),
     Chats("聊天记录"),
     WorldBooks("世界书"),
@@ -152,9 +163,27 @@ object BackupArchiveContentScanner {
             return BackupArchiveContentKind.RegexScripts to displayFileName
         }
 
-        val presetIndex = lowerSegments.indexOfFirst { it in PRESET_DIRECTORY_NAMES }
+        val presetIndex = lowerSegments.indexOfFirst { it in USER_PRESET_DIRECTORY_NAMES }
         if (isDirectUserDataFile(lowerSegments, presetIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.Presets to displayFileName
+        }
+
+        val generationTemplateIndex = lowerSegments.indexOfFirst {
+            it in GENERATION_TEMPLATE_DIRECTORY_NAMES
+        }
+        if (
+            isDirectUserDataFile(lowerSegments, generationTemplateIndex) &&
+            lowerFileName.endsWith(".json")
+        ) {
+            return BackupArchiveContentKind.GenerationTemplates to displayFileName
+        }
+
+        val promptTemplateIndex = lowerSegments.indexOfFirst { it in PROMPT_TEMPLATE_DIRECTORY_NAMES }
+        if (
+            isDirectUserDataFile(lowerSegments, promptTemplateIndex) &&
+            lowerFileName.endsWith(".json")
+        ) {
+            return BackupArchiveContentKind.PromptTemplates to displayFileName
         }
 
         val chatsIndex = lowerSegments.indexOf("chats")
@@ -194,12 +223,18 @@ object BackupArchiveContentScanner {
         return normalized
     }
 
-    private val PRESET_DIRECTORY_NAMES = setOf(
+    private val USER_PRESET_DIRECTORY_NAMES = setOf(
         "presets",
         "openai settings",
+    )
+
+    private val GENERATION_TEMPLATE_DIRECTORY_NAMES = setOf(
         "novelai settings",
         "textgen settings",
         "koboldai settings",
+    )
+
+    private val PROMPT_TEMPLATE_DIRECTORY_NAMES = setOf(
         "instruct",
         "context",
         "sysprompt",

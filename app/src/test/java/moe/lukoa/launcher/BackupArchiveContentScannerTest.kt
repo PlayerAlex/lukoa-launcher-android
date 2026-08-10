@@ -70,9 +70,38 @@ class BackupArchiveContentScannerTest {
             listOf("真正的角色卡"),
             summary.group(BackupArchiveContentKind.CharacterCards)?.names,
         )
+        assertEquals(null, summary.group(BackupArchiveContentKind.Presets))
         assertEquals(
             listOf("真正的预设"),
+            summary.group(BackupArchiveContentKind.PromptTemplates)?.names,
+        )
+    }
+
+    @Test
+    fun `scanner keeps bundled generation and prompt templates out of user presets`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/OpenAI Settings/我保存的预设.json",
+            "SillyTavern/data/default-user/NovelAI Settings/Asper-Kayra.json",
+            "SillyTavern/data/default-user/TextGen Settings/Divine Intellect.json",
+            "SillyTavern/data/default-user/KoboldAI Settings/GUI KoboldAI.json",
+            "SillyTavern/data/default-user/instruct/ChatML.json",
+            "SillyTavern/data/default-user/context/Default.json",
+            "SillyTavern/data/default-user/sysprompt/Default.json",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("我保存的预设"),
             summary.group(BackupArchiveContentKind.Presets)?.names,
+        )
+        assertEquals(
+            listOf("Asper-Kayra", "Divine Intellect", "GUI KoboldAI"),
+            summary.group(BackupArchiveContentKind.GenerationTemplates)?.names,
+        )
+        assertEquals(
+            listOf("ChatML", "Default"),
+            summary.group(BackupArchiveContentKind.PromptTemplates)?.names,
         )
     }
 

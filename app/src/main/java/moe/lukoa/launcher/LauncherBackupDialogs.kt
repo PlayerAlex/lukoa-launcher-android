@@ -647,6 +647,13 @@ private fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+            group.kind.detail.takeIf(String::isNotBlank)?.let { detail ->
+                Text(
+                    text = detail,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
             if (expanded) {
                 if (group.names.isEmpty()) {
                     Text(
