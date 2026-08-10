@@ -576,7 +576,9 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
 
 @Composable
 fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
-    var expanded by remember(group.kind, group.entryCount, group.names) { mutableStateOf(false) }
+    var expanded by remember(group.kind, group.entryCount, group.names, group.children) {
+        mutableStateOf(false)
+    }
     val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
     Surface(
         modifier = Modifier
@@ -616,27 +618,84 @@ fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
                 )
             }
             if (expanded) {
-                if (group.names.isEmpty()) {
+                if (group.names.isEmpty() && group.children.isEmpty()) {
                     Text(
                         text = "已识别内容，但没有可展示的名称。",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
-                } else {
-                    group.names.forEach { name ->
-                        Text(
-                            text = name,
-                            color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    if (group.namesTruncated) {
-                        Text(
-                            text = "还有更多内容未展开列出。",
-                            color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
+                }
+                group.children.forEach { node ->
+                    BackupContentNodeRow(node = node, depth = 0)
+                }
+                group.names.forEach { name ->
+                    Text(
+                        text = name,
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupContentNodeRow(
+    node: BackupArchiveContentNode,
+    depth: Int,
+) {
+    var expanded by remember(node.title, node.entryCount, node.names, node.children) {
+        mutableStateOf(false)
+    }
+    val hasContents = node.names.isNotEmpty() || node.children.isNotEmpty()
+    val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = (depth.coerceAtMost(3) * 8).dp)
+            .clickable(enabled = hasContents, onClick = feedbackClick),
+        color = if (depth % 2 == 0) LukoaColors.Surface else LukoaColors.Elevated,
+        shape = RoundedCornerShape(9.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = node.title,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (hasContents) {
+                        "${node.entryCount} 项 · ${if (expanded) "收起" else "展开"}"
+                    } else {
+                        "${node.entryCount} 项"
+                    },
+                    color = if (hasContents) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            if (expanded) {
+                node.children.forEach { child ->
+                    BackupContentNodeRow(node = child, depth = depth + 1)
+                }
+                node.names.forEach { name ->
+                    Text(
+                        text = name,
+                        modifier = Modifier.padding(start = 4.dp),
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         }

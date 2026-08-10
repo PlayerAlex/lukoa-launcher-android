@@ -270,6 +270,97 @@ class LauncherComposeUiTest {
     }
 
     @Test
+    fun backupContentRows_drillIntoScriptsAndChatsWithoutFlatTruncationMessage() {
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    BackupContentGroupRow(
+                        BackupArchiveContentGroup(
+                            kind = BackupArchiveContentKind.TavernHelperScripts,
+                            entryCount = 3,
+                            children = listOf(
+                                BackupArchiveContentNode(
+                                    title = "全局脚本",
+                                    entryCount = 1,
+                                    names = listOf("启动整理"),
+                                ),
+                                BackupArchiveContentNode(
+                                    title = "预设脚本",
+                                    entryCount = 1,
+                                    children = listOf(
+                                        BackupArchiveContentNode(
+                                            title = "清凉预设",
+                                            entryCount = 1,
+                                            names = listOf("预设内脚本"),
+                                        ),
+                                    ),
+                                ),
+                                BackupArchiveContentNode(
+                                    title = "局部脚本",
+                                    entryCount = 1,
+                                    children = listOf(
+                                        BackupArchiveContentNode(
+                                            title = "薄荷角色卡",
+                                            entryCount = 1,
+                                            names = listOf("角色局部脚本"),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    BackupContentGroupRow(
+                        BackupArchiveContentGroup(
+                            kind = BackupArchiveContentKind.Chats,
+                            entryCount = 2,
+                            namesTruncated = true,
+                            children = listOf(
+                                BackupArchiveContentNode(
+                                    title = "薄荷聊天",
+                                    entryCount = 2,
+                                    names = listOf("2026-08-10", "2026-08-11"),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+            }
+        }
+        advancePastClickDebounce()
+
+        composeRule.onNodeWithText("全局脚本").assertDoesNotExist()
+        composeRule.onNodeWithText("酒馆助手脚本").performClick()
+        composeRule.onNodeWithText("全局脚本").assertIsDisplayed()
+        composeRule.onNodeWithText("启动整理").assertDoesNotExist()
+        composeRule.onNodeWithText("全局脚本").performClick()
+        composeRule.onNodeWithText("启动整理").assertIsDisplayed()
+
+        composeRule.onNodeWithText("预设脚本").performClick()
+        composeRule.onNodeWithText("清凉预设").assertIsDisplayed()
+        composeRule.onNodeWithText("预设内脚本").assertDoesNotExist()
+        composeRule.onNodeWithText("清凉预设").performClick()
+        composeRule.onNodeWithText("预设内脚本").assertIsDisplayed()
+
+        composeRule.onNodeWithText("局部脚本").performClick()
+        composeRule.onNodeWithText("薄荷角色卡").assertIsDisplayed()
+        composeRule.onNodeWithText("角色局部脚本").assertDoesNotExist()
+        composeRule.onNodeWithText("薄荷角色卡").performClick()
+        composeRule.onNodeWithText("角色局部脚本").assertIsDisplayed()
+
+        composeRule.onNodeWithText("聊天记录").performScrollTo().performClick()
+        composeRule.onNodeWithText("薄荷聊天").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("2026-08-10").assertDoesNotExist()
+        composeRule.onNodeWithText("薄荷聊天").performScrollTo().performClick()
+        composeRule.onNodeWithText("2026-08-10").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("2026-08-11").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("还有更多内容未展开列出。").assertDoesNotExist()
+    }
+
+    @Test
     fun restorePreview_confirmInvokesOnlyDangerousAction() {
         var confirmCount = 0
         var dismissCount = 0
