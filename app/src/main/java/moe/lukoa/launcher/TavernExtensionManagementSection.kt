@@ -4,11 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -20,101 +17,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-@Composable
-fun TavernExtensionManagementSettingsPanel(
-    state: TavernExtensionManagementState,
-    instanceLabel: String,
-    actionsLocked: Boolean,
-    tavernRunning: Boolean,
-    onRefresh: () -> Unit,
-    onDelete: (String) -> Unit,
-    onToggleEnabled: (String, Boolean) -> Unit = { _, _ -> },
-    onInstall: (String) -> Unit = {},
-    onCheckUpdates: () -> Unit = {},
-    onUpdate: (String) -> Unit = {},
-    onRollback: (String) -> Unit = {},
-    onCopyPath: (String) -> Boolean = { false },
-    onShowHint: (String) -> Unit = {},
-) {
-    var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
-    val dialogStateHolder = rememberSaveableStateHolder()
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.Primary,
-            textContentColor = LukoaColors.TextPrimary,
-            title = { Text("扩展管理") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 560.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    ManagementDialogIntroCard(
-                        "这里管理当前酒馆实例的第三方网页扩展。各扩展会分开显示，安装、更新、回退、启停或删除前请先停止酒馆。",
-                    )
-                    dialogStateHolder.SaveableStateProvider("extension-management-dialog") {
-                        TavernExtensionManagementSection(
-                            state = state,
-                            instanceLabel = instanceLabel,
-                            actionsLocked = actionsLocked,
-                            tavernRunning = tavernRunning,
-                            onRefresh = onRefresh,
-                            onDelete = onDelete,
-                            onToggleEnabled = onToggleEnabled,
-                            onInstall = onInstall,
-                            onCheckUpdates = onCheckUpdates,
-                            onUpdate = onUpdate,
-                            onRollback = onRollback,
-                            onCopyPath = onCopyPath,
-                            onShowHint = onShowHint,
-                            showSectionContainer = false,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                SecondaryActionButton(
-                    text = "关闭",
-                    enabled = true,
-                    accentColor = LukoaColors.Primary,
-                    onClick = { showDialog = false },
-                )
-            },
-            dismissButton = null,
-        )
-    }
-
-    SectionPanel(
-        title = "扩展管理",
-        accentColor = LukoaColors.Primary,
-        containerColor = LukoaColors.Elevated,
-        headerAction = { TavernExtensionManagementHeader(state, actionsLocked) },
-    ) {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "管理已安装扩展",
-                detail = "当前实例：$instanceLabel。进入后可读取、搜索、启停和删除第三方网页扩展。",
-                value = "打开",
-                valueColor = LukoaColors.Primary,
-                valueAsPill = true,
-                highlightColor = LukoaColors.Primary,
-                onClick = { showDialog = true },
-            )
-        }
-    }
-}
 
 @Composable
 fun TavernExtensionManagementSection(

@@ -845,41 +845,6 @@ class LauncherSettingsUiTest {
     }
 
     @Test
-    fun extensionManagementSettingsPanel_keepsDetailsInSecondaryDialog() {
-        composeRule.setContent {
-            LukoaTheme {
-                TavernExtensionManagementSettingsPanel(
-                    state = TavernExtensionManagementState(
-                        rootDirectory = "/extensions",
-                        extensions = listOf(
-                            TavernExtensionRecord("alpha-dir", "清凉扩展", "1.0", true, "Lukoa", 128),
-                        ),
-                    ),
-                    instanceLabel = "主实例",
-                    actionsLocked = false,
-                    tavernRunning = false,
-                    onRefresh = {},
-                    onDelete = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("读取扩展").assertDoesNotExist()
-        composeRule.onNodeWithText("清凉扩展").assertDoesNotExist()
-
-        advancePastClickDebounce()
-        composeRule.onNode(hasText("管理已安装扩展") and hasClickAction()).performClick()
-        composeRule.onNodeWithText("当前实例与状态").assertIsDisplayed()
-        composeRule.onNodeWithText("可用操作").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("已安装扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("读取扩展").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("清凉扩展").performScrollTo().assertIsDisplayed()
-
-        composeRule.onNodeWithText("关闭").performClick()
-        composeRule.onNodeWithText("读取扩展").assertDoesNotExist()
-    }
-
-    @Test
     fun repairSection_requiresConfirmationBeforeMutation() {
         var repairCount = 0
         composeRule.setContent {
@@ -1077,18 +1042,11 @@ class LauncherSettingsUiTest {
     }
 
     @Test
-    fun settingsSection_opensExtensionManagementFromCompactEntry() {
+    fun settingsSection_doesNotShowExtensionManagementEntry() {
         setSettingsSectionContent(onSaveTavernDirectory = { true })
 
         composeRule.onNodeWithText("读取扩展").assertDoesNotExist()
-        advancePastClickDebounce()
-        composeRule.onNode(hasText("管理已安装扩展") and hasClickAction())
-            .performScrollTo()
-            .performClick()
-
-        composeRule.onNodeWithText("读取扩展").assertExists()
-        composeRule.onNodeWithText("关闭").performClick()
-        composeRule.onNodeWithText("读取扩展").assertDoesNotExist()
+        composeRule.onNodeWithText("管理已安装扩展").assertDoesNotExist()
     }
 
     private fun setSettingsSectionContent(
@@ -1129,7 +1087,6 @@ class LauncherSettingsUiTest {
                         tavernRunning = false,
                         uploadLimitStatus = TavernUploadLimitStatus(),
                         tavernUserState = TavernUserManagementState(),
-                        tavernExtensionState = TavernExtensionManagementState(),
                         forceCleanupSuggestion = null,
                         backgroundTaskStatus = "当前空闲",
                         backgroundTaskNeedsAttention = false,
@@ -1184,9 +1141,6 @@ class LauncherSettingsUiTest {
                         onRefreshTavernUsers = {},
                         onCreateTavernUser = { _, _ -> },
                         onDeleteTavernUser = {},
-                        onRefreshTavernExtensions = {},
-                        onDeleteTavernExtension = {},
-                        onCopyTavernExtensionPath = { true },
                         onClearLogs = {},
                         onExportDiagnostic = {},
                         onOpenBackgroundTaskCenter = {},

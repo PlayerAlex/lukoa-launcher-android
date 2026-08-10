@@ -52,11 +52,11 @@ class LauncherStateRestorationUiTest {
     }
 
     @Test
-    fun `extension dialog and search query survive state restoration`() {
+    fun `extension search query survives state restoration`() {
         val restoration = StateRestorationTester(composeRule)
         restoration.setContent {
             LukoaTheme {
-                TavernExtensionManagementSettingsPanel(
+                TavernExtensionManagementSection(
                     state = TavernExtensionManagementState(
                         rootDirectory = "~/SillyTavern/public/scripts/extensions/third-party",
                         extensions = listOf(
@@ -73,8 +73,6 @@ class LauncherStateRestorationUiTest {
             }
         }
 
-        advancePastClickDebounce()
-        composeRule.onNodeWithText("管理已安装扩展").performClick()
         composeRule.onNodeWithText("搜索扩展").performTextInput("Mint")
 
         restoration.emulateSavedInstanceStateRestore()
@@ -87,7 +85,7 @@ class LauncherStateRestorationUiTest {
         val restoration = StateRestorationTester(composeRule)
         restoration.setContent {
             LukoaTheme {
-                TavernExtensionManagementSettingsPanel(
+                TavernExtensionManagementSection(
                     state = TavernExtensionManagementState(
                         rootDirectory = "~/SillyTavern/public/scripts/extensions/third-party",
                     ),
@@ -101,9 +99,7 @@ class LauncherStateRestorationUiTest {
         }
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("管理已安装扩展").performClick()
-        advancePastClickDebounce()
-        composeRule.onNodeWithText("安装扩展").performScrollTo().performClick()
+        composeRule.onNodeWithText("安装扩展").performClick()
         composeRule.onNodeWithText("GitHub 扩展地址")
             .performTextInput("https://github.com/owner/mint")
 

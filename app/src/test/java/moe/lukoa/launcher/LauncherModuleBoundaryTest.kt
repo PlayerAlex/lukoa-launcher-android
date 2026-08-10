@@ -144,11 +144,12 @@ class LauncherModuleBoundaryTest {
     }
 
     @Test
-    fun `all management dialogs share intro and action cards`() {
-        listOf(userManagementSource, extensionManagementSource, pendingTaskUiSource).forEach { source ->
+    fun `remaining management dialogs share intro and action cards`() {
+        listOf(userManagementSource, pendingTaskUiSource).forEach { source ->
             assertTrue(source.contains("ManagementDialogIntroCard("))
             assertTrue(source.contains("ManagementDialogActionCard("))
         }
+        assertFalse(extensionManagementSource.contains("TavernExtensionManagementSettingsPanel"))
 
         val taskSettingsBlock = pendingTaskUiSource
             .substringAfter("fun BackgroundTaskSettingsPanel(")

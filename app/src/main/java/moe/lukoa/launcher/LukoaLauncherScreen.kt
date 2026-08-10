@@ -3862,7 +3862,6 @@ fun LukoaLauncherScreen(
                             tavernRunning = tavernRunning,
                             uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
-                            tavernExtensionState = tavernExtensionState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             backgroundTaskStatus = PendingLauncherTaskSupport.taskCenterStatus(
                                 pendingLauncherTask,
@@ -4032,16 +4031,6 @@ fun LukoaLauncherScreen(
                                 runGuarded("删除酒馆用户账户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-delete"), allowRunningInference = false) { guardedUpdate ->
                                     onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
                                 }
-                            },
-                            onRefreshTavernExtensions = ::refreshTavernExtensions,
-                            onDeleteTavernExtension = ::deleteTavernExtension,
-                            onToggleTavernExtension = ::toggleTavernExtension,
-                            onInstallTavernExtension = ::runTavernExtensionInstall,
-                            onCheckTavernExtensionUpdates = ::checkTavernExtensionUpdates,
-                            onUpdateTavernExtension = ::updateTavernExtension,
-                            onRollbackTavernExtension = ::rollbackTavernExtension,
-                            onCopyTavernExtensionPath = { path ->
-                                onCopyText("扩展目录", path)
                             },
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
