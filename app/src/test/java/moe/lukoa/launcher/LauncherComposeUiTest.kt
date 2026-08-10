@@ -193,6 +193,12 @@ class LauncherComposeUiTest {
                                             names = listOf("清凉参数"),
                                             namesTruncated = false,
                                         ),
+                                        BackupArchiveContentGroup(
+                                            kind = BackupArchiveContentKind.PromptTemplates,
+                                            entryCount = 1,
+                                            names = listOf("清凉提示词"),
+                                            namesTruncated = false,
+                                        ),
                                     ),
                                 ),
                             ),
@@ -237,6 +243,10 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("酒馆参数模板").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
             "包含 NovelAI、TextGen 和 KoboldAI 参数文件，其中可能有酒馆自带模板。",
+        ).assertDoesNotExist()
+        composeRule.onNodeWithText("提示词模板").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
         ).assertDoesNotExist()
         composeRule.onNodeWithText("清凉角色").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").performScrollTo().performClick()

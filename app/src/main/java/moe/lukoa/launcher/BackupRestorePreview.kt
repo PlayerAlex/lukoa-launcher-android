@@ -18,10 +18,7 @@ enum class BackupArchiveContentKind(
     CharacterCards("角色卡"),
     Presets("预设"),
     GenerationTemplates("酒馆参数模板"),
-    PromptTemplates(
-        "提示词模板",
-        "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
-    ),
+    PromptTemplates("提示词模板"),
     Beautification("酒馆美化"),
     RegexScripts("正则"),
     TavernHelperScripts("酒馆助手脚本"),
