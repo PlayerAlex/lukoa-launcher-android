@@ -403,45 +403,6 @@ fun ApplyBackupPreviewLoadingDialog(
 }
 
 @Composable
-fun BackupContentsPreviewDialog(
-    preview: BackupRestorePreview,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Primary,
-        textContentColor = LukoaColors.TextPrimary,
-        title = { Text("查看备份内容") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "这里只读取并分类备份内容，不会应用、覆盖、移动或删除任何文件。",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                BackupPreviewMetadataCard(preview = preview, includeRestoreTarget = false)
-                BackupContentPreviewCard(preview)
-            }
-        },
-        confirmButton = {
-            DialogActionButton(
-                text = "关闭",
-                tone = ActionTone.Neutral,
-                onClick = onDismiss,
-            )
-        },
-        dismissButton = {},
-    )
-}
-
-@Composable
 fun ApplyBackupPreviewDialog(
     preview: BackupRestorePreview,
     restoreMode: BackupRestoreMode = BackupRestoreMode.Full,
@@ -614,7 +575,7 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
 }
 
 @Composable
-private fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
+fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
     var expanded by remember(group.kind, group.entryCount, group.names) { mutableStateOf(false) }
     val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
     Surface(

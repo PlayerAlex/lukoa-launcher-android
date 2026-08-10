@@ -1,14 +1,8 @@
 package moe.lukoa.launcher
 
-enum class BackupPreviewPurpose {
-    ViewContents,
-    Apply,
-}
-
 data class BackupRestorePreviewRequest(
     val token: Long,
     val archivePath: String,
-    val purpose: BackupPreviewPurpose,
 )
 
 sealed interface BackupPreviewUiState {
@@ -20,7 +14,6 @@ sealed interface BackupPreviewUiState {
 
     data class Ready(
         val preview: BackupRestorePreview,
-        val purpose: BackupPreviewPurpose,
     ) : BackupPreviewUiState
 }
 
@@ -30,13 +23,11 @@ class BackupRestorePreviewRequestCoordinator {
 
     fun begin(
         archivePath: String,
-        purpose: BackupPreviewPurpose = BackupPreviewPurpose.Apply,
     ): BackupRestorePreviewRequest {
         nextToken += 1L
         return BackupRestorePreviewRequest(
             token = nextToken,
             archivePath = archivePath.trim(),
-            purpose = purpose,
         ).also { activeRequest = it }
     }
 

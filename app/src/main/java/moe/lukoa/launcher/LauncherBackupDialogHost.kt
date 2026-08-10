@@ -64,20 +64,13 @@ fun LauncherBackupOperationDialogHost(
             )
         }
         is BackupPreviewUiState.Ready -> {
-            if (previewState.purpose == BackupPreviewPurpose.Apply) {
-                ApplyBackupPreviewDialog(
-                    preview = previewState.preview,
-                    restoreMode = state.applyBackupRestoreMode,
-                    onRestoreModeChange = { state.applyBackupRestoreMode = it },
-                    onConfirm = coordinator::applySelectedBackup,
-                    onDismiss = coordinator::dismissBackupPreview,
-                )
-            } else {
-                BackupContentsPreviewDialog(
-                    preview = previewState.preview,
-                    onDismiss = coordinator::dismissBackupPreview,
-                )
-            }
+            ApplyBackupPreviewDialog(
+                preview = previewState.preview,
+                restoreMode = state.applyBackupRestoreMode,
+                onRestoreModeChange = { state.applyBackupRestoreMode = it },
+                onConfirm = coordinator::applySelectedBackup,
+                onDismiss = coordinator::dismissBackupPreview,
+            )
         }
     }
 

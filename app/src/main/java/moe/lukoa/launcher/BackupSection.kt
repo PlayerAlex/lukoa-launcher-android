@@ -41,11 +41,11 @@ fun BackupSection(
     autoBackupKeepCount: Int,
     backupHistory: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails> = emptyMap(),
+    backupContentStates: Map<String, BackupContentCatalogState> = emptyMap(),
     onCreateManualBackup: () -> Unit,
     onToggleAutoBackup: () -> Unit,
     onRefreshBackups: () -> Unit,
     onOpenAutoBackupSettings: () -> Unit,
-    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
     onRenameBackup: (String) -> Unit,
@@ -91,8 +91,8 @@ fun BackupSection(
             manualBackups = manualBackups,
             autoBackups = autoBackups,
             backupArchiveDetails = backupArchiveDetails,
+            backupContentStates = backupContentStates,
             actionsLocked = actionsLocked,
-            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -233,8 +233,8 @@ private fun BackupLibrarySection(
     manualBackups: List<String>,
     autoBackups: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    backupContentStates: Map<String, BackupContentCatalogState>,
     actionsLocked: Boolean,
-    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
@@ -258,7 +258,7 @@ private fun BackupLibrarySection(
                 InfoPopoverButton(
                     contentDescription = "查看备份库说明",
                     title = "备份库里的操作",
-                    body = "“查看内容”只读取并分类备份，不会修改任何文件。\n导出会把备份另存到你选择的位置；复制会在备份库里再留一份；重命名只改变文件名。\n“应用并覆盖”会用备份替换当前实例的数据；“删除”会永久移除这份备份。这两个红色操作都会再次要求确认。",
+                    body = "启动器会自动读取并缓存每份备份的内容分类，摘要会一直显示在文件信息下面。\n导出会把备份另存到你选择的位置；复制会在备份库里再留一份；重命名只改变文件名。\n“应用并覆盖”会用备份替换当前实例的数据；“删除”会永久移除这份备份。这两个红色操作都会再次要求确认。",
                 )
             }
         },
@@ -268,8 +268,8 @@ private fun BackupLibrarySection(
             emptyText = "还没有手动备份，可以先在上方生成一份。",
             backups = manualBackups,
             backupArchiveDetails = backupArchiveDetails,
+            backupContentStates = backupContentStates,
             actionsLocked = actionsLocked,
-            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -281,8 +281,8 @@ private fun BackupLibrarySection(
             emptyText = "还没有自动备份。开启后会按设定时间生成。",
             backups = autoBackups,
             backupArchiveDetails = backupArchiveDetails,
+            backupContentStates = backupContentStates,
             actionsLocked = actionsLocked,
-            onPreviewBackup = onPreviewBackup,
             onApplyBackup = onApplyBackup,
             onExportBackup = onExportBackup,
             onCopyBackup = onCopyBackup,
@@ -335,8 +335,8 @@ private fun BackupLibraryGroup(
     emptyText: String,
     backups: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    backupContentStates: Map<String, BackupContentCatalogState>,
     actionsLocked: Boolean,
-    onPreviewBackup: (String) -> Unit,
     onApplyBackup: (String) -> Unit,
     onExportBackup: (String) -> Unit,
     onCopyBackup: (String) -> Unit,
@@ -384,9 +384,9 @@ private fun BackupLibraryGroup(
                 BackupRecordLine(
                     path = path,
                     sizeBytes = findBackupArchiveDetails(backupArchiveDetails, path)?.size,
+                    contentState = findBackupContentState(backupContentStates, path),
                     backupType = title,
                     actionsLocked = actionsLocked,
-                    onPreview = { onPreviewBackup(path) },
                     onApply = { onApplyBackup(path) },
                     onExport = { onExportBackup(path) },
                     onCopy = { onCopyBackup(path) },
@@ -415,9 +415,9 @@ private fun BackupLibraryGroup(
 private fun BackupRecordLine(
     path: String,
     sizeBytes: Long?,
+    contentState: BackupContentCatalogState?,
     backupType: String,
     actionsLocked: Boolean,
-    onPreview: () -> Unit,
     onApply: () -> Unit,
     onExport: () -> Unit,
     onCopy: () -> Unit,
@@ -495,21 +495,54 @@ private fun BackupRecordLine(
                         color = LukoaColors.TextPrimary,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    SettingsSectionDivider()
+                    Text(
+                        text = "备份内容",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    when {
+                        contentState?.summary != null -> {
+                            val summary = contentState.summary
+                            if (summary.groups.isEmpty()) {
+                                Text(
+                                    text = "没有识别到可单独列出的角色卡、预设或其他用户内容。",
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            } else {
+                                summary.groups.forEach { group ->
+                                    BackupContentGroupRow(group)
+                                }
+                            }
+                        }
+                        contentState?.errorMessage?.isNotBlank() == true -> {
+                            Text(
+                                text = contentState.errorMessage,
+                                color = LukoaColors.Accent,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = if (contentState?.isLoading == true) {
+                                    "正在自动读取并保存内容摘要…"
+                                } else {
+                                    "等待自动读取内容摘要…"
+                                },
+                                color = LukoaColors.TextSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 }
             }
             BackupActionRow {
                 SecondaryActionButton(
-                    text = "查看内容",
-                    enabled = !actionsLocked,
-                    accentColor = LukoaColors.Primary,
-                    modifier = Modifier.weight(1f),
-                    onClick = onPreview,
-                )
-                SecondaryActionButton(
                     text = "导出",
                     enabled = !actionsLocked,
                     accentColor = LukoaColors.Primary,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = onExport,
                 )
             }
@@ -558,6 +591,17 @@ private fun findBackupArchiveDetails(
     return archiveDetails.values.firstOrNull { details ->
         details.termuxReadablePath.trim().replace('\\', '/').equals(normalizedPath, ignoreCase = true)
     }
+}
+
+private fun findBackupContentState(
+    contentStates: Map<String, BackupContentCatalogState>,
+    path: String,
+): BackupContentCatalogState? {
+    contentStates[path]?.let { return it }
+    val normalizedPath = path.trim().replace('\\', '/')
+    return contentStates.entries.firstOrNull { (storedPath, _) ->
+        storedPath.trim().replace('\\', '/').equals(normalizedPath, ignoreCase = true)
+    }?.value
 }
 
 @Composable

@@ -40,8 +40,10 @@ class LauncherBackupCoordinator(
     private val onPickBackupExportDestination: (String, String) -> Unit,
 ) {
     private val appContext = context.applicationContext
+    private val contentCatalogStore = BackupContentCatalogStore(appContext)
     private val previewRequestCoordinator = BackupRestorePreviewRequestCoordinator()
     private var previewJob: Job? = null
+    private var contentCatalogJob: Job? = null
 
     fun openManualBackupDialog() {
         state.manualBackupName = ""
@@ -165,6 +167,8 @@ class LauncherBackupCoordinator(
             result.onSuccess { snapshot ->
                 persistBackupHistory(snapshot.paths)
                 state.backupArchiveDetails = snapshot.archiveDetails
+                state.backupContentStates = snapshot.contentStates
+                scanUncachedBackupContents(snapshot.archiveDetails)
             }.onFailure { error ->
                 statusUpdate(
                     "刷新备份库失败：${error.message ?: error.javaClass.simpleName}",
@@ -192,17 +196,10 @@ class LauncherBackupCoordinator(
     }
 
     fun openApplyBackupPreview(path: String): Boolean {
-        return openBackupPreview(path, BackupPreviewPurpose.Apply)
+        return openBackupPreview(path)
     }
 
-    fun openBackupContentsPreview(path: String): Boolean {
-        return openBackupPreview(path, BackupPreviewPurpose.ViewContents)
-    }
-
-    private fun openBackupPreview(
-        path: String,
-        purpose: BackupPreviewPurpose,
-    ): Boolean {
+    private fun openBackupPreview(path: String): Boolean {
         val normalized = path.trim()
         LauncherInputGuards.validateBackupArchivePath(normalized)?.let { reason ->
             statusUpdate("备份路径无效：$reason", "", false)
@@ -210,11 +207,9 @@ class LauncherBackupCoordinator(
         }
 
         previewJob?.cancel()
-        val request = previewRequestCoordinator.begin(normalized, purpose)
-        if (purpose == BackupPreviewPurpose.Apply) {
-            state.applyBackupPath = normalized
-            state.applyBackupRestoreMode = BackupRestoreMode.Full
-        }
+        val request = previewRequestCoordinator.begin(normalized)
+        state.applyBackupPath = normalized
+        state.applyBackupRestoreMode = BackupRestoreMode.Full
         state.backupPreviewUiState = BackupPreviewUiState.Loading(request)
         val targetDirectory = restoreTargetDirectory()
         previewJob = scope.launch {
@@ -233,7 +228,7 @@ class LauncherBackupCoordinator(
                 if (!previewRequestCoordinator.accepts(request, activePath)) return@launch
                 previewRequestCoordinator.finish(request)
                 previewJob = null
-                state.backupPreviewUiState = BackupPreviewUiState.Ready(preview, purpose)
+                state.backupPreviewUiState = BackupPreviewUiState.Ready(preview)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -515,10 +510,66 @@ class LauncherBackupCoordinator(
 
     private fun readLocalBackupLibrarySnapshot(): BackupLibrarySnapshot {
         val paths = listLocalBackupLibrary()
+        val archiveDetails = readBackupArchiveDetails(paths)
+        contentCatalogStore.prune(archiveDetails.values)
         return BackupLibrarySnapshot(
             paths = paths,
-            archiveDetails = readBackupArchiveDetails(paths),
+            archiveDetails = archiveDetails,
+            contentStates = readCachedBackupContentStates(archiveDetails),
         )
+    }
+
+    private fun readCachedBackupContentStates(
+        archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    ): Map<String, BackupContentCatalogState> {
+        return archiveDetails.mapValues { (_, details) ->
+            contentCatalogStore.read(details)?.let { summary ->
+                BackupContentCatalogState(summary = summary)
+            } ?: BackupContentCatalogState(isLoading = true)
+        }
+    }
+
+    private fun scanUncachedBackupContents(
+        archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    ) {
+        contentCatalogJob?.cancel()
+        val targets = archiveDetails.values.filter { details ->
+            state.backupContentStates[details.termuxReadablePath]?.summary == null
+        }
+        if (targets.isEmpty()) {
+            contentCatalogJob = null
+            return
+        }
+        contentCatalogJob = scope.launch {
+            targets.forEach { details ->
+                val archivePath = details.termuxReadablePath
+                state.backupContentStates = state.backupContentStates + (
+                    archivePath to BackupContentCatalogState(isLoading = true)
+                )
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val summary = BackupLibraryFiles.openLibrarySource(appContext, archivePath)
+                            .openInput()
+                            .use(BackupArchiveContentScanner::scan)
+                        contentCatalogStore.write(details, summary)
+                        summary
+                    }
+                }
+                result.onSuccess { summary ->
+                    state.backupContentStates = state.backupContentStates + (
+                        archivePath to BackupContentCatalogState(summary = summary)
+                    )
+                }.onFailure { error ->
+                    if (error is CancellationException) throw error
+                    state.backupContentStates = state.backupContentStates + (
+                        archivePath to BackupContentCatalogState(
+                            errorMessage = "内容摘要读取失败：${error.message ?: "备份格式不兼容"}",
+                        )
+                    )
+                }
+            }
+            contentCatalogJob = null
+        }
     }
 
     private fun readBackupArchiveDetails(paths: List<String>): Map<String, BackupLibraryArchiveDetails> {
@@ -541,9 +592,12 @@ class LauncherBackupCoordinator(
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val (paths, message) = operation()
+                    val archiveDetails = readBackupArchiveDetails(paths)
+                    contentCatalogStore.prune(archiveDetails.values)
                     BackupLibraryOperationSnapshot(
                         paths = paths,
-                        archiveDetails = readBackupArchiveDetails(paths),
+                        archiveDetails = archiveDetails,
+                        contentStates = readCachedBackupContentStates(archiveDetails),
                         message = message,
                     )
                 }
@@ -553,6 +607,8 @@ class LauncherBackupCoordinator(
             result.onSuccess { snapshot ->
                 persistBackupHistory(snapshot.paths)
                 state.backupArchiveDetails = snapshot.archiveDetails
+                state.backupContentStates = snapshot.contentStates
+                scanUncachedBackupContents(snapshot.archiveDetails)
                 statusUpdate(snapshot.message, "", true)
             }.onFailure { error ->
                 statusUpdate("$label 失败：${error.message ?: error.javaClass.simpleName}", "", false)
@@ -587,11 +643,13 @@ class LauncherBackupCoordinator(
 private data class BackupLibrarySnapshot(
     val paths: List<String>,
     val archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    val contentStates: Map<String, BackupContentCatalogState>,
 )
 
 private data class BackupLibraryOperationSnapshot(
     val paths: List<String>,
     val archiveDetails: Map<String, BackupLibraryArchiveDetails>,
+    val contentStates: Map<String, BackupContentCatalogState>,
     val message: String,
 )
 
