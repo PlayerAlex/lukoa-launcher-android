@@ -40,6 +40,89 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LukoaPaletteScreenshotTest {
     @Test
+    fun renderTavernHubScreen() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+        activity.setContent {
+            LukoaTheme {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Header(
+                            tavernRunning = false,
+                            tavernStarting = false,
+                            showVersionUpdateBadge = false,
+                            onVersionClick = {},
+                        )
+                        TavernHubSection(
+                            tavernRunning = false,
+                            tavernStarting = false,
+                            actionInProgress = false,
+                            onOpenVersionManagement = {},
+                            onOpenBackup = {},
+                            onOpenExtensionManagement = {},
+                        )
+                    }
+                    LauncherBottomBar(
+                        selectedTab = LauncherTab.Tavern,
+                        onSelectTab = {},
+                    )
+                }
+            }
+        }
+
+        renderActivity(
+            activity = activity,
+            outputPath = "build/reports/tavern-hub-actual.png",
+            width = 390,
+            height = 844,
+        )
+        controller.close()
+    }
+
+    @Test
+    fun renderToolboxScreen() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+        activity.setContent {
+            LukoaTheme {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Header(
+                            tavernRunning = false,
+                            tavernStarting = false,
+                            showVersionUpdateBadge = false,
+                            onVersionClick = {},
+                        )
+                        ToolboxSection()
+                    }
+                    LauncherBottomBar(
+                        selectedTab = LauncherTab.Toolbox,
+                        onSelectTab = {},
+                    )
+                }
+            }
+        }
+
+        renderActivity(
+            activity = activity,
+            outputPath = "build/reports/toolbox-actual.png",
+            width = 390,
+            height = 844,
+        )
+        controller.close()
+    }
+
+    @Test
     fun renderSharedLauncherChrome() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()
@@ -163,5 +246,27 @@ class LukoaPaletteScreenshotTest {
             }
         }
         return matches.toFloat() / (width * height).toFloat()
+    }
+
+    private fun renderActivity(
+        activity: ComponentActivity,
+        outputPath: String,
+        width: Int,
+        height: Int,
+    ) {
+        shadowOf(activity.mainLooper).idle()
+        val decor = activity.window.decorView
+        decor.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+        )
+        decor.layout(0, 0, width, height)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        decor.draw(Canvas(bitmap))
+        val output = File(outputPath)
+        output.parentFile?.mkdirs()
+        FileOutputStream(output).use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        }
     }
 }

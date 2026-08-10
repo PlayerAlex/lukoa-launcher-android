@@ -3,6 +3,7 @@ package moe.lukoa.launcher
 import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -258,6 +260,7 @@ fun LukoaLauncherScreen(
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by rememberSaveable { mutableStateOf(LauncherTab.Launch) }
+    var secondaryPage by rememberSaveable { mutableStateOf<LauncherSecondaryPage?>(null) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
     val viewConfiguration = LocalViewConfiguration.current
     val pagerAxisGuard = remember(viewConfiguration.touchSlop) {
@@ -2545,7 +2548,8 @@ fun LukoaLauncherScreen(
             }
 
             LauncherQuickFixActionType.RecheckTavernVersion -> {
-                selectedTab = LauncherTab.Version
+                selectedTab = LauncherTab.Tavern
+                secondaryPage = LauncherSecondaryPage.VersionManagement
                 checkTavernInstall()
             }
 
@@ -2559,6 +2563,7 @@ fun LukoaLauncherScreen(
         val task = pendingLauncherTask ?: return
         showPendingTaskDialog = false
         selectedTab = PendingLauncherTaskSupport.defaultTab(task)
+        secondaryPage = PendingLauncherTaskSupport.defaultSecondaryPage(task)
         val latest = PendingLauncherTaskSupport.latestResult(task, onRecentTermuxResults())
         if (latest != null) {
             if (latest.key != lastSyncedTermuxResultKey) {
@@ -3146,6 +3151,91 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun refreshTavernExtensions() {
+        runGuarded(
+            "读取酒馆扩展",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-list"),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
+            tavernExtensionState = tavernExtensionState.copy(
+                loading = true,
+                message = "正在读取扩展…",
+            )
+            onCommand("tavern-extensions-list") { newStatus, output, ok ->
+                guardedUpdate(newStatus, output, ok)
+                if (!isTransientStatus(newStatus) && TavernExtensionOutputParser.parse(output) == null) {
+                    tavernExtensionState = tavernExtensionState.copy(
+                        loading = false,
+                        message = if (ok) {
+                            "命令已完成，但没有读到兼容的扩展列表。"
+                        } else {
+                            "读取失败，请确认当前实例已安装且 Termux 中的 Node.js 可用。"
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteTavernExtension(directoryName: String) {
+        runTavernExtensionMutation(
+            directoryName = directoryName,
+            commandName = "tavern-extensions-delete",
+            busyText = "删除酒馆扩展",
+            stoppedRequirementText = "删除扩展前必须先停止酒馆。",
+        )
+    }
+
+    fun toggleTavernExtension(directoryName: String, enabled: Boolean) {
+        val actionText = if (enabled) "启用" else "停用"
+        runTavernExtensionMutation(
+            directoryName = directoryName,
+            commandName = if (enabled) "tavern-extensions-enable" else "tavern-extensions-disable",
+            busyText = "${actionText}酒馆扩展",
+            stoppedRequirementText = "${actionText}扩展前必须先停止酒馆。",
+        )
+    }
+
+    fun checkTavernExtensionUpdates() {
+        runGuarded(
+            "检查扩展更新",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-check-updates"),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
+            tavernExtensionState = tavernExtensionState.copy(
+                loading = true,
+                message = "正在检查扩展更新…",
+            )
+            onCommand("tavern-extensions-check-updates") { newStatus, output, ok ->
+                guardedUpdate(newStatus, output, ok)
+                if (!isTransientStatus(newStatus) && TavernExtensionOutputParser.parse(output) == null) {
+                    tavernExtensionState = tavernExtensionState.copy(
+                        loading = false,
+                        message = "检查更新失败，没有修改扩展文件。",
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateTavernExtension(directoryName: String) {
+        runTavernExtensionMutation(
+            directoryName = directoryName,
+            commandName = "tavern-extensions-update",
+            busyText = "更新酒馆扩展",
+            stoppedRequirementText = "更新扩展前必须先停止酒馆。",
+        )
+    }
+
+    fun rollbackTavernExtension(directoryName: String) {
+        runTavernExtensionMutation(
+            directoryName = directoryName,
+            commandName = "tavern-extensions-rollback",
+            busyText = "回退酒馆扩展",
+            stoppedRequirementText = "回退扩展前必须先停止酒馆。",
+        )
+    }
+
     LaunchedEffect(selectedTab) {
         if (pagerState.currentPage != selectedTab.ordinal) {
             pagerState.animateScrollToPage(
@@ -3155,8 +3245,8 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(selectedTab, backupHistory, actionInProgress) {
-        if (selectedTab == LauncherTab.Backup && !actionInProgress) {
+    LaunchedEffect(secondaryPage, backupHistory, actionInProgress) {
+        if (secondaryPage == LauncherSecondaryPage.Backup && !actionInProgress) {
             backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
         }
     }
@@ -3306,7 +3396,10 @@ fun LukoaLauncherScreen(
                 refreshBackgroundTaskCenterResults()
             },
             onOpenPendingTaskPage = {
-                pendingLauncherTask?.let { selectedTab = PendingLauncherTaskSupport.defaultTab(it) }
+                pendingLauncherTask?.let {
+                    selectedTab = PendingLauncherTaskSupport.defaultTab(it)
+                    secondaryPage = PendingLauncherTaskSupport.defaultSecondaryPage(it)
+                }
                 showBackgroundTaskCenter = false
             },
             onAbandonPendingTask = {
@@ -3513,12 +3606,17 @@ fun LukoaLauncherScreen(
         }
     }
 
-    Column(
+    BackHandler(enabled = secondaryPage != null) {
+        secondaryPage = null
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(LukoaColors.Background),
     ) {
-        HorizontalPager(
+        Column(modifier = Modifier.fillMaxSize()) {
+            HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .weight(1f)
@@ -3598,32 +3696,19 @@ fun LukoaLauncherScreen(
                             pageScrollState = pageScrollState,
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
-                        LauncherTab.Version -> VersionManagementSection(
-                            actionsLocked = actionInProgress,
+                        LauncherTab.Tavern -> TavernHubSection(
                             tavernRunning = tavernRunning,
                             tavernStarting = tavernStarting,
-                            tavernVersionInfo = tavernVersionInfo,
-                            officialVersions = officialVersions,
-                            currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
-                            selectedVersion = selectedTavernVersion,
-                            lastOperationSummary = lastTavernVersionOperationSummary,
-                            onRefreshOfficialVersions = ::refreshOfficialVersions,
-                            onSelectVersion = {
-                                selectedTavernVersion = it
-                                pendingTavernVersionActionConfirmation = null
+                            actionInProgress = actionInProgress,
+                            onOpenVersionManagement = {
+                                secondaryPage = LauncherSecondaryPage.VersionManagement
                             },
-                            onTavernVersion = {
-                                runGuarded("重新检测酒馆版本", 18000L, allowRunningInference = false) { guardedUpdate ->
-                                    onCommand("tavern-version", guardedUpdate)
-                                }
+                            onOpenBackup = {
+                                secondaryPage = LauncherSecondaryPage.Backup
                             },
-                            onTavernUpdate = ::requestTavernUpdate,
-                            onTavernRollback = ::requestTavernRollback,
-                            onOpenSafetyBackup = {
-                                selectedTab = LauncherTab.Backup
+                            onOpenExtensionManagement = {
+                                secondaryPage = LauncherSecondaryPage.ExtensionManagement
                             },
-                            uploadLimitStatus = uploadLimitStatus,
-                            onResetUploadLimit = ::resetUploadLimitToVersionDefault,
                         )
                         LauncherTab.Launch -> {
                             val launchPermissionReminder = PermissionStatusSummary.launchReminder(
@@ -3631,14 +3716,6 @@ fun LukoaLauncherScreen(
                                 launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
                                 termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
                                 termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
-                            )
-                            OverviewPanel(
-                                summary = summary,
-                                status = status,
-                                verified = verified,
-                                tavernRunning = tavernRunning,
-                                tavernStarting = tavernStarting,
-                                syncActive = termuxInstalled && runCommandPermissionGranted,
                             )
                             if (showBusyOperationPanel) {
                                 BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
@@ -3756,28 +3833,7 @@ fun LukoaLauncherScreen(
                                 accentColor = LukoaColors.TextSecondary,
                             )
                         }
-                        LauncherTab.Backup -> BackupSection(
-                            activeInstanceLabel = tavernPathConfig.activeProfileLabel,
-                            actionsLocked = actionInProgress || backupUiState.backupPreviewUiState is BackupPreviewUiState.Loading,
-                            backupListRefreshing = backupUiState.backupListRefreshing,
-                            autoBackupEnabled = autoBackupEnabled,
-                            autoBackupIntervalMinutes = autoBackupIntervalMinutes,
-                            autoBackupKeepCount = autoBackupKeepCount,
-                            backupHistory = backupHistory,
-                            backupArchiveDetails = backupUiState.backupArchiveDetails,
-                            backupContentStates = backupUiState.backupContentStates,
-                            onCreateManualBackup = backupCoordinator::openManualBackupDialog,
-                            onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
-                            onRefreshBackups = { backupCoordinator.refreshBackupList() },
-                            onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
-                            onApplyBackup = backupCoordinator::requestApplyBackup,
-                            onCopyBackup = backupCoordinator::requestCopyBackup,
-                            onRenameBackup = backupCoordinator::requestRenameBackup,
-                            onDeleteBackup = backupCoordinator::requestDeleteBackup,
-                            onExportBackup = backupCoordinator::exportBackupArchive,
-                            onImportBackup = backupCoordinator::pickAndImportExternalBackup,
-                            onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
-                        )
+                        LauncherTab.Toolbox -> ToolboxSection()
                         LauncherTab.Settings -> SettingsSection(
                             termuxReturnDelayMs = termuxReturnDelayMs,
                             termuxInstalled = termuxInstalled,
@@ -3977,95 +4033,13 @@ fun LukoaLauncherScreen(
                                     onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
                                 }
                             },
-                            onRefreshTavernExtensions = {
-                                runGuarded(
-                                    "读取酒馆扩展",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-extensions-list"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    tavernExtensionState = tavernExtensionState.copy(
-                                        loading = true,
-                                        message = "正在读取扩展…",
-                                    )
-                                    onCommand("tavern-extensions-list") { newStatus, output, ok ->
-                                        guardedUpdate(newStatus, output, ok)
-                                        if (!isTransientStatus(newStatus) && TavernExtensionOutputParser.parse(output) == null) {
-                                            tavernExtensionState = tavernExtensionState.copy(
-                                                loading = false,
-                                                message = if (ok) {
-                                                    "命令已完成，但没有读到兼容的扩展列表。"
-                                                } else {
-                                                    "读取失败，请确认当前实例已安装且 Termux 中的 Node.js 可用。"
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            onDeleteTavernExtension = { directoryName ->
-                                runTavernExtensionMutation(
-                                    directoryName = directoryName,
-                                    commandName = "tavern-extensions-delete",
-                                    busyText = "删除酒馆扩展",
-                                    stoppedRequirementText = "删除扩展前必须先停止酒馆。",
-                                )
-                            },
-                            onToggleTavernExtension = { directoryName, enabled ->
-                                val actionText = if (enabled) "启用" else "停用"
-                                runTavernExtensionMutation(
-                                    directoryName = directoryName,
-                                    commandName = if (enabled) {
-                                        "tavern-extensions-enable"
-                                    } else {
-                                        "tavern-extensions-disable"
-                                    },
-                                    busyText = "${actionText}酒馆扩展",
-                                    stoppedRequirementText = "${actionText}扩展前必须先停止酒馆。",
-                                )
-                            },
+                            onRefreshTavernExtensions = ::refreshTavernExtensions,
+                            onDeleteTavernExtension = ::deleteTavernExtension,
+                            onToggleTavernExtension = ::toggleTavernExtension,
                             onInstallTavernExtension = ::runTavernExtensionInstall,
-                            onCheckTavernExtensionUpdates = {
-                                runGuarded(
-                                    "检查扩展更新",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis(
-                                        "tavern-extensions-check-updates",
-                                    ),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    tavernExtensionState = tavernExtensionState.copy(
-                                        loading = true,
-                                        message = "正在检查扩展更新…",
-                                    )
-                                    onCommand("tavern-extensions-check-updates") { newStatus, output, ok ->
-                                        guardedUpdate(newStatus, output, ok)
-                                        if (
-                                            !isTransientStatus(newStatus) &&
-                                            TavernExtensionOutputParser.parse(output) == null
-                                        ) {
-                                            tavernExtensionState = tavernExtensionState.copy(
-                                                loading = false,
-                                                message = "检查更新失败，没有修改扩展文件。",
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            onUpdateTavernExtension = { directoryName ->
-                                runTavernExtensionMutation(
-                                    directoryName = directoryName,
-                                    commandName = "tavern-extensions-update",
-                                    busyText = "更新酒馆扩展",
-                                    stoppedRequirementText = "更新扩展前必须先停止酒馆。",
-                                )
-                            },
-                            onRollbackTavernExtension = { directoryName ->
-                                runTavernExtensionMutation(
-                                    directoryName = directoryName,
-                                    commandName = "tavern-extensions-rollback",
-                                    busyText = "回退酒馆扩展",
-                                    stoppedRequirementText = "回退扩展前必须先停止酒馆。",
-                                )
-                            },
+                            onCheckTavernExtensionUpdates = ::checkTavernExtensionUpdates,
+                            onUpdateTavernExtension = ::updateTavernExtension,
+                            onRollbackTavernExtension = ::rollbackTavernExtension,
                             onCopyTavernExtensionPath = { path ->
                                 onCopyText("扩展目录", path)
                             },
@@ -4084,10 +4058,125 @@ fun LukoaLauncherScreen(
             }
         }
 
-        LauncherBottomBar(
-            selectedTab = selectedTab,
-            onSelectTab = { selectedTab = it },
-        )
+            LauncherBottomBar(
+                selectedTab = selectedTab,
+                onSelectTab = {
+                    secondaryPage = null
+                    selectedTab = it
+                },
+            )
+        }
+
+        val activeSecondaryPage = secondaryPage
+        if (activeSecondaryPage != null) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = LukoaColors.Background,
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    LauncherSecondaryPageHeader(
+                        title = activeSecondaryPage.title,
+                        onBack = { secondaryPage = null },
+                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        if (showBusyOperationPanel) {
+                            BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
+                        }
+                        pendingLauncherTask
+                            ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
+                            ?.let { task ->
+                                PendingTaskNoticePanel(
+                                    task = task,
+                                    activeLockLabel = busyLabel,
+                                    onContinueCheck = ::continuePendingLauncherTask,
+                                    onAbandon = ::abandonPendingLauncherTask,
+                                )
+                            }
+                        when (activeSecondaryPage) {
+                            LauncherSecondaryPage.VersionManagement -> VersionManagementSection(
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                tavernStarting = tavernStarting,
+                                tavernVersionInfo = tavernVersionInfo,
+                                officialVersions = officialVersions,
+                                currentRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+                                selectedVersion = selectedTavernVersion,
+                                lastOperationSummary = lastTavernVersionOperationSummary,
+                                onRefreshOfficialVersions = ::refreshOfficialVersions,
+                                onSelectVersion = {
+                                    selectedTavernVersion = it
+                                    pendingTavernVersionActionConfirmation = null
+                                },
+                                onTavernVersion = {
+                                    runGuarded(
+                                        "重新检测酒馆版本",
+                                        18000L,
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate ->
+                                        onCommand("tavern-version", guardedUpdate)
+                                    }
+                                },
+                                onTavernUpdate = ::requestTavernUpdate,
+                                onTavernRollback = ::requestTavernRollback,
+                                onOpenSafetyBackup = {
+                                    secondaryPage = LauncherSecondaryPage.Backup
+                                },
+                                uploadLimitStatus = uploadLimitStatus,
+                                onResetUploadLimit = ::resetUploadLimitToVersionDefault,
+                            )
+
+                            LauncherSecondaryPage.Backup -> BackupSection(
+                                activeInstanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress ||
+                                    backupUiState.backupPreviewUiState is BackupPreviewUiState.Loading,
+                                backupListRefreshing = backupUiState.backupListRefreshing,
+                                autoBackupEnabled = autoBackupEnabled,
+                                autoBackupIntervalMinutes = autoBackupIntervalMinutes,
+                                autoBackupKeepCount = autoBackupKeepCount,
+                                backupHistory = backupHistory,
+                                backupArchiveDetails = backupUiState.backupArchiveDetails,
+                                backupContentStates = backupUiState.backupContentStates,
+                                onCreateManualBackup = backupCoordinator::openManualBackupDialog,
+                                onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
+                                onRefreshBackups = { backupCoordinator.refreshBackupList() },
+                                onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
+                                onApplyBackup = backupCoordinator::requestApplyBackup,
+                                onCopyBackup = backupCoordinator::requestCopyBackup,
+                                onRenameBackup = backupCoordinator::requestRenameBackup,
+                                onDeleteBackup = backupCoordinator::requestDeleteBackup,
+                                onExportBackup = backupCoordinator::exportBackupArchive,
+                                onImportBackup = backupCoordinator::pickAndImportExternalBackup,
+                                onCopyBackupLibraryPath = backupCoordinator::copyBackupLibraryPath,
+                            )
+
+                            LauncherSecondaryPage.ExtensionManagement -> TavernExtensionManagementSection(
+                                state = tavernExtensionState,
+                                instanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                onRefresh = ::refreshTavernExtensions,
+                                onDelete = ::deleteTavernExtension,
+                                onToggleEnabled = ::toggleTavernExtension,
+                                onInstall = ::runTavernExtensionInstall,
+                                onCheckUpdates = ::checkTavernExtensionUpdates,
+                                onUpdate = ::updateTavernExtension,
+                                onRollback = ::rollbackTavernExtension,
+                                onCopyPath = { path -> onCopyText("扩展目录", path) },
+                                onShowHint = { hint ->
+                                    update(hint, "", false, allowRunningInference = false)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

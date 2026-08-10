@@ -56,10 +56,18 @@ enum class LauncherTab(
     val shortLabel: String,
 ) {
     Docs("文档", "文"),
-    Version("版本", "版"),
+    Tavern("酒馆", "酒"),
     Launch("启动", "启"),
-    Backup("备份", "备"),
+    Toolbox("工具箱", "工"),
     Settings("设置", "设"),
+}
+
+enum class LauncherSecondaryPage(
+    val title: String,
+) {
+    VersionManagement("版本管理"),
+    Backup("备份"),
+    ExtensionManagement("扩展管理"),
 }
 
 @Composable

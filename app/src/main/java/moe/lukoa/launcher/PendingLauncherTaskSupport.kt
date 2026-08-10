@@ -94,15 +94,29 @@ object PendingLauncherTaskSupport {
     fun defaultTab(task: PendingLauncherTask): LauncherTab {
         return when (task.kind) {
             PendingLauncherTaskKind.ManualBackup,
-            PendingLauncherTaskKind.RestoreBackup -> LauncherTab.Backup
-
+            PendingLauncherTaskKind.RestoreBackup,
             PendingLauncherTaskKind.InstallTavern,
             PendingLauncherTaskKind.UpdateTavern,
-            PendingLauncherTaskKind.RollbackTavern -> LauncherTab.Version
+            PendingLauncherTaskKind.RollbackTavern -> LauncherTab.Tavern
 
             PendingLauncherTaskKind.MigrateTavernDirectory,
             PendingLauncherTaskKind.RemoveManagedProfileDirectory,
             PendingLauncherTaskKind.CloneTavernProfile -> LauncherTab.Settings
+        }
+    }
+
+    fun defaultSecondaryPage(task: PendingLauncherTask): LauncherSecondaryPage? {
+        return when (task.kind) {
+            PendingLauncherTaskKind.ManualBackup,
+            PendingLauncherTaskKind.RestoreBackup -> LauncherSecondaryPage.Backup
+
+            PendingLauncherTaskKind.InstallTavern,
+            PendingLauncherTaskKind.UpdateTavern,
+            PendingLauncherTaskKind.RollbackTavern -> LauncherSecondaryPage.VersionManagement
+
+            PendingLauncherTaskKind.MigrateTavernDirectory,
+            PendingLauncherTaskKind.RemoveManagedProfileDirectory,
+            PendingLauncherTaskKind.CloneTavernProfile -> null
         }
     }
 

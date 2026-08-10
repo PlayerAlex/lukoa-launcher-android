@@ -54,60 +54,25 @@ fun InstallRiskConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Primary,
-        textContentColor = LukoaColors.TextPrimary,
-        title = {
-            Text(confirmation.title)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = confirmation.summary,
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Surface(
-                    color = LukoaColors.Elevated,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 220.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        confirmation.details.forEach { item ->
-                            Text(
-                                text = "• $item",
-                                color = LukoaColors.TextPrimary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
+    LauncherActionDialogScaffold(
+        title = confirmation.title,
+        titleTone = ActionTone.Safe,
+        confirmText = "继续安装",
+        confirmTone = ActionTone.Safe,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = confirmation.summary,
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (confirmation.details.isNotEmpty()) {
+            LauncherDialogSection(title = "安装前确认") {
+                LauncherDialogBulletList(confirmation.details)
             }
-        },
-        confirmButton = {
-            DialogActionButton(
-                text = "继续安装",
-                tone = ActionTone.Safe,
-                onClick = onConfirm,
-            )
-        },
-        dismissButton = {
-            DialogActionButton(
-                text = "取消",
-                tone = ActionTone.Neutral,
-                onClick = onDismiss,
-            )
-        },
-    )
+        }
+    }
 }
 @Composable
 fun StartPreflightConfirmDialog(
@@ -116,113 +81,52 @@ fun StartPreflightConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Accent,
-        textContentColor = LukoaColors.TextPrimary,
-        title = {
-            Text(result.title.ifBlank { "启动前发现问题" })
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                activeProfile?.let { profile ->
-                    StartPreflightProfileInfoCard(profile = profile)
-                }
-                Text(
-                    text = result.summary,
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                result.details.takeIf { it.isNotEmpty() }?.let { details ->
-                    Surface(
-                        color = LukoaColors.Elevated,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Border),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 220.dp)
-                                .verticalScroll(rememberScrollState())
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            details.forEach { item ->
-                                Text(
-                                    text = "• $item",
-                                    color = LukoaColors.TextPrimary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        }
-                    }
-                }
+    val actionTone = when (result.action?.type) {
+        TavernStartPreflightActionType.ForceCleanupDetectedProcess -> ActionTone.Danger
+        else -> ActionTone.Safe
+    }
+    LauncherActionDialogScaffold(
+        title = result.title.ifBlank { "启动前发现问题" },
+        titleTone = ActionTone.Warning,
+        confirmText = result.action?.label,
+        confirmTone = actionTone,
+        dismissText = if (result.action == null) "知道了" else "稍后",
+        onConfirm = if (result.action != null) onConfirm else null,
+        onDismiss = onDismiss,
+    ) {
+        activeProfile?.let { profile ->
+            StartPreflightProfileInfoCard(profile = profile)
+        }
+        Text(
+            text = result.summary,
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (result.details.isNotEmpty()) {
+            LauncherDialogSection(title = "需要注意") {
+                LauncherDialogBulletList(result.details)
             }
-        },
-        confirmButton = {
-            result.action?.let { action ->
-                DialogActionButton(
-                    text = action.label,
-                    tone = when (action.type) {
-                        TavernStartPreflightActionType.PrepareTermuxEnvironment -> ActionTone.Safe
-
-                        TavernStartPreflightActionType.ForceCleanupDetectedProcess -> ActionTone.Danger
-
-                        TavernStartPreflightActionType.DownloadTermux,
-                        TavernStartPreflightActionType.RequestRunPermission,
-                        TavernStartPreflightActionType.CopyExternalAppsCommand,
-                        TavernStartPreflightActionType.ChooseDetectedDirectory,
-                        TavernStartPreflightActionType.OpenPathSettings,
-                        TavernStartPreflightActionType.ReturnToTavern,
-                        TavernStartPreflightActionType.Retry -> ActionTone.Safe
-                    },
-                    onClick = onConfirm,
-                )
-            }
-        },
-        dismissButton = {
-            DialogActionButton(
-                text = if (result.action == null) "知道了" else "稍后",
-                tone = ActionTone.Neutral,
-                onClick = onDismiss,
-            )
-        },
-    )
+        }
+    }
 }
 
 @Composable
 private fun StartPreflightProfileInfoCard(profile: TavernProfile) {
-    Surface(
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
+    LauncherDialogSection(title = "当前实例") {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = "这次准备启动的是下面这个实例：",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            VersionInfoLine("当前实例", profile.normalizedName)
+            VersionInfoLine("实例名称", profile.normalizedName)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "当前目录",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text("实例目录", color = LukoaColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                 Text(
                     text = profile.displayTavernDir,
                     color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            VersionInfoLine("当前端口", profile.normalizedPort.toString())
+            VersionInfoLine("访问端口", profile.normalizedPort.toString())
         }
     }
 }
@@ -292,39 +196,19 @@ fun ForceCleanupTavernConfirmDialog(
             profilePath = confirmation.profilePath,
             profilePort = confirmation.profilePort,
         )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Elevated,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = "为什么现在会建议这样做",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    text = confirmation.suggestion.reasonDetail,
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Danger.copy(alpha = 0.08f),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.24f)),
-        ) {
+        LauncherDialogSection(title = "建议原因") {
             Text(
-                text = confirmation.suggestion.riskTip,
-                modifier = Modifier.padding(12.dp),
+                text = confirmation.suggestion.reasonDetail,
                 color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        LauncherDialogSection(title = "风险说明") {
+            Text(
+                text = confirmation.suggestion.riskTip,
+                color = LukoaColors.Danger,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -336,19 +220,14 @@ private fun TavernActionProfileCard(
     profilePath: String,
     profilePort: Int,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
+    LauncherDialogSection(title = "操作对象") {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            VersionInfoLine("当前实例", profileName)
-            VersionInfoLine("当前目录", profilePath)
-            VersionInfoLine("当前端口", profilePort.toString())
+            VersionInfoLine("实例名称", profileName)
+            VersionInfoLine("实例目录", profilePath)
+            VersionInfoLine("访问端口", profilePort.toString())
         }
     }
 }

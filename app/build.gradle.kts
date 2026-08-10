@@ -17,8 +17,8 @@ android {
         applicationId = "moe.lukoa.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 262
-        versionName = "0.9.3-beta45"
+        versionCode = 263
+        versionName = "0.9.3-beta46"
     }
 
     buildTypes {
@@ -63,6 +63,7 @@ dependencies {
 
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")

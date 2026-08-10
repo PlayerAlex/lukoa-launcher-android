@@ -21,6 +21,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -60,12 +61,47 @@ internal fun RiskyActionDialogScaffold(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    LauncherActionDialogScaffold(
+        title = title,
+        titleTone = titleTone,
+        confirmText = confirmText,
+        confirmTone = confirmTone,
+        confirmEnabled = confirmEnabled,
+        dismissText = dismissText,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        content = content,
+    )
+}
+
+@Composable
+internal fun LauncherActionDialogScaffold(
+    title: String,
+    titleTone: ActionTone = ActionTone.Safe,
+    confirmText: String? = null,
+    confirmTone: ActionTone = ActionTone.Safe,
+    confirmEnabled: Boolean = true,
+    dismissText: String = "取消",
+    onConfirm: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
+        shape = RoundedCornerShape(12.dp),
         titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.TextPrimary,
-        title = { Text(title) },
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                )
+                HorizontalDivider(color = LukoaColors.Border)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -78,15 +114,52 @@ internal fun RiskyActionDialogScaffold(
             }
         },
         confirmButton = {
-            DialogActionButton(
-                text = confirmText,
-                enabled = confirmEnabled,
-                tone = confirmTone,
-                onClick = onConfirm,
-            )
+            if (!confirmText.isNullOrBlank() && onConfirm != null) {
+                DialogActionButton(
+                    text = confirmText,
+                    enabled = confirmEnabled,
+                    tone = confirmTone,
+                    onClick = onConfirm,
+                )
+            }
         },
         dismissButton = {
             DialogActionButton(dismissText, tone = ActionTone.Neutral, onClick = onDismiss)
         },
     )
+}
+
+@Composable
+internal fun LauncherDialogSection(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        )
+        content()
+    }
+}
+
+@Composable
+internal fun LauncherDialogBulletList(items: List<String>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items.forEach { item ->
+            Text(
+                text = "• $item",
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }

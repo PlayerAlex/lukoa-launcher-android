@@ -62,7 +62,7 @@ class LauncherComposeUiTest {
     }
 
     @Test
-    fun bottomNavigation_selectingBackupUpdatesSelectedTab() {
+    fun bottomNavigation_selectingToolboxUpdatesSelectedTab() {
         var selectedByCallback: LauncherTab? = null
 
         composeRule.setContent {
@@ -79,12 +79,74 @@ class LauncherComposeUiTest {
         }
 
         composeRule.onNode(hasText("启动") and hasClickAction()).assertIsSelected()
-        composeRule.onNode(hasText("备份") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("工具箱") and hasClickAction()).performClick()
 
-        composeRule.onNode(hasText("备份") and hasClickAction()).assertIsSelected()
+        composeRule.onNode(hasText("工具箱") and hasClickAction()).assertIsSelected()
         composeRule.onNode(hasText("启动") and hasClickAction()).assertIsNotSelected()
         composeRule.runOnIdle {
-            assertEquals(LauncherTab.Backup, selectedByCallback)
+            assertEquals(LauncherTab.Toolbox, selectedByCallback)
+        }
+    }
+
+    @Test
+    fun tavernHub_opensEachAvailableSecondaryPage() {
+        var openedPage: LauncherSecondaryPage? = null
+
+        composeRule.setContent {
+            LukoaTheme {
+                TavernHubSection(
+                    tavernRunning = false,
+                    tavernStarting = false,
+                    actionInProgress = false,
+                    onOpenVersionManagement = {
+                        openedPage = LauncherSecondaryPage.VersionManagement
+                    },
+                    onOpenBackup = {
+                        openedPage = LauncherSecondaryPage.Backup
+                    },
+                    onOpenExtensionManagement = {
+                        openedPage = LauncherSecondaryPage.ExtensionManagement
+                    },
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("版本管理") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.VersionManagement, openedPage)
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("备份") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.Backup, openedPage)
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("扩展管理") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.ExtensionManagement, openedPage)
+        }
+    }
+
+    @Test
+    fun secondaryPageHeader_backButtonReturnsToHub() {
+        var backCount = 0
+
+        composeRule.setContent {
+            LukoaTheme {
+                LauncherSecondaryPageHeader(
+                    title = "版本管理",
+                    onBack = { backCount += 1 },
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("返回") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, backCount)
         }
     }
 

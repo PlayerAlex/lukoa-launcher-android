@@ -98,9 +98,9 @@ class PendingLauncherTaskSupportTest {
     }
 
     @Test
-    fun `default tab maps backup and restore to backup tab`() {
+    fun `default destination maps backup and restore to tavern backup page`() {
         assertEquals(
-            LauncherTab.Backup,
+            LauncherTab.Tavern,
             PendingLauncherTaskSupport.defaultTab(
                 PendingLauncherTask(
                     kind = PendingLauncherTaskKind.ManualBackup,
@@ -111,8 +111,19 @@ class PendingLauncherTaskSupportTest {
             ),
         )
         assertEquals(
-            LauncherTab.Backup,
+            LauncherTab.Tavern,
             PendingLauncherTaskSupport.defaultTab(
+                PendingLauncherTask(
+                    kind = PendingLauncherTaskKind.RestoreBackup,
+                    commandName = "tavern-restore",
+                    detail = "",
+                    startedAtMillis = 1L,
+                ),
+            ),
+        )
+        assertEquals(
+            LauncherSecondaryPage.Backup,
+            PendingLauncherTaskSupport.defaultSecondaryPage(
                 PendingLauncherTask(
                     kind = PendingLauncherTaskKind.RestoreBackup,
                     commandName = "tavern-restore",
@@ -124,14 +135,18 @@ class PendingLauncherTaskSupportTest {
     }
 
     @Test
-    fun `default tab maps version tasks to version tab`() {
+    fun `default destination maps version tasks to tavern version page`() {
         val task = PendingLauncherTask(
             kind = PendingLauncherTaskKind.UpdateTavern,
             commandName = "tavern-update",
             detail = "",
             startedAtMillis = 1L,
         )
-        assertEquals(LauncherTab.Version, PendingLauncherTaskSupport.defaultTab(task))
+        assertEquals(LauncherTab.Tavern, PendingLauncherTaskSupport.defaultTab(task))
+        assertEquals(
+            LauncherSecondaryPage.VersionManagement,
+            PendingLauncherTaskSupport.defaultSecondaryPage(task),
+        )
     }
 
     @Test
