@@ -425,6 +425,7 @@ private fun BackupRecordLine(
     onDelete: () -> Unit,
 ) {
     val fileName = path.substringAfterLast('/')
+    var contentExpanded by remember(path) { mutableStateOf(false) }
     Surface(
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
@@ -496,43 +497,64 @@ private fun BackupRecordLine(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     SettingsSectionDivider()
-                    Text(
-                        text = "备份内容",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    when {
-                        contentState?.summary != null -> {
-                            val summary = contentState.summary
-                            if (summary.groups.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LukoaColors.Surface,
+                        shape = RoundedCornerShape(8.dp),
+                        onClick = { contentExpanded = !contentExpanded },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "备份内容",
+                                modifier = Modifier.weight(1f),
+                                color = LukoaColors.TextSecondary,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            Text(
+                                text = if (contentExpanded) "收起" else "展开",
+                                color = LukoaColors.Primary,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    if (contentExpanded) {
+                        when {
+                            contentState?.summary != null -> {
+                                val summary = contentState.summary
+                                if (summary.groups.isEmpty()) {
+                                    Text(
+                                        text = "没有识别到可单独列出的角色卡、预设或其他用户内容。",
+                                        color = LukoaColors.TextSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                } else {
+                                    summary.groups.forEach { group ->
+                                        BackupContentGroupRow(group)
+                                    }
+                                }
+                            }
+                            contentState?.errorMessage?.isNotBlank() == true -> {
                                 Text(
-                                    text = "没有识别到可单独列出的角色卡、预设或其他用户内容。",
+                                    text = contentState.errorMessage,
+                                    color = LukoaColors.Accent,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = if (contentState?.isLoading == true) {
+                                        "正在自动读取并保存内容摘要…"
+                                    } else {
+                                        "等待自动读取内容摘要…"
+                                    },
                                     color = LukoaColors.TextSecondary,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
-                            } else {
-                                summary.groups.forEach { group ->
-                                    BackupContentGroupRow(group)
-                                }
                             }
-                        }
-                        contentState?.errorMessage?.isNotBlank() == true -> {
-                            Text(
-                                text = contentState.errorMessage,
-                                color = LukoaColors.Accent,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        else -> {
-                            Text(
-                                text = if (contentState?.isLoading == true) {
-                                    "正在自动读取并保存内容摘要…"
-                                } else {
-                                    "等待自动读取内容摘要…"
-                                },
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
                         }
                     }
                 }

@@ -187,6 +187,12 @@ class LauncherComposeUiTest {
                                             names = listOf("清凉角色"),
                                             namesTruncated = false,
                                         ),
+                                        BackupArchiveContentGroup(
+                                            kind = BackupArchiveContentKind.GenerationTemplates,
+                                            entryCount = 1,
+                                            names = listOf("清凉参数"),
+                                            namesTruncated = false,
+                                        ),
                                     ),
                                 ),
                             ),
@@ -224,6 +230,15 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText(archivePath).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("备份内容").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("查看内容").assertDoesNotExist()
+        composeRule.onNodeWithText("角色卡").assertDoesNotExist()
+        composeRule.onNodeWithText("清凉角色").assertDoesNotExist()
+        composeRule.onNodeWithText("备份内容").performClick()
+        composeRule.onNodeWithText("角色卡").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("酒馆参数模板").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "包含 NovelAI、TextGen 和 KoboldAI 参数文件，其中可能有酒馆自带模板。",
+        ).assertDoesNotExist()
+        composeRule.onNodeWithText("清凉角色").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").performScrollTo().performClick()
         composeRule.onNodeWithText("清凉角色").performScrollTo().assertIsDisplayed()
         composeRule.onNode(hasText("重命名") and hasClickAction())

@@ -17,10 +17,7 @@ enum class BackupArchiveContentKind(
 ) {
     CharacterCards("角色卡"),
     Presets("预设"),
-    GenerationTemplates(
-        "酒馆参数模板",
-        "包含 NovelAI、TextGen 和 KoboldAI 参数文件，其中可能有酒馆自带模板。",
-    ),
+    GenerationTemplates("酒馆参数模板"),
     PromptTemplates(
         "提示词模板",
         "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
