@@ -5,13 +5,14 @@ import org.junit.Test
 
 class TermuxCommandPresentationPolicyTest {
     @Test
-    fun `internal probes and automatic work stay in background`() {
+    fun `commands that should not leave launcher stay in background`() {
         listOf(
             "selftest",
             "install-script",
             "log",
             "status",
             "start",
+            "stop",
             "tavern-version",
             "tavern-upload-limit-status",
             "tavern-users-list",
@@ -34,7 +35,6 @@ class TermuxCommandPresentationPolicyTest {
     @Test
     fun `user initiated progress and mutations open in foreground`() {
         listOf(
-            "stop",
             "tavern-force-cleanup",
             "tavern-doctor",
             "tavern-repair-dependencies",

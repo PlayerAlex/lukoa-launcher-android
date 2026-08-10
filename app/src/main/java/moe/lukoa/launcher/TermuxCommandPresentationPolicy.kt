@@ -12,6 +12,7 @@ object TermuxCommandPresentationPolicy {
         "log",
         "status",
         "start",
+        "stop",
         "tavern-version",
         "tavern-upload-limit-status",
         "tavern-users-list",
