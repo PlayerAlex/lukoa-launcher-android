@@ -34,7 +34,7 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(listOf("Mint"), summary.group(BackupArchiveContentKind.CharacterCards)?.names)
         assertEquals(listOf("CoolPreset"), summary.group(BackupArchiveContentKind.Presets)?.names)
-        assertEquals(listOf("CleanRegex"), summary.group(BackupArchiveContentKind.RegexScripts)?.names)
+        assertEquals(listOf("CleanRegex"), globalRegexNames(summary))
         assertEquals(
             listOf(
                 BackupArchiveContentNode(
@@ -163,7 +163,10 @@ class BackupArchiveContentScannerTest {
                           ]}
                         ]
                       }
-                    }
+                    },
+                    "regex": [
+                      {"scriptName":"全局净化","findRegex":"global"}
+                    ]
                   }
                 }
                 """.trimIndent(),
@@ -175,7 +178,10 @@ class BackupArchiveContentScannerTest {
                       "scripts": [
                         {"type":"script","name":"预设脚本"}
                       ]
-                    }
+                    },
+                    "regex_scripts": [
+                      {"scriptName":"预设净化","findRegex":"preset"}
+                    ]
                   }
                 }
                 """.trimIndent(),
@@ -188,7 +194,10 @@ class BackupArchiveContentScannerTest {
                         "scripts": [
                           {"type":"script","name":"角色脚本"}
                         ]
-                      }
+                      },
+                      "regex_scripts": [
+                        {"scriptName":"角色净化","findRegex":"local"}
+                      ]
                     }
                   }
                 }
@@ -199,9 +208,39 @@ class BackupArchiveContentScannerTest {
 
         val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
 
+        val regexGroup = summary.group(BackupArchiveContentKind.RegexScripts)
+        assertEquals(emptyList<String>(), regexGroup?.names)
         assertEquals(
-            listOf("CleanRegex"),
-            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+            listOf(
+                BackupArchiveContentNode(
+                    title = "全局正则",
+                    entryCount = 2,
+                    names = listOf("CleanRegex", "全局净化"),
+                ),
+                BackupArchiveContentNode(
+                    title = "预设正则",
+                    entryCount = 1,
+                    children = listOf(
+                        BackupArchiveContentNode(
+                            title = "清凉预设",
+                            entryCount = 1,
+                            names = listOf("预设净化"),
+                        ),
+                    ),
+                ),
+                BackupArchiveContentNode(
+                    title = "局部正则",
+                    entryCount = 1,
+                    children = listOf(
+                        BackupArchiveContentNode(
+                            title = "脚本角色",
+                            entryCount = 1,
+                            names = listOf("角色净化"),
+                        ),
+                    ),
+                ),
+            ),
+            regexGroup?.children,
         )
         assertEquals(
             listOf("酒馆助手"),
@@ -329,13 +368,13 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(
             listOf(
-                BackupArchiveContentKind.RegexScripts,
-                BackupArchiveContentKind.Extensions,
                 BackupArchiveContentKind.GenerationTemplates,
                 BackupArchiveContentKind.PromptTemplates,
                 BackupArchiveContentKind.Beautification,
                 BackupArchiveContentKind.Presets,
                 BackupArchiveContentKind.TavernHelperScripts,
+                BackupArchiveContentKind.RegexScripts,
+                BackupArchiveContentKind.Extensions,
                 BackupArchiveContentKind.CharacterCards,
                 BackupArchiveContentKind.WorldBooks,
                 BackupArchiveContentKind.Chats,
@@ -389,7 +428,7 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(
             listOf("屏蔽词净化助手", "QR 助手正则"),
-            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+            globalRegexNames(summary),
         )
     }
 
@@ -404,7 +443,7 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(
             listOf("清理标记"),
-            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+            globalRegexNames(summary),
         )
     }
 
@@ -474,7 +513,7 @@ class BackupArchiveContentScannerTest {
         assertEquals(BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES, summary.entryCount)
         assertEquals(
             listOf("后段正则"),
-            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+            globalRegexNames(summary),
         )
         assertEquals(
             listOf("后段扩展"),
@@ -504,6 +543,13 @@ class BackupArchiveContentScannerTest {
 
     private fun tarGzip(vararg entries: String): ByteArray {
         return tarGzip(*entries.map { it to "" }.toTypedArray())
+    }
+
+    private fun globalRegexNames(summary: BackupArchiveContentSummary): List<String>? {
+        return summary.group(BackupArchiveContentKind.RegexScripts)
+            ?.children
+            ?.firstOrNull { it.title == "全局正则" }
+            ?.names
     }
 
     private fun tarGzip(vararg entries: Pair<String, String>): ByteArray {

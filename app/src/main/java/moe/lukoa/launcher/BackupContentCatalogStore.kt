@@ -164,7 +164,7 @@ class BackupContentCatalogStore(context: Context) {
 
     companion object {
         const val PREFS_NAME = "lukoa_backup_content_catalog"
-        private const val KEY_CATALOG = "catalog_v7"
+        private const val KEY_CATALOG = "catalog_v8"
         private const val MAX_CATALOG_TREE_DEPTH = 8
     }
 }

@@ -84,6 +84,7 @@ class BackupContentCatalogStoreTest {
             .putString("catalog_v4", legacyCatalog.toString())
             .putString("catalog_v5", legacyCatalog.toString())
             .putString("catalog_v6", legacyCatalog.toString())
+            .putString("catalog_v7", legacyCatalog.toString())
             .commit()
 
         assertNull(BackupContentCatalogStore(context).read(details))

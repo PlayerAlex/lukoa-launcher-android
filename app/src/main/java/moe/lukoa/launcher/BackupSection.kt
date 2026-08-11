@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -457,13 +458,14 @@ private fun BackupRecordLine(
                     }
                     SettingsSectionDivider()
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { contentExpanded = !contentExpanded },
                         color = LukoaColors.Surface,
                         shape = RoundedCornerShape(8.dp),
-                        onClick = { contentExpanded = !contentExpanded },
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 3.dp),
+                            modifier = Modifier.padding(vertical = if (contentExpanded) 3.dp else 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {

@@ -20,21 +20,21 @@ enum class BackupArchiveContentKind(
     GenerationTemplates("酒馆参数模板"),
     PromptTemplates("提示词模板"),
     Beautification("酒馆美化"),
-    RegexScripts("正则", "当前备份中的正则"),
+    RegexScripts("正则"),
     TavernHelperScripts("酒馆助手脚本"),
     Chats("聊天记录"),
     WorldBooks("世界书"),
-    Extensions("扩展", "当前备份中的扩展");
+    Extensions("扩展");
 
     companion object {
         val displayOrder: List<BackupArchiveContentKind> = listOf(
-            RegexScripts,
-            Extensions,
             GenerationTemplates,
             PromptTemplates,
             Beautification,
             Presets,
             TavernHelperScripts,
+            RegexScripts,
+            Extensions,
             CharacterCards,
             WorldBooks,
             Chats,
@@ -153,12 +153,15 @@ object BackupArchiveContentScanner {
                         entrySize = entry.size,
                     )
                     val isUserSettings = isUserSettingsFile(segments)
-                    val isPriorityContent = pathClassification?.first == BackupArchiveContentKind.RegexScripts ||
-                        pathClassification?.first == BackupArchiveContentKind.Extensions ||
-                        isUserSettings
-                    val includeContent = includeInGeneralPreview || isPriorityContent
+                    val isPriorityClassification = pathClassification?.first == BackupArchiveContentKind.RegexScripts ||
+                        pathClassification?.first == BackupArchiveContentKind.Extensions
+                    val inspectForScopedRegex = isUserSettings ||
+                        pathClassification?.first == BackupArchiveContentKind.Presets ||
+                        pathClassification?.first == BackupArchiveContentKind.CharacterCards
+                    val includeClassification = includeInGeneralPreview || isPriorityClassification
+                    val inspectContent = includeInGeneralPreview || isPriorityClassification || inspectForScopedRegex
                     val jsonInspection = if (
-                        includeContent &&
+                        inspectContent &&
                         !entry.isDirectory &&
                         fileName.endsWith(".json") &&
                         entry.size in 1..maxInspectableJsonBytes(segments).toLong() &&
@@ -170,12 +173,20 @@ object BackupArchiveContentScanner {
                     } else {
                         BackupArchiveJsonInspection()
                     }
-                    if (jsonInspection.regexScriptNames.isNotEmpty()) {
-                        categoryNames.getValue(BackupArchiveContentKind.RegexScripts).addAll(
-                            jsonInspection.regexScriptNames,
+                    if (pathClassification?.first == BackupArchiveContentKind.Presets) {
+                        hierarchy.recordPresetRegexScripts(
+                            pathClassification.second,
+                            jsonInspection.globalRegexScriptNames + jsonInspection.presetRegexScriptNames,
                         )
+                    } else if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
+                        hierarchy.recordLocalRegexScripts(
+                            pathClassification.second,
+                            jsonInspection.globalRegexScriptNames + jsonInspection.localRegexScriptNames,
+                        )
+                    } else {
+                        hierarchy.recordGlobalRegexScripts(jsonInspection.globalRegexScriptNames)
                     }
-                    pathClassification?.takeIf { includeContent }?.let { (kind, fallbackName) ->
+                    pathClassification?.takeIf { includeClassification }?.let { (kind, fallbackName) ->
                         val name = if (kind == BackupArchiveContentKind.Extensions) {
                             jsonInspection.extensionDisplayName ?: fallbackName
                         } else {
@@ -188,6 +199,8 @@ object BackupArchiveContentScanner {
                             } ?: run {
                                 categoryNames.getValue(kind) += name.take(120)
                             }
+                        } else if (kind == BackupArchiveContentKind.RegexScripts) {
+                            hierarchy.recordGlobalRegexScripts(listOf(name))
                         } else if (kind == BackupArchiveContentKind.Chats) {
                             findChatLocation(originalSegments, segments)?.let { (source, chat) ->
                                 hierarchy.recordChat(source, chat)
@@ -223,9 +236,7 @@ object BackupArchiveContentScanner {
                 addAll(extensionNamesByLocation.values.map { it.take(120) })
             }
         }
-        categoryNames.getValue(BackupArchiveContentKind.RegexScripts).takeIf { it.isNotEmpty() }?.let { names ->
-            categoryCounts[BackupArchiveContentKind.RegexScripts] = names.size
-        }
+        categoryCounts[BackupArchiveContentKind.RegexScripts] = hierarchy.regexScriptCount
         categoryCounts[BackupArchiveContentKind.TavernHelperScripts] = hierarchy.scriptCount
         return BackupArchiveContentSummary(
             entryCount = entryCount,
@@ -515,11 +526,19 @@ private class BackupArchiveContentHierarchyBuilder {
     private val globalScripts = linkedSetOf<String>()
     private val presetScripts = linkedMapOf<String, Bucket>()
     private val localScripts = linkedMapOf<String, Bucket>()
+    private val globalRegexScripts = linkedSetOf<String>()
+    private val presetRegexScripts = linkedMapOf<String, Bucket>()
+    private val localRegexScripts = linkedMapOf<String, Bucket>()
 
     val scriptCount: Int
         get() = globalScripts.size +
             presetScripts.values.sumOf { it.entryCount } +
             localScripts.values.sumOf { it.entryCount }
+
+    val regexScriptCount: Int
+        get() = globalRegexScripts.size +
+            presetRegexScripts.values.sumOf { it.entryCount } +
+            localRegexScripts.values.sumOf { it.entryCount }
 
     fun recordChat(source: String, chatName: String) {
         val bucket = chats.getOrPut(source) { Bucket() }
@@ -539,6 +558,18 @@ private class BackupArchiveContentHierarchyBuilder {
         recordScripts(localScripts, characterName, names)
     }
 
+    fun recordGlobalRegexScripts(names: List<String>) {
+        globalRegexScripts += names
+    }
+
+    fun recordPresetRegexScripts(presetName: String, names: List<String>) {
+        recordScripts(presetRegexScripts, presetName, names)
+    }
+
+    fun recordLocalRegexScripts(characterName: String, names: List<String>) {
+        recordScripts(localRegexScripts, characterName, names)
+    }
+
     fun childrenFor(kind: BackupArchiveContentKind): List<BackupArchiveContentNode> {
         return when (kind) {
             BackupArchiveContentKind.Chats -> chats.toNodes()
@@ -554,6 +585,19 @@ private class BackupArchiveContentHierarchyBuilder {
                 }
                 addScope("预设脚本", presetScripts)
                 addScope("局部脚本", localScripts)
+            }
+            BackupArchiveContentKind.RegexScripts -> buildList {
+                if (globalRegexScripts.isNotEmpty()) {
+                    add(
+                        BackupArchiveContentNode(
+                            title = "全局正则",
+                            entryCount = globalRegexScripts.size,
+                            names = globalRegexScripts.toList(),
+                        ),
+                    )
+                }
+                addScope("预设正则", presetRegexScripts)
+                addScope("局部正则", localRegexScripts)
             }
             else -> emptyList()
         }

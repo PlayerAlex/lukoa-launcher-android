@@ -7,7 +7,9 @@ import org.json.JSONObject
 
 data class BackupArchiveJsonInspection(
     val extensionDisplayName: String? = null,
-    val regexScriptNames: List<String> = emptyList(),
+    val globalRegexScriptNames: List<String> = emptyList(),
+    val presetRegexScriptNames: List<String> = emptyList(),
+    val localRegexScriptNames: List<String> = emptyList(),
     val globalTavernHelperScriptNames: List<String> = emptyList(),
     val presetTavernHelperScriptNames: List<String> = emptyList(),
     val localTavernHelperScriptNames: List<String> = emptyList(),
@@ -24,15 +26,14 @@ object BackupArchiveJsonInspector {
             val globalScriptNames = linkedSetOf<String>()
             val presetScriptNames = linkedSetOf<String>()
             val localScriptNames = linkedSetOf<String>()
-            val regexScriptNames = linkedSetOf<String>()
+            val globalRegexScriptNames = linkedSetOf<String>()
+            val presetRegexScriptNames = linkedSetOf<String>()
+            val localRegexScriptNames = linkedSetOf<String>()
 
             listOfNotNull(
                 root.optJSONObject("extension_settings"),
                 root.optJSONObject("extensions"),
             ).forEach { extensionSettings ->
-                listOf("regex", "regex_scripts", "regexScripts").forEach { key ->
-                    extensionSettings.opt(key)?.let { regexScriptNames += collectRegexNames(it) }
-                }
                 extensionSettings
                     .optJSONObject("tavern_helper")
                     ?.optJSONObject("script")
@@ -53,21 +54,36 @@ object BackupArchiveJsonInspector {
                 ?.optJSONObject("tavern_helper")
                 ?.opt("scripts")
                 ?.let { localScriptNames += collectScriptNames(it) }
-            listOf("regex", "regex_scripts", "regexScripts").forEach { key ->
-                root.opt(key)?.let { regexScriptNames += collectRegexNames(it) }
-            }
+            root.optJSONObject("extension_settings")
+                ?.let { globalRegexScriptNames += collectRegexNamesFromContainer(it) }
+            root.optJSONObject("extensions")
+                ?.let { presetRegexScriptNames += collectRegexNamesFromContainer(it) }
+            root.optJSONObject("data")
+                ?.optJSONObject("extensions")
+                ?.let { localRegexScriptNames += collectRegexNamesFromContainer(it) }
+            globalRegexScriptNames += collectRegexNamesFromContainer(root)
 
             BackupArchiveJsonInspection(
                 extensionDisplayName = root.optString("display_name")
                     .trim()
                     .takeIf(String::isNotBlank)
                     ?.take(120),
-                regexScriptNames = regexScriptNames.toList(),
+                globalRegexScriptNames = globalRegexScriptNames.toList(),
+                presetRegexScriptNames = presetRegexScriptNames.toList(),
+                localRegexScriptNames = localRegexScriptNames.toList(),
                 globalTavernHelperScriptNames = globalScriptNames.toList(),
                 presetTavernHelperScriptNames = presetScriptNames.toList(),
                 localTavernHelperScriptNames = localScriptNames.toList(),
             )
         }.getOrDefault(BackupArchiveJsonInspection())
+    }
+
+    private fun collectRegexNamesFromContainer(container: JSONObject): List<String> {
+        val names = linkedSetOf<String>()
+        listOf("regex", "regex_scripts", "regexScripts").forEach { key ->
+            container.opt(key)?.let { names += collectRegexNames(it) }
+        }
+        return names.toList()
     }
 
     private fun collectRegexNames(root: Any?): List<String> {
