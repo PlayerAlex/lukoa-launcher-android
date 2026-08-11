@@ -20,7 +20,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 private enum class SettingsDialogDestination {
@@ -32,7 +31,6 @@ private enum class SettingsDialogDestination {
     UpdateChannel,
     WakeDelay,
     Mirror,
-    HealthCheck,
 }
 
 @Composable
@@ -58,15 +56,9 @@ fun SettingsSection(
     repositoryInput: String,
     githubUpdateState: GithubUpdateUiState,
     currentLauncherVersion: String,
-    healthCheckReport: LauncherHealthReport?,
-    healthCheckInFlight: Boolean,
     actionsLocked: Boolean,
     tavernRunning: Boolean,
-    uploadLimitStatus: TavernUploadLimitStatus,
     tavernUserState: TavernUserManagementState,
-    forceCleanupSuggestion: TavernForceCleanupSuggestion?,
-    backgroundTaskStatus: String,
-    backgroundTaskNeedsAttention: Boolean,
     onTavernRepoInputChange: (String) -> Unit,
     onNpmRegistryInputChange: (String) -> Unit,
     onTavernPathInputChange: (String) -> Unit,
@@ -106,25 +98,11 @@ fun SettingsSection(
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
-    onRunHealthCheck: () -> Unit,
-    onRunHealthCheckPrimaryAction: () -> Unit,
-    onForceCleanup: () -> Unit,
-    onRepairDependencies: () -> Unit,
-    onResetTavernTheme: () -> Unit,
-    onSetNodeMemory: (Int) -> Unit,
-    onCheckUploadLimit: () -> Unit,
-    onSetUploadLimit: (Int) -> Unit,
-    onResetUploadLimit: () -> Unit,
     onRefreshTavernUsers: () -> Unit,
     onCreateTavernUser: (String, String) -> Unit,
     onDeleteTavernUser: (String) -> Unit,
-    onClearLogs: () -> Unit,
-    onExportDiagnostic: () -> Unit,
-    onOpenBackgroundTaskCenter: () -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
-    repairToolsOpenSignal: Int = 0,
-    onRepairToolsOpenSignalConsumed: () -> Unit = {},
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -289,42 +267,6 @@ fun SettingsSection(
         )
     }
 
-    if (activeDialog == SettingsDialogDestination.HealthCheck) {
-        AlertDialog(
-            onDismissRequest = { activeDialog = null },
-            containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.Primary,
-            textContentColor = LukoaColors.TextPrimary,
-            title = { Text("一键体检") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 540.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    HealthCheckContent(
-                        report = healthCheckReport,
-                        checking = healthCheckInFlight,
-                        actionsLocked = actionsLocked,
-                        onRunHealthCheck = onRunHealthCheck,
-                        onPrimaryAction = onRunHealthCheckPrimaryAction,
-                    )
-                }
-            },
-            confirmButton = {
-                SecondaryActionButton(
-                    text = "关闭",
-                    enabled = true,
-                    accentColor = LukoaColors.Primary,
-                    onClick = { activeDialog = null },
-                )
-            },
-            dismissButton = null,
-        )
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
@@ -346,46 +288,6 @@ fun SettingsSection(
             onRefresh = onRefreshTavernUsers,
             onCreate = onCreateTavernUser,
             onDelete = onDeleteTavernUser,
-            onShowHint = showHint,
-        )
-        RepairToolsSettingsPanel(
-            instanceLabel = tavernPathConfig.activeProfileLabel,
-            summaryText = settingsHealthSummaryText(healthCheckReport),
-            summaryColor = settingsHealthSummaryTone(healthCheckReport),
-            actionsLocked = actionsLocked,
-            tavernRunning = tavernRunning,
-            uploadLimitStatus = uploadLimitStatus,
-            onRepairDependencies = onRepairDependencies,
-            onResetTheme = onResetTavernTheme,
-            onSetNodeMemory = onSetNodeMemory,
-            onCheckUploadLimit = onCheckUploadLimit,
-            onSetUploadLimit = onSetUploadLimit,
-            onResetUploadLimit = onResetUploadLimit,
-            onShowHint = showHint,
-            leadingContent = {
-                SettingsEntryRow(
-                    title = "一键体检",
-                    detail = "检查当前实例的安装、权限和运行环境。",
-                    value = settingsHealthSummaryText(healthCheckReport),
-                    valueColor = settingsHealthSummaryTone(healthCheckReport),
-                    valueAsPill = true,
-                    onClick = { activeDialog = SettingsDialogDestination.HealthCheck },
-                )
-            },
-            openSignal = repairToolsOpenSignal,
-            onOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
-        )
-        BackgroundTaskSettingsPanel(
-            status = backgroundTaskStatus,
-            needsAttention = backgroundTaskNeedsAttention,
-            onOpen = onOpenBackgroundTaskCenter,
-        )
-        DiagnosticsSettingsPanel(
-            actionsLocked = actionsLocked,
-            forceCleanupSuggestion = forceCleanupSuggestion,
-            onForceCleanup = onForceCleanup,
-            onClearLogs = onClearLogs,
-            onExportDiagnostic = onExportDiagnostic,
             onShowHint = showHint,
         )
         LauncherUpdateSettingsPanel(
@@ -691,58 +593,6 @@ internal fun InstanceManagementPanel(
     }
 }
 
-@Composable
-private fun DiagnosticsSettingsPanel(
-    actionsLocked: Boolean,
-    forceCleanupSuggestion: TavernForceCleanupSuggestion?,
-    onForceCleanup: () -> Unit,
-    onClearLogs: () -> Unit,
-    onExportDiagnostic: () -> Unit,
-    onShowHint: (String) -> Unit,
-) {
-    val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    SectionPanel(
-        title = "诊断与日志",
-        accentColor = LukoaColors.Primary,
-        containerColor = LukoaColors.Elevated,
-        headerAction = {
-            InfoPopoverButton(
-                contentDescription = "查看诊断与日志说明",
-                title = "诊断与日志",
-                body = "“导出诊断日志”会生成一份排错文件，不会修改酒馆数据。“清除页面日志”只清空启动器里当前显示的记录。\n“强制清理”会结束当前实例可能残留的进程，普通停止无效或端口被占用时才使用。${TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion)}",
-            )
-        },
-    ) {
-        SettingsFeedbackActionButton(
-            text = "导出诊断日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onExportDiagnostic,
-        )
-        SettingsFeedbackActionButton(
-            text = "清除页面日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onClearLogs,
-        )
-        SettingsFeedbackActionButton(
-            text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Danger,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onForceCleanup,
-        )
-    }
-}
-
 internal fun launcherVersionSummary(
     currentVersion: String,
     latest: GithubUpdateInfo?,
@@ -751,27 +601,5 @@ internal fun launcherVersionSummary(
         "$currentVersion → ${latest.versionName}"
     } else {
         currentVersion
-    }
-}
-
-private fun settingsHealthSummaryText(report: LauncherHealthReport?): String {
-    val effectiveReport = report?.takeIf { it.hasData }
-    return when {
-        effectiveReport == null -> "未体检"
-        effectiveReport.errorCount > 0 -> "${effectiveReport.errorCount} 个问题"
-        effectiveReport.warningCount > 0 -> "${effectiveReport.warningCount} 个提醒"
-        effectiveReport.unknownCount > 0 -> "${effectiveReport.unknownCount} 项未确认"
-        else -> "基本正常"
-    }
-}
-
-private fun settingsHealthSummaryTone(report: LauncherHealthReport?): Color {
-    val effectiveReport = report?.takeIf { it.hasData }
-    return when {
-        effectiveReport == null -> LukoaColors.TextSecondary
-        effectiveReport.errorCount > 0 -> LukoaColors.Danger
-        effectiveReport.warningCount > 0 -> LukoaColors.Accent
-        effectiveReport.unknownCount > 0 -> LukoaColors.TextSecondary
-        else -> LukoaColors.Primary
     }
 }

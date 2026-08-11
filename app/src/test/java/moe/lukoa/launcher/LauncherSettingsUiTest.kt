@@ -406,27 +406,23 @@ class LauncherSettingsUiTest {
     }
 
     @Test
-    fun settingsSection_opensRepairToolsFromCompactEntry() {
-        setSettingsSectionContent(onSaveTavernDirectory = { true })
+    fun toolboxSection_opensRepairToolsFromGridEntry() {
+        composeRule.setContent {
+            LukoaTheme {
+                ToolboxSection()
+            }
+        }
 
         composeRule.onNodeWithText("修复 npm 依赖").assertDoesNotExist()
-        composeRule.onNodeWithText("诊断与日志")
-            .performScrollTo()
-            .assertIsDisplayed()
-        composeRule.onNodeWithText("导出诊断日志")
-            .performScrollTo()
-            .assertIsDisplayed()
         advancePastClickDebounce()
-        composeRule.onNode(hasText("检查与修复") and hasClickAction())
-            .performScrollTo()
-            .performClick()
+        composeRule.onNodeWithText("修复工具").performClick()
 
         composeRule.onNodeWithText("修复 npm 依赖").assertIsDisplayed()
         composeRule.onNodeWithText("网页打不开时重置主题")
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onAllNodesWithTag("repair-tools-dialog-group")
-            .assertCountEquals(4)
+            .assertCountEquals(3)
         listOf(
             "repair-memory-choice-2048" to "2GB",
             "repair-memory-choice-4096" to "4GB",
@@ -1049,6 +1045,16 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("管理已安装扩展").assertDoesNotExist()
     }
 
+    @Test
+    fun settingsSection_doesNotShowEntriesMovedToToolbox() {
+        setSettingsSectionContent(onSaveTavernDirectory = { true })
+
+        composeRule.onNodeWithText("一键体检").assertDoesNotExist()
+        composeRule.onNodeWithText("修复工具").assertDoesNotExist()
+        composeRule.onNodeWithText("任务中心").assertDoesNotExist()
+        composeRule.onNodeWithText("诊断与日志").assertDoesNotExist()
+    }
+
     private fun setSettingsSectionContent(
         onSaveTavernDirectory: () -> Boolean,
     ) {
@@ -1081,15 +1087,9 @@ class LauncherSettingsUiTest {
                         repositoryInput = "PlayerAlex/lukoa-launcher-android",
                         githubUpdateState = GithubUpdateUiState(),
                         currentLauncherVersion = "0.9.3-beta20",
-                        healthCheckReport = null,
-                        healthCheckInFlight = false,
                         actionsLocked = false,
                         tavernRunning = false,
-                        uploadLimitStatus = TavernUploadLimitStatus(),
                         tavernUserState = TavernUserManagementState(),
-                        forceCleanupSuggestion = null,
-                        backgroundTaskStatus = "当前空闲",
-                        backgroundTaskNeedsAttention = false,
                         onTavernRepoInputChange = {},
                         onNpmRegistryInputChange = {},
                         onTavernPathInputChange = {},
@@ -1129,21 +1129,9 @@ class LauncherSettingsUiTest {
                         onCheckUpdate = {},
                         onInstallUpdate = {},
                         onOpenRelease = {},
-                        onRunHealthCheck = {},
-                        onRunHealthCheckPrimaryAction = {},
-                        onForceCleanup = {},
-                        onRepairDependencies = {},
-                        onResetTavernTheme = {},
-                        onSetNodeMemory = {},
-                        onCheckUploadLimit = {},
-                        onSetUploadLimit = {},
-                        onResetUploadLimit = {},
                         onRefreshTavernUsers = {},
                         onCreateTavernUser = { _, _ -> },
                         onDeleteTavernUser = {},
-                        onClearLogs = {},
-                        onExportDiagnostic = {},
-                        onOpenBackgroundTaskCenter = {},
                         onDecreaseTermuxReturnDelay = {},
                         onIncreaseTermuxReturnDelay = {},
                     )

@@ -2565,7 +2565,7 @@ fun LukoaLauncherScreen(
     fun runLauncherQuickFixAction(action: LauncherQuickFixAction) {
         when (action.type) {
             LauncherQuickFixActionType.RunHealthCheck -> {
-                selectedTab = LauncherTab.Settings
+                selectedTab = LauncherTab.Toolbox
                 runHealthCheck()
             }
 
@@ -3879,7 +3879,80 @@ fun LukoaLauncherScreen(
                                 accentColor = LukoaColors.TextSecondary,
                             )
                         }
-                        LauncherTab.Toolbox -> ToolboxSection()
+                        LauncherTab.Toolbox -> ToolboxSection(
+                            healthCheckReport = healthCheckReport,
+                            healthCheckInFlight = healthCheckInFlight,
+                            actionsLocked = actionInProgress,
+                            tavernRunning = tavernRunning,
+                            uploadLimitStatus = uploadLimitStatus,
+                            forceCleanupSuggestion = currentForceCleanupSuggestion(),
+                            backgroundTaskStatus = PendingLauncherTaskSupport.taskCenterStatus(
+                                pendingLauncherTask,
+                                busyLabel,
+                            ),
+                            backgroundTaskNeedsAttention = pendingLauncherTask != null,
+                            repairToolsOpenSignal = repairToolsOpenSignal,
+                            onRepairToolsOpenSignalConsumed = {
+                                repairToolsOpenSignal = 0
+                            },
+                            onRunHealthCheck = ::runHealthCheck,
+                            onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
+                            onRepairDependencies = {
+                                runGuarded(
+                                    "修复 npm 依赖",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-repair-dependencies"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate -> onCommand("tavern-repair-dependencies", guardedUpdate) }
+                            },
+                            onResetTavernTheme = {
+                                runGuarded(
+                                    "重置网页主题",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-reset-theme"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate -> onCommand("tavern-reset-theme", guardedUpdate) }
+                            },
+                            onSetNodeMemory = { memory ->
+                                runGuarded(
+                                    "设置 Node.js 内存",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-node-memory"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), guardedUpdate)
+                                }
+                            },
+                            onCheckUploadLimit = {
+                                runGuarded(
+                                    "检查上传限制",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
+                                    onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
+                                        guardedUpdate(newStatus, termuxOutput, ok)
+                                        if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
+                                            uploadLimitStatus = uploadLimitStatus.copy(
+                                                checking = false,
+                                                message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            onSetUploadLimit = { megabytes ->
+                                runGuarded(
+                                    "修改上传限制",
+                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-set"),
+                                    allowRunningInference = false,
+                                ) { guardedUpdate ->
+                                    onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
+                                }
+                            },
+                            onResetUploadLimit = ::resetUploadLimitToVersionDefault,
+                            onForceCleanup = ::requestForceCleanup,
+                            onClearLogs = ::requestClearLogs,
+                            onExportDiagnostic = ::exportDiagnosticLog,
+                            onOpenBackgroundTaskCenter = ::openBackgroundTaskCenter,
+                        )
                         LauncherTab.Settings -> SettingsSection(
                             termuxReturnDelayMs = termuxReturnDelayMs,
                             termuxInstalled = termuxInstalled,
@@ -3902,18 +3975,9 @@ fun LukoaLauncherScreen(
                             repositoryInput = githubRepositoryInput,
                             githubUpdateState = githubUpdateState,
                             currentLauncherVersion = versionInfo.versionName,
-                            healthCheckReport = healthCheckReport,
-                            healthCheckInFlight = healthCheckInFlight,
                             actionsLocked = actionInProgress,
                             tavernRunning = tavernRunning,
-                            uploadLimitStatus = uploadLimitStatus,
                             tavernUserState = tavernUserState,
-                            forceCleanupSuggestion = currentForceCleanupSuggestion(),
-                            backgroundTaskStatus = PendingLauncherTaskSupport.taskCenterStatus(
-                                pendingLauncherTask,
-                                busyLabel,
-                            ),
-                            backgroundTaskNeedsAttention = pendingLauncherTask != null,
                             onTavernRepoInputChange = { tavernRepoInput = it },
                             onNpmRegistryInputChange = { npmRegistryInput = it },
                             onTavernPathInputChange = { tavernPathInput = it },
@@ -4001,60 +4065,6 @@ fun LukoaLauncherScreen(
                                 }
                                 update(result.message, "", result.ok, allowRunningInference = false)
                             },
-                            onRunHealthCheck = ::runHealthCheck,
-                            onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
-                            onForceCleanup = ::requestForceCleanup,
-                            onRepairDependencies = {
-                                runGuarded(
-                                    "修复 npm 依赖",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-repair-dependencies"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate -> onCommand("tavern-repair-dependencies", guardedUpdate) }
-                            },
-                            onResetTavernTheme = {
-                                runGuarded(
-                                    "重置网页主题",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-reset-theme"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate -> onCommand("tavern-reset-theme", guardedUpdate) }
-                            },
-                            onSetNodeMemory = { memory ->
-                                runGuarded(
-                                    "设置 Node.js 内存",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-node-memory"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), guardedUpdate)
-                                }
-                            },
-                            onCheckUploadLimit = {
-                                runGuarded(
-                                    "检查上传限制",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
-                                    onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
-                                        guardedUpdate(newStatus, termuxOutput, ok)
-                                        if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
-                                            uploadLimitStatus = uploadLimitStatus.copy(
-                                                checking = false,
-                                                message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            onSetUploadLimit = { megabytes ->
-                                runGuarded(
-                                    "修改上传限制",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-set"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
-                                }
-                            },
-                            onResetUploadLimit = ::resetUploadLimitToVersionDefault,
                             onRefreshTavernUsers = {
                                 runGuarded("读取酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-users-list"), allowRunningInference = false) { guardedUpdate ->
                                     tavernUserState = tavernUserState.copy(loading = true, message = "正在读取用户…")
@@ -4078,18 +4088,11 @@ fun LukoaLauncherScreen(
                                     onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
                                 }
                             },
-                            onClearLogs = ::requestClearLogs,
-                            onExportDiagnostic = ::exportDiagnosticLog,
-                            onOpenBackgroundTaskCenter = ::openBackgroundTaskCenter,
                             onDecreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs - 100L)
                             },
                             onIncreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
-                            },
-                            repairToolsOpenSignal = repairToolsOpenSignal,
-                            onRepairToolsOpenSignalConsumed = {
-                                repairToolsOpenSignal = 0
                             },
                         )
                     }
@@ -4176,7 +4179,7 @@ fun LukoaLauncherScreen(
                                 onOpenRepairTools = {
                                     repairToolsOpenSignal += 1
                                     secondaryPage = null
-                                    selectedTab = LauncherTab.Settings
+                                    selectedTab = LauncherTab.Toolbox
                                 },
                             )
 

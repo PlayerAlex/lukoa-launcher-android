@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -220,47 +219,6 @@ private fun HubGridTile(
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
-        }
-    }
-}
-
-@Composable
-fun ToolboxSection() {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 500.dp),
-        color = LukoaColors.Surface,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "工具箱",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 20.dp)
-                    .semantics { heading() },
-                color = LukoaColors.TextPrimary,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
-            HorizontalDivider(color = LukoaColors.Border)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "敬请期待",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
         }
     }
 }
