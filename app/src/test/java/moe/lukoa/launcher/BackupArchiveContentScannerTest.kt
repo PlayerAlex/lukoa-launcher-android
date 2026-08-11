@@ -426,6 +426,34 @@ class BackupArchiveContentScannerTest {
     }
 
     @Test
+    fun `scanner keeps looking for regex and extensions after the general preview limit`() {
+        val fillerEntries = (0 until BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES)
+            .map { "SillyTavern/src/filler/$it.js" to "" }
+        val archive = tarGzip(
+            *(
+                fillerEntries + listOf(
+                    "SillyTavern/data/default-user/regex/后段正则.json" to "{}",
+                    "SillyTavern/public/scripts/extensions/third-party/LateExtension/manifest.json" to
+                        """{"display_name":"后段扩展"}""",
+                )
+            ).toTypedArray(),
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertTrue(summary.truncated)
+        assertEquals(BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES, summary.entryCount)
+        assertEquals(
+            listOf("后段正则"),
+            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
+        )
+        assertEquals(
+            listOf("后段扩展"),
+            summary.group(BackupArchiveContentKind.Extensions)?.names,
+        )
+    }
+
+    @Test
     fun `scanner rejects traversal and marks oversized listings truncated`() {
         val unsafe = tarGzip("../outside.txt")
         runCatching { BackupArchiveContentScanner.scan(ByteArrayInputStream(unsafe)) }

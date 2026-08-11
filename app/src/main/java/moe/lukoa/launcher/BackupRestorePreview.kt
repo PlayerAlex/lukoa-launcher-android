@@ -84,12 +84,14 @@ val BackupArchiveContentSummary.displayGroups: List<BackupArchiveContentGroup>
 object BackupArchiveContentScanner {
     const val MAX_PREVIEW_ENTRIES = 2_000
     const val MAX_INSPECTABLE_JSON_BYTES = 2 * 1024 * 1024
+    private const val MAX_ARCHIVE_SCAN_ENTRIES = 100_000
     private const val MAX_INSPECTABLE_SETTINGS_JSON_BYTES = 16 * 1024 * 1024
     private const val MAX_ENTRY_SIZE = 100L * 1024L * 1024L * 1024L
     private const val MAX_TOTAL_DECLARED_SIZE = 1_000L * 1024L * 1024L * 1024L
 
     fun scan(input: InputStream): BackupArchiveContentSummary {
         var entryCount = 0
+        var scannedEntryCount = 0
         var totalDeclaredSize = 0L
         var hasUserData = false
         var hasExtensions = false
@@ -107,9 +109,16 @@ object BackupArchiveContentScanner {
                 while (true) {
                     val entry = tar.nextEntry as? org.apache.commons.compress.archivers.tar.TarArchiveEntry
                         ?: break
-                    if (entryCount >= MAX_PREVIEW_ENTRIES) {
+                    if (scannedEntryCount >= MAX_ARCHIVE_SCAN_ENTRIES) {
                         truncated = true
                         break
+                    }
+                    scannedEntryCount += 1
+                    val includeInGeneralPreview = entryCount < MAX_PREVIEW_ENTRIES
+                    if (includeInGeneralPreview) {
+                        entryCount += 1
+                    } else {
+                        truncated = true
                     }
                     val normalized = validateEntryName(entry.name)
                     if (entry.isSymbolicLink || entry.isLink) {
@@ -122,7 +131,6 @@ object BackupArchiveContentScanner {
                     if (totalDeclaredSize > MAX_TOTAL_DECLARED_SIZE) {
                         error("备份内容声明的总大小异常。")
                     }
-                    entryCount += 1
                     val segments = normalized.lowercase(Locale.ROOT).split('/').filter(String::isNotBlank)
                     val fileName = segments.lastOrNull().orEmpty()
                     hasLukoaManifest = hasLukoaManifest || normalized == "LUKOA_BACKUP_MANIFEST.txt"
@@ -144,7 +152,11 @@ object BackupArchiveContentScanner {
                         isDirectory = entry.isDirectory,
                         entrySize = entry.size,
                     )
+                    val isPriorityContent = pathClassification?.first == BackupArchiveContentKind.RegexScripts ||
+                        pathClassification?.first == BackupArchiveContentKind.Extensions
+                    val includeContent = includeInGeneralPreview || isPriorityContent
                     val jsonInspection = if (
+                        includeContent &&
                         !entry.isDirectory &&
                         fileName.endsWith(".json") &&
                         entry.size in 1..maxInspectableJsonBytes(segments).toLong() &&
@@ -156,7 +168,7 @@ object BackupArchiveContentScanner {
                     } else {
                         BackupArchiveJsonInspection()
                     }
-                    pathClassification?.let { (kind, fallbackName) ->
+                    pathClassification?.takeIf { includeContent }?.let { (kind, fallbackName) ->
                         val name = if (kind == BackupArchiveContentKind.Extensions) {
                             jsonInspection.extensionDisplayName ?: fallbackName
                         } else {
@@ -177,20 +189,22 @@ object BackupArchiveContentScanner {
                             categoryNames.getValue(kind) += name.take(120)
                         }
                     }
-                    hierarchy.recordGlobalScripts(
-                        jsonInspection.globalTavernHelperScriptNames,
-                    )
-                    if (pathClassification?.first == BackupArchiveContentKind.Presets) {
-                        hierarchy.recordPresetScripts(
-                            pathClassification.second,
-                            jsonInspection.presetTavernHelperScriptNames,
+                    if (includeInGeneralPreview) {
+                        hierarchy.recordGlobalScripts(
+                            jsonInspection.globalTavernHelperScriptNames,
                         )
-                    }
-                    if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
-                        hierarchy.recordLocalScripts(
-                            pathClassification.second,
-                            jsonInspection.localTavernHelperScriptNames,
-                        )
+                        if (pathClassification?.first == BackupArchiveContentKind.Presets) {
+                            hierarchy.recordPresetScripts(
+                                pathClassification.second,
+                                jsonInspection.presetTavernHelperScriptNames,
+                            )
+                        }
+                        if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
+                            hierarchy.recordLocalScripts(
+                                pathClassification.second,
+                                jsonInspection.localTavernHelperScriptNames,
+                            )
+                        }
                     }
                 }
             }

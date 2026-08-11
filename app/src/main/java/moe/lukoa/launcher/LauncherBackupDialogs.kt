@@ -543,7 +543,9 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
                 Text(
                     text = buildString {
                         append("已完成内容分类")
-                        if (content.truncated) append("（备份较大，分类基于前 ${content.entryCount} 个条目）")
+                        if (content.truncated) {
+                            append("（普通内容最多展示前 ${content.entryCount} 项，正则与扩展会继续向后查找）")
+                        }
                     },
                     color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
