@@ -19,9 +19,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.io.File
 import java.io.FileOutputStream
@@ -102,38 +105,67 @@ class LukoaPaletteScreenshotTest {
 
     @Test
     fun renderToolboxScreen() {
+        renderToolboxScreenAtFontScale(
+            outputPath = "build/reports/toolbox-actual.png",
+            fontScale = 1f,
+            height = 844,
+        )
+    }
+
+    @Test
+    fun renderToolboxLargeFontScreen() {
+        renderToolboxScreenAtFontScale(
+            outputPath = "build/reports/toolbox-large-font-actual.png",
+            fontScale = 1.3f,
+            height = 920,
+        )
+    }
+
+    private fun renderToolboxScreenAtFontScale(
+        outputPath: String,
+        fontScale: Float,
+        height: Int,
+    ) {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()
         activity.setContent {
             LukoaTheme {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Header(
-                            tavernRunning = false,
-                            tavernStarting = false,
-                            showVersionUpdateBadge = true,
-                            onVersionClick = {},
+                val currentDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = currentDensity.density,
+                        fontScale = fontScale,
+                    ),
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            Header(
+                                tavernRunning = false,
+                                tavernStarting = false,
+                                showVersionUpdateBadge = true,
+                                onVersionClick = {},
+                            )
+                            ToolboxSection()
+                        }
+                        LauncherBottomBar(
+                            selectedTab = LauncherTab.Toolbox,
+                            onSelectTab = {},
                         )
-                        ToolboxSection()
                     }
-                    LauncherBottomBar(
-                        selectedTab = LauncherTab.Toolbox,
-                        onSelectTab = {},
-                    )
                 }
             }
         }
 
         renderActivity(
             activity = activity,
-            outputPath = "build/reports/toolbox-actual.png",
+            outputPath = outputPath,
             width = 390,
-            height = 844,
+            height = height,
         )
         controller.close()
     }

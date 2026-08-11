@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
@@ -29,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun TavernHubSection(
@@ -163,6 +165,11 @@ private fun HubGridTile(
 ) {
     val enabled = entry.onClick != null
     val feedbackClick = rememberFeedbackClick(onClick = { entry.onClick?.invoke() })
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val singleLineTitleStyle = MaterialTheme.typography.titleMedium.copy(
+        fontSize = (MaterialTheme.typography.titleMedium.fontSize.value / fontScale).sp,
+        lineHeight = (MaterialTheme.typography.titleMedium.lineHeight.value / fontScale).sp,
+    )
 
     Box(
         modifier = modifier
@@ -195,8 +202,10 @@ private fun HubGridTile(
                         Text(
                             text = entry.label,
                             color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.TextPrimary,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = singleLineTitleStyle,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                         Text(
                             text = entry.description,

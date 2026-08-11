@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -204,13 +205,16 @@ private fun ToolboxHealthCard(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(top = 10.dp),
+                        .padding(top = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = "一键体检工具",
                         color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            lineHeight = 26.sp,
+                        ),
                         fontWeight = FontWeight.Bold,
                     )
                     Row(
