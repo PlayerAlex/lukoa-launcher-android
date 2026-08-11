@@ -30,6 +30,36 @@ class TavernUserManagementTest {
     }
 
     @Test
+    fun `parser rejects incomplete user block`() {
+        assertNull(
+            TavernUserOutputParser.parse(
+                """
+                ==== SillyTavern users ====
+                user.record=partial
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    @Test
+    fun `parser uses only latest complete user block`() {
+        fun encoded(value: String) = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+        val parsed = TavernUserOutputParser.parse(
+            """
+            ==== SillyTavern users ====
+            user.record=${encoded("old-user")}|${encoded("旧用户")}|false|true|true|1
+            ==== end SillyTavern users ====
+            ==== SillyTavern users ====
+            user.record=${encoded("new-user")}|${encoded("新用户")}|true|true|true|2
+            ==== end SillyTavern users ====
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("新用户"), parsed?.map { it.name })
+    }
+
+    @Test
     fun `input guards reject unsafe handles and names`() {
         assertNull(TavernUserCommandCodec.validateHandle("user-2"))
         assertNotNull(TavernUserCommandCodec.validateHandle("../user"))

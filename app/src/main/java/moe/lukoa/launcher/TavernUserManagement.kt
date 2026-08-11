@@ -19,9 +19,12 @@ data class TavernUserManagementState(
 )
 
 object TavernUserOutputParser {
+    private const val HEADER = "==== SillyTavern users ===="
+    private const val FOOTER = "==== end SillyTavern users ===="
+
     fun parse(output: String): List<TavernUserRecord>? {
-        if (!output.contains("==== SillyTavern users ====")) return null
-        return output.lineSequence().mapNotNull { line ->
+        val block = extractLastCompleteBlock(output) ?: return null
+        return block.lineSequence().mapNotNull { line ->
             if (!line.startsWith("user.record=")) return@mapNotNull null
             val fields = line.substringAfter('=').split('|')
             if (fields.size != 6) return@mapNotNull null
@@ -34,6 +37,14 @@ object TavernUserOutputParser {
                 directoryKilobytes = fields[5].toLongOrNull() ?: 0L,
             )
         }.toList()
+    }
+
+    private fun extractLastCompleteBlock(output: String): String? {
+        val headerIndex = output.lastIndexOf(HEADER)
+        if (headerIndex < 0) return null
+        val footerIndex = output.indexOf(FOOTER, startIndex = headerIndex + HEADER.length)
+        if (footerIndex < 0) return null
+        return output.substring(headerIndex, footerIndex + FOOTER.length)
     }
 
     private fun decode(value: String): String? = try {

@@ -280,6 +280,7 @@ fun LukoaLauncherScreen(
         initialPage = selectedTab.ordinal,
         pageCount = { LauncherTab.entries.size },
     )
+    val secondaryPageRefreshTracker = remember { LauncherSecondaryPageRefreshTracker() }
     var githubRepository by remember { mutableStateOf(initialGithubRepository) }
     var githubUpdateChannel by remember { mutableStateOf(initialGithubUpdateChannel) }
     var githubRepositoryInput by remember { mutableStateOf(initialGithubRepository) }
@@ -650,11 +651,26 @@ fun LukoaLauncherScreen(
         )
     }
 
-    fun applyTavernVersionInfoFromOutput(output: String): Boolean {
-        val parsed = TavernVersionParser.parse(output)
-        if (!parsed.hasData && !parsed.notInstalled) return false
-        applyTavernVersionInfo(parsed)
-        return true
+    fun applyStructuredTermuxOutput(output: String) {
+        val parsed = TermuxStructuredOutputParser.parse(output)
+        parsed.versionInfo?.let(::applyTavernVersionInfo)
+        parsed.officialVersions?.let(::applyOfficialVersions)
+        parsed.termuxRepoStatus?.let(mirrorSettingsState::applyTermuxRepoStatus)
+        parsed.uploadLimitStatus?.let { uploadLimitStatus = it }
+        parsed.users?.let { users ->
+            tavernUserState = TavernUserManagementState(
+                users = users,
+                message = "已读取 ${users.size} 个用户。",
+            )
+        }
+        parsed.extensions?.let { snapshot ->
+            tavernExtensionState = TavernExtensionManagementState(
+                rootDirectory = snapshot.rootDirectory,
+                disabledRootDirectory = snapshot.disabledRootDirectory,
+                extensions = snapshot.extensions,
+                message = "已读取 ${snapshot.extensions.size} 个扩展。",
+            )
+        }
     }
 
     fun applyTavernRunningSignal(source: String, allowHeuristic: Boolean = true) {
@@ -772,23 +788,9 @@ fun LukoaLauncherScreen(
         tavernRuntimeLog = newTavernRuntimeLog
         backupHistory = nextBackupHistory
         rememberLaunchReadinessSnapshot(termuxOutput)
-        applyTavernVersionInfoFromOutput(termuxOutput)
+        applyStructuredTermuxOutput(termuxOutput)
         inferTavernInstalledFromOutput(newStatus, termuxOutput)?.let {
             tavernInstallDetected = it
-        }
-        TavernOfficialVersionParser.parse(termuxOutput).takeIf { it.hasData }?.let(::applyOfficialVersions)
-        TermuxRepoStatusParser.parse(termuxOutput)?.let(mirrorSettingsState::applyTermuxRepoStatus)
-        TavernUploadLimitStatusParser.parse(termuxOutput)?.let { uploadLimitStatus = it }
-        TavernUserOutputParser.parse(termuxOutput)?.let { users ->
-            tavernUserState = TavernUserManagementState(users = users, message = "已读取 ${users.size} 个用户。")
-        }
-        TavernExtensionOutputParser.parse(termuxOutput)?.let { snapshot ->
-            tavernExtensionState = TavernExtensionManagementState(
-                rootDirectory = snapshot.rootDirectory,
-                disabledRootDirectory = snapshot.disabledRootDirectory,
-                extensions = snapshot.extensions,
-                message = "已读取 ${snapshot.extensions.size} 个扩展。",
-            )
         }
         val permissionText = "$newStatus\n$termuxOutput"
         maybePromptTavernDirectoryChoice(permissionText)
@@ -861,12 +863,10 @@ fun LukoaLauncherScreen(
         appLog = newAppLog
         backupHistory = nextBackupHistory
         rememberLaunchReadinessSnapshot(display.output)
-        applyTavernVersionInfoFromOutput(display.output)
+        applyStructuredTermuxOutput(display.output)
         inferTavernInstalledFromOutput(newStatus, display.output)?.let {
             tavernInstallDetected = it
         }
-        TavernOfficialVersionParser.parse(display.output).takeIf { it.hasData }?.let(::applyOfficialVersions)
-        TermuxRepoStatusParser.parse(display.output)?.let(mirrorSettingsState::applyTermuxRepoStatus)
         if (TermuxPermissionSignals.externalAppsBlocked(display.output)) {
             termuxExternalAppsBlocked = true
         }
@@ -3293,15 +3293,23 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(secondaryPage, backupHistory, actionInProgress) {
-        if (secondaryPage == LauncherSecondaryPage.Backup && !actionInProgress) {
-            backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
+    LaunchedEffect(secondaryPage, actionInProgress) {
+        when (secondaryPageRefreshTracker.next(secondaryPage, actionInProgress)) {
+            LauncherSecondaryPageRefreshTarget.VersionManagement -> refreshVersionManagementData()
+            LauncherSecondaryPageRefreshTarget.Backup -> {
+                backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
+            }
+
+            null -> Unit
         }
     }
 
-    LaunchedEffect(secondaryPage) {
-        if (secondaryPage == LauncherSecondaryPage.VersionManagement && !actionInProgress) {
-            refreshVersionManagementData()
+    LaunchedEffect(actionInProgress) {
+        if (!actionInProgress) {
+            tavernVersionCheckInFlight = false
+            uploadLimitStatus = LauncherTransientOperationState.finishUploadLimit(uploadLimitStatus)
+            tavernUserState = LauncherTransientOperationState.finishUsers(tavernUserState)
+            tavernExtensionState = LauncherTransientOperationState.finishExtensions(tavernExtensionState)
         }
     }
 
