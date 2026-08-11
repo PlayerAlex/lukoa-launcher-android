@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 
 data class LauncherLoadResult(
     val state: LauncherUiState,
@@ -22,6 +23,14 @@ class LauncherStateStore(private val context: Context) {
         val defaults = defaultLauncherState(isTermuxInstalled)
         val prefs = context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
         val autoBackupConfig = autoBackupConfigStore.read()
+        if (!isTermuxInstalled && prefs.contains(KEY_LAST_HEALTH_CHECK)) {
+            prefs.edit().remove(KEY_LAST_HEALTH_CHECK).apply()
+        }
+        val savedHealthCheck = if (isTermuxInstalled) {
+            LauncherHealthSnapshotCodec.decode(prefs.getString(KEY_LAST_HEALTH_CHECK, null))
+        } else {
+            null
+        }
         val loadedTermuxReturnDelayMs = prefs.getLong(KEY_TERMUX_RETURN_DELAY_MS, defaults.termuxReturnDelayMs)
             .coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS)
         if (
@@ -35,6 +44,7 @@ class LauncherStateStore(private val context: Context) {
                 autoBackupIntervalMinutes = autoBackupConfig.intervalMinutes,
                 autoBackupKeepCount = autoBackupConfig.keepCount,
                 termuxReturnDelayMs = loadedTermuxReturnDelayMs,
+                lastHealthCheck = savedHealthCheck,
                 appLog = logEntry("App", "上次启动器已从后台任务中移除，已自动清除启动器显示日志。"),
             )
             saveClearedLaunchState(clearedState)
@@ -53,6 +63,7 @@ class LauncherStateStore(private val context: Context) {
                 autoBackupIntervalMinutes = autoBackupConfig.intervalMinutes,
                 autoBackupKeepCount = autoBackupConfig.keepCount,
                 termuxReturnDelayMs = loadedTermuxReturnDelayMs,
+                lastHealthCheck = savedHealthCheck,
             )
             return LauncherLoadResult(
                 state = bootstrapState,
@@ -81,6 +92,7 @@ class LauncherStateStore(private val context: Context) {
                     ?.let { BackupHistoryReducer.sanitize(it) }
                     ?: defaults.backupHistory,
                 termuxReturnDelayMs = loadedTermuxReturnDelayMs,
+                lastHealthCheck = savedHealthCheck,
             )
         val safeState = if (isTermuxInstalled) {
             loadedState
@@ -113,6 +125,7 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
             .putString(KEY_BACKUP_HISTORY, BackupHistoryReducer.sanitize(state.backupHistory).joinToString("\n"))
             .putLong(KEY_TERMUX_RETURN_DELAY_MS, state.termuxReturnDelayMs.coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS))
+            .putLastHealthCheck(state.lastHealthCheck)
             .apply()
     }
 
@@ -195,7 +208,18 @@ class LauncherStateStore(private val context: Context) {
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
             .putString(KEY_BACKUP_HISTORY, BackupHistoryReducer.sanitize(state.backupHistory).joinToString("\n"))
             .putLong(KEY_TERMUX_RETURN_DELAY_MS, state.termuxReturnDelayMs.coerceIn(MIN_TERMUX_RETURN_DELAY_MS, MAX_TERMUX_RETURN_DELAY_MS))
+            .putLastHealthCheck(state.lastHealthCheck)
             .apply()
+    }
+
+    private fun SharedPreferences.Editor.putLastHealthCheck(
+        snapshot: LauncherHealthSnapshot?,
+    ): SharedPreferences.Editor {
+        return if (snapshot == null) {
+            remove(KEY_LAST_HEALTH_CHECK)
+        } else {
+            putString(KEY_LAST_HEALTH_CHECK, LauncherHealthSnapshotCodec.encode(snapshot))
+        }
     }
 
     private companion object {
@@ -209,6 +233,7 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_OFFICIAL_VERSIONS_CACHE = "official_versions_cache"
         const val KEY_BACKUP_HISTORY = "backup_history"
         const val KEY_TERMUX_RETURN_DELAY_MS = "termux_return_delay_ms"
+        const val KEY_LAST_HEALTH_CHECK = "last_health_check"
         const val KEY_LAST_TERMUX_WAKE_AT = "last_termux_wake_at"
         const val KEY_FIRST_TAVERN_START_GUIDE_SEEN = "first_tavern_start_guide_seen"
         const val KEY_CLEAR_ON_NEXT_LAUNCH = "clear_on_next_launch"

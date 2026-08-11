@@ -260,7 +260,9 @@ fun LukoaLauncherScreen(
     var hasObservedInitialResume by remember { mutableStateOf(false) }
     var healthCheckInFlight by remember { mutableStateOf(false) }
     var healthCheckToken by remember { mutableIntStateOf(0) }
-    var healthCheckReport by remember { mutableStateOf<LauncherHealthReport?>(null) }
+    var healthCheckReport by remember {
+        mutableStateOf(initialState.lastHealthCheck?.toDisplayReport())
+    }
     var uploadLimitStatus by remember { mutableStateOf(TavernUploadLimitStatus()) }
     var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
@@ -423,6 +425,7 @@ fun LukoaLauncherScreen(
             autoBackupKeepCount = autoBackupKeepCount,
             backupHistory = backupHistory,
             termuxReturnDelayMs = termuxReturnDelayMs,
+            lastHealthCheck = LauncherHealthSnapshot.fromReport(healthCheckReport),
         )
     }
 
@@ -1291,6 +1294,7 @@ fun LukoaLauncherScreen(
                 autoBackupKeepCount = autoBackupKeepCount,
                 backupHistory = backupHistory,
                 termuxReturnDelayMs = termuxReturnDelayMs,
+                lastHealthCheck = LauncherHealthSnapshot.fromReport(healthCheckReport),
             ),
         )
     }

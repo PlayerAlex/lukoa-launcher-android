@@ -202,7 +202,7 @@ private fun ToolboxHealthCard(
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = "一键体检工具",
@@ -219,23 +219,19 @@ private fun ToolboxHealthCard(
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        if (effectiveReport == null && !checking) {
-                            Text(
-                                text = "未体检",
-                                modifier = Modifier.testTag("toolbox-health-status-plain"),
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        } else {
-                            StatusPill(
-                                text = toolboxHealthStatusText(effectiveReport, checking),
-                                active = true,
-                                toneColor = toolboxHealthStatusTone(effectiveReport, checking),
-                                activeBackground = toolboxHealthStatusTone(effectiveReport, checking).copy(alpha = 0.14f),
-                            )
-                        }
+                        Text(
+                            text = toolboxHealthStatusText(effectiveReport, checking),
+                            modifier = Modifier.testTag("toolbox-health-status-plain"),
+                            color = toolboxHealthStatusTone(effectiveReport, checking),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
+                    Text(
+                        text = "上次体检时间：${toolboxHealthCheckedAt(effectiveReport)}",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 Column(
                     modifier = Modifier.width(112.dp),
@@ -257,11 +253,6 @@ private fun ToolboxHealthCard(
                     )
                 }
             }
-            Text(
-                text = "上次体检时间：${toolboxHealthCheckedAt(effectiveReport)}",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
     }
 }

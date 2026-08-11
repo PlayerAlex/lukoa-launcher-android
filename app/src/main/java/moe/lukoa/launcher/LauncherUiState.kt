@@ -13,6 +13,7 @@ data class LauncherUiState(
     val autoBackupKeepCount: Int = 5,
     val backupHistory: List<String> = emptyList(),
     val termuxReturnDelayMs: Long = 600L,
+    val lastHealthCheck: LauncherHealthSnapshot? = null,
 )
 
 fun defaultLauncherState(isTermuxInstalled: Boolean): LauncherUiState {

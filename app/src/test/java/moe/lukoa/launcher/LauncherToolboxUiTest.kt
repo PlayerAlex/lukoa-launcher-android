@@ -72,6 +72,21 @@ class LauncherToolboxUiTest {
     }
 
     @Test
+    fun toolboxSection_completedHealthStatusRemainsPlainText() {
+        setToolboxContent(
+            healthCheckReport = LauncherHealthReport(
+                checkedAtMillis = 1_786_428_240_000L,
+                summaryTitle = "基本正常",
+                summaryDetail = "当前环境可以使用",
+                items = listOf(LauncherHealthItem("Termux", "已就绪", LauncherHealthLevel.Good)),
+            ),
+        )
+
+        composeRule.onNodeWithText("基本正常").assertIsDisplayed()
+        composeRule.onNodeWithTag("toolbox-health-status-plain").assertIsDisplayed()
+    }
+
+    @Test
     fun toolboxSection_externalRepairSignalIsConsumedOnce() {
         var consumedCount = 0
         setToolboxContent(
@@ -86,6 +101,7 @@ class LauncherToolboxUiTest {
     }
 
     private fun setToolboxContent(
+        healthCheckReport: LauncherHealthReport? = null,
         repairToolsOpenSignal: Int = 0,
         onRepairToolsOpenSignalConsumed: () -> Unit = {},
         onRunHealthCheck: () -> Unit = {},
@@ -94,6 +110,7 @@ class LauncherToolboxUiTest {
         composeRule.setContent {
             LukoaTheme {
                 ToolboxSection(
+                    healthCheckReport = healthCheckReport,
                     repairToolsOpenSignal = repairToolsOpenSignal,
                     onRepairToolsOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
                     onRunHealthCheck = onRunHealthCheck,
