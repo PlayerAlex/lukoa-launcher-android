@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -28,7 +30,9 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -165,11 +169,6 @@ private fun HubGridTile(
 ) {
     val enabled = entry.onClick != null
     val feedbackClick = rememberFeedbackClick(onClick = { entry.onClick?.invoke() })
-    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
-    val singleLineTitleStyle = MaterialTheme.typography.titleMedium.copy(
-        fontSize = (MaterialTheme.typography.titleMedium.fontSize.value / fontScale).sp,
-        lineHeight = (MaterialTheme.typography.titleMedium.lineHeight.value / fontScale).sp,
-    )
 
     Box(
         modifier = modifier
@@ -191,22 +190,15 @@ private fun HubGridTile(
                 ),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            text = entry.label,
-                            color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.TextPrimary,
-                            style = singleLineTitleStyle,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
+                        HubGridTitle(entry)
                         Text(
                             text = entry.description,
                             color = LukoaColors.TextSecondary,
@@ -233,6 +225,44 @@ private fun HubGridTile(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+@Composable
+private fun HubGridTitle(entry: HubGridEntry) {
+    val baseStyle = MaterialTheme.typography.titleMedium
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val availableWidthPx = with(density) { maxWidth.roundToPx() }
+        val fittedFontSize = remember(entry.label, availableWidthPx, density.fontScale) {
+            var candidate = baseStyle.fontSize.value
+            while (candidate > 8f) {
+                val measuredWidth = textMeasurer.measure(
+                    text = entry.label,
+                    style = baseStyle.copy(
+                        fontSize = candidate.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    maxLines = 1,
+                    softWrap = false,
+                ).size.width
+                if (measuredWidth <= availableWidthPx) break
+                candidate -= 0.5f
+            }
+            candidate.sp
+        }
+
+        Text(
+            text = entry.label,
+            color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.TextPrimary,
+            style = baseStyle.copy(fontSize = fittedFontSize),
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Visible,
+        )
     }
 }
 
