@@ -201,7 +201,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "repair-dependencies",
         scriptArgs = emptyList(),
         displayCommand = "tavern-repair-dependencies",
-        background = false,
     )
 
     fun runTavernResetTheme(): CommandDispatch = runBundledScriptCommand(
@@ -209,7 +208,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "reset-theme",
         scriptArgs = emptyList(),
         displayCommand = "tavern-reset-theme",
-        background = false,
     )
 
     fun runTavernNodeMemory(value: String?): CommandDispatch {
@@ -222,7 +220,6 @@ class TermuxCommandRunner(private val context: Context) {
             scriptCommand = "node-memory-set",
             scriptArgs = listOf(memory.toString()),
             displayCommand = "tavern-node-memory",
-            background = false,
         )
     }
 
@@ -243,7 +240,6 @@ class TermuxCommandRunner(private val context: Context) {
             scriptCommand = "upload-limit-set",
             scriptArgs = listOf(megabytes.toString()),
             displayCommand = "tavern-upload-limit-set",
-            background = false,
         )
     }
 
@@ -252,7 +248,6 @@ class TermuxCommandRunner(private val context: Context) {
         scriptCommand = "upload-limit-reset",
         scriptArgs = emptyList(),
         displayCommand = "tavern-upload-limit-reset",
-        background = false,
     )
 
     fun runTavernUsersList(): CommandDispatch = runBundledScriptCommand(

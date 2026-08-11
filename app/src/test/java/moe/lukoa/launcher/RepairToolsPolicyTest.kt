@@ -6,6 +6,25 @@ import org.junit.Test
 
 class RepairToolsPolicyTest {
     @Test
+    fun `health check and repair tools stay in launcher background`() {
+        listOf(
+            "tavern-doctor",
+            "tavern-repair-dependencies",
+            "tavern-reset-theme",
+            "tavern-node-memory",
+            "tavern-upload-limit-status",
+            "tavern-upload-limit-set",
+            "tavern-upload-limit-reset",
+        ).forEach { command ->
+            assertEquals(
+                command,
+                TermuxCommandPresentation.Background,
+                TermuxCommandPresentationPolicy.forCommand(command),
+            )
+        }
+    }
+
+    @Test
     fun `repair commands have explicit operation timeouts`() {
         assertEquals(15 * 60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-repair-dependencies"))
         assertEquals(60_000L, TermuxCommandTimeoutPolicy.timeoutMillis("tavern-reset-theme"))

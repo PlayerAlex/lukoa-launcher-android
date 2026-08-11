@@ -96,43 +96,54 @@ fun DocumentationSection(
             .fillMaxSize()
             .testTag("documentation-section"),
     ) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(contentScrollState)
-                .padding(bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .testTag("documentation-content-frame"),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
-            DocumentationPageHeader(
-                title = selectedPage.pageTitle,
-                onOpenMenu = { menuOpen = true },
-            )
-            Crossfade(
-                targetState = selectedPage,
-                label = "documentation-page-content",
-            ) { page ->
-                when (page) {
-                    DocumentationPage.Home -> DocumentationHome()
-                    DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
-                    DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(contentScrollState)
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    DocumentationPageHeader(
+                        title = selectedPage.pageTitle,
+                        onOpenMenu = { menuOpen = true },
+                    )
+                    Crossfade(
+                        targetState = selectedPage,
+                        label = "documentation-page-content",
+                    ) { page ->
+                        when (page) {
+                            DocumentationPage.Home -> DocumentationHome()
+                            DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
+                            DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = menuOpen,
+                    modifier = Modifier.matchParentSize(),
+                    enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+                ) {
+                    DocumentationMenuDrawer(
+                        selectedPage = selectedPage,
+                        onSelectPage = { page ->
+                            selectedPage = page
+                            menuOpen = false
+                        },
+                        onDismiss = { menuOpen = false },
+                    )
                 }
             }
-        }
-
-        AnimatedVisibility(
-            visible = menuOpen,
-            modifier = Modifier.matchParentSize(),
-            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-        ) {
-            DocumentationMenuDrawer(
-                selectedPage = selectedPage,
-                onSelectPage = { page ->
-                    selectedPage = page
-                    menuOpen = false
-                },
-                onDismiss = { menuOpen = false },
-            )
         }
     }
 }

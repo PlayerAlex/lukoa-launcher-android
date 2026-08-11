@@ -44,6 +44,7 @@ class LauncherComposeUiTest {
         }
 
         composeRule.onNodeWithText("文档").assertIsDisplayed()
+        composeRule.onNodeWithTag("documentation-content-frame").assertIsDisplayed()
         composeRule.onNodeWithText("2. 本软件当前仅适配原生酒馆，不支持云酒馆、电脑酒馆以及各类二创酒馆。").assertExists()
         composeRule.onNodeWithTag("documentation-menu-drawer").assertDoesNotExist()
 

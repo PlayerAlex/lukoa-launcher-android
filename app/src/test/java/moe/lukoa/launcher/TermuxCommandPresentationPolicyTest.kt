@@ -14,7 +14,13 @@ class TermuxCommandPresentationPolicyTest {
             "start",
             "stop",
             "tavern-version",
+            "tavern-doctor",
+            "tavern-repair-dependencies",
+            "tavern-reset-theme",
+            "tavern-node-memory",
             "tavern-upload-limit-status",
+            "tavern-upload-limit-set",
+            "tavern-upload-limit-reset",
             "tavern-users-list",
             "tavern-extensions-list",
             "tavern-extensions-check-updates",
@@ -38,8 +44,6 @@ class TermuxCommandPresentationPolicyTest {
     fun `user initiated progress and mutations open in foreground`() {
         listOf(
             "tavern-force-cleanup",
-            "tavern-doctor",
-            "tavern-repair-dependencies",
             "tavern-install",
             "tavern-update",
             "tavern-rollback",
