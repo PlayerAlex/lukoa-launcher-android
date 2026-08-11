@@ -20,6 +20,8 @@ object TermuxCommandPresentationPolicy {
         "tavern-extensions-check-updates",
         "tavern-official-versions",
         "termux-repo-status",
+        "tavern-backup",
+        "tavern-backup-manual",
         "tavern-backup-auto",
         "tavern-backup-list",
         "return-launcher",

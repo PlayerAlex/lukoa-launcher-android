@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import java.time.Duration
 import org.junit.Rule
 import org.junit.Test
@@ -142,30 +144,43 @@ class LauncherStateRestorationUiTest {
     }
 
     @Test
-    fun `repair tools dialog opens from external signal`() {
+    fun `repair tools external signal is consumed after opening once`() {
+        val openSignal = mutableIntStateOf(1)
+        val showPanel = mutableStateOf(true)
         composeRule.setContent {
             LukoaTheme {
-                RepairToolsSettingsPanel(
-                    instanceLabel = "主实例",
-                    summaryText = "未体检",
-                    summaryColor = LukoaColors.TextSecondary,
-                    actionsLocked = false,
-                    tavernRunning = false,
-                    uploadLimitStatus = TavernUploadLimitStatus(),
-                    onRepairDependencies = {},
-                    onResetTheme = {},
-                    onSetNodeMemory = {},
-                    onCheckUploadLimit = {},
-                    onSetUploadLimit = {},
-                    onResetUploadLimit = {},
-                    onShowHint = {},
-                    openSignal = 1,
-                )
+                if (showPanel.value) {
+                    RepairToolsSettingsPanel(
+                        instanceLabel = "主实例",
+                        summaryText = "未体检",
+                        summaryColor = LukoaColors.TextSecondary,
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        uploadLimitStatus = TavernUploadLimitStatus(),
+                        onRepairDependencies = {},
+                        onResetTheme = {},
+                        onSetNodeMemory = {},
+                        onCheckUploadLimit = {},
+                        onSetUploadLimit = {},
+                        onResetUploadLimit = {},
+                        onShowHint = {},
+                        openSignal = openSignal.intValue,
+                        onOpenSignalConsumed = { openSignal.intValue = 0 },
+                    )
+                }
             }
         }
 
         composeRule.onNodeWithText("修复 npm 依赖").assertExists()
         composeRule.onNodeWithText("恢复酒馆默认值").assertExists()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("关闭").performClick()
+        composeRule.onNodeWithText("修复 npm 依赖").assertDoesNotExist()
+
+        composeRule.runOnIdle { showPanel.value = false }
+        composeRule.runOnIdle { showPanel.value = true }
+
+        composeRule.onNodeWithText("修复 npm 依赖").assertDoesNotExist()
     }
 
     private fun advancePastClickDebounce() {

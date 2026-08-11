@@ -4088,6 +4088,9 @@ fun LukoaLauncherScreen(
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
                             },
                             repairToolsOpenSignal = repairToolsOpenSignal,
+                            onRepairToolsOpenSignalConsumed = {
+                                repairToolsOpenSignal = 0
+                            },
                         )
                     }
                 }

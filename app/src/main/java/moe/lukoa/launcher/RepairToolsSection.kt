@@ -47,10 +47,14 @@ fun RepairToolsSettingsPanel(
     onShowHint: (String) -> Unit,
     leadingContent: (@Composable () -> Unit)? = null,
     openSignal: Int = 0,
+    onOpenSignalConsumed: () -> Unit = {},
 ) {
     var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
     LaunchedEffect(openSignal) {
-        if (openSignal > 0) showDialog = true
+        if (openSignal > 0) {
+            showDialog = true
+            onOpenSignalConsumed()
+        }
     }
 
     if (showDialog) {

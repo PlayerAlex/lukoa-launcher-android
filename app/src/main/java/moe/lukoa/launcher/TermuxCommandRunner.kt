@@ -525,7 +525,6 @@ class TermuxCommandRunner(private val context: Context) {
             scriptCommand = "backup",
             scriptArgs = scriptArgs,
             displayCommand = "tavern-backup",
-            background = safeKind == "auto",
             nonce = nonce,
         )
     }

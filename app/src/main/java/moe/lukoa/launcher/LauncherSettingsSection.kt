@@ -124,6 +124,7 @@ fun SettingsSection(
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
     repairToolsOpenSignal: Int = 0,
+    onRepairToolsOpenSignalConsumed: () -> Unit = {},
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -372,6 +373,7 @@ fun SettingsSection(
                 )
             },
             openSignal = repairToolsOpenSignal,
+            onOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
         )
         BackgroundTaskSettingsPanel(
             status = backgroundTaskStatus,
