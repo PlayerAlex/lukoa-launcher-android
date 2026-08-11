@@ -329,6 +329,8 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(
             listOf(
+                BackupArchiveContentKind.RegexScripts,
+                BackupArchiveContentKind.Extensions,
                 BackupArchiveContentKind.GenerationTemplates,
                 BackupArchiveContentKind.PromptTemplates,
                 BackupArchiveContentKind.Beautification,
@@ -337,10 +339,44 @@ class BackupArchiveContentScannerTest {
                 BackupArchiveContentKind.CharacterCards,
                 BackupArchiveContentKind.WorldBooks,
                 BackupArchiveContentKind.Chats,
-                BackupArchiveContentKind.RegexScripts,
-                BackupArchiveContentKind.Extensions,
             ),
             summary.groups.map(BackupArchiveContentGroup::kind),
+        )
+    }
+
+    @Test
+    fun `scanner lists extension directories even when manifest is missing`() {
+        val archive = tarGzip(
+            "SillyTavern/public/scripts/extensions/third-party/NoManifest/index.js" to "export default {};",
+            "SillyTavern/plugins/ServerPlugin/index.js" to "module.exports = {};",
+            "SillyTavern/public/scripts/extensions/third-party/NamedExtension/manifest.json" to
+                """{"display_name":"有名称的扩展"}""",
+            "SillyTavern/public/scripts/extensions/.lukoa-disabled-third-party/PausedExtension/manifest.json" to
+                """{"display_name":"暂停扩展"}""",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+        val extensions = summary.group(BackupArchiveContentKind.Extensions)
+
+        assertEquals(4, extensions?.entryCount)
+        assertEquals(
+            listOf("NoManifest", "ServerPlugin", "有名称的扩展", "暂停扩展（已停用）"),
+            extensions?.names,
+        )
+    }
+
+    @Test
+    fun `scanner lists regex files from an external data root`() {
+        val archive = tarGzip(
+            "SillyTavern/config.yaml" to "dataRoot: /storage/emulated/0/TavernData",
+            "TavernData/default-user/regex/清理标记.json" to "{}",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("清理标记"),
+            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
         )
     }
 

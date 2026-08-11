@@ -267,6 +267,18 @@ class LauncherComposeUiTest {
                                             names = listOf("清凉提示词"),
                                             namesTruncated = false,
                                         ),
+                                        BackupArchiveContentGroup(
+                                            kind = BackupArchiveContentKind.RegexScripts,
+                                            entryCount = 1,
+                                            names = listOf("清理标记"),
+                                            namesTruncated = false,
+                                        ),
+                                        BackupArchiveContentGroup(
+                                            kind = BackupArchiveContentKind.Extensions,
+                                            entryCount = 1,
+                                            names = listOf("酒馆助手"),
+                                            namesTruncated = false,
+                                        ),
                                     ),
                                 ),
                             ),
@@ -311,6 +323,10 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("角色卡").assertDoesNotExist()
         composeRule.onNodeWithText("清凉角色").assertDoesNotExist()
         composeRule.onNodeWithText("备份内容").performClick()
+        composeRule.onNodeWithText("正则").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("清理标记").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("扩展").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("酒馆助手").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("角色卡").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("酒馆参数模板").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
@@ -532,6 +548,12 @@ class LauncherComposeUiTest {
                                     names = listOf("CleanRegex"),
                                     namesTruncated = false,
                                 ),
+                                BackupArchiveContentGroup(
+                                    kind = BackupArchiveContentKind.Extensions,
+                                    entryCount = 1,
+                                    names = listOf("酒馆助手"),
+                                    namesTruncated = false,
+                                ),
                             ),
                         ),
                     ),
@@ -548,6 +570,9 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("角色卡").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("预设").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("正则").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("CleanRegex").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("扩展").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("酒馆助手").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Mint").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").performScrollTo().performClick()
         composeRule.onNodeWithText("Mint").performScrollTo().assertIsDisplayed()

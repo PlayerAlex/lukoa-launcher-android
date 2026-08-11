@@ -20,14 +20,16 @@ enum class BackupArchiveContentKind(
     GenerationTemplates("酒馆参数模板"),
     PromptTemplates("提示词模板"),
     Beautification("酒馆美化"),
-    RegexScripts("正则"),
+    RegexScripts("正则", "当前备份中的正则"),
     TavernHelperScripts("酒馆助手脚本"),
     Chats("聊天记录"),
     WorldBooks("世界书"),
-    Extensions("扩展/插件");
+    Extensions("扩展", "当前备份中的扩展");
 
     companion object {
         val displayOrder: List<BackupArchiveContentKind> = listOf(
+            RegexScripts,
+            Extensions,
             GenerationTemplates,
             PromptTemplates,
             Beautification,
@@ -36,8 +38,6 @@ enum class BackupArchiveContentKind(
             CharacterCards,
             WorldBooks,
             Chats,
-            RegexScripts,
-            Extensions,
         )
 
         private val displayRanks = displayOrder.withIndex().associate { (index, kind) ->
@@ -100,6 +100,7 @@ object BackupArchiveContentScanner {
         val categoryNames = BackupArchiveContentKind.entries
             .associateWith { linkedSetOf<String>() }
             .toMutableMap()
+        val extensionNamesByLocation = linkedMapOf<String, String>()
         val hierarchy = BackupArchiveContentHierarchyBuilder()
         GzipCompressorInputStream(input).use { gzip ->
             TarArchiveInputStream(gzip).use { tar ->
@@ -130,6 +131,13 @@ object BackupArchiveContentScanner {
                     hasExtensions = hasExtensions || segments.any { it == "extensions" || it == "plugins" }
                     hasConfiguration = hasConfiguration || fileName in setOf("config.yaml", "config.yml")
                     val originalSegments = normalized.split('/').filter(String::isNotBlank)
+                    val extensionLocation = findExtensionArchiveLocation(
+                        originalSegments = originalSegments,
+                        lowerSegments = segments,
+                    )
+                    extensionLocation?.let { location ->
+                        extensionNamesByLocation.putIfAbsent(location.key, location.displayName())
+                    }
                     val pathClassification = classifyContent(
                         originalSegments = originalSegments,
                         lowerSegments = segments,
@@ -155,7 +163,13 @@ object BackupArchiveContentScanner {
                             fallbackName
                         }
                         categoryCounts[kind] = categoryCounts.getValue(kind) + 1
-                        if (kind == BackupArchiveContentKind.Chats) {
+                        if (kind == BackupArchiveContentKind.Extensions) {
+                            extensionLocation?.let { location ->
+                                extensionNamesByLocation[location.key] = location.displayName(name)
+                            } ?: run {
+                                categoryNames.getValue(kind) += name.take(120)
+                            }
+                        } else if (kind == BackupArchiveContentKind.Chats) {
                             findChatLocation(originalSegments, segments)?.let { (source, chat) ->
                                 hierarchy.recordChat(source, chat)
                             }
@@ -179,6 +193,13 @@ object BackupArchiveContentScanner {
                         )
                     }
                 }
+            }
+        }
+        if (extensionNamesByLocation.isNotEmpty()) {
+            categoryCounts[BackupArchiveContentKind.Extensions] = extensionNamesByLocation.size
+            categoryNames.getValue(BackupArchiveContentKind.Extensions).apply {
+                clear()
+                addAll(extensionNamesByLocation.values.map { it.take(120) })
             }
         }
         categoryCounts[BackupArchiveContentKind.TavernHelperScripts] = hierarchy.scriptCount
@@ -214,13 +235,9 @@ object BackupArchiveContentScanner {
         val lowerFileName = lowerSegments.last()
         val displayFileName = originalSegments.last().substringBeforeLast('.', originalSegments.last())
 
-        val thirdPartyIndex = lowerSegments.indexOf("third-party")
-        if (thirdPartyIndex >= 0 && thirdPartyIndex + 1 < originalSegments.lastIndex && lowerFileName == "manifest.json") {
-            return BackupArchiveContentKind.Extensions to originalSegments[thirdPartyIndex + 1]
-        }
-        val pluginsIndex = lowerSegments.indexOf("plugins")
-        if (pluginsIndex >= 0 && pluginsIndex + 1 < originalSegments.lastIndex && lowerFileName == "manifest.json") {
-            return BackupArchiveContentKind.Extensions to originalSegments[pluginsIndex + 1]
+        val extensionLocation = findExtensionArchiveLocation(originalSegments, lowerSegments)
+        if (extensionLocation != null && lowerFileName == "manifest.json") {
+            return BackupArchiveContentKind.Extensions to extensionLocation.fallbackName
         }
 
         val charactersIndex = lowerSegments.indexOf("characters")
@@ -232,7 +249,11 @@ object BackupArchiveContentScanner {
         }
 
         val regexIndex = lowerSegments.indexOf("regex")
-        if (isDirectUserDataFile(lowerSegments, regexIndex) && lowerFileName.endsWith(".json")) {
+        if (
+            regexIndex >= 2 &&
+            regexIndex == lowerSegments.lastIndex - 1 &&
+            lowerFileName.endsWith(".json")
+        ) {
             return BackupArchiveContentKind.RegexScripts to displayFileName
         }
 
@@ -286,6 +307,45 @@ object BackupArchiveContentScanner {
         val worldsIndex = lowerSegments.indexOfFirst { it == "worlds" || it == "world-info" }
         if (isDirectUserDataFile(lowerSegments, worldsIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.WorldBooks to displayFileName
+        }
+        return null
+    }
+
+    private fun findExtensionArchiveLocation(
+        originalSegments: List<String>,
+        lowerSegments: List<String>,
+    ): ExtensionArchiveLocation? {
+        val thirdPartyIndex = lowerSegments.indexOf("third-party")
+        if (
+            thirdPartyIndex > 0 &&
+            lowerSegments.getOrNull(thirdPartyIndex - 1) == "extensions" &&
+            thirdPartyIndex + 1 < originalSegments.size
+        ) {
+            return ExtensionArchiveLocation(
+                key = lowerSegments.take(thirdPartyIndex + 2).joinToString("/"),
+                fallbackName = originalSegments[thirdPartyIndex + 1],
+            )
+        }
+
+        val pluginsIndex = lowerSegments.indexOf("plugins")
+        if (pluginsIndex >= 0 && pluginsIndex + 1 < originalSegments.size) {
+            return ExtensionArchiveLocation(
+                key = lowerSegments.take(pluginsIndex + 2).joinToString("/"),
+                fallbackName = originalSegments[pluginsIndex + 1],
+            )
+        }
+
+        val disabledThirdPartyIndex = lowerSegments.indexOf(".lukoa-disabled-third-party")
+        if (
+            disabledThirdPartyIndex > 0 &&
+            lowerSegments.getOrNull(disabledThirdPartyIndex - 1) == "extensions" &&
+            disabledThirdPartyIndex + 1 < originalSegments.size
+        ) {
+            return ExtensionArchiveLocation(
+                key = lowerSegments.take(disabledThirdPartyIndex + 2).joinToString("/"),
+                fallbackName = originalSegments[disabledThirdPartyIndex + 1],
+                suffix = "（已停用）",
+            )
         }
         return null
     }
@@ -389,6 +449,14 @@ object BackupArchiveContentScanner {
         "context",
         "sysprompt",
     )
+}
+
+private data class ExtensionArchiveLocation(
+    val key: String,
+    val fallbackName: String,
+    val suffix: String = "",
+) {
+    fun displayName(name: String = fallbackName): String = "$name$suffix"
 }
 
 private class BackupArchiveContentHierarchyBuilder {

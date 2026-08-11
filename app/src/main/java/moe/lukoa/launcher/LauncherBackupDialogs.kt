@@ -552,7 +552,7 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
                     Text(
                         text = listOfNotNull(
                             "用户数据".takeIf { content.hasUserData },
-                            "扩展/插件".takeIf { content.hasExtensions },
+                            "扩展".takeIf { content.hasExtensions },
                             "酒馆配置".takeIf { content.hasConfiguration },
                         ).ifEmpty { listOf("未识别到常见内容分类") }.joinToString(" · "),
                         color = LukoaColors.TextPrimary,
@@ -577,7 +577,10 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
 @Composable
 fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
     var expanded by remember(group.kind, group.entryCount, group.names, group.children) {
-        mutableStateOf(false)
+        mutableStateOf(
+            group.kind == BackupArchiveContentKind.RegexScripts ||
+                group.kind == BackupArchiveContentKind.Extensions,
+        )
     }
     val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
     Surface(
