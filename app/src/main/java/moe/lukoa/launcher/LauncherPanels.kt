@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,8 +123,10 @@ fun Header(
             ) {
                 Text(
                     text = "v$versionName",
-                    modifier = Modifier.padding(end = if (showVersionUpdateBadge) 8.dp else 0.dp),
-                    color = LukoaColors.TextSecondary,
+                    modifier = Modifier
+                        .padding(end = if (showVersionUpdateBadge) 8.dp else 0.dp)
+                        .testTag("launcher-version"),
+                    color = if (showVersionUpdateBadge) LukoaColors.Primary else LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -134,6 +137,7 @@ fun Header(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .size(7.dp)
+                            .testTag("launcher-update-dot")
                             .background(
                                 color = LukoaColors.Danger,
                                 shape = RoundedCornerShape(4.dp),

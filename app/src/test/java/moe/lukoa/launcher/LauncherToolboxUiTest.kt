@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
@@ -27,7 +28,9 @@ class LauncherToolboxUiTest {
 
         composeRule.onNodeWithText("工具箱").assertIsDisplayed()
         composeRule.onNodeWithText("一键体检工具").assertIsDisplayed()
+        composeRule.onNodeWithText("当前状态：").assertIsDisplayed()
         composeRule.onNodeWithText("未体检").assertIsDisplayed()
+        composeRule.onNodeWithTag("toolbox-health-status-plain").assertExists()
         composeRule.onNodeWithText("上次体检时间：暂无").assertIsDisplayed()
         composeRule.onNodeWithText("修复工具").assertIsDisplayed()
         composeRule.onNodeWithText("Debug 区").assertIsDisplayed()

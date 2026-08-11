@@ -192,18 +192,17 @@ private fun ToolboxHealthCard(
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
                         text = "一键体检工具",
@@ -211,38 +210,58 @@ private fun ToolboxHealthCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
-                    StatusPill(
-                        text = toolboxHealthStatusText(effectiveReport, checking),
-                        active = true,
-                        toneColor = toolboxHealthStatusTone(effectiveReport, checking),
-                        activeBackground = toolboxHealthStatusTone(effectiveReport, checking).copy(alpha = 0.14f),
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "当前状态：",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (effectiveReport == null && !checking) {
+                            Text(
+                                text = "未体检",
+                                modifier = Modifier.testTag("toolbox-health-status-plain"),
+                                color = LukoaColors.TextSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        } else {
+                            StatusPill(
+                                text = toolboxHealthStatusText(effectiveReport, checking),
+                                active = true,
+                                toneColor = toolboxHealthStatusTone(effectiveReport, checking),
+                                activeBackground = toolboxHealthStatusTone(effectiveReport, checking).copy(alpha = 0.14f),
+                            )
+                        }
+                    }
+                }
+                Column(
+                    modifier = Modifier.width(112.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SecondaryActionButton(
+                        text = if (checking) "体检中..." else "一键体检",
+                        enabled = !actionsLocked && !checking,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onRunHealthCheck,
+                    )
+                    SecondaryActionButton(
+                        text = "查看详情",
+                        enabled = true,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onViewDetails,
                     )
                 }
-                Text(
-                    text = "上次体检时间：${toolboxHealthCheckedAt(effectiveReport)}",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
             }
-            Column(
-                modifier = Modifier.width(112.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SecondaryActionButton(
-                    text = if (checking) "体检中..." else "一键体检",
-                    enabled = !actionsLocked && !checking,
-                    accentColor = LukoaColors.Primary,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onRunHealthCheck,
-                )
-                SecondaryActionButton(
-                    text = "查看详情",
-                    enabled = true,
-                    accentColor = LukoaColors.Primary,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onViewDetails,
-                )
-            }
+            Text(
+                text = "上次体检时间：${toolboxHealthCheckedAt(effectiveReport)}",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
@@ -43,5 +44,47 @@ class LauncherHeaderUiTest {
         val result = results.single()
 
         assertEquals(1, result.lineCount)
+    }
+
+    @Test
+    fun `available launcher update turns version green and shows red dot`() {
+        composeRule.setContent {
+            LukoaTheme {
+                Header(
+                    tavernRunning = false,
+                    tavernStarting = false,
+                    showVersionUpdateBadge = true,
+                    onVersionClick = {},
+                )
+            }
+        }
+
+        val results = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithTag("launcher-version", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+
+        assertEquals(LukoaColors.Primary, results.single().layoutInput.style.color)
+        composeRule.onNodeWithTag("launcher-update-dot", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `current launcher version stays neutral without update dot`() {
+        composeRule.setContent {
+            LukoaTheme {
+                Header(
+                    tavernRunning = false,
+                    tavernStarting = false,
+                    showVersionUpdateBadge = false,
+                    onVersionClick = {},
+                )
+            }
+        }
+
+        val results = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithTag("launcher-version", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(results) }
+
+        assertEquals(LukoaColors.TextSecondary, results.single().layoutInput.style.color)
+        composeRule.onNodeWithTag("launcher-update-dot", useUnmergedTree = true).assertDoesNotExist()
     }
 }

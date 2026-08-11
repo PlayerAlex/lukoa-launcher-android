@@ -100,7 +100,7 @@ class LukoaPaletteScreenshotTest {
                         Header(
                             tavernRunning = false,
                             tavernStarting = false,
-                            showVersionUpdateBadge = false,
+                            showVersionUpdateBadge = true,
                             onVersionClick = {},
                         )
                         ToolboxSection()
