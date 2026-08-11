@@ -579,10 +579,7 @@ private fun BackupContentPreviewCard(preview: BackupRestorePreview) {
 @Composable
 fun BackupContentGroupRow(group: BackupArchiveContentGroup) {
     var expanded by remember(group.kind, group.entryCount, group.names, group.children) {
-        mutableStateOf(
-            group.kind == BackupArchiveContentKind.RegexScripts ||
-                group.kind == BackupArchiveContentKind.Extensions,
-        )
+        mutableStateOf(false)
     }
     val feedbackClick = rememberFeedbackClick(onClick = { expanded = !expanded })
     Surface(
