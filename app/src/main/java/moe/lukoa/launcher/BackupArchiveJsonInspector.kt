@@ -7,6 +7,7 @@ import org.json.JSONObject
 
 data class BackupArchiveJsonInspection(
     val extensionDisplayName: String? = null,
+    val regexScriptNames: List<String> = emptyList(),
     val globalTavernHelperScriptNames: List<String> = emptyList(),
     val presetTavernHelperScriptNames: List<String> = emptyList(),
     val localTavernHelperScriptNames: List<String> = emptyList(),
@@ -23,11 +24,15 @@ object BackupArchiveJsonInspector {
             val globalScriptNames = linkedSetOf<String>()
             val presetScriptNames = linkedSetOf<String>()
             val localScriptNames = linkedSetOf<String>()
+            val regexScriptNames = linkedSetOf<String>()
 
             listOfNotNull(
                 root.optJSONObject("extension_settings"),
                 root.optJSONObject("extensions"),
             ).forEach { extensionSettings ->
+                listOf("regex", "regex_scripts", "regexScripts").forEach { key ->
+                    extensionSettings.opt(key)?.let { regexScriptNames += collectRegexNames(it) }
+                }
                 extensionSettings
                     .optJSONObject("tavern_helper")
                     ?.optJSONObject("script")
@@ -48,17 +53,58 @@ object BackupArchiveJsonInspector {
                 ?.optJSONObject("tavern_helper")
                 ?.opt("scripts")
                 ?.let { localScriptNames += collectScriptNames(it) }
+            listOf("regex", "regex_scripts", "regexScripts").forEach { key ->
+                root.opt(key)?.let { regexScriptNames += collectRegexNames(it) }
+            }
 
             BackupArchiveJsonInspection(
                 extensionDisplayName = root.optString("display_name")
                     .trim()
                     .takeIf(String::isNotBlank)
                     ?.take(120),
+                regexScriptNames = regexScriptNames.toList(),
                 globalTavernHelperScriptNames = globalScriptNames.toList(),
                 presetTavernHelperScriptNames = presetScriptNames.toList(),
                 localTavernHelperScriptNames = localScriptNames.toList(),
             )
         }.getOrDefault(BackupArchiveJsonInspection())
+    }
+
+    private fun collectRegexNames(root: Any?): List<String> {
+        val names = linkedSetOf<String>()
+        var visitedNodes = 0
+
+        fun visit(value: Any?, depth: Int) {
+            if (value == null || value === JSONObject.NULL) return
+            if (depth > MAX_SCRIPT_TREE_DEPTH || visitedNodes >= MAX_SCRIPT_TREE_NODES) return
+            visitedNodes += 1
+            when (value) {
+                is JSONArray -> {
+                    for (index in 0 until value.length()) visit(value.opt(index), depth + 1)
+                }
+                is JSONObject -> {
+                    val name = sequenceOf("scriptName", "script_name")
+                        .map { key -> value.optString(key).trim() }
+                        .firstOrNull(String::isNotBlank)
+                        ?: value.optString("name").trim().takeIf {
+                            it.isNotBlank() && (
+                                value.has("findRegex") ||
+                                    value.has("find_regex") ||
+                                    value.has("replaceString") ||
+                                    value.has("replace_string")
+                                )
+                        }
+                    name?.let { names += it.take(120) }
+                    val keys = value.keys()
+                    while (keys.hasNext()) {
+                        visit(value.opt(keys.next()), depth + 1)
+                    }
+                }
+            }
+        }
+
+        visit(root, 0)
+        return names.toList()
     }
 
     private fun collectScriptNames(root: Any?): List<String> {

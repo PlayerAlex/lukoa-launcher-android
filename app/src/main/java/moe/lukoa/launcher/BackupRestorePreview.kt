@@ -152,8 +152,10 @@ object BackupArchiveContentScanner {
                         isDirectory = entry.isDirectory,
                         entrySize = entry.size,
                     )
+                    val isUserSettings = isUserSettingsFile(segments)
                     val isPriorityContent = pathClassification?.first == BackupArchiveContentKind.RegexScripts ||
-                        pathClassification?.first == BackupArchiveContentKind.Extensions
+                        pathClassification?.first == BackupArchiveContentKind.Extensions ||
+                        isUserSettings
                     val includeContent = includeInGeneralPreview || isPriorityContent
                     val jsonInspection = if (
                         includeContent &&
@@ -167,6 +169,11 @@ object BackupArchiveContentScanner {
                         )
                     } else {
                         BackupArchiveJsonInspection()
+                    }
+                    if (jsonInspection.regexScriptNames.isNotEmpty()) {
+                        categoryNames.getValue(BackupArchiveContentKind.RegexScripts).addAll(
+                            jsonInspection.regexScriptNames,
+                        )
                     }
                     pathClassification?.takeIf { includeContent }?.let { (kind, fallbackName) ->
                         val name = if (kind == BackupArchiveContentKind.Extensions) {
@@ -216,6 +223,9 @@ object BackupArchiveContentScanner {
                 addAll(extensionNamesByLocation.values.map { it.take(120) })
             }
         }
+        categoryNames.getValue(BackupArchiveContentKind.RegexScripts).takeIf { it.isNotEmpty() }?.let { names ->
+            categoryCounts[BackupArchiveContentKind.RegexScripts] = names.size
+        }
         categoryCounts[BackupArchiveContentKind.TavernHelperScripts] = hierarchy.scriptCount
         return BackupArchiveContentSummary(
             entryCount = entryCount,
@@ -264,8 +274,7 @@ object BackupArchiveContentScanner {
 
         val regexIndex = lowerSegments.indexOf("regex")
         if (
-            regexIndex >= 2 &&
-            regexIndex == lowerSegments.lastIndex - 1 &&
+            isDirectRegexFile(lowerSegments, regexIndex) &&
             lowerFileName.endsWith(".json")
         ) {
             return BackupArchiveContentKind.RegexScripts to displayFileName
@@ -333,7 +342,7 @@ object BackupArchiveContentScanner {
         if (
             thirdPartyIndex > 0 &&
             lowerSegments.getOrNull(thirdPartyIndex - 1) == "extensions" &&
-            thirdPartyIndex + 1 < originalSegments.size
+            thirdPartyIndex + 1 < originalSegments.lastIndex
         ) {
             return ExtensionArchiveLocation(
                 key = lowerSegments.take(thirdPartyIndex + 2).joinToString("/"),
@@ -342,7 +351,7 @@ object BackupArchiveContentScanner {
         }
 
         val pluginsIndex = lowerSegments.indexOf("plugins")
-        if (pluginsIndex >= 0 && pluginsIndex + 1 < originalSegments.size) {
+        if (pluginsIndex >= 0 && pluginsIndex + 1 < originalSegments.lastIndex) {
             return ExtensionArchiveLocation(
                 key = lowerSegments.take(pluginsIndex + 2).joinToString("/"),
                 fallbackName = originalSegments[pluginsIndex + 1],
@@ -353,7 +362,7 @@ object BackupArchiveContentScanner {
         if (
             disabledThirdPartyIndex > 0 &&
             lowerSegments.getOrNull(disabledThirdPartyIndex - 1) == "extensions" &&
-            disabledThirdPartyIndex + 1 < originalSegments.size
+            disabledThirdPartyIndex + 1 < originalSegments.lastIndex
         ) {
             return ExtensionArchiveLocation(
                 key = lowerSegments.take(disabledThirdPartyIndex + 2).joinToString("/"),
@@ -368,6 +377,13 @@ object BackupArchiveContentScanner {
         return isUserDataDirectory(segments, directoryIndex) && directoryIndex == segments.lastIndex - 1
     }
 
+    private fun isDirectRegexFile(segments: List<String>, regexIndex: Int): Boolean {
+        if (isDirectUserDataFile(segments, regexIndex)) return true
+        if (regexIndex != 2 || regexIndex != segments.lastIndex - 1) return false
+        val possibleUserDirectory = segments.getOrNull(regexIndex - 1).orEmpty()
+        return possibleUserDirectory !in NON_USER_DATA_DIRECTORY_NAMES
+    }
+
     private fun isUserDataDirectory(segments: List<String>, directoryIndex: Int): Boolean {
         return directoryIndex >= 2 &&
             segments.getOrNull(directoryIndex - 2) == "data" &&
@@ -377,6 +393,13 @@ object BackupArchiveContentScanner {
     private fun isDirectUserRootFile(segments: List<String>): Boolean {
         val dataIndex = segments.indexOf("data")
         return dataIndex >= 0 && dataIndex + 2 == segments.lastIndex
+    }
+
+    private fun isUserSettingsFile(segments: List<String>): Boolean {
+        if (segments.lastOrNull() != "settings.json") return false
+        if (isDirectUserRootFile(segments)) return true
+        if (segments.size != 3) return false
+        return segments[1] !in NON_USER_DATA_DIRECTORY_NAMES
     }
 
     private fun shouldInspectJson(
@@ -390,14 +413,12 @@ object BackupArchiveContentScanner {
         ) {
             return true
         }
-        return lowerSegments.lastOrNull() == "settings.json" &&
-            isDirectUserRootFile(lowerSegments)
+        return isUserSettingsFile(lowerSegments)
     }
 
     private fun maxInspectableJsonBytes(lowerSegments: List<String>): Int {
         return if (
-            lowerSegments.lastOrNull() == "settings.json" &&
-            isDirectUserRootFile(lowerSegments)
+            isUserSettingsFile(lowerSegments)
         ) {
             MAX_INSPECTABLE_SETTINGS_JSON_BYTES
         } else {
@@ -462,6 +483,17 @@ object BackupArchiveContentScanner {
         "instruct",
         "context",
         "sysprompt",
+    )
+
+    private val NON_USER_DATA_DIRECTORY_NAMES = setOf(
+        "public",
+        "src",
+        "lib",
+        "dist",
+        "assets",
+        "plugins",
+        "extensions",
+        "node_modules",
     )
 }
 

@@ -347,6 +347,8 @@ class BackupArchiveContentScannerTest {
     @Test
     fun `scanner lists extension directories even when manifest is missing`() {
         val archive = tarGzip(
+            "SillyTavern/public/scripts/extensions/third-party/.gitkeep" to "",
+            "SillyTavern/public/scripts/extensions/third-party/package.json" to "{}",
             "SillyTavern/public/scripts/extensions/third-party/NoManifest/index.js" to "export default {};",
             "SillyTavern/plugins/ServerPlugin/index.js" to "module.exports = {};",
             "SillyTavern/public/scripts/extensions/third-party/NamedExtension/manifest.json" to
@@ -362,6 +364,32 @@ class BackupArchiveContentScannerTest {
         assertEquals(
             listOf("NoManifest", "ServerPlugin", "有名称的扩展", "暂停扩展（已停用）"),
             extensions?.names,
+        )
+    }
+
+    @Test
+    fun `scanner reads real regex names from user settings without guessing ordinary manifests`() {
+        val archive = tarGzip(
+            "SillyTavern/data/default-user/settings.json" to
+                """
+                {
+                  "extension_settings": {
+                    "regex": [
+                      {"scriptName":"屏蔽词净化助手","findRegex":"foo","replaceString":""},
+                      {"name":"QR 助手正则","findRegex":"bar","replaceString":""},
+                      {"name":"普通配置项"}
+                    ]
+                  }
+                }
+                """.trimIndent(),
+            "SillyTavern/public/regex/manifest.json" to "{}",
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        assertEquals(
+            listOf("屏蔽词净化助手", "QR 助手正则"),
+            summary.group(BackupArchiveContentKind.RegexScripts)?.names,
         )
     }
 
@@ -432,7 +460,8 @@ class BackupArchiveContentScannerTest {
         val archive = tarGzip(
             *(
                 fillerEntries + listOf(
-                    "SillyTavern/data/default-user/regex/后段正则.json" to "{}",
+                    "SillyTavern/data/default-user/settings.json" to
+                        """{"extension_settings":{"regex":[{"scriptName":"后段正则","findRegex":"x"}]}}""",
                     "SillyTavern/public/scripts/extensions/third-party/LateExtension/manifest.json" to
                         """{"display_name":"后段扩展"}""",
                 )
