@@ -2,6 +2,9 @@ package moe.lukoa.launcher
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
+import java.util.Base64
+import java.util.zip.CRC32
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
@@ -99,8 +102,8 @@ class BackupArchiveContentScannerTest {
         )
         assertEquals(null, summary.group(BackupArchiveContentKind.Presets))
         assertEquals(
-            listOf("真正的预设"),
-            summary.group(BackupArchiveContentKind.PromptTemplates)?.names,
+            listOf(BackupArchiveContentKind.CharacterCards),
+            summary.groups.map(BackupArchiveContentGroup::kind),
         )
     }
 
@@ -123,12 +126,8 @@ class BackupArchiveContentScannerTest {
             summary.group(BackupArchiveContentKind.Presets)?.names,
         )
         assertEquals(
-            listOf("Asper-Kayra", "Divine Intellect", "GUI KoboldAI"),
-            summary.group(BackupArchiveContentKind.GenerationTemplates)?.names,
-        )
-        assertEquals(
-            listOf("ChatML", "Default"),
-            summary.group(BackupArchiveContentKind.PromptTemplates)?.names,
+            listOf(BackupArchiveContentKind.Presets),
+            summary.groups.map(BackupArchiveContentGroup::kind),
         )
     }
 
@@ -287,6 +286,66 @@ class BackupArchiveContentScannerTest {
     }
 
     @Test
+    fun `scanner reads local regex and tavern helper scripts from png character metadata`() {
+        val oldCardJson =
+            """
+            {
+              "data": {
+                "extensions": {
+                  "regex_scripts": [
+                    {"scriptName":"旧版局部正则","findRegex":"old"}
+                  ],
+                  "tavern_helper": {
+                    "scripts": [
+                      {"type":"script","name":"旧版局部脚本"}
+                    ]
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        val currentCardJson =
+            """
+            {
+              "spec": "chara_card_v3",
+              "data": {
+                "extensions": {
+                  "regex_scripts": [
+                    {"scriptName":"角色净化","findRegex":"current"}
+                  ],
+                  "tavern_helper": {
+                    "scripts": [
+                      {"type":"script","value":{"name":"角色局部脚本"}}
+                    ]
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        val archive = tarGzipBytes(
+            "SillyTavern/data/default-user/characters/薄荷角色.png" to
+                characterCardPng(charaJson = oldCardJson, ccv3Json = currentCardJson),
+        )
+
+        val summary = BackupArchiveContentScanner.scan(ByteArrayInputStream(archive))
+
+        val localRegex = summary.group(BackupArchiveContentKind.RegexScripts)
+            ?.children
+            ?.single { it.title == "局部正则" }
+            ?.children
+            ?.single()
+        assertEquals("薄荷角色", localRegex?.title)
+        assertEquals(listOf("角色净化"), localRegex?.names)
+        val localScripts = summary.group(BackupArchiveContentKind.TavernHelperScripts)
+            ?.children
+            ?.single { it.title == "局部脚本" }
+            ?.children
+            ?.single()
+        assertEquals("薄荷角色", localScripts?.title)
+        assertEquals(listOf("角色局部脚本"), localScripts?.names)
+    }
+
+    @Test
     fun `scanner reads global tavern helper scripts from large user settings`() {
         val padding = "x".repeat(BackupArchiveContentScanner.MAX_INSPECTABLE_JSON_BYTES)
         val archive = tarGzip(
@@ -368,8 +427,6 @@ class BackupArchiveContentScannerTest {
 
         assertEquals(
             listOf(
-                BackupArchiveContentKind.GenerationTemplates,
-                BackupArchiveContentKind.PromptTemplates,
                 BackupArchiveContentKind.Beautification,
                 BackupArchiveContentKind.Presets,
                 BackupArchiveContentKind.TavernHelperScripts,
@@ -460,13 +517,13 @@ class BackupArchiveContentScannerTest {
                 BackupArchiveContentGroup(BackupArchiveContentKind.Chats, 1),
                 BackupArchiveContentGroup(BackupArchiveContentKind.CharacterCards, 1),
                 BackupArchiveContentGroup(BackupArchiveContentKind.Presets, 1),
-                BackupArchiveContentGroup(BackupArchiveContentKind.GenerationTemplates, 1),
+                BackupArchiveContentGroup(BackupArchiveContentKind.Beautification, 1),
             ),
         )
 
         assertEquals(
             listOf(
-                BackupArchiveContentKind.GenerationTemplates,
+                BackupArchiveContentKind.Beautification,
                 BackupArchiveContentKind.Presets,
                 BackupArchiveContentKind.CharacterCards,
                 BackupArchiveContentKind.Chats,
@@ -495,14 +552,34 @@ class BackupArchiveContentScannerTest {
     @Test
     fun `scanner keeps looking for regex and extensions after the general preview limit`() {
         val fillerEntries = (0 until BackupArchiveContentScanner.MAX_PREVIEW_ENTRIES)
-            .map { "SillyTavern/src/filler/$it.js" to "" }
-        val archive = tarGzip(
+            .map { "SillyTavern/src/filler/$it.js" to byteArrayOf() }
+        val lateCardJson =
+            """
+            {
+              "data": {
+                "extensions": {
+                  "regex_scripts": [
+                    {"scriptName":"后段局部正则","findRegex":"late"}
+                  ],
+                  "tavern_helper": {
+                    "scripts": [
+                      {"type":"script","name":"后段局部脚本"}
+                    ]
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        val archive = tarGzipBytes(
             *(
                 fillerEntries + listOf(
                     "SillyTavern/data/default-user/settings.json" to
-                        """{"extension_settings":{"regex":[{"scriptName":"后段正则","findRegex":"x"}]}}""",
+                        """{"extension_settings":{"regex":[{"scriptName":"后段正则","findRegex":"x"}]}}"""
+                            .toByteArray(),
                     "SillyTavern/public/scripts/extensions/third-party/LateExtension/manifest.json" to
-                        """{"display_name":"后段扩展"}""",
+                        """{"display_name":"后段扩展"}""".toByteArray(),
+                    "SillyTavern/data/default-user/characters/后段角色.png" to
+                        characterCardPng(charaJson = lateCardJson, ccv3Json = lateCardJson),
                 )
             ).toTypedArray(),
         )
@@ -518,6 +595,24 @@ class BackupArchiveContentScannerTest {
         assertEquals(
             listOf("后段扩展"),
             summary.group(BackupArchiveContentKind.Extensions)?.names,
+        )
+        assertEquals(
+            listOf("后段局部正则"),
+            summary.group(BackupArchiveContentKind.RegexScripts)
+                ?.children
+                ?.single { it.title == "局部正则" }
+                ?.children
+                ?.single()
+                ?.names,
+        )
+        assertEquals(
+            listOf("后段局部脚本"),
+            summary.group(BackupArchiveContentKind.TavernHelperScripts)
+                ?.children
+                ?.single { it.title == "局部脚本" }
+                ?.children
+                ?.single()
+                ?.names,
         )
     }
 
@@ -553,12 +648,17 @@ class BackupArchiveContentScannerTest {
     }
 
     private fun tarGzip(vararg entries: Pair<String, String>): ByteArray {
+        return tarGzipBytes(
+            *entries.map { (name, content) -> name to content.toByteArray(Charsets.UTF_8) }.toTypedArray(),
+        )
+    }
+
+    private fun tarGzipBytes(vararg entries: Pair<String, ByteArray>): ByteArray {
         val bytes = ByteArrayOutputStream()
         GzipCompressorOutputStream(bytes).use { gzip ->
             TarArchiveOutputStream(gzip).use { tar ->
                 tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
-                entries.forEach { (name, content) ->
-                    val contentBytes = content.toByteArray(Charsets.UTF_8)
+                entries.forEach { (name, contentBytes) ->
                     val entry = TarArchiveEntry(name).apply { size = contentBytes.size.toLong() }
                     tar.putArchiveEntry(entry)
                     tar.write(contentBytes)
@@ -568,5 +668,40 @@ class BackupArchiveContentScannerTest {
             }
         }
         return bytes.toByteArray()
+    }
+
+    private fun characterCardPng(charaJson: String, ccv3Json: String): ByteArray {
+        return ByteArrayOutputStream().apply {
+            write(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
+            writePngChunk(
+                type = "tEXt",
+                data = "chara\u0000${Base64.getEncoder().encodeToString(charaJson.toByteArray())}"
+                    .toByteArray(StandardCharsets.ISO_8859_1),
+            )
+            writePngChunk(
+                type = "tEXt",
+                data = "ccv3\u0000${Base64.getEncoder().encodeToString(ccv3Json.toByteArray())}"
+                    .toByteArray(StandardCharsets.ISO_8859_1),
+            )
+            writePngChunk(type = "IEND", data = byteArrayOf())
+        }.toByteArray()
+    }
+
+    private fun ByteArrayOutputStream.writePngChunk(type: String, data: ByteArray) {
+        write((data.size ushr 24) and 0xFF)
+        write((data.size ushr 16) and 0xFF)
+        write((data.size ushr 8) and 0xFF)
+        write(data.size and 0xFF)
+        val typeBytes = type.toByteArray(StandardCharsets.US_ASCII)
+        write(typeBytes)
+        write(data)
+        val crc = CRC32().apply {
+            update(typeBytes)
+            update(data)
+        }.value
+        write(((crc ushr 24) and 0xFF).toInt())
+        write(((crc ushr 16) and 0xFF).toInt())
+        write(((crc ushr 8) and 0xFF).toInt())
+        write((crc and 0xFF).toInt())
     }
 }

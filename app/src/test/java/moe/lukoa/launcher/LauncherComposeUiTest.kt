@@ -256,15 +256,9 @@ class LauncherComposeUiTest {
                                             namesTruncated = false,
                                         ),
                                         BackupArchiveContentGroup(
-                                            kind = BackupArchiveContentKind.GenerationTemplates,
+                                            kind = BackupArchiveContentKind.Beautification,
                                             entryCount = 1,
-                                            names = listOf("清凉参数"),
-                                            namesTruncated = false,
-                                        ),
-                                        BackupArchiveContentGroup(
-                                            kind = BackupArchiveContentKind.PromptTemplates,
-                                            entryCount = 1,
-                                            names = listOf("清凉提示词"),
+                                            names = listOf("清凉主题"),
                                             namesTruncated = false,
                                         ),
                                         BackupArchiveContentGroup(
@@ -339,14 +333,10 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("酒馆助手").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("当前备份中的扩展").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("酒馆参数模板").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText(
-            "包含 NovelAI、TextGen 和 KoboldAI 参数文件，其中可能有酒馆自带模板。",
-        ).assertDoesNotExist()
-        composeRule.onNodeWithText("提示词模板").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText(
-            "包含 instruct、context 和 sysprompt 文件，其中可能有酒馆自带模板。",
-        ).assertDoesNotExist()
+        composeRule.onNodeWithText("美化").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("酒馆美化").assertDoesNotExist()
+        composeRule.onNodeWithText("酒馆参数模板").assertDoesNotExist()
+        composeRule.onNodeWithText("提示词模板").assertDoesNotExist()
         composeRule.onNodeWithText("清凉角色").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").performScrollTo().performClick()
         composeRule.onNodeWithText("清凉角色").performScrollTo().assertIsDisplayed()

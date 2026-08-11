@@ -17,9 +17,7 @@ enum class BackupArchiveContentKind(
 ) {
     CharacterCards("角色卡"),
     Presets("预设"),
-    GenerationTemplates("酒馆参数模板"),
-    PromptTemplates("提示词模板"),
-    Beautification("酒馆美化"),
+    Beautification("美化"),
     RegexScripts("正则"),
     TavernHelperScripts("酒馆助手脚本"),
     Chats("聊天记录"),
@@ -28,8 +26,6 @@ enum class BackupArchiveContentKind(
 
     companion object {
         val displayOrder: List<BackupArchiveContentKind> = listOf(
-            GenerationTemplates,
-            PromptTemplates,
             Beautification,
             Presets,
             TavernHelperScripts,
@@ -160,18 +156,23 @@ object BackupArchiveContentScanner {
                         pathClassification?.first == BackupArchiveContentKind.CharacterCards
                     val includeClassification = includeInGeneralPreview || isPriorityClassification
                     val inspectContent = includeInGeneralPreview || isPriorityClassification || inspectForScopedRegex
-                    val jsonInspection = if (
+                    val jsonInspection = when {
                         inspectContent &&
-                        !entry.isDirectory &&
-                        fileName.endsWith(".json") &&
-                        entry.size in 1..maxInspectableJsonBytes(segments).toLong() &&
-                        shouldInspectJson(segments, pathClassification?.first)
-                    ) {
-                        BackupArchiveJsonInspector.inspect(
-                            readCurrentEntry(tar, entry.size.toInt()),
-                        )
-                    } else {
-                        BackupArchiveJsonInspection()
+                            !entry.isDirectory &&
+                            fileName.endsWith(".json") &&
+                            entry.size in 1..maxInspectableJsonBytes(segments).toLong() &&
+                            shouldInspectJson(segments, pathClassification?.first) -> {
+                            BackupArchiveJsonInspector.inspect(
+                                readCurrentEntry(tar, entry.size.toInt()),
+                            )
+                        }
+                        inspectContent &&
+                            !entry.isDirectory &&
+                            pathClassification?.first == BackupArchiveContentKind.CharacterCards &&
+                            fileName.endsWith(".png") -> {
+                            BackupArchivePngCharacterCardInspector.inspect(tar, entry.size)
+                        }
+                        else -> BackupArchiveJsonInspection()
                     }
                     if (pathClassification?.first == BackupArchiveContentKind.Presets) {
                         hierarchy.recordPresetRegexScripts(
@@ -209,22 +210,22 @@ object BackupArchiveContentScanner {
                             categoryNames.getValue(kind) += name.take(120)
                         }
                     }
-                    if (includeInGeneralPreview) {
+                    if (isUserSettings) {
                         hierarchy.recordGlobalScripts(
                             jsonInspection.globalTavernHelperScriptNames,
                         )
-                        if (pathClassification?.first == BackupArchiveContentKind.Presets) {
-                            hierarchy.recordPresetScripts(
-                                pathClassification.second,
-                                jsonInspection.presetTavernHelperScriptNames,
-                            )
-                        }
-                        if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
-                            hierarchy.recordLocalScripts(
-                                pathClassification.second,
-                                jsonInspection.localTavernHelperScriptNames,
-                            )
-                        }
+                    }
+                    if (pathClassification?.first == BackupArchiveContentKind.Presets) {
+                        hierarchy.recordPresetScripts(
+                            pathClassification.second,
+                            jsonInspection.presetTavernHelperScriptNames,
+                        )
+                    }
+                    if (pathClassification?.first == BackupArchiveContentKind.CharacterCards) {
+                        hierarchy.recordLocalScripts(
+                            pathClassification.second,
+                            jsonInspection.localTavernHelperScriptNames,
+                        )
                     }
                 }
             }
@@ -294,24 +295,6 @@ object BackupArchiveContentScanner {
         val presetIndex = lowerSegments.indexOfFirst { it in USER_PRESET_DIRECTORY_NAMES }
         if (isDirectUserDataFile(lowerSegments, presetIndex) && lowerFileName.endsWith(".json")) {
             return BackupArchiveContentKind.Presets to displayFileName
-        }
-
-        val generationTemplateIndex = lowerSegments.indexOfFirst {
-            it in GENERATION_TEMPLATE_DIRECTORY_NAMES
-        }
-        if (
-            isDirectUserDataFile(lowerSegments, generationTemplateIndex) &&
-            lowerFileName.endsWith(".json")
-        ) {
-            return BackupArchiveContentKind.GenerationTemplates to displayFileName
-        }
-
-        val promptTemplateIndex = lowerSegments.indexOfFirst { it in PROMPT_TEMPLATE_DIRECTORY_NAMES }
-        if (
-            isDirectUserDataFile(lowerSegments, promptTemplateIndex) &&
-            lowerFileName.endsWith(".json")
-        ) {
-            return BackupArchiveContentKind.PromptTemplates to displayFileName
         }
 
         val themesIndex = lowerSegments.indexOf("themes")
@@ -482,18 +465,6 @@ object BackupArchiveContentScanner {
     private val USER_PRESET_DIRECTORY_NAMES = setOf(
         "presets",
         "openai settings",
-    )
-
-    private val GENERATION_TEMPLATE_DIRECTORY_NAMES = setOf(
-        "novelai settings",
-        "textgen settings",
-        "koboldai settings",
-    )
-
-    private val PROMPT_TEMPLATE_DIRECTORY_NAMES = setOf(
-        "instruct",
-        "context",
-        "sysprompt",
     )
 
     private val NON_USER_DATA_DIRECTORY_NAMES = setOf(
