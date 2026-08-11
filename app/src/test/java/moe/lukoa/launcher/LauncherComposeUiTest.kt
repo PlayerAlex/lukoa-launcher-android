@@ -218,8 +218,6 @@ class LauncherComposeUiTest {
                         .verticalScroll(rememberScrollState()),
                 ) {
                     BackupSection(
-                        tavernRunning = false,
-                        tavernStarting = false,
                         actionsLocked = false,
                         backupListRefreshing = false,
                         autoBackupEnabled = false,
@@ -287,6 +285,9 @@ class LauncherComposeUiTest {
         composeRule.onNodeWithText("快速操作").assertDoesNotExist()
         composeRule.onNodeWithText("手动保护").assertDoesNotExist()
         composeRule.onNodeWithText("当前状态：").assertExists()
+        composeRule.onNodeWithText("自动备份未开启").assertExists()
+        composeRule.onNodeWithText("手动备份库：").assertExists()
+        composeRule.onNodeWithText("自动备份库：").assertExists()
         composeRule.onNodeWithText("创建手动备份").assertExists()
         composeRule.onNodeWithText("自动备份规则").assertExists()
         composeRule.onNodeWithText("备份库").assertExists()
@@ -294,7 +295,8 @@ class LauncherComposeUiTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("2.0 KB").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText(archivePath).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("文件地址").assertDoesNotExist()
+        composeRule.onNodeWithText(archivePath).assertDoesNotExist()
         composeRule.onNodeWithText("备份内容").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("查看内容").assertDoesNotExist()
         composeRule.onNodeWithText("角色卡").assertDoesNotExist()
@@ -319,6 +321,13 @@ class LauncherComposeUiTest {
         composeRule.onNode(hasText("应用") and hasClickAction())
             .performScrollTo()
             .performClick()
+        composeRule.onNode(hasText("真的吗？") and hasClickAction()).assertExists()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.mainClock.advanceTimeBy(4_100L)
+        composeRule.waitForIdle()
+        composeRule.onNode(hasText("应用") and hasClickAction()).assertExists()
+        composeRule.mainClock.autoAdvance = true
+        composeRule.onNode(hasText("应用") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("真的吗？") and hasClickAction())
             .performScrollTo()
             .performClick()

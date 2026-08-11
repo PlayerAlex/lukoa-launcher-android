@@ -141,6 +141,33 @@ class LauncherStateRestorationUiTest {
         composeRule.onNodeWithText("修复 npm 依赖").assertExists()
     }
 
+    @Test
+    fun `repair tools dialog opens from external signal`() {
+        composeRule.setContent {
+            LukoaTheme {
+                RepairToolsSettingsPanel(
+                    instanceLabel = "主实例",
+                    summaryText = "未体检",
+                    summaryColor = LukoaColors.TextSecondary,
+                    actionsLocked = false,
+                    tavernRunning = false,
+                    uploadLimitStatus = TavernUploadLimitStatus(),
+                    onRepairDependencies = {},
+                    onResetTheme = {},
+                    onSetNodeMemory = {},
+                    onCheckUploadLimit = {},
+                    onSetUploadLimit = {},
+                    onResetUploadLimit = {},
+                    onShowHint = {},
+                    openSignal = 1,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("修复 npm 依赖").assertExists()
+        composeRule.onNodeWithText("恢复酒馆默认值").assertExists()
+    }
+
     private fun advancePastClickDebounce() {
         ShadowSystemClock.advanceBy(Duration.ofMillis(300L))
         composeRule.waitForIdle()

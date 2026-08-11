@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,8 +46,12 @@ fun RepairToolsSettingsPanel(
     onResetUploadLimit: () -> Unit,
     onShowHint: (String) -> Unit,
     leadingContent: (@Composable () -> Unit)? = null,
+    openSignal: Int = 0,
 ) {
     var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
+    LaunchedEffect(openSignal) {
+        if (openSignal > 0) showDialog = true
+    }
 
     if (showDialog) {
         AlertDialog(

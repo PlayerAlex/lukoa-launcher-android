@@ -4,6 +4,12 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -260,6 +266,7 @@ fun LukoaLauncherScreen(
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by rememberSaveable { mutableStateOf(LauncherTab.Launch) }
+    var repairToolsOpenSignal by rememberSaveable { mutableIntStateOf(0) }
     var secondaryPage by rememberSaveable { mutableStateOf<LauncherSecondaryPage?>(null) }
     var pagerInteractionLocked by remember { mutableStateOf(false) }
     val viewConfiguration = LocalViewConfiguration.current
@@ -3860,11 +3867,6 @@ fun LukoaLauncherScreen(
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
                             )
-                            IssueAnalysisPanel(
-                                issues = issueAnalysis,
-                                actionsLocked = actionInProgress,
-                                onQuickFixAction = ::runLauncherQuickFixAction,
-                            )
                             LogPanel(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
@@ -4085,6 +4087,7 @@ fun LukoaLauncherScreen(
                             onIncreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
                             },
+                            repairToolsOpenSignal = repairToolsOpenSignal,
                         )
                     }
                 }
@@ -4100,38 +4103,54 @@ fun LukoaLauncherScreen(
             )
         }
 
-        val activeSecondaryPage = secondaryPage
-        if (activeSecondaryPage != null) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = LukoaColors.Background,
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    LauncherSecondaryPageHeader(
-                        title = activeSecondaryPage.title,
-                        onBack = { secondaryPage = null },
+        AnimatedContent(
+            targetState = secondaryPage,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                if (targetState != null) {
+                    (fadeIn(animationSpec = tween(180)) +
+                        slideInHorizontally(animationSpec = tween(220)) { width -> width / 12 })
+                        .togetherWith(fadeOut(animationSpec = tween(100)))
+                } else {
+                    fadeIn(animationSpec = tween(100)).togetherWith(
+                        fadeOut(animationSpec = tween(180)) +
+                            slideOutHorizontally(animationSpec = tween(220)) { width -> width / 12 },
                     )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        if (showBusyOperationPanel) {
-                            BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
-                        }
-                        pendingLauncherTask
-                            ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
-                            ?.let { task ->
-                                PendingTaskNoticePanel(
-                                    task = task,
-                                    activeLockLabel = busyLabel,
-                                    onContinueCheck = ::continuePendingLauncherTask,
-                                    onAbandon = ::abandonPendingLauncherTask,
-                                )
+                }
+            },
+            label = "二级页面切换",
+        ) { activeSecondaryPage ->
+            if (activeSecondaryPage != null) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = LukoaColors.Background,
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        LauncherSecondaryPageHeader(
+                            title = activeSecondaryPage.title,
+                            onBack = { secondaryPage = null },
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            if (showBusyOperationPanel) {
+                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
                             }
-                        when (activeSecondaryPage) {
+                            pendingLauncherTask
+                                ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
+                                ?.let { task ->
+                                    PendingTaskNoticePanel(
+                                        task = task,
+                                        activeLockLabel = busyLabel,
+                                        onContinueCheck = ::continuePendingLauncherTask,
+                                        onAbandon = ::abandonPendingLauncherTask,
+                                    )
+                                }
+                            when (activeSecondaryPage) {
                             LauncherSecondaryPage.VersionManagement -> VersionManagementSection(
                                 actionsLocked = actionInProgress,
                                 tavernRunning = tavernRunning,
@@ -4151,13 +4170,14 @@ fun LukoaLauncherScreen(
                                 onOpenSafetyBackup = {
                                     secondaryPage = LauncherSecondaryPage.Backup
                                 },
-                                uploadLimitStatus = uploadLimitStatus,
-                                onResetUploadLimit = ::resetUploadLimitToVersionDefault,
+                                onOpenRepairTools = {
+                                    repairToolsOpenSignal += 1
+                                    secondaryPage = null
+                                    selectedTab = LauncherTab.Settings
+                                },
                             )
 
                             LauncherSecondaryPage.Backup -> BackupSection(
-                                tavernRunning = tavernRunning,
-                                tavernStarting = tavernStarting,
                                 actionsLocked = actionInProgress ||
                                     backupUiState.backupPreviewUiState is BackupPreviewUiState.Loading,
                                 backupListRefreshing = backupUiState.backupListRefreshing,
@@ -4195,6 +4215,7 @@ fun LukoaLauncherScreen(
                                     update(hint, "", false, allowRunningInference = false)
                                 },
                             )
+                            }
                         }
                     }
                 }

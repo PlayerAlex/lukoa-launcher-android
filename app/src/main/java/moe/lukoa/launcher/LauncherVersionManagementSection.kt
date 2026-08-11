@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -69,10 +73,8 @@ fun VersionManagementSection(
     onTavernUpdate: () -> Unit,
     onTavernRollback: () -> Unit,
     onOpenSafetyBackup: () -> Unit = {},
-    uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
-    onResetUploadLimit: () -> Unit = {},
+    onOpenRepairTools: () -> Unit = {},
 ) {
-    var showTechnicalDetails by rememberSaveable { mutableStateOf(false) }
     val actionState = TavernVersionActionGuards.evaluate(
         current = tavernVersionInfo,
         target = selectedVersion,
@@ -98,57 +100,21 @@ fun VersionManagementSection(
         VersionOverviewCard(
             currentVersion = tavernVersionInfo.displayVersion,
             currentDirectory = tavernVersionInfo.directory,
-            versionSource = repoLabelFor(officialVersions.repoUrl.ifBlank { currentRepoUrl }),
+            currentSource = TavernVersionSourceDisplay.label(tavernVersionInfo.remote),
+            versionSource = TavernVersionSourceDisplay.label(
+                selectedVersion?.repoUrl.orEmpty().ifBlank { currentRepoUrl },
+            ),
             selectedVersion = selectedVersion,
         )
         if (tavernVersionInfo.hasLocalChanges) {
-            LocalChangesNotice(
-                directory = tavernVersionInfo.directory,
-                changedFilesPreview = tavernVersionInfo.changedFilesPreview,
-                likelyUploadLimitChange = TavernLocalChangesGuidance.isLikelyUploadLimitChange(
-                    versionInfo = tavernVersionInfo,
-                    uploadLimitStatus = uploadLimitStatus,
-                ),
-                actionsLocked = actionsLocked,
-                tavernRunning = tavernRunning || tavernStarting,
-                onResetUploadLimit = onResetUploadLimit,
-            )
+            LocalChangesNotice(onOpenRepairTools = onOpenRepairTools)
         }
         VersionActionRow(
-            currentVersionInfo = tavernVersionInfo,
-            selectedVersion = selectedVersion,
             actionState = actionState,
             actionsLocked = actionsLocked,
             onUpdate = onTavernUpdate,
             onRollback = onTavernRollback,
         )
-        if (tavernVersionInfo.hasData) {
-            SecondaryActionButton(
-                text = if (showTechnicalDetails) "收起版本详情" else "查看版本详情",
-                enabled = true,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { showTechnicalDetails = !showTechnicalDetails },
-            )
-            if (showTechnicalDetails) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = LukoaColors.Elevated,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        VersionInfoLine("分支", tavernVersionInfo.branch.ifBlank { "未读取" })
-                        VersionInfoLine("提交", tavernVersionInfo.commit.ifBlank { "未读取" })
-                        VersionInfoLine("Git 描述", tavernVersionInfo.describe.ifBlank { "未读取" })
-                        VersionInfoLine("回退点", tavernVersionInfo.rollbackDisplay)
-                    }
-                }
-            }
-        }
         lastOperationSummary?.let {
             VersionOperationResultSection(
                 summary = it,
@@ -205,6 +171,7 @@ private fun VersionTargetPickerRow(
 private fun VersionOverviewCard(
     currentVersion: String,
     currentDirectory: String,
+    currentSource: String,
     versionSource: String,
     selectedVersion: TavernVersionChoice?,
 ) {
@@ -247,6 +214,7 @@ private fun VersionOverviewCard(
                 verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 VersionInfoLine("当前酒馆位置", currentDirectory.ifBlank { "未读取" })
+                VersionInfoLine("当前酒馆来源", currentSource)
                 VersionInfoLine("版本来源", versionSource)
             }
         }
@@ -255,8 +223,6 @@ private fun VersionOverviewCard(
 
 @Composable
 private fun VersionActionRow(
-    currentVersionInfo: TavernVersionInfo,
-    selectedVersion: TavernVersionChoice?,
     actionState: TavernVersionActionState,
     actionsLocked: Boolean,
     onUpdate: () -> Unit,
@@ -264,44 +230,23 @@ private fun VersionActionRow(
 ) {
     val updateEnabled = !actionsLocked && actionState.updateAvailable
     val rollbackEnabled = !actionsLocked && actionState.rollbackAvailable
-    val message = when {
-        actionsLocked -> "当前有其他任务正在处理，请稍后再试。"
-        currentVersionInfo.notInstalled -> "当前还没有安装酒馆，请先回到启动页完成安装。"
-        !currentVersionInfo.hasData -> "尚未读取当前酒馆版本，请先重新读取。"
-        selectedVersion == null -> "请先选择目标版本。"
-        actionState.relation == TavernTargetRelation.Same -> "目标版本与当前版本相同，无需更新或回退。"
-        updateEnabled -> "目标版本高于当前版本，可以更新；回退暂不可用。"
-        rollbackEnabled -> "目标版本低于当前版本，可以回退；更新暂不可用。"
-        else -> actionState.updateDisabledReason
-            ?: actionState.rollbackDisabledReason
-            ?: "当前条件不满足，请先处理上方提示。"
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SecondaryActionButton(
-                text = "更新版本",
-                enabled = updateEnabled,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.weight(1f),
-                onClick = onUpdate,
-            )
-            SecondaryActionButton(
-                text = "回退版本",
-                enabled = rollbackEnabled,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.weight(1f),
-                onClick = onRollback,
-            )
-        }
-        Text(
-            text = message,
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SecondaryActionButton(
+            text = "更新版本",
+            enabled = updateEnabled,
+            accentColor = LukoaColors.Primary,
+            modifier = Modifier.weight(1f),
+            onClick = onUpdate,
+        )
+        SecondaryActionButton(
+            text = "回退版本",
+            enabled = rollbackEnabled,
+            accentColor = LukoaColors.Primary,
+            modifier = Modifier.weight(1f),
+            onClick = onRollback,
         )
     }
 }
@@ -414,17 +359,7 @@ private fun CurrentVersionSection(
                 VersionInfoLine("酒馆位置", tavernVersionInfo.directory.ifBlank { "未读取" })
 
                 if (tavernVersionInfo.hasLocalChanges) {
-                    LocalChangesNotice(
-                        directory = tavernVersionInfo.directory,
-                        changedFilesPreview = tavernVersionInfo.changedFilesPreview,
-                        likelyUploadLimitChange = TavernLocalChangesGuidance.isLikelyUploadLimitChange(
-                            versionInfo = tavernVersionInfo,
-                            uploadLimitStatus = uploadLimitStatus,
-                        ),
-                        actionsLocked = actionsLocked,
-                        tavernRunning = tavernRunning,
-                        onResetUploadLimit = onResetUploadLimit,
-                    )
+                    LocalChangesNotice()
                 }
 
                 SecondaryActionButton(
@@ -491,126 +426,46 @@ private fun CurrentVersionSection(
 
 @Composable
 private fun LocalChangesNotice(
-    directory: String,
-    changedFilesPreview: String,
-    likelyUploadLimitChange: Boolean,
-    actionsLocked: Boolean,
-    tavernRunning: Boolean,
-    onResetUploadLimit: () -> Unit,
+    onOpenRepairTools: () -> Unit = {},
 ) {
-    var confirmUploadLimitReset by remember { mutableStateOf(false) }
-    val location = directory.ifBlank { "上方“酒馆位置”显示的目录" }
-    if (confirmUploadLimitReset) {
-        AlertDialog(
-            onDismissRequest = { confirmUploadLimitReset = false },
-            containerColor = LukoaColors.Elevated,
-            title = { Text("恢复聊天文件大小默认值") },
-            text = {
-                Text(
-                    text = "启动器会从当前 SillyTavern 版本读取原本的默认大小，只恢复聊天文件大小这一个数值，不会覆盖同一文件里的其他修改。操作前会保存原文件。",
-                    color = LukoaColors.TextPrimary,
-                )
-            },
-            confirmButton = {
-                DialogActionButton(
-                    text = "确认恢复默认值",
-                    tone = ActionTone.Safe,
-                    onClick = {
-                        confirmUploadLimitReset = false
-                        onResetUploadLimit()
-                    },
-                )
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { confirmUploadLimitReset = false }) {
-                    Text("取消")
-                }
-            },
-        )
-    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.AccentSoft,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.35f)),
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
+                tint = LukoaColors.Accent,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Text(
-                    text = "检测到本地修改",
-                    modifier = Modifier.weight(1f),
+                    text = "警告",
                     color = LukoaColors.Accent,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                InfoPopoverButton(
-                    contentDescription = "查看恢复本地修改的方法",
-                    title = "怎样恢复原文件",
-                    body = if (likelyUploadLimitChange) {
-                        "启动器检测到聊天文件大小相关的程序文件被修改。这通常是你在设置里选择过 500MB、1GB 或 2GB。\n准备更新或回退时，先停止酒馆，再点击这里的“恢复聊天文件大小默认值”。启动器只恢复这一个数值，不会覆盖同一文件里的其他修改。\n如果恢复后仍显示本地修改，说明还有其他文件被改过，再按文件列表处理。"
-                    } else {
-                        "先到备份页生成一份手动备份，再打开 Termux，进入提示里的酒馆目录，用 Git 恢复你改过的程序文件。\n启动器不会自动还原不认识的文件，因为自动处理可能删除你想保留的修改。不会使用 Git 时，不要直接删除文件，可以先导出诊断日志寻求帮助。\n恢复完成后回到版本页，点击“重新检测当前版本”。"
-                    },
-                )
-            }
-            Text(
-                text = "修改位置：$location",
-                color = LukoaColors.TextPrimary,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (likelyUploadLimitChange) {
                 Text(
-                    text = "这很可能是你在“设置 → 修复工具 → 聊天文件大小”中修改过数值。要更新或回退，请先恢复当前酒馆版本的默认值。",
+                    text = "检测到本地文件被修改过，请前往修复工具检查并调整后，再继续更新或回退。",
                     color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 SecondaryActionButton(
-                    text = "恢复聊天文件大小默认值",
-                    enabled = !actionsLocked && !tavernRunning,
-                    accentColor = LukoaColors.Primary,
+                    text = "前往修复工具",
+                    enabled = true,
+                    accentColor = LukoaColors.Accent,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { confirmUploadLimitReset = true },
-                )
-                if (actionsLocked || tavernRunning) {
-                    Text(
-                        text = if (tavernRunning) {
-                            "酒馆正在运行，请先停止酒馆再恢复默认值。"
-                        } else {
-                            "当前有其他任务正在处理，完成后再恢复默认值。"
-                        },
-                        color = LukoaColors.Accent,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            } else {
-                Text(
-                    text = "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (changedFilesPreview.isNotBlank()) {
-                Text(
-                    text = "检测到的文件",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = changedFilesPreview,
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
+                    onClick = onOpenRepairTools,
                 )
             }
         }

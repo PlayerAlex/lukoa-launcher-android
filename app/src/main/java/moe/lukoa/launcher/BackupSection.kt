@@ -36,8 +36,6 @@ private const val DEFAULT_VISIBLE_BACKUP_COUNT = 4
 
 @Composable
 fun BackupSection(
-    tavernRunning: Boolean,
-    tavernStarting: Boolean,
     actionsLocked: Boolean,
     backupListRefreshing: Boolean,
     autoBackupEnabled: Boolean,
@@ -61,8 +59,6 @@ fun BackupSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BackupActionsSection(
-            tavernRunning = tavernRunning,
-            tavernStarting = tavernStarting,
             manualBackupCount = manualBackups.size,
             autoBackupCount = autoBackups.size,
             actionsLocked = actionsLocked,
@@ -92,8 +88,6 @@ fun BackupSection(
 
 @Composable
 private fun BackupActionsSection(
-    tavernRunning: Boolean,
-    tavernStarting: Boolean,
     manualBackupCount: Int,
     autoBackupCount: Int,
     actionsLocked: Boolean,
@@ -115,14 +109,11 @@ private fun BackupActionsSection(
             ) {
                 BackupStatusLine(
                     label = "当前状态：",
-                    value = when {
-                        tavernStarting -> "酒馆启动中"
-                        tavernRunning -> "酒馆运行中"
-                        else -> "酒馆未运行"
-                    },
+                    value = if (autoBackupEnabled) "自动备份已开启" else "自动备份未开启",
+                    accent = autoBackupEnabled,
                 )
-                BackupStatusLine("手动备份：", "$manualBackupCount 份", accent = true)
-                BackupStatusLine("自动备份：", "$autoBackupCount 份", accent = true)
+                BackupStatusLine("手动备份库：", "$manualBackupCount 份", accent = true)
+                BackupStatusLine("自动备份库：", "$autoBackupCount 份", accent = true)
             }
         }
         Row(
@@ -180,14 +171,15 @@ private fun BackupStatusLine(
             text = label,
             modifier = Modifier.weight(0.42f),
             color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = value,
             modifier = Modifier.weight(0.58f),
             color = if (accent) LukoaColors.Primary else LukoaColors.TextPrimary,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -463,16 +455,6 @@ private fun BackupRecordLine(
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Text(
-                        text = "文件地址",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Text(
-                        text = path,
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                     SettingsSectionDivider()
                     Surface(
                         modifier = Modifier.fillMaxWidth(),

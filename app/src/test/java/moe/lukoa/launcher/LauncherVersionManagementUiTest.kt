@@ -43,11 +43,10 @@ class LauncherVersionManagementUiTest {
         composeRule.onAllNodesWithText("目标版本").assertCountEquals(2)
         composeRule.onNodeWithText("版本分区").assertDoesNotExist()
         composeRule.onNodeWithText("提交").assertDoesNotExist()
+        composeRule.onNodeWithText("查看版本详情").assertDoesNotExist()
+        composeRule.onNodeWithText("目标版本高于当前版本，可以更新；回退暂不可用。").assertDoesNotExist()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("查看版本详情").performScrollTo().performClick()
-        composeRule.onNodeWithText("提交").performScrollTo().assertIsDisplayed()
-
         composeRule.onNodeWithText("回退版本")
             .performScrollTo()
             .assertIsDisplayed()
@@ -85,8 +84,9 @@ class LauncherVersionManagementUiTest {
     }
 
     @Test
-    fun versionPage_localChangesShowsWhereAndHowToRestore() {
+    fun versionPage_localChangesUsesCompactSketchWarning() {
         val target = versionChoice("1.14.0")
+        var openRepairToolsCount = 0
         setVersionPageContent(
             target = target,
             currentInfo = TavernVersionInfo(
@@ -96,50 +96,29 @@ class LauncherVersionManagementUiTest {
                 branch = "release",
                 commit = "abcdef123456",
                 describe = "1.13.0",
+                remote = "https://mirror.example.com/SillyTavern.git",
                 localChanges = "1",
                 changedFilesPreview = " M public/index.html",
             ),
+            onOpenRepairTools = { openRepairToolsCount += 1 },
         )
 
-        composeRule.onNodeWithText("检测到本地修改").assertIsDisplayed()
-        composeRule.onNodeWithText("修改位置：~/SillyTavern").assertIsDisplayed()
+        composeRule.onNodeWithText("警告").assertIsDisplayed()
         composeRule.onNodeWithText(
-            "要改回原文件：先到备份页生成手动备份，再打开 Termux 进入这个目录，用 Git 恢复改动；完成后回到这里重新检测。",
+            "检测到本地文件被修改过，请前往修复工具检查并调整后，再继续更新或回退。",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("检测到的文件").performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun versionPage_uploadLimitChangeOffersSafeDefaultRestore() {
-        var resetCount = 0
-        val target = versionChoice("1.14.0")
-        setVersionPageContent(
-            target = target,
-            currentInfo = TavernVersionInfo(
-                hasData = true,
-                directory = "~/SillyTavern",
-                packageVersion = "1.13.0",
-                branch = "release",
-                localChanges = "1",
-                changedFilesPreview = " M src/server-main.js",
-            ),
-            uploadLimitStatus = TavernUploadLimitStatus(
-                currentMegabytes = 1024,
-                patchState = TavernUploadLimitPatchState.Active,
-            ),
-            onResetUploadLimit = { resetCount += 1 },
-        )
-
-        composeRule.onNodeWithText(
-            "这很可能是你在“设置 → 修复工具 → 聊天文件大小”中修改过数值。要更新或回退，请先恢复当前酒馆版本的默认值。",
-        ).assertIsDisplayed()
+        composeRule.onNodeWithText("当前酒馆位置").assertIsDisplayed()
+        composeRule.onNodeWithText("~/SillyTavern").assertIsDisplayed()
+        composeRule.onNodeWithText("当前酒馆来源").assertIsDisplayed()
+        composeRule.onNodeWithText("https://mirror.example.com/SillyTavern.git").assertIsDisplayed()
+        composeRule.onNodeWithText("版本来源").assertIsDisplayed()
+        composeRule.onNodeWithText("GitHub").assertIsDisplayed()
+        composeRule.onNodeWithText("修改位置：~/SillyTavern").assertDoesNotExist()
+        composeRule.onNodeWithText("检测到的文件").assertDoesNotExist()
+        composeRule.onNodeWithText("恢复聊天文件大小默认值").assertDoesNotExist()
         advancePastClickDebounce()
-        composeRule.onNodeWithText("恢复聊天文件大小默认值")
-            .performScrollTo()
-            .performClick()
-        composeRule.runOnIdle { assertEquals(0, resetCount) }
-        composeRule.onNodeWithText("确认恢复默认值").performClick()
-        composeRule.runOnIdle { assertEquals(1, resetCount) }
+        composeRule.onNodeWithText("前往修复工具").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, openRepairToolsCount) }
     }
 
     @Test
@@ -178,12 +157,11 @@ class LauncherVersionManagementUiTest {
             commit = "abcdef123456",
             describe = "1.13.0",
         ),
-        uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
         lastOperationSummary: TavernVersionOperationSummary? = null,
-        onResetUploadLimit: () -> Unit = {},
         onUpdate: () -> Unit = {},
         onRollback: () -> Unit = {},
         onOpenSafetyBackup: () -> Unit = {},
+        onOpenRepairTools: () -> Unit = {},
     ) {
         composeRule.setContent {
             LukoaTheme {
@@ -208,8 +186,7 @@ class LauncherVersionManagementUiTest {
                         onTavernUpdate = onUpdate,
                         onTavernRollback = onRollback,
                         onOpenSafetyBackup = onOpenSafetyBackup,
-                        uploadLimitStatus = uploadLimitStatus,
-                        onResetUploadLimit = onResetUploadLimit,
+                        onOpenRepairTools = onOpenRepairTools,
                     )
                 }
             }
