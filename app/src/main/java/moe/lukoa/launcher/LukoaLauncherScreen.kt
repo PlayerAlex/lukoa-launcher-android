@@ -3712,7 +3712,13 @@ fun LukoaLauncherScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(pageScrollState)
+                        .then(
+                            if (tab == LauncherTab.Docs) {
+                                Modifier
+                            } else {
+                                Modifier.verticalScroll(pageScrollState)
+                            },
+                        )
                         .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
@@ -3747,7 +3753,7 @@ fun LukoaLauncherScreen(
 
                     when (tab) {
                         LauncherTab.Docs -> DocumentationSection(
-                            pageScrollState = pageScrollState,
+                            modifier = Modifier.weight(1f),
                             onPagerLockChange = { pagerInteractionLocked = it },
                         )
                         LauncherTab.Tavern -> TavernHubSection(

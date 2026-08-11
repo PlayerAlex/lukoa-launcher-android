@@ -15,6 +15,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -34,31 +36,38 @@ class LauncherComposeUiTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun documentationNavigation_scrollsLongPageWithoutHidingOtherSections() {
+    fun documentationPage_matchesSketchAndNavigatesTwoChapters() {
         composeRule.setContent {
             LukoaTheme {
-                val pageScrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(pageScrollState),
-                ) {
-                    DocumentationSection(pageScrollState = pageScrollState)
-                }
+                DocumentationSection()
             }
         }
 
-        composeRule.onNodeWithText("新手上手").assertExists()
-        composeRule.onNodeWithText("多实例与设置").assertExists()
-        composeRule.onNodeWithText("备份与恢复").assertExists()
-        composeRule.onNodeWithText("左右滑动 · 8 章").assertExists()
-        advancePastClickDebounce()
-        composeRule.onNode(hasText("更新") and hasClickAction()).performClick()
-        composeRule.waitForIdle()
+        composeRule.onNodeWithText("文档").assertIsDisplayed()
+        composeRule.onNodeWithText("2. 本软件当前仅适配原生酒馆，不支持云酒馆、电脑酒馆以及各类二创酒馆。").assertExists()
+        composeRule.onNodeWithTag("documentation-menu-drawer").assertDoesNotExist()
 
-        composeRule.onNodeWithText("安装、更新与回退").assertIsDisplayed()
-        composeRule.onNodeWithText("新手上手").assertExists()
-        composeRule.onNodeWithText("备份与恢复").assertExists()
+        advancePastClickDebounce()
+        composeRule.onNodeWithContentDescription("打开文档目录").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("documentation-menu-drawer").assertIsDisplayed()
+        composeRule.onNodeWithText("首页").assertIsDisplayed()
+        composeRule.onNodeWithText("第一章：酒馆黑话篇").assertIsDisplayed()
+        composeRule.onNodeWithText("第二章：启动器疑问篇").assertIsDisplayed()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("第一章：酒馆黑话篇").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("酒馆黑话篇").assertIsDisplayed()
+        composeRule.onNodeWithText("API、API Key 与模型名").assertExists()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithContentDescription("打开文档目录").performClick()
+        composeRule.waitForIdle()
+        advancePastClickDebounce()
+        composeRule.onNodeWithContentDescription("关闭文档目录").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("documentation-menu-drawer").assertDoesNotExist()
     }
 
     @Test

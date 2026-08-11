@@ -40,6 +40,22 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LukoaPaletteScreenshotTest {
     @Test
+    fun renderDocumentationHomeScreen() {
+        renderDocumentationScreen(
+            menuOpen = false,
+            outputPath = "build/reports/documentation-home-actual.png",
+        )
+    }
+
+    @Test
+    fun renderDocumentationMenuScreen() {
+        renderDocumentationScreen(
+            menuOpen = true,
+            outputPath = "build/reports/documentation-menu-actual.png",
+        )
+    }
+
+    @Test
     fun renderTavernHubScreen() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()
@@ -246,6 +262,49 @@ class LukoaPaletteScreenshotTest {
             }
         }
         return matches.toFloat() / (width * height).toFloat()
+    }
+
+    private fun renderDocumentationScreen(
+        menuOpen: Boolean,
+        outputPath: String,
+    ) {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+        activity.setContent {
+            LukoaTheme {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp, top = 42.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Header(
+                            tavernRunning = false,
+                            tavernStarting = false,
+                            showVersionUpdateBadge = true,
+                            onVersionClick = {},
+                        )
+                        DocumentationSection(
+                            modifier = Modifier.weight(1f),
+                            initialMenuOpen = menuOpen,
+                        )
+                    }
+                    LauncherBottomBar(
+                        selectedTab = LauncherTab.Docs,
+                        onSelectTab = {},
+                    )
+                }
+            }
+        }
+
+        renderActivity(
+            activity = activity,
+            outputPath = outputPath,
+            width = 390,
+            height = 844,
+        )
+        controller.close()
     }
 
     private fun renderActivity(

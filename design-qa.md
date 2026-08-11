@@ -1,48 +1,65 @@
-# 工具箱页面设计核对
+# 文档页设计还原检查
 
-- source visual truth path: `C:\Users\DiMo\Downloads\1786429248113..png`
-- implementation screenshot path: `Y:\Documents\New project\app\build\reports\toolbox-actual.png`
-- comparison image path: `Y:\Documents\New project\app\build\reports\toolbox-comparison.png`
-- viewport: 390 × 844，mdpi
-- state: 工具箱首页、尚未体检、当前无后台任务、检测到启动器更新
+- source visual truth path:
+  - `C:/Users/DiMo/Downloads/1786430577904..png`
+  - `C:/Users/DiMo/Downloads/1786430522652..png`
+- implementation screenshot path:
+  - `Y:/Documents/New project/app/build/reports/documentation-home-actual.png`
+  - `Y:/Documents/New project/app/build/reports/documentation-menu-actual.png`
+- comparison evidence:
+  - `Y:/Documents/New project/app/build/reports/documentation-home-comparison.png`
+  - `Y:/Documents/New project/app/build/reports/documentation-menu-comparison.png`
+- viewport: 390 × 844
+- state: 文档首页、文档目录展开
 
-**全屏对照证据**
+## Full-view comparison evidence
 
-同屏对照图确认了顶部启动器信息、工具箱标题、体检状态卡、2 × 3 工具宫格和五项底部导航的层级与草图一致。体检按钮完整位于“上次体检时间”上方；检测到更新时，右上角版本号使用薄荷绿色并显示红点。实现沿用软件现有的深青薄荷配色、Logo、圆角按钮和底部导航。
+首页保持了草图的顶部启动器信息、目录按钮与“文档”标题、六条连续说明、底部五项导航。目录展开状态保持了顶部与底部导航不动、目录从内容区左侧展开、右侧内容退后、返回入口位于目录顶部的结构。
 
-**局部对照证据**
+草图为黑白线稿，成品继续使用启动器现有的深青薄荷主题、现有 Logo、字体与导航组件。这是既有产品约束，不属于设计偏差。
 
-本次没有另做局部裁切：390 × 844 的原始实现截图和同屏对照图中，体检状态、两枚操作按钮、六个宫格标题及底部五项导航均可清晰辨认，没有需要放大才能判断的图标或图片素材。
+## Focused region comparison evidence
 
-**Findings**
+目录展开截图本身就是目录交互区域的聚焦证据，390 像素原始宽度下标题、章节名、说明、返回图标、选中状态和右侧分界均清晰可读，因此没有再制作会重复同一信息的局部裁切图。
 
-- 没有遗留 P0、P1 或 P2 问题。
-- 字体与排版：标题、工具名称、状态和辅助文字层级清楚；没有截断、异常换行或溢出。
-- 间距与布局：体检卡和六宫格在 390 × 844 内完整显示，底部导航未被遮挡；宫格按钮保留了此前确认的紧凑尺寸。
-- 颜色与视觉规则：沿用软件现有背景、卡片、边框和薄荷绿强调色；未体检状态改为普通文字，更新版本号与红点有清楚区分。
-- 图片质量：继续使用软件现有 Logo，没有新增占位图、临时图形或低清素材。
-- 文案：草图中的“一键体检工具、修复工具、Debug 区、任务中心、敬请期待”均已保留；后台任务状态作为有用的实时补充展示。
+## Findings
 
-**Comparison History**
+第一轮发现：
 
-1. 首次对照发现 P2：两枚按钮仍与“上次体检时间”处于同一纵向区域，没有完整位于时间文字上方。
-2. 修复：体检卡改为上方内容区与下方时间行，两枚按钮完整放在时间行上方。
-3. 用户补充要求未体检状态不要胶囊；已改为普通文字，体检中或有结果时仍可使用状态强调。
-4. 复查：`toolbox-comparison.png` 中按钮、状态、时间和更新版本提示均符合最新草图，没有新的 P0/P1/P2 问题。
+- [P2] 目录只有可点击文字，当前章节与每章用途不够清楚。
+  - Location: 文档目录抽屉。
+  - Evidence: 第一版实现只显示“首页”和两个章节名称；用户进一步提出目录交互可以重新设计。
+  - Impact: 用户需要进入章节后才能判断内容，重新打开目录时也不容易确认当前位置。
+  - Fix: 增加“文档目录”标题、当前页高亮和每章内容摘要；扩大目录宽度以保证窄屏下不拥挤，并保留选择后自动收起。
 
-**Implementation Checklist**
+复查结果：
 
-- [x] 顶部体检状态卡与两个独立操作按钮
-- [x] 未体检状态使用普通文字
-- [x] 有更新时版本号变绿并显示红点
-- [x] 修复工具、Debug 区、任务中心三个可用入口
-- [x] 三个“敬请期待”占位格
-- [x] 保留当前 Logo、版本信息和五项底部导航
-- [x] 设置页移除重复入口
-- [x] 版本页修复入口跳转至工具箱
+- 没有剩余的 P0、P1 或 P2 问题。
+- 字体与排版：标题、正文、章节名称和辅助说明使用现有主题字号与字重，六条首页说明在 390 像素宽度下没有截断。
+- 间距与布局：顶部、内容区、目录抽屉和底部导航分区清楚；目录展开后没有遮挡底部导航。
+- 颜色与视觉规则：沿用启动器深青薄荷配色；当前页高亮、正文与辅助文字对比清楚。
+- 图片与资源：继续使用项目现有露科亚 Logo；菜单与返回使用 Material 图标，没有临时占位图或手绘替代。
+- 文案：首页六条说明、两章名称及章节内容与草图意图一致，并修正了草图里的标点和易误解表达。
+- 交互：已验证打开目录、进入章节、关闭目录；代码同时支持点击右侧空白和系统返回关闭目录，章节内再次返回会回首页。
 
-**Follow-up Polish**
+## Comparison history
 
-- 无阻塞项。宫格可用入口使用内层按钮卡，而草图是整格文字；这是为了延续此前已经确认的六宫格按钮设计。
+1. 初版完成首页与左侧目录，截图为 `documentation-menu-actual.png` 的第一版生成结果。
+2. 根据目录交互反馈，补充当前页高亮、章节摘要、目录标题与章节切换过渡。
+3. 重新生成同一 390 × 844 视口截图，并与原草图合并检查；此前的 P2 已解决。
+
+## Implementation Checklist
+
+- [x] 首页六条说明按草图顺序显示。
+- [x] 目录按钮与文档标题并排。
+- [x] 左侧目录保留首页与两个章节。
+- [x] 当前页状态清楚可见。
+- [x] 选择章节后自动收起并切换内容。
+- [x] 返回箭头、右侧空白和系统返回可关闭目录。
+- [x] 底部五项导航保持原样。
+
+## Follow-up Polish
+
+无阻塞项；后续可以继续根据真机截图微调目录宽度或正文密度。
 
 final result: passed
