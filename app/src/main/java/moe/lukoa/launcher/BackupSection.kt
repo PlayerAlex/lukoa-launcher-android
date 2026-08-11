@@ -15,18 +15,15 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 
 enum class BackupLibraryPathTarget {
     Manual,
@@ -521,7 +518,7 @@ private fun BackupRecordLine(
                 }
             }
             BackupActionRow {
-                DangerConfirmationButton(
+                TimedDangerFeedbackActionButton(
                     text = "应用",
                     enabled = !actionsLocked,
                     modifier = Modifier.weight(1f),
@@ -550,7 +547,7 @@ private fun BackupRecordLine(
                     modifier = Modifier.weight(1f),
                     onClick = onRename,
                 )
-                DangerConfirmationButton(
+                TimedDangerFeedbackActionButton(
                     text = "删除",
                     enabled = !actionsLocked,
                     modifier = Modifier.weight(1f),
@@ -559,36 +556,6 @@ private fun BackupRecordLine(
             }
         }
     }
-}
-
-@Composable
-private fun DangerConfirmationButton(
-    text: String,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onConfirmed: () -> Unit,
-) {
-    var armed by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(armed) {
-        if (armed) {
-            delay(4_000L)
-            armed = false
-        }
-    }
-    SecondaryActionButton(
-        text = if (armed) "真的吗？" else text,
-        enabled = enabled,
-        accentColor = if (armed) LukoaColors.Danger else LukoaColors.Primary,
-        modifier = modifier,
-        onClick = {
-            if (armed) {
-                armed = false
-                onConfirmed()
-            } else {
-                armed = true
-            }
-        },
-    )
 }
 
 private fun findBackupArchiveDetails(

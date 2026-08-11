@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -101,12 +102,38 @@ class LauncherToolboxUiTest {
         composeRule.runOnIdle { assertEquals(1, consumedCount) }
     }
 
+    @Test
+    fun toolboxDebug_usesGroupedCardsAndTimedDangerConfirmation() {
+        var forceCleanupCount = 0
+        setToolboxContent(onForceCleanup = { forceCleanupCount += 1 })
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("Debug 区").performClick()
+        composeRule.onNodeWithText("诊断与日志").assertIsDisplayed()
+        composeRule.onNodeWithText("强制处理").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "导出内容适合用于排查问题；清除只会整理启动器页面里的日志，不会删除酒馆聊天或备份。",
+        ).performScrollTo().assertIsDisplayed()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("强制释放端口 / 清理残留进程")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("真的吗？").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, forceCleanupCount) }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("真的吗？").performClick()
+        composeRule.runOnIdle { assertEquals(1, forceCleanupCount) }
+    }
+
     private fun setToolboxContent(
         healthCheckReport: LauncherHealthReport? = null,
         repairToolsOpenSignal: Int = 0,
         onRepairToolsOpenSignalConsumed: () -> Unit = {},
         onRunHealthCheck: () -> Unit = {},
         onOpenBackgroundTaskCenter: () -> Unit = {},
+        onForceCleanup: () -> Unit = {},
     ) {
         composeRule.setContent {
             LukoaTheme {
@@ -116,6 +143,7 @@ class LauncherToolboxUiTest {
                     onRepairToolsOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
                     onRunHealthCheck = onRunHealthCheck,
                     onOpenBackgroundTaskCenter = onOpenBackgroundTaskCenter,
+                    onForceCleanup = onForceCleanup,
                 )
             }
         }

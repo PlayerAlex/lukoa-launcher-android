@@ -19,6 +19,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 internal enum class SettingsValueLayout {
     Trailing,
@@ -266,6 +272,43 @@ internal fun SettingsFeedbackActionButton(
                 onClick()
             } else if (canShowUnavailableHint) {
                 onShowHint(unavailableHint.orEmpty())
+            }
+        },
+    )
+}
+
+@Composable
+internal fun TimedDangerFeedbackActionButton(
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    unavailableHint: String? = null,
+    onShowHint: (String) -> Unit = {},
+    onConfirmed: () -> Unit,
+) {
+    var armed by rememberSaveable(text) { mutableStateOf(false) }
+    LaunchedEffect(armed, enabled) {
+        when {
+            !enabled -> armed = false
+            armed -> {
+                delay(4_000L)
+                armed = false
+            }
+        }
+    }
+    SettingsFeedbackActionButton(
+        text = if (armed) "真的吗？" else text,
+        enabled = enabled,
+        accentColor = if (armed) LukoaColors.Danger else LukoaColors.Primary,
+        unavailableHint = unavailableHint,
+        onShowHint = onShowHint,
+        modifier = modifier,
+        onClick = {
+            if (armed) {
+                armed = false
+                onConfirmed()
+            } else {
+                armed = true
             }
         },
     )

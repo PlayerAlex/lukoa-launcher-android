@@ -347,43 +347,49 @@ private fun ToolboxDebugContent(
     onShowHint: (String) -> Unit,
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    Text(
-        text = "用于导出排错信息、清理页面日志，以及在普通停止无效时处理当前实例的残留进程。",
-        color = LukoaColors.TextSecondary,
-        style = MaterialTheme.typography.bodySmall,
+    ManagementDialogIntroCard(
+        "这里集中放诊断记录和最后手段。遇到问题时先导出诊断日志；只有普通停止无效或确认存在端口冲突时，才使用强制处理。",
     )
-    SettingsFeedbackActionButton(
-        text = "导出诊断日志",
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Primary,
-        modifier = Modifier.fillMaxWidth(),
-        unavailableHint = lockedHint,
-        onShowHint = onShowHint,
-        onClick = onExportDiagnostic,
-    )
-    SettingsFeedbackActionButton(
-        text = "清除页面日志",
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Primary,
-        modifier = Modifier.fillMaxWidth(),
-        unavailableHint = lockedHint,
-        onShowHint = onShowHint,
-        onClick = onClearLogs,
-    )
-    SettingsFeedbackActionButton(
-        text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
-        enabled = !actionsLocked,
-        accentColor = LukoaColors.Danger,
-        modifier = Modifier.fillMaxWidth(),
-        unavailableHint = lockedHint,
-        onShowHint = onShowHint,
-        onClick = onForceCleanup,
-    )
-    Text(
-        text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
-        color = LukoaColors.TextSecondary,
-        style = MaterialTheme.typography.labelSmall,
-    )
+    ManagementDialogActionCard(title = "诊断与日志") {
+        Text(
+            text = "导出内容适合用于排查问题；清除只会整理启动器页面里的日志，不会删除酒馆聊天或备份。",
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        SettingsFeedbackActionButton(
+            text = "导出诊断日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Primary,
+            modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
+            onClick = onExportDiagnostic,
+        )
+        SettingsFeedbackActionButton(
+            text = "清除页面日志",
+            enabled = !actionsLocked,
+            accentColor = LukoaColors.Primary,
+            modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
+            onClick = onClearLogs,
+        )
+    }
+    ManagementDialogActionCard(title = "强制处理") {
+        Text(
+            text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TimedDangerFeedbackActionButton(
+            text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
+            enabled = !actionsLocked,
+            modifier = Modifier.fillMaxWidth(),
+            unavailableHint = lockedHint,
+            onShowHint = onShowHint,
+            onConfirmed = onForceCleanup,
+        )
+    }
 }
 
 private fun toolboxHealthStatusText(report: LauncherHealthReport?, checking: Boolean): String {
