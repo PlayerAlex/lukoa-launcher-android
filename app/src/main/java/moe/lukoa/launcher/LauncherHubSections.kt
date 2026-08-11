@@ -131,14 +131,15 @@ private fun TavernManagementGrid(
     }
 }
 
-private data class HubGridEntry(
+internal data class HubGridEntry(
     val label: String,
     val description: String,
     val onClick: (() -> Unit)?,
+    val emphasized: Boolean = false,
 )
 
 @Composable
-private fun HubGridRow(
+internal fun HubGridRow(
     left: HubGridEntry,
     right: HubGridEntry,
 ) {
@@ -177,7 +178,10 @@ private fun HubGridTile(
                     .clickable(role = Role.Button, onClick = feedbackClick),
                 color = LukoaColors.Elevated,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.Border,
+                ),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -190,7 +194,7 @@ private fun HubGridTile(
                     ) {
                         Text(
                             text = entry.label,
-                            color = LukoaColors.TextPrimary,
+                            color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.TextPrimary,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )

@@ -91,6 +91,7 @@ fun ToolboxSection(
                 actionsLocked = actionsLocked,
                 onRunHealthCheck = onRunHealthCheck,
                 onPrimaryAction = onRunHealthCheckPrimaryAction,
+                showRunHealthCheckAction = false,
             )
         }
 
@@ -201,13 +202,15 @@ private fun ToolboxHealthCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = "一键体检工具",
                         color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
                     Row(
@@ -268,115 +271,28 @@ private fun ToolboxGrid(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column {
-            ToolboxGridRow(
-                left = ToolboxGridEntry("修复工具", onOpenRepairTools),
-                right = ToolboxGridEntry("Debug 区", onOpenDebug),
+            HubGridRow(
+                left = HubGridEntry("修复工具", "处理常见环境问题", onOpenRepairTools),
+                right = HubGridEntry("Debug 区", "诊断、日志与强制清理", onOpenDebug),
             )
             HorizontalDivider(color = LukoaColors.Border)
-            ToolboxGridRow(
-                left = ToolboxGridEntry(
+            HubGridRow(
+                left = HubGridEntry(
                     label = "任务中心",
+                    description = backgroundTaskStatus,
                     onClick = onOpenTaskCenter,
-                    detail = backgroundTaskStatus,
-                    needsAttention = backgroundTaskNeedsAttention,
+                    emphasized = backgroundTaskNeedsAttention,
                 ),
-                right = ToolboxGridEntry("敬请期待", null),
+                right = HubGridEntry("敬请期待", "", null),
             )
             HorizontalDivider(color = LukoaColors.Border)
-            ToolboxGridRow(
-                left = ToolboxGridEntry("敬请期待", null),
-                right = ToolboxGridEntry("敬请期待", null),
-            )
-        }
-    }
-}
-
-private data class ToolboxGridEntry(
-    val label: String,
-    val onClick: (() -> Unit)?,
-    val detail: String = "",
-    val needsAttention: Boolean = false,
-)
-
-@Composable
-private fun ToolboxGridRow(
-    left: ToolboxGridEntry,
-    right: ToolboxGridEntry,
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        ToolboxGridTile(left, Modifier.weight(1f))
-        Surface(
-            modifier = Modifier
-                .width(1.dp)
-                .heightIn(min = 112.dp),
-            color = LukoaColors.Border,
-            content = {},
-        )
-        ToolboxGridTile(right, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun ToolboxGridTile(
-    entry: ToolboxGridEntry,
-    modifier: Modifier,
-) {
-    val enabled = entry.onClick != null
-    val feedbackClick = rememberFeedbackClick(onClick = { entry.onClick?.invoke() })
-    Box(
-        modifier = modifier
-            .heightIn(min = 112.dp)
-            .padding(10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (enabled) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.94f)
-                    .heightIn(min = 78.dp)
-                    .clickable(role = Role.Button, onClick = feedbackClick),
-                color = LukoaColors.Elevated,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (entry.needsAttention) LukoaColors.Accent else LukoaColors.Border,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = entry.label,
-                        color = if (entry.needsAttention) LukoaColors.Accent else LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                    )
-                    if (entry.detail.isNotBlank()) {
-                        Text(
-                            text = entry.detail,
-                            color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.labelSmall,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        } else {
-            Text(
-                text = entry.label,
-                modifier = Modifier.semantics { disabled() },
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
+            HubGridRow(
+                left = HubGridEntry("敬请期待", "", null),
+                right = HubGridEntry("敬请期待", "", null),
             )
         }
     }

@@ -54,6 +54,7 @@ class LauncherToolboxUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("查看详情").performClick()
         composeRule.onNodeWithText("还没体检").assertIsDisplayed()
+        composeRule.onNodeWithTag("health-check-run-action").assertDoesNotExist()
         composeRule.onNodeWithText("关闭").performClick()
 
         advancePastClickDebounce()

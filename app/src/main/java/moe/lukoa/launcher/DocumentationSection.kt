@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -239,7 +238,7 @@ private fun DocumentationMenuDrawer(
         Surface(
             modifier = Modifier
                 .fillMaxHeight()
-                .weight(0.68f),
+                .weight(0.78f),
             color = LukoaColors.Surface,
         ) {
             Column(
@@ -318,8 +317,7 @@ private fun DocumentationMenuDrawer(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .weight(0.32f)
-                .background(LukoaColors.Background)
+                .weight(0.22f)
                 .clickable(
                     role = Role.Button,
                     onClick = onDismiss,

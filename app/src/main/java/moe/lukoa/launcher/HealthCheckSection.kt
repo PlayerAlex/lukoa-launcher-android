@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ internal fun HealthCheckContent(
     actionsLocked: Boolean,
     onRunHealthCheck: () -> Unit,
     onPrimaryAction: () -> Unit,
+    showRunHealthCheckAction: Boolean = true,
 ) {
     val effectiveReport = report.takeIf { it?.hasData == true }
     Surface(
@@ -94,25 +96,31 @@ internal fun HealthCheckContent(
         }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        SecondaryActionButton(
-            text = if (checking) "体检中..." else "一键体检",
-            enabled = !actionsLocked && !checking,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.weight(1f),
-            onClick = onRunHealthCheck,
-        )
-        effectiveReport?.primaryAction?.let { action ->
-            SecondaryActionButton(
-                text = action.label,
-                enabled = !actionsLocked && !checking,
-                accentColor = primaryActionColor(action.type),
-                modifier = Modifier.weight(1f),
-                onClick = onPrimaryAction,
-            )
+    if (showRunHealthCheckAction || effectiveReport?.primaryAction != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (showRunHealthCheckAction) {
+                SecondaryActionButton(
+                    text = if (checking) "体检中..." else "一键体检",
+                    enabled = !actionsLocked && !checking,
+                    accentColor = LukoaColors.Primary,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("health-check-run-action"),
+                    onClick = onRunHealthCheck,
+                )
+            }
+            effectiveReport?.primaryAction?.let { action ->
+                SecondaryActionButton(
+                    text = action.label,
+                    enabled = !actionsLocked && !checking,
+                    accentColor = primaryActionColor(action.type),
+                    modifier = Modifier.weight(1f),
+                    onClick = onPrimaryAction,
+                )
+            }
         }
     }
 
