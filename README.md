@@ -96,14 +96,14 @@ gh auth status
 然后运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.9.1-beta13 -VersionCode 186 -ReleaseNotes "这里写测试版公告" -PreRelease
+powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 1.0.1-beta1 -VersionCode 287 -ReleaseNotes "这里写测试版公告" -PreRelease
 ```
 
 这个脚本会自动完成：
 
 1. 更新 `app/build.gradle.kts` 里的版本号
 2. 构建 APK
-3. 复制带版本号的 APK 到 `outputs/`
+3. 复制带版本号的 APK 到仓库内的 `outputs/`（已 gitignore）
 4. 提交当前改动
 5. 打 tag
 6. 推送分支和 tag

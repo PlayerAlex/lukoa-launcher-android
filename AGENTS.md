@@ -1,119 +1,97 @@
 # AGENTS.md
 
-后续 AI 进入这个仓库后，先读本文件，再动代码或发版。
+给进入这个仓库的 AI 或新维护者看的项目速览。这里写的是事实和背景，不是清单式的禁令；遇到拿不准的地方，直接问仓库所有者。
 
 ## 项目是什么
 
-- 这是一个 Android 启动器，技术栈是 Kotlin + Jetpack Compose。
-- App 负责引导、状态管理、版本管理、备份恢复、更新检测和诊断导出。
-- 真正执行酒馆相关 shell 命令的是 `app/src/main/assets/lukoa-tavern.sh`，通过 Termux 调用。
+- 露科亚启动器：Android App，Kotlin + Jetpack Compose，包名 `moe.lukoa.launcher`。
+- 用途：让用户在手机上更顺手地使用 Termux + SillyTavern（酒馆）。App 负责界面、状态、版本管理、备份恢复、更新检测、诊断导出；真正的 shell 命令由 `app/src/main/assets/lukoa-tavern.sh` 通过 Termux 的 `RUN_COMMAND` 执行。
+- 当前主线：`main` 分支，最新正式版 1.0（2026-08-11）。历史版本见 `CHANGELOG.md` 和 GitHub Release。
+- 许可证：PolyForm Noncommercial 1.0.0。
+- 面向用户的文案默认简体中文，目标读者是新手。公开内容（README、Release、Issue 回复）里不放私人联系方式。
 
-## 先看哪些文件
+## 仓库结构
 
-做改动前，优先读这些文件：
-
-- `app/src/main/java/moe/lukoa/launcher/LukoaLauncherScreen.kt`
-  这里是页面级状态编排和跨模块协调入口，不要把整块新界面继续堆回这里。
-- `app/src/main/java/moe/lukoa/launcher/LauncherNavigation.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherLaunchSections.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherVersionManagementSection.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherSettingsSection.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherLaunchDialogs.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherBackupDialogs.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherProfileDialogs.kt`
-- `app/src/main/java/moe/lukoa/launcher/SettingsDialogs.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherProfileCoordinator.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherPathSettingsState.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherMirrorSettingsState.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherHealthCheck.kt`
-- `app/src/main/java/moe/lukoa/launcher/LauncherInputGuards.kt`
-- `app/src/main/java/moe/lukoa/launcher/PendingLauncherTaskSupport.kt`
-- `app/src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt`
-- `publish-github-release.ps1`
-- `generate-release-notes.ps1`
-- `CHANGELOG.md`
-- `CONTRIBUTING.md`
-
-## 项目硬规则
-
-这些不是建议，是这个仓库后续 AI 必须遵守的工作规则。
-
-### 1. 对用户和公开文案
-
-- 默认使用简体中文。
-- 默认把用户当新手，文案先追求清楚、少误导、少术语。
-- 公开文案、Release 文案、README、Issue 回复里禁止出现旧身份、私人邮箱、QQ 等私人信息。
-- 更新公告必须像正常 App 的公告，优先写用户会感受到什么，不要把“重构了什么文件、拆了什么组件”当主内容。
-- 除非用户明确要看内部实现，否则不要把纯内部重构写成公开更新重点。
-
-### 2. 模块化和代码组织
-
-- 新功能默认先找现有模块承接，不要把大块 UI 或业务继续塞进 `LukoaLauncherScreen.kt`。
-- 启动页、设置页、版本管理页、对话框、导航栏已经拆开，新增界面优先继续按这个边界放。
-- 纯逻辑优先拆到独立文件：例如 parser、codec、guard、state support、manager，不要让 Compose 页面直接塞满解析逻辑。
-- 新增纯逻辑后，默认补单元测试。
-- 能放 App 侧的防呆、校验、状态判断，优先放 App 侧；不要把本来可以在 App 完成的逻辑都丢给 Termux 脚本。
-
-### 3. 业务约束
-
-- 酒馆路径不要自动乱改，默认路径是 `~/SillyTavern`，允许用户手填。
-- “版本管理”默认指的是 SillyTavern 版本，不是启动器版本。
-- “自动读取当前酒馆版本”必须保留。
-- 备份和恢复是高风险区，优先避免数据丢失，其次才是流程省事。
-- 涉及停止、恢复、回退、更新、应用备份这类危险操作时，要优先保证确认逻辑清楚一致。
-
-### 4. 发布规则
-
-- 每做完一个功能或修完一个明确问题，默认发一个测试版。
-- 改发版相关内容时，必须同时更新 `app/build.gradle.kts` 里的 `versionName` 和 `versionCode`。
-- 发版前必须确认：
-  - GitHub Release 文案是对外可读的
-  - 没有私人信息
-  - 测试版要明确是 prerelease
-- 不要依赖发布脚本的默认兜底公告；发版前应明确提供 `-ReleaseNotes`、`-ReleaseNotesFile` 或有意识地使用 `-AutoNotes`。
-
-## 该用哪些项目技能
-
-- 如果任务包含“发版、写更新公告、整理 release notes、发测试版/稳定版”，先读 `.agents/skills/release-announcement/SKILL.md`
-- 如果任务包含“加功能、修 bug、改页面、重构、模块化拆分”，先读 `.agents/skills/modular-android-development/SKILL.md`
-
-## 已验证命令
-
-在仓库根目录可用：
-
-```powershell
-.\gradlew.bat --no-daemon :app:compileDebugKotlin testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+```text
+app/src/main/java/moe/lukoa/launcher/   全部 Kotlin 源码（单包，按文件名前缀分组）
+app/src/main/assets/lukoa-tavern.sh     下发到 Termux 的核心脚本（约 4500 行）
+app/src/test/java/...                   JVM 单元测试 + Robolectric Compose UI 测试
+docs/project-management/                主线状态、AI 协作记录、session-notes 交接
+docs/development/repository-map.md      仓库结构与阅读顺序
+build-debug.ps1                         本地构建 debug APK
+publish-github-release.ps1              改版本号 -> 构建 -> 提交 -> tag -> 推送 -> 发 Release
+generate-release-notes.ps1              从 CHANGELOG 汇总稳定版公告
 ```
 
-本地跑 Gradle 前，先检查根目录 `local.properties` 里的 `sdk.dir`；如果已经有本机 Android SDK 路径，就直接使用，不要先问用户 SDK 在哪。
+源码文件按前缀大致分组：
 
-本地构建 debug APK：
+| 前缀 | 职责 |
+| --- | --- |
+| `LukoaLauncherScreen` | 页面级状态编排与事件分发（最大的文件，约 4000 行） |
+| `Launcher*Section` / `*Section` | 各页面 UI：启动、版本管理、设置、备份、工具箱、文档、修复工具、扩展/用户管理 |
+| `Launcher*Dialogs` / `SettingsDialogs` | 各类弹窗 |
+| `LauncherNavigation` / `SectionSwitcher` | 底部导航与页面切换 |
+| `Tavern*` | 酒馆相关：路径、实例档案、版本、镜像源、体检、扩展、上传限制 |
+| `Termux*` | Termux 命令构建、执行、结果解析、日志展示、唤醒策略 |
+| `Backup*` / `AutoBackup*` | 手动/自动备份、恢复预览、备份内容检查 |
+| `*Policy` / `*Guard` / `*Codec` / `*Parser` / `*Store` | 纯逻辑，基本都有对应单元测试 |
+| `GithubUpdate*` | 启动器自身的 APK 更新检测与安装 |
+
+## 一些约定和它们的原因
+
+- **新逻辑优先放进现有前缀分组的独立文件**，而不是继续加进 `LukoaLauncherScreen.kt` 或 `TermuxCommandRunner.kt`。这两个文件已经很大，继续膨胀会让改动难以验证。
+- **纯逻辑拆成独立文件并配单元测试**。项目里已有 100 多个测试类，新逻辑跟着补一个成本很低。
+- **能在 App 侧做的判断就在 App 侧做**。每次进 Termux 都有明显延迟，把校验、状态判断留在 App 里体验更好。
+- **酒馆路径默认 `~/SillyTavern`，允许用户手填**，App 不自动改路径。
+- **"版本管理"指 SillyTavern 版本**，不是启动器自身版本；"自动读取当前酒馆版本"是用户依赖的功能。
+- **备份/恢复、停止、回退、更新、应用备份属于高风险操作**，改动时优先保证数据不丢、确认提示清楚。
+- 发版时 `app/build.gradle.kts` 里的 `versionName` 和 `versionCode` 一起改；测试版发 prerelease。
+
+## 本地构建与验证
+
+环境要求：JDK 17–22（Gradle 8.8 不支持 JDK 25，本机 Android Studio 自带的 JBR 是 25，需要另装或指定 JDK），Android SDK 需要 `platforms;android-35` 与 `build-tools;35.0.0`（首次构建时 AGP 会自动下载）。`local.properties` 已在 `.gitignore` 里，写入 `sdk.dir` 即可。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build-debug.ps1 -AndroidHome "你的 Android SDK 路径"
+# 编译 + 单元测试 + lint + debug APK
+.\gradlew.bat --no-daemon :app:compileDebugKotlin testDebugUnitTest :app:lintDebug :app:assembleDebug
+
+# 覆盖率报告 -> app/build/reports/jacoco/debugUnitTest/html/index.html
+.\gradlew.bat --no-daemon :app:jacocoDebugUnitTestReport
+
+# 只构建 debug APK
+powershell -ExecutionPolicy Bypass -File .\build-debug.ps1 -AndroidHome "SDK 路径"
 ```
 
-发布 GitHub Release：
+Windows 提示：如果 Gradle 测试进程报 `ClassNotFoundException: Files\NVIDIA` 之类的奇怪错误，先检查系统 `Path` 里有没有多余的英文引号。
+
+## 发版
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 -VersionName 0.8.33-beta9 -VersionCode 171 -ReleaseNotes "这里写正式公告" -PreRelease
+powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 `
+    -VersionName 1.0.1 -VersionCode 287 `
+    -ReleaseNotes "公告正文" `
+    -PreRelease   # 测试版加这个
 ```
+
+- 公告写法：先说用户会感受到什么变化，再说修复和注意事项；内部重构只在它确实影响体验时才提。
+- 也可以用 `-ReleaseNotesFile 文件` 或 `-AutoNotes`（从 `CHANGELOG.md` 汇总稳定版）。
+- 脚本目前发布的是 debug 签名的 APK；release 构建没有配置签名。切换签名会让已安装用户无法覆盖升级，改之前需要仓库所有者决定。
+- 发完顺手在 `CHANGELOG.md` 顶部补一段，格式跟已有条目一致。
 
 ## 高风险区域
 
-- `app/src/main/assets/lukoa-tavern.sh`
-- `app/src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt`
-- 备份/恢复相关文件
-- 路径配置和镜像源配置相关文件
-- 发版脚本和版本号修改
+改这些地方时，编译通过不代表行为没变，需要额外看一眼实际行为：
 
-这些区域改动后，不要只看能不能编译，要额外确认行为是否变了。
+- `lukoa-tavern.sh` 与 `TermuxCommandRunner.kt`、`TermuxScriptCommandBuilder.kt`
+- `Backup*`、`AutoBackup*`、`LauncherBackupCoordinator.kt`
+- `TavernPathConfig.kt`、`TavernProfile*`、`TavernMirrorConfig.kt`
+- `TavernUploadLimit*`（会修改 SillyTavern 的中间件源码）
+- `RepairToolsSection.kt` 对应的修复命令
+- 发布脚本与版本号
 
-## 改完后的最低检查
+## 已知待办
 
-- 跑 `:app:compileDebugKotlin`
-- 跑 `testDebugUnitTest`
-- 跑 `:app:lintDebug`
-- 跑 `:app:assembleDebug`
-- 只要这次改动碰到发布链路、签名链路或混淆链路，再跑 `:app:assembleRelease`
-- 如果改了公开文案，再人工复查一遍是否像面向用户的 App 文案，而不是开发日志
+- 真机验证：依赖修复、上传限制补丁在多个 SillyTavern 版本上的行为。
+- 测试覆盖率约 21%（2026-07-13 基线），高风险链路仍以人工验证为主。
+- Dependabot 提出的 Gradle/Kotlin/AndroidX 升级尚未合并，需要逐个验证。
+- 不同品牌手机的后台保活策略与 Termux 小窗/分屏兼容性差异。

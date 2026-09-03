@@ -1,6 +1,6 @@
 # 仓库结构说明
 
-这份文档不是讲所有实现细节，而是帮助新的维护者或新的 AI 对话先快速看懂这个仓库该从哪里下手。
+帮助新维护者或新的 AI 对话快速看懂这个仓库该从哪里下手。详细的构建、发版和约定见根目录 `AGENTS.md`。
 
 ## 顶层结构
 
@@ -9,75 +9,54 @@
 ├─ app/                         Android 主工程
 ├─ docs/                        长期文档与项目管理资料
 ├─ gradle/                      Gradle Wrapper
-├─ .github/                     GitHub 工作流、Issue/PR 模板
-├─ AGENTS.md                    给后续 AI 的仓库级规则
+├─ .github/                     GitHub 工作流、Issue/PR 模板、Dependabot
+├─ AGENTS.md                    项目速览与约定
 ├─ README.md                    面向用户和访客的项目介绍
 ├─ CHANGELOG.md                 版本记录
 ├─ CONTRIBUTING.md              提交、验证、发版约定
 ├─ build-debug.ps1              本地构建 debug APK
-├─ generate-release-notes.ps1   生成发版说明
+├─ generate-release-notes.ps1   从 CHANGELOG 汇总发版说明
 └─ publish-github-release.ps1   发布 GitHub Release
 ```
 
-## 最重要的入口
+## 源码布局
 
-### 1. 仓库规则
+所有 Kotlin 源码都在 `app/src/main/java/moe/lukoa/launcher/` 单包下，靠文件名前缀分组：
 
-- `AGENTS.md`
-  后续 AI 进入仓库后必须先看，里面定义了文案、发布、模块化、Termux 使用边界等规则。
+- `LukoaLauncherScreen.kt`：页面级状态编排、跨模块协调、事件分发。
+- `LauncherNavigation.kt`、`SectionSwitcher.kt`：底部导航与页面切换。
+- `Launcher*Section.kt`、`*Section.kt`：各页面 UI（启动、版本管理、设置、备份、工具箱、文档、修复工具、扩展管理、用户管理）。
+- `Launcher*Dialogs.kt`、`SettingsDialogs.kt`、`LauncherDialogPrimitives.kt`：弹窗。
+- `Launcher*Coordinator.kt`、`Launcher*State.kt`、`*Store.kt`：状态与持久化。
+- `Tavern*.kt`：酒馆路径、实例档案、版本、镜像源、体检、扩展、上传限制。
+- `Termux*.kt`：命令构建、执行、结果解析、日志展示、唤醒策略。
+- `Backup*.kt`、`AutoBackup*.kt`：备份、恢复、备份内容检查、自动备份调度。
+- `GithubUpdate*.kt`：启动器自身的更新检测与安装。
+- `*Policy.kt`、`*Guard.kt`、`*Codec.kt`、`*Parser.kt`：纯逻辑，基本都有同名 `*Test.kt`。
 
-### 2. 用户入口
+`app/src/main/assets/lukoa-tavern.sh` 是下发到 Termux 的脚本，App 侧通过 `TermuxScriptCommandBuilder.kt` 组装调用参数。
 
-- `README.md`
-  面向 GitHub 访客和普通用户。
+## 阅读顺序
 
-### 3. 开发与发布约定
+想做功能、修问题或重构，建议按这个顺序看：
 
-- `CONTRIBUTING.md`
-- `CHANGELOG.md`
+1. `AGENTS.md`
+2. `LukoaLauncherScreen.kt`（先看结构，不用逐行读）
+3. `LauncherNavigation.kt`
+4. 你要改的那个 `*Section.kt` 和对应的 `*Dialogs.kt`
+5. 相关的 `Tavern*` / `Termux*` / `Backup*` 纯逻辑文件及其测试
+6. 如果涉及 shell 行为，再看 `lukoa-tavern.sh` 里对应的子命令
 
-### 4. 项目管理与交接
-
-- `docs/project-management/README.md`
-- `docs/project-management/AI新对话启动模板.md`
-- `docs/project-management/lukua-launcher-AI项目管理模板.xlsx`
-
-## App 代码阅读顺序
-
-如果是继续做功能、修问题或重构，建议先看这些文件：
-
-1. `app/src/main/java/moe/lukoa/launcher/LukoaLauncherScreen.kt`
-2. `app/src/main/java/moe/lukoa/launcher/LauncherNavigation.kt`
-3. `app/src/main/java/moe/lukoa/launcher/LauncherLaunchSections.kt`
-4. `app/src/main/java/moe/lukoa/launcher/LauncherVersionManagementSection.kt`
-5. `app/src/main/java/moe/lukoa/launcher/LauncherSettingsSection.kt`
-6. `app/src/main/java/moe/lukoa/launcher/LauncherDialogs.kt`
-7. `app/src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt`
-
-## 当前仓库的组织原则
-
-### App 侧优先
-
-- 能在 App 侧完成的校验、状态判断、确认提示、输入防呆，优先在 App 侧做。
-- 不要把所有逻辑都推给 `Termux`，否则会拖慢处理，也会让行为更难追踪。
-- 只有确实必须落到 shell 执行的事情，再交给 `Termux`。
-
-### 模块化优先
-
-- 不要把新逻辑重新堆回 `LukoaLauncherScreen.kt`
-- 不要让 `TermuxCommandRunner.kt` 继续无限膨胀
-- 遇到 parser / codec / guard / manager / reducer / store 这类纯逻辑，优先单独拆文件
-
-### 文档分层
+## 文档分层
 
 - 根目录：给用户和访客看
-- `docs/project-management/`：给版本管理、交接、AI 协作看
-- `docs/development/`：给继续维护仓库结构的人看
+- `docs/project-management/`：当前主线、AI 协作记录、session-notes 交接
+- `docs/development/`：仓库结构和维护说明
 
 ## 你想改什么时，该先去哪
 
-- 想了解项目当前状态：先看 `docs/project-management/`
-- 想发版：先看 `CONTRIBUTING.md`、`CHANGELOG.md`、发布脚本
-- 想改 UI：先看各个 `Section` / `Dialog` 文件
-- 想改 Termux 相关行为：先看 `TermuxCommandRunner.kt` 和相关 parser/codec
-- 想做长期整理：先看这份文件和 `AGENTS.md`
+- 了解项目当前状态：`docs/project-management/README.md` 和最新的 session-note
+- 发版：`AGENTS.md` 的发版一节、`CHANGELOG.md`、发布脚本
+- 改 UI：对应的 `*Section` / `*Dialogs` 文件
+- 改 Termux 相关行为：`TermuxCommandRunner.kt`、`TermuxScriptCommandBuilder.kt` 和相关 parser/codec
+- 改脚本行为：`lukoa-tavern.sh`，并检查 `BundledShellScriptRegressionTest.kt` 是否需要跟着更新

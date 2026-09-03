@@ -1,51 +1,38 @@
 # AI 新对话启动模板
 
-下面这段话可以在你每次开启新 AI 对话时直接复制过去。
+开新 AI 对话时可以直接复制下面这段。
 
 ---
 
-你现在接手的是 GitHub 仓库 `PlayerAlex/lukoa-launcher-android`。
+你现在接手的是 GitHub 仓库 `PlayerAlex/lukoa-launcher-android`，本地路径是 `<填你的路径>`。
 
-请先阅读这些文件，再开始给方案或改代码：
+请先读这些文件，再给方案或改代码：
 
-1. `AGENTS.md`
-2. `docs/project-management/README.md`
-3. `docs/project-management/lukua-launcher-AI项目管理模板.xlsx`
-4. `CHANGELOG.md`
-5. 根目录 `README.md`
+1. `AGENTS.md`（项目速览、结构、构建与发版方式）
+2. `docs/project-management/README.md`（当前主线与风险）
+3. `docs/project-management/session-notes/` 里日期最新的一份
+4. `CHANGELOG.md` 顶部几个版本
 
 项目信息：
 
-- 这是一个 Android 启动器 App。
-- 主要用途是帮助用户在手机上更顺手地使用 `Termux + SillyTavern`。
-- 它不是独立运行一切，而是依赖 `Termux` 执行实际 shell 命令。
-- 这个项目已经做过很多版本，不要把它当成一个从零开始的新项目。
+- Android 启动器 App，Kotlin + Jetpack Compose，帮助用户在手机上使用 Termux + SillyTavern。
+- 真正的 shell 命令由 `app/src/main/assets/lukoa-tavern.sh` 通过 Termux 执行。
+- 已经发到 1.0 正式版，不是从零开始的项目。
 
-当前协作要求：
+协作方式：
 
-- 默认用简体中文回答。
-- 不要随意改项目方向。
-- 新功能或修复要优先基于当前主线版本继续。
-- 每次修改前先说明你理解的目标和第一步。
-- 不是所有内容都应该交给 `Termux` 处理，因为这样通常会明显拉长处理时间；能在 App 侧完成的逻辑、校验、状态判断和交互，尽量先放在 App 侧，只有在确实必须落到 `Termux` 执行时才交给 `Termux`。
-- 如果是代码改动，先看现有模块边界，不要把逻辑重新堆回一个大文件。
-- 写 App 时一定注意模块化，界面、状态、校验、解析、命令编解码、版本管理、备份恢复等逻辑要尽量拆到合适文件里，不要为了省事重新写回巨型文件。
-- 如果涉及发版、版本号、Release 文案，要同步考虑 `CHANGELOG.md` 和发布流程。
-
-你开始工作前，先告诉我：
-
-1. 你理解的当前主线版本是什么。
-2. 你认为这个项目现在最大的 3 个风险是什么。
-3. 你建议这次迭代只聚焦哪一个目标。
-
-如果我要你直接改代码，你必须先结合仓库现状给出非常简短的理解，再开始动手。
+- 默认用简体中文。
+- 改代码前先用两三句话说明你理解的目标和第一步。
+- 新逻辑优先放进现有前缀分组的独立文件，纯逻辑配单元测试；不要把东西继续堆进 `LukoaLauncherScreen.kt`。
+- 能在 App 侧完成的校验和状态判断放 App 侧，只有必须执行 shell 的才交给 Termux。
+- 涉及发版时同步改 `app/build.gradle.kts` 版本号和 `CHANGELOG.md`。
 
 ---
 
-## 建议你每次再额外补一句
+## 追加一句本次目标
 
-如果你这次有明确目标，可以在上面模板后面再追加一句，例如：
+例如：
 
-- 这次只修复首次启动引导相关问题，不要顺手改设置页别的逻辑。
-- 这次只处理 Termux 后台常驻检测，不要改发版脚本。
-- 这次只整理版本管理和测试记录，不要动 App 功能。
+- 这次只修首次启动引导的问题，不动设置页。
+- 这次只处理 Termux 后台常驻检测，不改发版脚本。
+- 这次只整理文档和测试记录，不动 App 功能。

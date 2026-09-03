@@ -25,12 +25,17 @@ function Parse-VersionValue {
 function Get-DefaultSourceFile {
     param([string]$ProjectRoot)
 
-    $candidate = Join-Path $ProjectRoot "..\..\outputs\制作进度.md"
-    if (Test-Path -LiteralPath $candidate) {
-        return (Resolve-Path -LiteralPath $candidate).Path
+    $candidates = @(
+        (Join-Path $ProjectRoot "outputs\制作进度.md"),
+        (Join-Path $ProjectRoot "CHANGELOG.md")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
     }
 
-    throw "找不到制作进度文档，请用 -SourceFile 指定来源。"
+    throw "找不到发版说明来源文档，请用 -SourceFile 指定。"
 }
 
 function Get-PreviousTagVersion {
@@ -70,7 +75,9 @@ function Get-PreviousTagVersion {
 function Parse-ProgressSections {
     param([string]$Content)
 
-    $pattern = '(?ms)^## 版本 (?<version>\d+\.\d+\.\d+)\s*\r?\n(?<body>.*?)(?=^## 版本 \d+\.\d+\.\d+\s*$|\z)'
+    # 同时支持 "## 版本 1.2.3" 与 CHANGELOG 的 "## [1.2.3] - 2026-01-01"；带 beta 后缀的条目不参与稳定版汇总
+    $heading = '^## (?:版本 |\[)(?<version>\d+\.\d+(?:\.\d+)?)\]?(?: - [^\r\n]*)?\s*$'
+    $pattern = "(?ms)$heading\r?\n(?<body>.*?)(?=^## |\z)"
     $matches = [regex]::Matches($Content, $pattern)
 
     $sections = foreach ($match in $matches) {

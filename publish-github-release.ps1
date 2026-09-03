@@ -182,13 +182,8 @@ function Resolve-ReleaseNotesPath {
     if ([string]::IsNullOrWhiteSpace($Notes)) {
         throw @"
 Release notes are required.
-Provide -ReleaseNotes, -ReleaseNotesFile, or use -AutoNotes intentionally.
-
-For this repository, public release notes must follow:
-- AGENTS.md
-- .agents/skills/release-announcement/SKILL.md
-
-Do not fall back to generic developer-style release notes.
+Provide -ReleaseNotes, -ReleaseNotesFile, or use -AutoNotes.
+See AGENTS.md for the release note format used by this project.
 "@
     }
 
@@ -287,7 +282,10 @@ if (-not (Test-Path -LiteralPath $apkPath)) {
     throw ('APK not found: {0}' -f $apkPath)
 }
 
-$outputsDir = (Resolve-Path (Join-Path $projectRoot "..\..\outputs")).Path
+$outputsDir = Join-Path $projectRoot "outputs"
+if (-not (Test-Path -LiteralPath $outputsDir)) {
+    New-Item -ItemType Directory -Path $outputsDir | Out-Null
+}
 $releaseApkPath = Join-Path $outputsDir ('lukoa-launcher-v{0}.apk' -f $VersionName)
 Copy-Item -LiteralPath $apkPath -Destination $releaseApkPath -Force
 
