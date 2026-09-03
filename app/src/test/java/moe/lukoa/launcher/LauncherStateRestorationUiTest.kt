@@ -102,7 +102,7 @@ class LauncherStateRestorationUiTest {
 
         advancePastClickDebounce()
         composeRule.onNodeWithText("安装扩展").performClick()
-        composeRule.onNodeWithText("GitHub 扩展地址")
+        composeRule.onNodeWithText("扩展仓库地址")
             .performTextInput("https://github.com/owner/mint")
 
         restoration.emulateSavedInstanceStateRestore()

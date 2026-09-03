@@ -1,13 +1,13 @@
 package moe.lukoa.launcher
 
 /**
- * 聊天记录上传上限（MB）。预设几个常用值方便一键选择，同时允许用户在合理范围内手填。
- * 范围下限取 SillyTavern 自带默认值附近，上限只是防止误输入把整台手机的内存吃光。
+ * Node.js 堆内存上限（MB，对应 --max-old-space-size）。预设 2/4/6GB，允许在范围内手填。
+ * 这个值只是写进启动器自己的 env 文件，下次启动酒馆时才会生效，所以不需要先停酒馆。
  */
-object TavernUploadLimitPolicy {
-    val presetMegabytes = listOf(500, 1024, 2048)
-    const val MIN_MEGABYTES = 50
-    const val MAX_MEGABYTES = 8192
+object TavernNodeMemoryPolicy {
+    val presetMegabytes = listOf(2048, 4096, 6144)
+    const val MIN_MEGABYTES = 512
+    const val MAX_MEGABYTES = 16384
 
     fun isAllowed(megabytes: Int?): Boolean =
         megabytes != null && megabytes in MIN_MEGABYTES..MAX_MEGABYTES
@@ -23,8 +23,8 @@ object TavernUploadLimitPolicy {
         if (trimmed.isEmpty()) return "请输入数字，单位是 MB。"
         val value = trimmed.toIntOrNull() ?: return "只能输入整数，单位是 MB。"
         return when {
-            value < MIN_MEGABYTES -> "最小 ${MIN_MEGABYTES}MB。"
-            value > MAX_MEGABYTES -> "最大 ${label(MAX_MEGABYTES)}，再大手机内存撑不住。"
+            value < MIN_MEGABYTES -> "最小 ${MIN_MEGABYTES}MB，再小酒馆起不来。"
+            value > MAX_MEGABYTES -> "最大 ${label(MAX_MEGABYTES)}。"
             else -> null
         }
     }

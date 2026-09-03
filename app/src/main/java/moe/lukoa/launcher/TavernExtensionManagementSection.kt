@@ -219,10 +219,10 @@ fun TavernExtensionManagementSection(
                         value = repositoryInput,
                         onValueChange = { repositoryInput = it.take(240) },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("GitHub 扩展地址") },
+                        label = { Text("扩展仓库地址") },
                         placeholder = { Text("https://github.com/作者/扩展名") },
                         supportingText = {
-                            Text(repositoryError ?: "仅支持公开 GitHub 仓库地址。")
+                            Text(repositoryError ?: "支持 GitHub、Gitee、GitLab 等 Git 仓库地址，也可以加 gh-proxy 一类的加速前缀。")
                         },
                         isError = repositoryError != null,
                         singleLine = true,
@@ -636,7 +636,7 @@ internal fun extensionTargetDirectory(
 
 private fun extensionUpdateStatusText(status: TavernExtensionUpdateStatus): String = when (status) {
     TavernExtensionUpdateStatus.NotGitRepository -> "非 Git 安装，无法自动检查"
-    TavernExtensionUpdateStatus.UnsupportedSource -> "扩展来源暂不支持检查"
+    TavernExtensionUpdateStatus.UnsupportedSource -> "来源不是 http(s) 地址，无法检查"
     TavernExtensionUpdateStatus.NotChecked -> "尚未检查更新"
     TavernExtensionUpdateStatus.UpToDate -> "已是最新"
     TavernExtensionUpdateStatus.UpdateAvailable -> "发现更新"

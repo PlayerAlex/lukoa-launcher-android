@@ -32,8 +32,19 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `node memory configuration does not source executable state`() {
         assertFalse(script.contains(". \"\$NODE_MEMORY_FILE\""))
-        assertTrue(script.contains("2048|4096|6144"))
+        assertTrue(script.contains("is_valid_node_memory_mb() { is_int_in_range \"\$1\" ${TavernNodeMemoryPolicy.MIN_MEGABYTES} ${TavernNodeMemoryPolicy.MAX_MEGABYTES}; }"))
+        assertTrue(script.contains("is_valid_upload_limit_mb() { is_int_in_range \"\$1\" ${TavernUploadLimitPolicy.MIN_MEGABYTES} ${TavernUploadLimitPolicy.MAX_MEGABYTES}; }"))
+        assertTrue(script.contains("if is_valid_node_memory_mb \"\${LUKOA_NODE_MEMORY_MB:-}\"; then"))
         assertTrue(script.contains("\${NODE_OPTIONS:+\$NODE_OPTIONS }--max-old-space-size="))
+    }
+
+    @Test
+    fun `extension repository parsing is shared between install and update checks`() {
+        assertTrue(script.contains("function parseRepositoryUrl(value)"))
+        assertTrue(script.contains("const parsed = parseRepositoryUrl(buffer.toString('utf8'));"))
+        assertTrue(script.contains("const repositoryUrl = supportedRepositoryUrl("))
+        assertFalse(script.contains("publicGithubRepositoryUrl"))
+        assertFalse(script.contains("repositoryUrl.hostname.toLowerCase() !== 'github.com'"))
     }
 
     @Test

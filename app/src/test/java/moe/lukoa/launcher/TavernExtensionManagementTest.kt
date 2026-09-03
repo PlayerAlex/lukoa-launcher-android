@@ -101,9 +101,16 @@ class TavernExtensionManagementTest {
                 false,
             ),
         )
+        assertNull(
+            TavernExtensionActionPolicy.updateDisabledReason(
+                ready.copy(repositoryUrl = "https://gitee.com/owner/Mint.git"),
+                false,
+                false,
+            ),
+        )
         assertNotNull(
             TavernExtensionActionPolicy.updateDisabledReason(
-                ready.copy(repositoryUrl = "https://example.com/owner/Mint.git"),
+                ready.copy(repositoryUrl = "git@github.com:owner/Mint.git"),
                 false,
                 false,
             ),
@@ -229,7 +236,7 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `github repository guard normalizes a public extension repository`() {
+    fun `repository guard normalizes github addresses`() {
         assertEquals(
             "https://github.com/owner/Extension-A.git",
             TavernExtensionCommandCodec.normalizeRepositoryUrl(
@@ -245,16 +252,38 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `github repository guard rejects unsafe or ambiguous sources`() {
+    fun `repository guard accepts mirrors and other git hosts`() {
+        mapOf(
+            "https://gitee.com/owner/Extension-A" to "https://gitee.com/owner/Extension-A.git",
+            "https://gitlab.com/group/sub/Extension-A.git" to "https://gitlab.com/group/sub/Extension-A.git",
+            "http://192.168.1.10:3000/owner/Extension-A" to "http://192.168.1.10:3000/owner/Extension-A.git",
+            "https://gh-proxy.com/https://github.com/owner/Extension-A" to
+                "https://gh-proxy.com/https://github.com/owner/Extension-A.git",
+            "https://ghproxy.net/https://github.com/owner/Extension-A.git" to
+                "https://ghproxy.net/https://github.com/owner/Extension-A.git",
+        ).forEach { (input, expected) ->
+            assertNull("expected acceptance for <$input>", TavernExtensionCommandCodec.validateRepositoryUrl(input))
+            assertEquals(expected, TavernExtensionCommandCodec.normalizeRepositoryUrl(input))
+            assertEquals("Extension-A", TavernExtensionCommandCodec.repositoryDirectoryName(input))
+        }
+    }
+
+    @Test
+    fun `repository guard rejects unsafe or ambiguous sources`() {
         listOf(
             "",
-            "http://github.com/owner/repo",
-            "https://example.com/owner/repo",
+            "git@github.com:owner/repo.git",
+            "ssh://git@github.com/owner/repo.git",
+            "file:///tmp/repo",
             "https://user:token@github.com/owner/repo",
             "https://github.com/owner/repo?ref=main",
-            "https://github.com/owner/repo/extra",
+            "https://github.com/owner/repo#readme",
+            "https://github.com/owner/repo/tree/main",
+            "https://gh-proxy.com/https://github.com/owner/repo/tree/main",
+            "https://github.com/owner",
             "https://github.com/../repo",
             "https://github.com/owner/repo name",
+            "https://example.com/owner/re%20po",
         ).forEach { unsafe ->
             assertNotNull(
                 "expected rejection for <$unsafe>",
@@ -264,19 +293,19 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `encoded github repository round trips only when safe`() {
+    fun `encoded repository round trips only when safe`() {
         val encoded = TavernExtensionCommandCodec.encodeRepositoryUrl(
-            "https://github.com/owner/Extension-A",
+            "https://gitee.com/owner/Extension-A",
         )
 
         assertEquals(
-            "https://github.com/owner/Extension-A.git",
+            "https://gitee.com/owner/Extension-A.git",
             TavernExtensionCommandCodec.decodeRepositoryUrl(encoded),
         )
         assertNull(
             TavernExtensionCommandCodec.decodeRepositoryUrl(
                 Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    "https://example.com/owner/repo".toByteArray(StandardCharsets.UTF_8),
+                    "https://user:token@example.com/owner/repo".toByteArray(StandardCharsets.UTF_8),
                 ),
             ),
         )

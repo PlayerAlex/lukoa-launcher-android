@@ -106,15 +106,22 @@ ROLLBACK_FILE="$RUNTIME_STATE_DIR/last-tavern-update-commit"
 NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
 UPLOAD_LIMIT_STATE_FILE="$RUNTIME_STATE_DIR/upload-limit.tsv"
 
+# Integer within [min, max]; keep in sync with TavernNodeMemoryPolicy / TavernUploadLimitPolicy in the app.
+is_int_in_range() {
+  case "$1" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
+}
+is_valid_node_memory_mb() { is_int_in_range "$1" 512 16384; }
+is_valid_upload_limit_mb() { is_int_in_range "$1" 50 8192; }
+
 if [ -f "$NODE_MEMORY_FILE" ]; then
   LUKOA_NODE_MEMORY_MB="$(sed -n "s/^LUKOA_NODE_MEMORY_MB='\([0-9][0-9]*\)'$/\1/p" "$NODE_MEMORY_FILE" | head -n 1)"
 fi
-case "${LUKOA_NODE_MEMORY_MB:-}" in
-  2048|4096|6144)
-    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
-    ;;
-  *) LUKOA_NODE_MEMORY_MB="" ;;
-esac
+if is_valid_node_memory_mb "${LUKOA_NODE_MEMORY_MB:-}"; then
+  export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
+else
+  LUKOA_NODE_MEMORY_MB=""
+fi
 
 OFFICIAL_REPO="${LUKOA_OFFICIAL_REPO:-https://github.com/SillyTavern/SillyTavern.git}"
 NPM_REGISTRY="${LUKOA_NPM_REGISTRY:-${NPM_CONFIG_REGISTRY:-}}"
@@ -3732,15 +3739,16 @@ NODE
 
 cmd_node_memory_set() {
   write_command "node-memory-set"
-  repair_require_stopped || return "$?"
+  # Only writes the launcher's own env file; the value is picked up on the next start,
+  # so a running tavern does not need to be stopped first.
   memory="${1:-}"
-  case "$memory" in 2048|4096|6144) ;; *)
-    write_status "error" "Unsupported Node.js memory limit" false 64
+  if ! is_valid_node_memory_mb "$memory"; then
+    write_status "error" "Unsupported Node.js memory limit" "$(tavern_running_value)" 64
     emit_status
     return 64
-  esac
+  fi
   printf "LUKOA_NODE_MEMORY_MB='%s'\n" "$memory" > "$NODE_MEMORY_FILE" || return 74
-  write_status "node-memory" "Node.js memory limit was saved" false 0
+  write_status "node-memory" "Node.js memory limit was saved; it applies on the next start" "$(tavern_running_value)" 0
   emit_status
   printf "node.memory.mb=%s\nnode.memory.file=%s\n" "$memory" "$NODE_MEMORY_FILE"
 }
@@ -3871,11 +3879,11 @@ cmd_upload_limit_set() {
   write_command "upload-limit-set"
   repair_require_stopped || return "$?"
   limit="${1:-}"
-  case "$limit" in 500|1024|2048) ;; *)
+  if ! is_valid_upload_limit_mb "$limit"; then
     write_status "error" "Unsupported upload limit" false 64
     emit_status
     return 64
-  esac
+  fi
   target="$TAVERN_DIR/src/server-main.js"
   [ -f "$target" ] || {
     write_status "error" "SillyTavern upload middleware file was not found" false 66
@@ -4051,45 +4059,54 @@ function decodeDirectoryName(value) {
   return decoded;
 }
 
+// Accepts any http(s) git URL (GitHub, Gitee, GitLab, self-hosted, gh-proxy style prefixes).
+// Rejects credentials, query strings, fragments and control characters. Mirrors
+// TavernExtensionCommandCodec.parseRepositoryUrl on the app side.
+function parseRepositoryUrl(value) {
+  if (!value || value.length > 240 || value.includes('%') || /[\u0000-\u001f\u007f\s]/.test(value)) {
+    return null;
+  }
+  const trimmed = value.replace(/\/+$/, '');
+  let repositoryUrl;
+  try {
+    repositoryUrl = new URL(trimmed);
+  } catch (_) {
+    return null;
+  }
+  if (
+    (repositoryUrl.protocol !== 'https:' && repositoryUrl.protocol !== 'http:') ||
+    !repositoryUrl.hostname || repositoryUrl.username || repositoryUrl.password ||
+    repositoryUrl.search || repositoryUrl.hash
+  ) {
+    return null;
+  }
+  const segments = repositoryUrl.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  if (segments.length < 2) return null;
+  if (segments.slice(0, -1).some(segment => segment === '.' || segment === '..')) return null;
+  const githubIndex = segments.findIndex(segment => segment.toLowerCase() === 'github.com');
+  const segmentsAfterGithub = repositoryUrl.hostname.toLowerCase() === 'github.com'
+    ? segments.length
+    : githubIndex >= 0 ? segments.length - githubIndex - 1 : -1;
+  if (segmentsAfterGithub >= 0 && segmentsAfterGithub !== 2) return null;
+  const rawRepository = segments[segments.length - 1];
+  const hasGitSuffix = rawRepository.toLowerCase().endsWith('.git');
+  const directoryName = hasGitSuffix ? rawRepository.slice(0, -4) : rawRepository;
+  if (!directoryName || directoryName === '.' || directoryName === '..' || !/^[A-Za-z0-9._-]+$/.test(directoryName)) {
+    return null;
+  }
+  return {
+    repositoryUrl: hasGitSuffix ? trimmed : `${trimmed}.git`,
+    directoryName,
+  };
+}
+
 function decodeRepositoryUrl(value) {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) fail('Invalid extension repository payload', 64);
   const buffer = Buffer.from(value, 'base64url');
   if (buffer.toString('base64url') !== value) fail('Invalid extension repository payload', 64);
-  const decoded = buffer.toString('utf8');
-  if (!decoded || decoded.length > 240 || decoded.includes('%') || /[\u0000-\u001f\u007f]/.test(decoded)) {
-    fail('Invalid extension repository URL', 64);
-  }
-  let repositoryUrl;
-  try {
-    repositoryUrl = new URL(decoded);
-  } catch (_) {
-    fail('Invalid extension repository URL', 64);
-  }
-  if (
-    repositoryUrl.protocol !== 'https:' || repositoryUrl.hostname.toLowerCase() !== 'github.com' ||
-    repositoryUrl.username || repositoryUrl.password || repositoryUrl.port ||
-    repositoryUrl.search || repositoryUrl.hash
-  ) {
-    fail('Invalid extension repository URL', 64);
-  }
-  const segments = repositoryUrl.pathname.replace(/^\/+|\/+$/g, '').split('/');
-  if (segments.length !== 2) fail('Invalid extension repository URL', 64);
-  const owner = segments[0];
-  const rawRepository = segments[1];
-  const directoryName = rawRepository.toLowerCase().endsWith('.git')
-    ? rawRepository.slice(0, -4)
-    : rawRepository;
-  if (
-    !owner || !directoryName || owner === '.' || owner === '..' ||
-    directoryName === '.' || directoryName === '..' ||
-    !/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(directoryName)
-  ) {
-    fail('Invalid extension repository URL', 64);
-  }
-  return {
-    repositoryUrl: `https://github.com/${owner}/${directoryName}.git`,
-    directoryName,
-  };
+  const parsed = parseRepositoryUrl(buffer.toString('utf8'));
+  if (!parsed) fail('Invalid extension repository URL', 64);
+  return parsed;
 }
 
 const remoteCheckStartedAt = Date.now();
@@ -4109,28 +4126,9 @@ function runGit(directory, args, timeout = 3000) {
   return String(result.stdout || '').trim();
 }
 
-function publicGithubRepositoryUrl(value) {
-  if (!value || value.length > 240 || value.includes('%')) return '';
-  let repositoryUrl;
-  try {
-    repositoryUrl = new URL(value);
-  } catch (_) {
-    return '';
-  }
-  if (
-    repositoryUrl.protocol !== 'https:' || repositoryUrl.hostname.toLowerCase() !== 'github.com' ||
-    repositoryUrl.username || repositoryUrl.password || repositoryUrl.port ||
-    repositoryUrl.search || repositoryUrl.hash
-  ) return '';
-  const segments = repositoryUrl.pathname.replace(/^\/+|\/+$/g, '').split('/');
-  if (segments.length !== 2) return '';
-  const owner = segments[0];
-  const rawRepository = segments[1];
-  const repository = rawRepository.toLowerCase().endsWith('.git')
-    ? rawRepository.slice(0, -4)
-    : rawRepository;
-  if (!/^[A-Za-z0-9._-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(repository)) return '';
-  return `https://github.com/${owner}/${repository}.git`;
+function supportedRepositoryUrl(value) {
+  const parsed = parseRepositoryUrl(value || '');
+  return parsed ? parsed.repositoryUrl : '';
 }
 
 function readGitMetadata(directory, checkRemote) {
@@ -4138,7 +4136,7 @@ function readGitMetadata(directory, checkRemote) {
   if (!currentRevision || !/^[0-9a-f]{40}$/i.test(currentRevision)) {
     return { repositoryUrl: '', currentRevision: '', latestRevision: '', updateStatus: 'not_git' };
   }
-  const repositoryUrl = publicGithubRepositoryUrl(
+  const repositoryUrl = supportedRepositoryUrl(
     runGit(directory, ['remote', 'get-url', 'origin']) || '',
   );
   if (!repositoryUrl) {

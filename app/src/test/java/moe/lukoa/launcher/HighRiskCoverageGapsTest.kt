@@ -46,10 +46,13 @@ class HighRiskCoverageGapsTest {
     @Test
     fun `mirror validators block unsafe schemes whitespace and separators`() {
         assertNull(TavernMirrorValidator.validateRepoUrl("https://example.com/repo.git"))
+        assertNull(TavernMirrorValidator.validateRepoUrl("http://192.168.1.10:3000/mirror/SillyTavern.git"))
         assertNull(TavernMirrorValidator.validateNpmRegistry("https://registry.example.com/"))
+        assertNull(TavernMirrorValidator.validateNpmRegistry("http://10.0.0.2:4873/"))
         assertNull(TavernMirrorValidator.validateTermuxAptUrl("http://packages.example.com/apt"))
 
-        assertTrue(TavernMirrorValidator.validateRepoUrl("http://example.com/repo.git") != null)
+        assertTrue(TavernMirrorValidator.validateRepoUrl("ftp://example.com/repo.git") != null)
+        assertTrue(TavernMirrorValidator.validateRepoUrl("https://example.com/re po.git") != null)
         assertTrue(TavernMirrorValidator.validateNpmRegistry("file:///tmp/npm") != null)
         assertTrue(TavernMirrorValidator.validateTermuxAptUrl("https://one::https://two") != null)
         assertTrue(TavernMirrorValidator.validateTermuxAptUrl("https://example.com/a b") != null)

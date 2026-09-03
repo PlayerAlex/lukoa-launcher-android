@@ -51,9 +51,13 @@ object TavernMirrorDefaults {
     const val NPMMIRROR_REGISTRY = "https://registry.npmmirror.com/"
 }
 
+/**
+ * 镜像源地址只要求是 http(s)。局域网自建镜像通常只有 http，没必要拒绝；
+ * 真正要防的是换行、空格这类会把 shell 参数拆散的字符。
+ */
 object TavernMirrorValidator {
-    private val gitUrlPattern = Regex("""^https://[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+(?:\.git)?$""")
-    private val npmUrlPattern = Regex("""^https://[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+/?$""")
+    private val gitUrlPattern = Regex("""^https?://[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+(?:\.git)?$""")
+    private val npmUrlPattern = Regex("""^https?://[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+/?$""")
     private val termuxAptUrlPattern = Regex("""^https?://[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+/?$""")
 
     fun validateRepoUrl(value: String): String? {
@@ -61,7 +65,7 @@ object TavernMirrorValidator {
         return when {
             normalized.isBlank() -> "酒馆 Git 源不能为空。"
             normalized.length > 240 -> "酒馆 Git 源太长。"
-            !gitUrlPattern.matches(normalized) -> "只支持 https 地址。"
+            !gitUrlPattern.matches(normalized) -> "请输入以 http:// 或 https:// 开头、不含空格的地址。"
             else -> null
         }
     }
@@ -71,7 +75,7 @@ object TavernMirrorValidator {
         return when {
             normalized.isBlank() -> "npm 源不能为空。"
             normalized.length > 200 -> "npm 源太长。"
-            !npmUrlPattern.matches(normalized) -> "只支持 https 地址。"
+            !npmUrlPattern.matches(normalized) -> "请输入以 http:// 或 https:// 开头、不含空格的地址。"
             else -> null
         }
     }
@@ -83,7 +87,7 @@ object TavernMirrorValidator {
             normalized.length > 240 -> "Termux 包源太长。"
             normalized.contains("::") || normalized.any { it == '\n' || it == '\r' || it.code < 32 } -> "Termux 包源不能包含换行或 ::。"
             normalized.contains(' ') || normalized.contains('\t') -> "Termux 包源不能有空格。"
-            !termuxAptUrlPattern.matches(normalized) -> "只支持 http 或 https 地址。"
+            !termuxAptUrlPattern.matches(normalized) -> "请输入以 http:// 或 https:// 开头、不含空格的地址。"
             else -> null
         }
     }

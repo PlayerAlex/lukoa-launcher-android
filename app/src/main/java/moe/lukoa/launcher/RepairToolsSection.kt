@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,9 +28,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 private data class RepairConfirmation(val title: String, val detail: String, val action: () -> Unit)
+
+private data class RepairCustomValueRequest(
+    val title: String,
+    val hint: String,
+    val validate: (String) -> String?,
+    val onValue: (Int) -> Unit,
+)
 
 @Composable
 fun RepairToolsSettingsPanel(
@@ -137,11 +147,13 @@ fun RepairToolsSection(
     showSectionContainer: Boolean = true,
 ) {
     var confirmation by remember { mutableStateOf<RepairConfirmation?>(null) }
+    var customValueRequest by remember { mutableStateOf<RepairCustomValueRequest?>(null) }
     val mutationUnavailableHint = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再试。"
         tavernRunning -> "酒馆正在运行，请先停止酒馆再修改这项设置。"
         else -> null
     }
+    val lockedOnlyHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     val uploadStatusText = uploadLimitStatus.currentMegabytes?.let(TavernUploadLimitPolicy::label)
         ?: if (uploadLimitStatus.checking) "检查中…" else "尚未读取"
     val uploadStatusTone = when {
@@ -159,6 +171,16 @@ fun RepairToolsSection(
             },
             dismissButton = {
                 OutlinedButton(onClick = { confirmation = null }) { Text("取消") }
+            },
+        )
+    }
+    customValueRequest?.let { request ->
+        RepairCustomValueDialog(
+            request = request,
+            onDismiss = { customValueRequest = null },
+            onSubmit = { value ->
+                customValueRequest = null
+                request.onValue(value)
             },
         )
     }
@@ -214,34 +236,53 @@ fun RepairToolsSection(
         RepairToolsGroup(grouped = !showSectionContainer) {
             SettingsSubsection(
                 title = "酒馆运行内存",
-                detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；只有手机内存充足且酒馆明确提示内存不足时才选 6GB。设置过高反而可能让系统关闭 Termux。",
+                detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；手机内存充足且酒馆提示内存不足时可以再调高。设置过高可能让系统关闭 Termux。改完下次启动酒馆时生效，不需要先停止。",
             ) {
+                val confirmMemory: (Int) -> Unit = { memory ->
+                    confirmation = RepairConfirmation(
+                        "设置 ${TavernNodeMemoryPolicy.label(memory)} 内存上限",
+                        "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本，下次启动酒馆时生效。手机内存不足时，设置过高可能导致系统关闭 Termux。",
+                    ) { onSetNodeMemory(memory) }
+                }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(2048, 4096, 6144).forEach { memory ->
+                    TavernNodeMemoryPolicy.presetMegabytes.forEach { memory ->
                         SettingsCompactChoiceButton(
-                            text = "${memory / 1024}GB",
+                            text = TavernNodeMemoryPolicy.label(memory),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("repair-memory-choice-$memory"),
-                            enabled = !actionsLocked && !tavernRunning,
+                            enabled = !actionsLocked,
                             accentColor = LukoaColors.Primary,
-                            unavailableHint = mutationUnavailableHint,
+                            unavailableHint = lockedOnlyHint,
                             onShowHint = onShowHint,
-                            onClick = {
-                                confirmation = RepairConfirmation(
-                                    "设置 ${memory / 1024}GB 内存上限",
-                                    "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本。手机内存不足时，设置过高可能导致系统关闭 Termux。",
-                                ) { onSetNodeMemory(memory) }
-                            },
+                            onClick = { confirmMemory(memory) },
                         )
                     }
+                    SettingsCompactChoiceButton(
+                        text = "自定义",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("repair-memory-choice-custom"),
+                        enabled = !actionsLocked,
+                        accentColor = LukoaColors.Primary,
+                        unavailableHint = lockedOnlyHint,
+                        onShowHint = onShowHint,
+                        onClick = {
+                            customValueRequest = RepairCustomValueRequest(
+                                title = "自定义运行内存",
+                                hint = "单位 MB，范围 ${TavernNodeMemoryPolicy.MIN_MEGABYTES} 到 ${TavernNodeMemoryPolicy.MAX_MEGABYTES}。例如 3072 表示 3GB。",
+                                validate = TavernNodeMemoryPolicy::validateCustomInput,
+                                onValue = confirmMemory,
+                            )
+                        },
+                    )
                 }
             }
         }
         RepairToolsGroup(grouped = !showSectionContainer) {
             SettingsSubsection(
                 title = "聊天文件大小",
-                detail = "这里限制一次最多能导入多大的聊天记录文件。选择 500MB、1GB 或 2GB 会修改酒馆程序文件，因此版本页会显示本地修改；准备更新或回退前，请用下方按钮恢复当前酒馆版本的默认值。",
+                detail = "这里限制一次最多能导入多大的聊天记录文件。修改会改动酒馆程序文件，因此版本页会显示本地修改；更新或回退酒馆时启动器会自动先撤掉再补回，也可以随时用下方按钮恢复默认值。",
             ) {
                 SettingsEntryRow(
                     title = "当前上传限制",
@@ -262,27 +303,44 @@ fun RepairToolsSection(
                     },
                     onShowHint = onShowHint,
                 )
+                val confirmUploadLimit: (Int) -> Unit = { limit ->
+                    confirmation = RepairConfirmation(
+                        "设置上传限制为 ${TavernUploadLimitPolicy.label(limit)}",
+                        "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
+                    ) { onSetUploadLimit(limit) }
+                }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TavernUploadLimitPolicy.allowedMegabytes.forEach { limit ->
-                        val current = uploadLimitStatus.currentMegabytes == limit
+                    TavernUploadLimitPolicy.presetMegabytes.forEach { limit ->
                         SettingsCompactChoiceButton(
                             text = TavernUploadLimitPolicy.label(limit),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("repair-upload-choice-$limit"),
                             enabled = !actionsLocked && !tavernRunning,
-                            accentColor = if (current) LukoaColors.Primary else LukoaColors.Primary,
+                            accentColor = LukoaColors.Primary,
                             unavailableHint = mutationUnavailableHint,
                             onShowHint = onShowHint,
-                            onClick = {
-                                val label = TavernUploadLimitPolicy.label(limit)
-                                confirmation = RepairConfirmation(
-                                    "设置上传限制为 $label",
-                                    "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
-                                ) { onSetUploadLimit(limit) }
-                            },
+                            onClick = { confirmUploadLimit(limit) },
                         )
                     }
+                    SettingsCompactChoiceButton(
+                        text = "自定义",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("repair-upload-choice-custom"),
+                        enabled = !actionsLocked && !tavernRunning,
+                        accentColor = LukoaColors.Primary,
+                        unavailableHint = mutationUnavailableHint,
+                        onShowHint = onShowHint,
+                        onClick = {
+                            customValueRequest = RepairCustomValueRequest(
+                                title = "自定义聊天文件大小",
+                                hint = "单位 MB，范围 ${TavernUploadLimitPolicy.MIN_MEGABYTES} 到 ${TavernUploadLimitPolicy.MAX_MEGABYTES}。例如 1500 表示 1.5GB。",
+                                validate = TavernUploadLimitPolicy::validateCustomInput,
+                                onValue = confirmUploadLimit,
+                            )
+                        },
+                    )
                 }
                 SettingsFeedbackActionButton(
                     text = "恢复酒馆默认值",
@@ -321,6 +379,48 @@ fun RepairToolsSection(
 }
 
 @Composable
+private fun RepairCustomValueDialog(
+    request: RepairCustomValueRequest,
+    onDismiss: () -> Unit,
+    onSubmit: (Int) -> Unit,
+) {
+    var input by remember(request) { mutableStateOf("") }
+    val error = if (input.isEmpty()) null else request.validate(input)
+    val canSubmit = input.isNotEmpty() && error == null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(request.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(request.hint)
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it.filter(Char::isDigit).take(6) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("repair-custom-value-input"),
+                    label = { Text("数值（MB）") },
+                    supportingText = { error?.let { Text(it) } },
+                    isError = error != null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = lukoaTextFieldColors(LukoaColors.Primary),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSubmit,
+                onClick = { input.toIntOrNull()?.let(onSubmit) },
+            ) { Text("下一步") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+
+@Composable
 private fun RepairToolsGroup(
     grouped: Boolean,
     content: @Composable () -> Unit,
@@ -353,7 +453,7 @@ private fun RepairToolsHeader(actionsLocked: Boolean, tavernRunning: Boolean) {
         StatusPill(
             text = when {
                 actionsLocked -> "当前忙碌"
-                tavernRunning -> "需先停止酒馆"
+                tavernRunning -> "部分需先停止酒馆"
                 else -> "可使用"
             },
             active = true,

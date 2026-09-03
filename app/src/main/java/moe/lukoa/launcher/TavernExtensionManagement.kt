@@ -136,7 +136,7 @@ object TavernExtensionActionPolicy {
         extension.updateStatus != TavernExtensionUpdateStatus.UpdateAvailable ->
             "请先检查更新；只有确认发现新版本且没有本地改动时才能更新。"
         TavernExtensionCommandCodec.normalizeRepositoryUrl(extension.repositoryUrl) == null ->
-            "扩展来源不是受支持的公开 GitHub 仓库，无法安全更新。"
+            "扩展来源不是 http(s) 形式的 Git 仓库地址，启动器无法自动更新。"
         !isRevision(extension.currentRevision) || !isRevision(extension.latestRevision) ->
             "扩展版本信息不完整，请重新检查更新。"
         extension.currentRevision.equals(extension.latestRevision, ignoreCase = true) ->
@@ -159,8 +159,18 @@ object TavernExtensionActionPolicy {
         value.length in 7..40 && value.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
 }
 
+/**
+ * 扩展仓库地址只要求是 http(s) 的 Git 地址，不限定托管站点：GitHub、Gitee、GitLab、自建 Gitea
+ * 以及 `https://gh-proxy.com/https://github.com/...` 这类加速前缀都可以。
+ * 仍然拒绝带账号密码、查询串、锚点和控制字符的地址，避免凭据进入日志或参数被拆解。
+ */
 object TavernExtensionCommandCodec {
     private val repositorySegmentPattern = Regex("^[A-Za-z0-9._-]+$")
+
+    private data class ParsedRepository(
+        val normalizedUrl: String,
+        val directoryName: String,
+    )
 
     fun encodeDirectoryName(directoryName: String): String {
         require(validateDirectoryName(directoryName) == null) { "unsafe extension directory name" }
@@ -194,22 +204,21 @@ object TavernExtensionCommandCodec {
         return normalizeRepositoryUrl(decoded)
     }
 
-    fun normalizeRepositoryUrl(value: String): String? {
-        val parsed = parseRepositoryUrl(value) ?: return null
-        return "https://github.com/${parsed.first}/${parsed.second}.git"
-    }
+    fun normalizeRepositoryUrl(value: String): String? =
+        parseRepositoryUrl(value)?.normalizedUrl
 
     fun repositoryDirectoryName(value: String): String? =
-        parseRepositoryUrl(value)?.second
+        parseRepositoryUrl(value)?.directoryName
 
     fun validateRepositoryUrl(value: String): String? {
         val normalized = value.trim()
         return when {
-            normalized.isBlank() -> "GitHub 扩展地址不能为空。"
-            normalized.length > 240 -> "GitHub 扩展地址太长。"
-            normalized.any { it.code < 32 || it.code == 127 } -> "GitHub 扩展地址不能包含控制字符。"
+            normalized.isBlank() -> "扩展仓库地址不能为空。"
+            normalized.length > 240 -> "扩展仓库地址太长。"
+            normalized.any { it.code < 32 || it.code == 127 } -> "扩展仓库地址不能包含控制字符。"
+            normalized.contains('@') -> "扩展仓库地址不能包含账号或密码。"
             parseRepositoryUrl(normalized) == null ->
-                "请输入完整的公开 GitHub 仓库地址，例如 https://github.com/作者/扩展名。"
+                "请输入完整的 Git 仓库网址，例如 https://github.com/作者/扩展名，也可以用镜像站或 Gitee 地址。"
             else -> null
         }
     }
@@ -224,30 +233,40 @@ object TavernExtensionCommandCodec {
         else -> null
     }
 
-    private fun parseRepositoryUrl(value: String): Pair<String, String>? {
+    private fun parseRepositoryUrl(value: String): ParsedRepository? {
         val normalized = value.trim().trimEnd('/')
         if (normalized.isBlank() || normalized.length > 240 || '%' in normalized) return null
-        if (normalized.any { it.code < 32 || it.code == 127 }) return null
+        if (normalized.any { it.code < 32 || it.code == 127 || it.isWhitespace() }) return null
         val uri = try {
             URI(normalized)
         } catch (_: Exception) {
             return null
         }
-        if (!uri.scheme.equals("https", ignoreCase = true)) return null
-        if (!uri.host.equals("github.com", ignoreCase = true)) return null
-        if (uri.userInfo != null || uri.port != -1 || uri.query != null || uri.fragment != null) return null
+        val scheme = uri.scheme?.lowercase() ?: return null
+        if (scheme != "https" && scheme != "http") return null
+        if (uri.host.isNullOrBlank()) return null
+        if (uri.userInfo != null || uri.query != null || uri.fragment != null) return null
         val segments = uri.rawPath.orEmpty().trim('/').split('/')
-        if (segments.size != 2) return null
-        val owner = segments[0]
-        val rawRepository = segments[1]
+        if (segments.size < 2) return null
+        // 中间段允许出现 "https:" 和空段，这样 gh-proxy 一类把完整地址拼在路径里的镜像也能用。
+        if (segments.dropLast(1).any { it == "." || it == ".." }) return null
+        // GitHub 仓库地址一定是 作者/仓库 两段；多出来的通常是 /tree/main 这类页面链接，直接拒绝更清楚。
+        val githubSegmentIndex = segments.indexOfFirst { it.equals("github.com", ignoreCase = true) }
+        val segmentsAfterGithub = when {
+            uri.host.equals("github.com", ignoreCase = true) -> segments.size
+            githubSegmentIndex >= 0 -> segments.size - githubSegmentIndex - 1
+            else -> -1
+        }
+        if (segmentsAfterGithub >= 0 && segmentsAfterGithub != 2) return null
+        val rawRepository = segments.last()
         val repository = if (rawRepository.endsWith(".git", ignoreCase = true)) {
             rawRepository.dropLast(4)
         } else {
             rawRepository
         }
-        if (owner == "." || owner == ".." || repository == "." || repository == "..") return null
-        if (!repositorySegmentPattern.matches(owner) || !repositorySegmentPattern.matches(repository)) return null
-        if (owner.isBlank() || repository.isBlank()) return null
-        return owner to repository
+        if (repository.isBlank() || repository == "." || repository == "..") return null
+        if (!repositorySegmentPattern.matches(repository)) return null
+        val normalizedUrl = if (rawRepository.endsWith(".git", ignoreCase = true)) normalized else "$normalized.git"
+        return ParsedRepository(normalizedUrl = normalizedUrl, directoryName = repository)
     }
 }

@@ -211,10 +211,8 @@ class TermuxCommandRunner(private val context: Context) {
     )
 
     fun runTavernNodeMemory(value: String?): CommandDispatch {
-        val memory = value?.toIntOrNull()
-        if (memory !in setOf(2048, 4096, 6144)) {
-            return CommandDispatch(false, "内存上限无效。", displayCommand = "tavern-node-memory")
-        }
+        val memory = value?.toIntOrNull()?.takeIf(TavernNodeMemoryPolicy::isAllowed)
+            ?: return CommandDispatch(false, "内存上限无效。", displayCommand = "tavern-node-memory")
         return runBundledScriptCommand(
             command = "tavern-node-memory-direct",
             scriptCommand = "node-memory-set",

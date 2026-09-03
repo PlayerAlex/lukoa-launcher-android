@@ -562,7 +562,12 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("当前上传限制").performScrollTo().assertIsEnabled()
-        composeRule.onAllNodesWithText("需先停止酒馆").assertCountEquals(2)
+        // 运行内存只写启动器自己的配置文件，下次启动才生效，所以酒馆运行中也允许改。
+        composeRule.onNodeWithTag("repair-memory-choice-4096").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithTag("repair-memory-choice-custom").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithTag("repair-upload-choice-custom").performScrollTo().assertIsNotEnabled()
+        composeRule.onAllNodesWithText("需先停止酒馆").assertCountEquals(1)
+        composeRule.onAllNodesWithText("部分需先停止酒馆").assertCountEquals(1)
         composeRule.onNodeWithText("酒馆正在运行；修改类操作需要先停止酒馆。")
             .assertDoesNotExist()
         composeRule.onNodeWithText("低内存设备不建议选择过高，设置过高可能导致系统结束 Termux。")
@@ -685,7 +690,7 @@ class LauncherSettingsUiTest {
     }
 
     @Test
-    fun extensionManagementSection_confirmsGithubInstallTarget() {
+    fun extensionManagementSection_confirmsMirroredInstallTarget() {
         var installedRepository = ""
         composeRule.setContent {
             LukoaTheme {
@@ -715,14 +720,15 @@ class LauncherSettingsUiTest {
             .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("安装酒馆扩展").assertIsDisplayed()
-        composeRule.onNodeWithText("GitHub 扩展地址")
-            .performTextInput("https://github.com/owner/Extension-A")
-        composeRule.onNodeWithText("来源：https://github.com/owner/Extension-A.git").assertIsDisplayed()
+        composeRule.onNodeWithText("扩展仓库地址")
+            .performTextInput("https://gh-proxy.com/https://github.com/owner/Extension-A")
+        composeRule.onNodeWithText("来源：https://gh-proxy.com/https://github.com/owner/Extension-A.git")
+            .assertIsDisplayed()
         composeRule.onNodeWithText("目标目录：/extensions/third-party/Extension-A").assertIsDisplayed()
         composeRule.onNode(hasText("确认安装") and hasClickAction()).performClick()
 
         composeRule.runOnIdle {
-            assertEquals("https://github.com/owner/Extension-A.git", installedRepository)
+            assertEquals("https://gh-proxy.com/https://github.com/owner/Extension-A.git", installedRepository)
         }
     }
 
