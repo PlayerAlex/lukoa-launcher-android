@@ -18,6 +18,7 @@ app/src/main/assets/lukoa-tavern.sh     下发到 Termux 的核心脚本（约 4
 app/src/test/java/...                   JVM 单元测试 + Robolectric Compose UI 测试
 docs/project-management/                主线状态、AI 协作记录、session-notes 交接
 docs/development/repository-map.md      仓库结构与阅读顺序
+tools/simulate-tavern-script.sh         在 PC / CI 上用假酒馆仓库跑 lukoa-tavern.sh 的更新、回退链路
 build-debug.ps1                         本地构建 debug APK
 publish-github-release.ps1              改版本号 -> 构建 -> 提交 -> tag -> 推送 -> 发 Release
 generate-release-notes.ps1              从 CHANGELOG 汇总稳定版公告
@@ -60,7 +61,12 @@ generate-release-notes.ps1              从 CHANGELOG 汇总稳定版公告
 
 # 只构建 debug APK
 powershell -ExecutionPolicy Bypass -File .\build-debug.ps1 -AndroidHome "SDK 路径"
+
+# 改了 lukoa-tavern.sh 的更新 / 回退相关逻辑时，再跑脚本沙盒（Windows 在 Git Bash 里跑；需要 git、node、npm）
+bash tools/simulate-tavern-script.sh
 ```
+
+脚本沙盒会在临时目录里造一个带 `1.13.0`、`1.14.0` 两个 tag 的假 SillyTavern 仓库，真实执行 `upload-limit-set`、`update`、`rollback`，检查启动器托管文件不拦截、用户改动在 `keep` 下拦截、在 `discard` 下进入命名 stash、上传限制补丁在切版本后补回等约定。CI 的 `tavern-script-simulation` job 每次推送都会跑；本地失败时会保留沙盒目录并打印失败步骤的完整输出，加 `--keep` 可以在成功时也保留。
 
 Windows 提示：如果 Gradle 测试进程报 `ClassNotFoundException: Files\NVIDIA` 之类的奇怪错误，先检查系统 `Path` 里有没有多余的英文引号。
 
@@ -82,7 +88,7 @@ powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 `
 
 改这些地方时，编译通过不代表行为没变，需要额外看一眼实际行为：
 
-- `lukoa-tavern.sh` 与 `TermuxCommandRunner.kt`、`TermuxScriptCommandBuilder.kt`
+- `lukoa-tavern.sh` 与 `TermuxCommandRunner.kt`、`TermuxScriptCommandBuilder.kt`（其中更新 / 回退这一段可以用 `tools/simulate-tavern-script.sh` 在 PC 上跑到真实输出，其他子命令仍要真机）
 - `Backup*`、`AutoBackup*`、`LauncherBackupCoordinator.kt`
 - `TavernPathConfig.kt`、`TavernProfile*`、`TavernMirrorConfig.kt`
 - `TavernUploadLimit*`（会修改 SillyTavern 的中间件源码）
@@ -92,6 +98,6 @@ powershell -ExecutionPolicy Bypass -File .\publish-github-release.ps1 `
 ## 已知待办
 
 - 真机验证：依赖修复、上传限制补丁在多个 SillyTavern 版本上的行为。
-- 测试覆盖率约 21%（2026-07-13 基线），高风险链路仍以人工验证为主。
+- 测试覆盖率约 21%（2026-07-13 基线）。脚本的更新 / 回退链路已有 PC 沙盒回归，备份恢复、修复工具等其他高风险链路仍以人工验证为主。
 - Dependabot 提出的 Gradle/Kotlin/AndroidX 升级尚未合并，需要逐个验证。
 - 不同品牌手机的后台保活策略与 Termux 小窗/分屏兼容性差异。

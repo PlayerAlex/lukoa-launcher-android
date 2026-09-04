@@ -61,3 +61,21 @@ jobs:
           path: |
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
+
+  # Runs the bundled Termux script against a throwaway SillyTavern-shaped git repo, covering the
+  # update / rollback contract with the App (managed files, keep|discard, stash, upload limit).
+  tavern-script-simulation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Show tool versions
+        run: |
+          git --version
+          node --version
+          npm --version
+
+      - name: Simulate lukoa-tavern.sh update and rollback
+        run: bash tools/simulate-tavern-script.sh

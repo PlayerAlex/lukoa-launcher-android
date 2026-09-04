@@ -8,6 +8,7 @@
 .
 ├─ app/                         Android 主工程
 ├─ docs/                        长期文档与项目管理资料
+├─ tools/                       开发辅助脚本（目前是 lukoa-tavern.sh 的 PC 沙盒回归）
 ├─ gradle/                      Gradle Wrapper
 ├─ .github/                     GitHub 工作流、Issue/PR 模板、Dependabot
 ├─ AGENTS.md                    项目速览与约定
@@ -59,4 +60,4 @@
 - 发版：`AGENTS.md` 的发版一节、`CHANGELOG.md`、发布脚本
 - 改 UI：对应的 `*Section` / `*Dialogs` 文件
 - 改 Termux 相关行为：`TermuxCommandRunner.kt`、`TermuxScriptCommandBuilder.kt` 和相关 parser/codec
-- 改脚本行为：`lukoa-tavern.sh`，并检查 `BundledShellScriptRegressionTest.kt` 是否需要跟着更新
+- 改脚本行为：`lukoa-tavern.sh`，并检查 `BundledShellScriptRegressionTest.kt` 是否需要跟着更新；涉及更新 / 回退时再跑 `bash tools/simulate-tavern-script.sh`，它会在假仓库里真实执行这些子命令

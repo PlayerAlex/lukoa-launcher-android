@@ -11,6 +11,7 @@
 - [ ] `:app:compileDebugKotlin`
 - [ ] `testDebugUnitTest`
 - [ ] `:app:assembleDebug`
+- [ ] 改了 `lukoa-tavern.sh` 的更新 / 回退逻辑时：`bash tools/simulate-tavern-script.sh`
 - [ ] 手动验证相关页面或流程
 
 ## 风险点

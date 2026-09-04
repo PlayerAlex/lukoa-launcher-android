@@ -17,6 +17,14 @@
 
 改到发布链路、签名或混淆时再追加 `:app:assembleRelease`。
 
+改到 `lukoa-tavern.sh` 的更新 / 回退相关逻辑（`ensure_tavern_mutation_ready`、`cmd_update`、`cmd_rollback`、上传限制补丁的撤销与补回）时，再跑一次脚本沙盒，它会用假仓库真实执行这些子命令并核对输出格式：
+
+```bash
+bash tools/simulate-tavern-script.sh   # Windows 在 Git Bash 里跑；需要 git、node、npm
+```
+
+CI 里的 `tavern-script-simulation` job 跑的是同一个脚本。
+
 覆盖率报告：
 
 ```powershell
