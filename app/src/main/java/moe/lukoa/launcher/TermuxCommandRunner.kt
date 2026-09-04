@@ -457,7 +457,7 @@ class TermuxCommandRunner(private val context: Context) {
         return runBundledScriptCommand(
             command = "tavern-update-direct",
             scriptCommand = "update",
-            scriptArgs = listOf(args.target, args.repoUrl),
+            scriptArgs = listOf(args.target, args.repoUrl, args.localChangesPolicy),
             displayCommand = "tavern-update",
             background = false,
         )
@@ -483,7 +483,7 @@ class TermuxCommandRunner(private val context: Context) {
         return runBundledScriptCommand(
             command = "tavern-rollback-direct",
             scriptCommand = "rollback",
-            scriptArgs = listOf(args.target, args.repoUrl),
+            scriptArgs = listOf(args.target, args.repoUrl, args.localChangesPolicy),
             displayCommand = "tavern-rollback",
             background = false,
         )

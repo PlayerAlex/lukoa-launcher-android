@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -44,5 +45,62 @@ class TavernVersionActionConfirmationTest {
         assertEquals("fix-branch 自定义", confirmation.targetVersion)
         assertEquals("GitHub 加速", confirmation.sourceLabel)
         assertTrue(confirmation.riskTip.contains("自定义版本"))
+    }
+
+    @Test
+    fun `clean checkout needs no discard consent`() {
+        val confirmation = build(TavernVersionInfo(hasData = true, packageVersion = "1.13.0"))
+
+        assertFalse(confirmation.requiresDiscardConsent)
+        assertTrue(confirmation.userOwnedChanges.isEmpty())
+        assertFalse(confirmation.hasUnattributedChanges)
+    }
+
+    @Test
+    fun `launcher managed files are filtered out and only user edits ask for consent`() {
+        val managedOnly = build(
+            TavernVersionInfo(
+                hasData = true,
+                packageVersion = "1.13.0",
+                localChanges = "1",
+                changedFiles = listOf("src/server-main.js", "package-lock.json"),
+            ),
+        )
+        val withUserEdits = build(
+            TavernVersionInfo(
+                hasData = true,
+                packageVersion = "1.13.0",
+                localChanges = "1",
+                changedFiles = listOf("src/server-main.js", "public/index.html", "start.sh"),
+            ),
+        )
+
+        assertFalse(managedOnly.requiresDiscardConsent)
+        assertEquals(listOf("public/index.html", "start.sh"), withUserEdits.userOwnedChanges)
+        assertTrue(withUserEdits.requiresDiscardConsent)
+        assertFalse(withUserEdits.hasUnattributedChanges)
+    }
+
+    @Test
+    fun `local changes without a file list still require consent`() {
+        val confirmation = build(TavernVersionInfo(hasData = true, packageVersion = "1.13.0", localChanges = "1"))
+
+        assertTrue(confirmation.hasUnattributedChanges)
+        assertTrue(confirmation.userOwnedChanges.isEmpty())
+        assertTrue(confirmation.requiresDiscardConsent)
+    }
+
+    private fun build(current: TavernVersionInfo): TavernVersionActionConfirmation {
+        return TavernVersionActionConfirmationBuilder.build(
+            kind = TavernVersionActionKind.Update,
+            current = current,
+            target = TavernVersionChoice(
+                kind = TavernVersionKind.Stable,
+                name = "1.14.0",
+                target = "refs/tags/1.14.0",
+                repoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
+            ),
+            fallbackRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
+        )
     }
 }

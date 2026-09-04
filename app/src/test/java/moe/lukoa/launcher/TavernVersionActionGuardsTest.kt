@@ -51,10 +51,38 @@ class TavernVersionActionGuardsTest {
         assertEquals("目标更新，不能回退。", updateState.rollbackDisabledReason)
     }
 
+    @Test
+    fun `local tracked changes no longer block update or rollback`() {
+        val changed = current.copy(
+            localChanges = "1",
+            changedFiles = listOf("public/index.html"),
+        )
+
+        assertNull(evaluate(newerTarget, current = changed).updateDisabledReason)
+        assertNull(evaluate(olderTarget, current = changed).rollbackDisabledReason)
+    }
+
+    @Test
+    fun `custom target with unknown relation stays available in both directions`() {
+        val customTarget = TavernVersionChoice(
+            kind = TavernVersionKind.Custom,
+            name = "fix-branch",
+            target = "fix-branch",
+        )
+
+        val state = evaluate(customTarget)
+
+        assertEquals(TavernTargetRelation.Unknown, state.relation)
+        assertNull(state.updateDisabledReason)
+        assertNull(state.rollbackDisabledReason)
+        assertEquals("无法判断新旧，执行前先备份。", TavernVersionActionGuards.relationHint(state, customTarget))
+    }
+
     private fun evaluate(
         target: TavernVersionChoice,
         tavernRunning: Boolean = false,
         tavernStarting: Boolean = false,
+        current: TavernVersionInfo = this.current,
     ): TavernVersionActionState {
         return TavernVersionActionGuards.evaluate(
             current = current,

@@ -56,8 +56,6 @@ object LauncherHealthCheck {
         termuxExternalAppsBlocked: Boolean,
         backgroundRunPermissionGranted: Boolean,
         termuxBackgroundRunPermissionGranted: Boolean,
-        allFilesAccessGranted: Boolean,
-        installUnknownAppsGranted: Boolean,
         termuxStoragePermissionBlocked: Boolean,
         tavernRunning: Boolean,
         mirrorProbeStatus: TavernMirrorProbeStatus,
@@ -69,11 +67,12 @@ object LauncherHealthCheck {
             if (doctorReport?.nodeAvailable == false) add("node")
             if (doctorReport?.npmAvailable == false) add("npm")
         }
+        // "安装未知应用" only matters when installing a launcher update and "文件权限" only for the
+        // legacy direct-Download backup path; both are requested where they are needed instead of
+        // being reported as environment problems on every health check.
         val extraPermissionWarnings = buildList {
             if (!backgroundRunPermissionGranted) add("启动器后台运行")
             if (termuxInstalled && !termuxBackgroundRunPermissionGranted) add("Termux 后台常驻")
-            if (!allFilesAccessGranted) add("文件权限")
-            if (!installUnknownAppsGranted) add("安装未知应用")
             if (termuxStoragePermissionBlocked) add("Termux 存储")
         }
         val hasReadableTermuxRepo = doctorReport?.let {
@@ -85,8 +84,7 @@ object LauncherHealthCheck {
         val pathProblem = doctorReport != null && (
             doctorReport.tavernDirExists == false ||
                 doctorReport.packageJsonExists == false ||
-                doctorReport.startEntryExists == false ||
-                doctorReport.gitRepo == false
+                doctorReport.startEntryExists == false
             )
 
         val items = buildList {
@@ -244,8 +242,8 @@ object LauncherHealthCheck {
 
                     doctorReport.gitRepo == false -> LauncherHealthItem(
                         title = "酒馆路径",
-                        detail = "当前目录不是 Git 仓库，后续更新和回退会失败。",
-                        level = LauncherHealthLevel.Error,
+                        detail = "当前目录是完整的酒馆，但不是 Git 仓库。可以正常启动，只是启动器的更新和回退功能用不了。",
+                        level = LauncherHealthLevel.Warning,
                     )
 
                     listOf(
@@ -390,9 +388,6 @@ object LauncherHealthCheck {
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
             termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
-            allFilesAccessGranted = allFilesAccessGranted,
-            installUnknownAppsGranted = installUnknownAppsGranted,
-            tavernRunning = tavernRunning,
             mirrorProbeStatus = mirrorProbeStatus,
             doctorReport = doctorReport,
             missingCoreTools = missingCoreTools,
@@ -450,9 +445,6 @@ object LauncherHealthCheck {
         termuxExternalAppsBlocked: Boolean,
         backgroundRunPermissionGranted: Boolean,
         termuxBackgroundRunPermissionGranted: Boolean,
-        allFilesAccessGranted: Boolean,
-        installUnknownAppsGranted: Boolean,
-        tavernRunning: Boolean,
         mirrorProbeStatus: TavernMirrorProbeStatus,
         doctorReport: TavernDoctorReport?,
         missingCoreTools: List<String>,
@@ -504,16 +496,6 @@ object LauncherHealthCheck {
             termuxInstalled && !termuxBackgroundRunPermissionGranted -> LauncherHealthAction(
                 type = LauncherHealthActionType.RequestTermuxBackgroundRunPermission,
                 label = "开 Termux 后台",
-            )
-
-            !allFilesAccessGranted -> LauncherHealthAction(
-                type = LauncherHealthActionType.OpenAllFilesAccessSettings,
-                label = "开文件权限",
-            )
-
-            !installUnknownAppsGranted -> LauncherHealthAction(
-                type = LauncherHealthActionType.OpenUnknownAppSourcesSettings,
-                label = "开安装权限",
             )
 
             else -> null

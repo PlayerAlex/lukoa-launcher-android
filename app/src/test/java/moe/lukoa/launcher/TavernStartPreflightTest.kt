@@ -64,6 +64,51 @@ class TavernStartPreflightTest {
         assertEquals("强制清理残留进程", result.action?.label)
     }
 
+    @Test
+    fun `missing doctor report lets the start proceed with a warning`() {
+        val result = TavernStartPreflight.evaluate(
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            doctorReport = null,
+        )
+
+        assertTrue(result.ok)
+        assertNull(result.action)
+        assertTrue(result.warnings.single().contains("没拿到体检结果"))
+    }
+
+    @Test
+    fun `zip installed tavern without git can still start`() {
+        val result = TavernStartPreflight.evaluate(
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            doctorReport = healthyDoctorReport().copy(
+                gitRepo = false,
+                summaryLevel = TavernDoctorLevel.Failed,
+                summaryMessage = "当前酒馆目录不是 Git 仓库，后续更新和回退会失败。",
+            ),
+        )
+
+        assertTrue(result.ok)
+        assertTrue(result.warnings.single().contains("不是 Git 仓库"))
+    }
+
+    @Test
+    fun `incomplete checkout is still blocked with a path action`() {
+        val result = TavernStartPreflight.evaluate(
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            doctorReport = healthyDoctorReport().copy(startEntryExists = false),
+        )
+
+        assertFalse(result.ok)
+        assertEquals(TavernStartPreflightActionType.OpenPathSettings, result.action?.type)
+        assertTrue(result.details.any { it.contains("start.sh") })
+    }
+
     private fun healthyDoctorReport(): TavernDoctorReport {
         return TavernDoctorReport(
             tavernDir = "~/SillyTavern",

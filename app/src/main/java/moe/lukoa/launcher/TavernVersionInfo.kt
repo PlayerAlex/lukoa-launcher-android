@@ -13,6 +13,8 @@ data class TavernVersionInfo(
     val rollbackTarget: String = "",
     val localChanges: String = "",
     val changedFilesPreview: String = "",
+    /** Paths from `git status --porcelain`, without status columns. Capped by the parser. */
+    val changedFiles: List<String> = emptyList(),
 ) {
     val displayVersion: String
         get() = if (notInstalled) {
@@ -30,6 +32,16 @@ data class TavernVersionInfo(
 
     val hasLocalChanges: Boolean
         get() = localChanges == "1" || changedFilesPreview.isNotBlank()
+
+    /** Changed paths, falling back to the preview block for records that predate [changedFiles]. */
+    val changedFilePaths: List<String>
+        get() = changedFiles.ifEmpty {
+            changedFilesPreview.lineSequence()
+                .filter { it.isNotBlank() }
+                .map(TavernLocalChangesGuidance::pathFromStatusLine)
+                .filter { it.isNotBlank() }
+                .toList()
+        }
 }
 
 object TavernVersionParser {
@@ -65,7 +77,8 @@ object TavernVersionParser {
             }
         }
 
-        val changedFiles = extractChangedFiles(text)
+        val changedStatusLines = extractChangedStatusLines(text)
+        val changedFiles = changedStatusLines.take(PREVIEW_LINES).joinToString("\n")
         val hasData = values.isNotEmpty() || changedFiles.isNotBlank()
         if (!hasData) {
             return if (isNotInstalledSignal(text)) {
@@ -91,6 +104,7 @@ object TavernVersionParser {
             rollbackTarget = values["rollback.target"].orEmpty(),
             localChanges = values["git.localChanges"].orEmpty(),
             changedFilesPreview = changedFiles,
+            changedFiles = changedStatusLines.map(TavernLocalChangesGuidance::pathFromStatusLine),
         )
     }
 
@@ -106,20 +120,23 @@ object TavernVersionParser {
             .orEmpty()
     }
 
-    private fun extractChangedFiles(text: String): String {
+    private fun extractChangedStatusLines(text: String): List<String> {
         val marker = "==== Git local changes ===="
         val start = text.lastIndexOf(marker)
-        if (start < 0) return ""
+        if (start < 0) return emptyList()
         val section = text.substring(start + marker.length)
             .substringBefore("====")
             .trim()
-        if (section == "clean" || section == "(clean)") return ""
+        if (section == "clean" || section == "(clean)") return emptyList()
         return section.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotBlank() && it != "clean" && it != "(clean)" }
-            .take(4)
-            .joinToString("\n")
+            .map { it.trimEnd() }
+            .filter { it.isNotBlank() && it.trim() != "clean" && it.trim() != "(clean)" }
+            .take(MAX_CHANGED_FILES)
+            .toList()
     }
+
+    private const val PREVIEW_LINES = 4
+    private const val MAX_CHANGED_FILES = 60
 }
 
 data class TavernVersionOperationSummary(
@@ -130,6 +147,8 @@ data class TavernVersionOperationSummary(
     val exitCode: Int,
     val npmExitCode: Int?,
     val safetyBackupPath: String,
+    /** Name of the git stash holding the user's local edits, when the script had to set them aside. */
+    val localChangesStash: String = "",
 ) {
     val succeeded: Boolean
         get() = exitCode == 0 && (npmExitCode == null || npmExitCode == 0)
@@ -164,7 +183,7 @@ object TavernVersionOperationSummaryParser {
             val splitAt = line.indexOf('=')
             if (splitAt <= 0) return@forEach
             val key = line.substring(0, splitAt)
-            if (key in setOf("target", "before", "after", "exitCode", "npmExitCode")) {
+            if (key in setOf("target", "before", "after", "exitCode", "npmExitCode", "localChanges.stash")) {
                 values[key] = line.substring(splitAt + 1).trim().take(240)
             }
         }
@@ -179,6 +198,7 @@ object TavernVersionOperationSummaryParser {
             exitCode = exitCode,
             npmExitCode = npmExitCode,
             safetyBackupPath = safetyBackupPath.trim().take(1024),
+            localChangesStash = values["localChanges.stash"].orEmpty(),
         )
     }
 }

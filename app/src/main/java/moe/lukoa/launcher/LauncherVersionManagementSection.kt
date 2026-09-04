@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -107,7 +108,7 @@ fun VersionManagementSection(
             selectedVersion = selectedVersion,
         )
         if (tavernVersionInfo.hasLocalChanges) {
-            LocalChangesNotice(onOpenRepairTools = onOpenRepairTools)
+            LocalChangesNotice(versionInfo = tavernVersionInfo, onOpenRepairTools = onOpenRepairTools)
         }
         VersionActionRow(
             actionState = actionState,
@@ -298,6 +299,14 @@ private fun VersionOperationResultSection(
             color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
+        if (summary.localChangesStash.isNotBlank()) {
+            VersionInfoLine("本地改动已存入", "git stash「${summary.localChangesStash}」")
+            Text(
+                text = "你之前改过的程序文件没有丢，在 Termux 的酒馆目录里执行 git stash list 可以看到，需要时用 git stash pop 取回。",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         if (summary.safetyBackupPath.isNotBlank()) {
             VersionInfoLine("安全备份", summary.safetyBackupPath)
             SecondaryActionButton(
@@ -359,7 +368,7 @@ private fun CurrentVersionSection(
                 VersionInfoLine("酒馆位置", tavernVersionInfo.directory.ifBlank { "未读取" })
 
                 if (tavernVersionInfo.hasLocalChanges) {
-                    LocalChangesNotice()
+                    LocalChangesNotice(versionInfo = tavernVersionInfo)
                 }
 
                 SecondaryActionButton(
@@ -426,13 +435,18 @@ private fun CurrentVersionSection(
 
 @Composable
 private fun LocalChangesNotice(
-    onOpenRepairTools: () -> Unit = {},
+    versionInfo: TavernVersionInfo,
+    onOpenRepairTools: (() -> Unit)? = null,
 ) {
+    val userOwned = TavernLocalChangesGuidance.userOwnedChanges(versionInfo)
+    val onlyManaged = userOwned.isEmpty() && versionInfo.changedFilePaths.isNotEmpty()
+    val tone = if (onlyManaged) LukoaColors.Primary else LukoaColors.Accent
+    val background = if (onlyManaged) LukoaColors.PrimarySoft else LukoaColors.AccentSoft
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.AccentSoft,
+        color = background,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, tone.copy(alpha = 0.35f)),
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -440,33 +454,46 @@ private fun LocalChangesNotice(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Filled.Warning,
+                imageVector = if (onlyManaged) Icons.Filled.Info else Icons.Filled.Warning,
                 contentDescription = null,
                 modifier = Modifier.size(42.dp),
-                tint = LukoaColors.Accent,
+                tint = tone,
             )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Text(
-                    text = "警告",
-                    color = LukoaColors.Accent,
+                    text = if (onlyManaged) "含启动器自己的修改" else "程序文件有你改过的地方",
+                    color = tone,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "检测到本地文件被修改过，请前往修复工具检查并调整后，再继续更新或回退。",
+                    text = when {
+                        onlyManaged ->
+                            "这是聊天文件大小设置或依赖锁文件带来的改动。更新、回退时启动器会自动先撤掉再补回，不需要你做什么。"
+
+                        userOwned.isEmpty() ->
+                            "Git 报告有本地改动，但这次没读到具体文件。更新或回退时会先把它们存进 Git 暂存区，执行前会再让你确认。"
+
+                        else ->
+                            "改过的文件：${userOwned.take(3).joinToString("、")}" +
+                                (if (userOwned.size > 3) " 等 ${userOwned.size} 个" else "") +
+                                "。更新或回退时会先把它们存进 Git 暂存区再继续，执行前会再让你确认。"
+                    },
                     color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                SecondaryActionButton(
-                    text = "前往修复工具",
-                    enabled = true,
-                    accentColor = LukoaColors.Accent,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onOpenRepairTools,
-                )
+                if (onlyManaged && onOpenRepairTools != null) {
+                    SecondaryActionButton(
+                        text = "去修复工具查看",
+                        enabled = true,
+                        accentColor = tone,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onOpenRepairTools,
+                    )
+                }
             }
         }
     }
@@ -702,7 +729,6 @@ private fun executionStatus(
 ): VersionStatusStyle = when {
     actionsLocked -> VersionStatusStyle("任务处理中", LukoaColors.Primary, LukoaColors.PrimarySoft)
     actionState.instanceActive -> VersionStatusStyle("请先停止酒馆", LukoaColors.Accent, LukoaColors.AccentSoft)
-    currentVersionInfo.hasLocalChanges -> VersionStatusStyle("需要处理修改", LukoaColors.Accent, LukoaColors.AccentSoft)
     currentVersionInfo.notInstalled -> VersionStatusStyle("等待首次安装", LukoaColors.TextSecondary, LukoaColors.Elevated)
     !currentVersionInfo.hasData -> VersionStatusStyle("等待读取", LukoaColors.TextSecondary, LukoaColors.Elevated)
     selectedVersion == null -> VersionStatusStyle("等待选择目标", LukoaColors.TextSecondary, LukoaColors.Elevated)
@@ -741,7 +767,6 @@ private fun executionButtonLabel(
     actionState.instanceActive -> "请先停止酒馆"
     currentVersionInfo.notInstalled -> "请先安装酒馆"
     !currentVersionInfo.hasData -> "请先读取当前版本"
-    currentVersionInfo.hasLocalChanges -> "处理本地修改后再继续"
     selectedVersion == null -> "请先选择目标版本"
     actionState.relation == TavernTargetRelation.Same -> "已经是当前版本"
     primaryAction == VersionPrimaryAction.Rollback -> "执行回退"

@@ -621,18 +621,17 @@ tracked_changes() {
   git status --porcelain --untracked-files=no 2>/dev/null || true
 }
 
-only_package_lock_tracked_changes() {
-  changes="$(tracked_changes)"
-  [ -n "$changes" ] || return 1
-  printf "%s\n" "$changes" | grep -Ev '^[ MADRCU?!]{2} package-lock\.json$' >/dev/null 2>&1 && return 1
-  return 0
+package_lock_has_tracked_change() {
+  tracked_changes | grep -E '^[ MADRCU?!]{2} package-lock\.json$' >/dev/null 2>&1
 }
 
+# package-lock.json is rewritten by npm install on a different Node version; it is generated
+# content, so restoring the committed copy is always safe even when other files changed too.
 cleanup_install_generated_changes() {
   if [ ! -d .git ]; then
     return 0
   fi
-  if only_package_lock_tracked_changes; then
+  if package_lock_has_tracked_change; then
     printf "[%s] cleanup generated package-lock.json change\n" "$(timestamp)" >> "$LOG_FILE"
     git checkout -- package-lock.json >> "$LOG_FILE" 2>&1 || true
   fi
@@ -641,6 +640,29 @@ cleanup_install_generated_changes() {
 
 has_tracked_changes() {
   [ -n "$(tracked_changes)" ]
+}
+
+# Moves remaining tracked changes into a named git stash so update/rollback can proceed on a
+# clean tree. The stash is intentionally not popped afterwards: auto-pop is where SillyTavern's
+# own updater produces merge conflicts that a phone user cannot resolve.
+stash_local_changes() {
+  kind="$1"
+  stamp="$(date +"%Y%m%d-%H%M%S")"
+  local_changes_stash="lukoa-before-$kind-$stamp"
+  local_changes_files="$(tracked_changes)"
+  printf "[%s] stashing local changes as %s\n%s\n" "$(timestamp)" "$local_changes_stash" "$local_changes_files" >> "$LOG_FILE"
+  git -c user.name='Lukoa Launcher' -c user.email='launcher@lukoa.invalid' \
+    stash push -m "$local_changes_stash" >> "$LOG_FILE" 2>&1 || return 1
+  if has_tracked_changes; then
+    return 1
+  fi
+  return 0
+}
+
+emit_local_changes_block() {
+  printf "\n==== Git local changes ====\n"
+  printf "%s\n" "$1"
+  printf "==== end Git local changes ====\n"
 }
 
 remote_default_branch() {
@@ -826,8 +848,20 @@ sync_origin_repo() {
   fi
 }
 
+# $1: "update" or "rollback"; $2: local-changes policy, "discard" stashes remaining tracked
+# changes, anything else blocks when tracked changes remain.
+# Sets: upload_limit_reapply (MB to re-apply after the git operation), local_changes_stash.
 ensure_tavern_mutation_ready() {
-  action="$1"
+  kind="$1"
+  local_changes_policy="${2:-keep}"
+  upload_limit_reapply=""
+  local_changes_stash=""
+  local_changes_files=""
+  case "$kind" in
+    update) action="updating source files" ;;
+    rollback) action="rolling back source files" ;;
+    *) action="$kind" ;;
+  esac
   if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
     write_status "error" "Please stop SillyTavern before $action" true 77
     emit_status
@@ -861,14 +895,33 @@ ensure_tavern_mutation_ready() {
     return 65
   fi
 
+  # The launcher's own upload-limit patch lives in a tracked file. Lift it first so it never
+  # counts as a "local change"; it is re-applied by the caller once the git operation finishes.
+  upload_limit_prepare_update
+  code="$?"
+  if [ "$code" -ne 0 ]; then
+    write_status "error" "Managed upload limit could not be safely removed before $kind; source files were left unchanged" false "$code"
+    emit_status
+    return "$code"
+  fi
   cleanup_install_generated_changes
   if has_tracked_changes; then
-    write_status "error" "SillyTavern has local tracked changes; update or rollback is blocked" false 78
-    cat "$STATUS_FILE"
-    printf "\n==== Git local changes ====\n"
-    tracked_changes
-    printf "==== end Git local changes ====\n"
-    return 78
+    if [ "$local_changes_policy" = "discard" ]; then
+      if ! stash_local_changes "$kind"; then
+        [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+        write_status "error" "SillyTavern has local tracked changes and they could not be stashed; $kind is blocked" false 78
+        cat "$STATUS_FILE"
+        emit_local_changes_block "$(tracked_changes)"
+        return 78
+      fi
+    else
+      remaining="$(tracked_changes)"
+      [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+      write_status "error" "SillyTavern has local tracked changes; $kind is blocked until they are discarded" false 78
+      cat "$STATUS_FILE"
+      emit_local_changes_block "$remaining"
+      return 78
+    fi
   fi
   sync_origin_repo
   return 0
@@ -1631,11 +1684,7 @@ cmd_update() {
   write_command "update"
   requested_target="${1:-}"
   OFFICIAL_REPO="${2:-$OFFICIAL_REPO}"
-  ensure_tavern_mutation_ready "updating source files"
-  preflight_code="$?"
-  if [ "$preflight_code" -ne 0 ]; then
-    return "$preflight_code"
-  fi
+  local_changes_policy="${3:-keep}"
   if [ -z "$requested_target" ]; then
     write_status "error" "No SillyTavern update target selected" false 64
     emit_status
@@ -1646,17 +1695,14 @@ cmd_update() {
     emit_status
     return 64
   fi
+  ensure_tavern_mutation_ready "update" "$local_changes_policy"
+  preflight_code="$?"
+  if [ "$preflight_code" -ne 0 ]; then
+    return "$preflight_code"
+  fi
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-  upload_limit_reapply=""
-  upload_limit_prepare_update
-  code="$?"
-  if [ "$code" -ne 0 ]; then
-    write_status "error" "Managed upload limit could not be safely removed before update; source files were left unchanged" false "$code"
-    emit_status
-    return "$code"
-  fi
   printf "\n[%s] ===== Lukoa launcher tavern update =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
@@ -1734,6 +1780,9 @@ cmd_update() {
   if [ -s "$ROLLBACK_FILE" ]; then
     printf "rollback.target=%s\n" "$(cat "$ROLLBACK_FILE" 2>/dev/null || true)"
   fi
+  if [ -n "$local_changes_stash" ]; then
+    printf "localChanges.stash=%s\n" "$local_changes_stash"
+  fi
   printf "\n==== Git status ====\n"
   git status --short 2>/dev/null || true
   printf "\n==== Recent update log ====\n"
@@ -1748,11 +1797,7 @@ cmd_rollback() {
   write_command "rollback"
   requested_target="${1:-}"
   OFFICIAL_REPO="${2:-$OFFICIAL_REPO}"
-  ensure_tavern_mutation_ready "rolling back source files"
-  preflight_code="$?"
-  if [ "$preflight_code" -ne 0 ]; then
-    return "$preflight_code"
-  fi
+  local_changes_policy="${3:-keep}"
   if [ -z "$requested_target" ]; then
     write_status "error" "No SillyTavern rollback target selected" false 64
     emit_status
@@ -1763,17 +1808,14 @@ cmd_rollback() {
     emit_status
     return 64
   fi
+  ensure_tavern_mutation_ready "rollback" "$local_changes_policy"
+  preflight_code="$?"
+  if [ "$preflight_code" -ne 0 ]; then
+    return "$preflight_code"
+  fi
 
   before_full="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
   before="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-  upload_limit_reapply=""
-  upload_limit_prepare_update
-  code="$?"
-  if [ "$code" -ne 0 ]; then
-    write_status "error" "Managed upload limit could not be safely removed before rollback; source files were left unchanged" false "$code"
-    emit_status
-    return "$code"
-  fi
   printf "\n[%s] ===== Lukoa launcher tavern rollback =====\n" "$(timestamp)" >> "$LOG_FILE"
   printf "[%s] before=%s target=%s repo=%s\n" "$(timestamp)" "$before_full" "$requested_target" "$OFFICIAL_REPO" >> "$LOG_FILE"
 
@@ -1834,6 +1876,9 @@ cmd_rollback() {
   printf "npmExitCode=%s\n" "$npm_code"
   if [ -s "$ROLLBACK_FILE" ]; then
     printf "rollback.target=%s\n" "$(cat "$ROLLBACK_FILE" 2>/dev/null || true)"
+  fi
+  if [ -n "$local_changes_stash" ]; then
+    printf "localChanges.stash=%s\n" "$local_changes_stash"
   fi
   printf "\n==== Recent rollback log ====\n"
   tail -n 120 "$LOG_FILE" 2>/dev/null || true

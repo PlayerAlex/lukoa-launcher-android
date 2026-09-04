@@ -66,11 +66,13 @@ object TavernVersionActionGuards {
         currentRepoUrl: String,
         instanceActive: Boolean,
     ): String? {
+        // Local tracked changes no longer block here: launcher-managed files are handled by the
+        // script, and user edits are surfaced in the confirmation dialog with an explicit
+        // "stash and continue" consent.
         return when {
             instanceActive -> ACTIVE_INSTANCE_DISABLED_REASON
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
-            current.hasLocalChanges -> "源码有本地改动，先处理。"
             target == null -> "先选目标版本。"
             else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
         } ?: when {
@@ -92,14 +94,13 @@ object TavernVersionActionGuards {
             instanceActive -> ACTIVE_INSTANCE_DISABLED_REASON
             current.notInstalled -> "先安装酒馆。"
             !current.hasData -> "先检测当前版本。"
-            current.hasLocalChanges -> "源码有本地改动，先处理。"
             target == null -> "先选目标版本。"
             else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
         } ?: when {
             relation == TavernTargetRelation.Newer -> "目标更新，不能回退。"
             relation == TavernTargetRelation.Same -> "当前已经是这个版本。"
-            relation == TavernTargetRelation.Unknown ->
-                "无法判断目标是不是更旧，不能直接回退。"
+            // Unknown relation (commit hash / non-semver branch) is allowed on both sides; the
+            // confirmation dialog already tells the user to back up when the direction is unclear.
             else -> null
         }
     }

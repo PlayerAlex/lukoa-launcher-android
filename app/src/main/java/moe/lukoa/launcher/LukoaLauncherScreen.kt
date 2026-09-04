@@ -593,8 +593,6 @@ fun LukoaLauncherScreen(
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
             backgroundRunPermissionGranted = backgroundRunPermissionGranted,
             termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
-            allFilesAccessGranted = allFilesAccessGranted,
-            installUnknownAppsGranted = installUnknownAppsGranted,
             termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
             tavernRunning = tavernRunning,
             mirrorProbeStatus = mirrorStatus,
@@ -1299,7 +1297,7 @@ fun LukoaLauncherScreen(
         )
     }
 
-    fun selectedVersionCommand(baseCommand: String): String? {
+    fun selectedVersionCommand(baseCommand: String, discardLocalChanges: Boolean = false): String? {
         val selectedVersion = selectedTavernVersion ?: return null
         val target = selectedVersion.target
         LauncherInputGuards.validateVersionTarget(target)?.let { reason ->
@@ -1315,6 +1313,7 @@ fun LukoaLauncherScreen(
             target = target,
             repoUrl = repoUrl,
             commit = selectedVersion.commit,
+            discardLocalChanges = discardLocalChanges,
         )
         return LauncherCommandCodec.encode(baseCommand, encoded)
     }
@@ -1341,8 +1340,9 @@ fun LukoaLauncherScreen(
         busyText: String,
         taskKind: PendingLauncherTaskKind,
         safetyBackupPrefix: String,
+        discardLocalChanges: Boolean = false,
     ) {
-        val command = selectedVersionCommand(baseCommand)
+        val command = selectedVersionCommand(baseCommand, discardLocalChanges)
         if (command == null) {
             if (selectedTavernVersion == null) {
                 update(emptyMessage, "", false, allowRunningInference = false)
@@ -2835,6 +2835,14 @@ fun LukoaLauncherScreen(
         performForegroundStart()
     }
 
+    fun continueStartWithPreflight(preflight: TavernStartPreflightResult) {
+        pendingStartPreflight = null
+        preflight.warnings.forEach { warning ->
+            update(warning, "", true, allowRunningInference = false)
+        }
+        continueStartAfterFirstGuideIfNeeded()
+    }
+
     fun requestStartTavern() {
         if (tavernStarting) {
             update("酒馆正在启动中，请稍等。", "", false, allowRunningInference = false)
@@ -2854,8 +2862,7 @@ fun LukoaLauncherScreen(
                 update(preflight.summary, "", false, allowRunningInference = false)
                 return
             }
-            pendingStartPreflight = null
-            continueStartAfterFirstGuideIfNeeded()
+            continueStartWithPreflight(preflight)
             return
         }
         if (canFastPathStart()) {
@@ -2890,8 +2897,7 @@ fun LukoaLauncherScreen(
                 update(preflight.summary, "", false, allowRunningInference = false)
                 return@commandCallback
             }
-            pendingStartPreflight = null
-            continueStartAfterFirstGuideIfNeeded()
+            continueStartWithPreflight(preflight)
         }
     }
 
@@ -3068,7 +3074,7 @@ fun LukoaLauncherScreen(
         pendingTavernVersionActionConfirmation = null
     }
 
-    fun confirmTavernVersionActionDialog() {
+    fun confirmTavernVersionActionDialog(discardLocalChanges: Boolean = false) {
         val confirmation = pendingTavernVersionActionConfirmation ?: return
         dismissTavernVersionActionDialog()
         runSelectedVersionCommandWithSafetyBackup(
@@ -3077,6 +3083,7 @@ fun LukoaLauncherScreen(
             busyText = confirmation.kind.busyText,
             taskKind = confirmation.kind.taskKind,
             safetyBackupPrefix = confirmation.kind.safetyBackupPrefix,
+            discardLocalChanges = discardLocalChanges && confirmation.requiresDiscardConsent,
         )
     }
 

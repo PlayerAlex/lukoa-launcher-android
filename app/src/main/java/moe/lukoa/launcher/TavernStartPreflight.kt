@@ -24,6 +24,8 @@ data class TavernStartPreflightResult(
     val details: List<String> = emptyList(),
     val action: TavernStartPreflightAction? = null,
     val doctorReport: TavernDoctorReport? = null,
+    /** Non-blocking observations worth showing once the start command has been sent. */
+    val warnings: List<String> = emptyList(),
 )
 
 object TavernStartPreflight {
@@ -85,14 +87,12 @@ object TavernStartPreflight {
             }
         }
 
+        // No doctor report (timeout, truncated output) is not a reason to refuse: the start command
+        // in lukoa-tavern.sh re-checks "already running", missing directory and missing node itself.
         if (doctorReport == null) {
-            return blocked(
-                summary = "这次没拿到完整的启动前预检结果，请重试一次。",
-                details = listOf("Termux 返回不完整时，直接硬启动更容易让你分不清卡在哪。"),
-                action = TavernStartPreflightAction(
-                    type = TavernStartPreflightActionType.Retry,
-                    label = "重试预检",
-                ),
+            return TavernStartPreflightResult(
+                ok = true,
+                warnings = listOf("这次没拿到体检结果，已直接尝试启动。如果启动失败，可以到工具箱做一次体检。"),
             )
         }
 
@@ -144,10 +144,7 @@ object TavernStartPreflight {
             )
         }
 
-        if (doctorReport.packageJsonExists == false ||
-            doctorReport.startEntryExists == false ||
-            doctorReport.gitRepo == false
-        ) {
+        if (doctorReport.packageJsonExists == false || doctorReport.startEntryExists == false) {
             val details = buildList {
                 add("当前配置路径：${doctorReport.tavernDir.ifBlank { TavernPathDefaults.DEFAULT_TAVERN_DIR }}")
                 if (doctorReport.packageJsonExists == false) {
@@ -156,12 +153,9 @@ object TavernStartPreflight {
                 if (doctorReport.startEntryExists == false) {
                     add("目录里缺少 start.sh 或 server.js。")
                 }
-                if (doctorReport.gitRepo == false) {
-                    add("目录不是 Git 仓库，后续更新和回退会出问题。")
-                }
             }
             return blocked(
-                summary = "当前目录不像完整的 SillyTavern 根目录，先改对路径更稳。",
+                summary = "当前目录不像完整的 SillyTavern 根目录，请先确认路径。",
                 details = details,
                 action = TavernStartPreflightAction(
                     type = TavernStartPreflightActionType.OpenPathSettings,
@@ -169,6 +163,13 @@ object TavernStartPreflight {
                 ),
                 doctorReport = doctorReport,
             )
+        }
+
+        // A zip-extracted SillyTavern runs fine; only update / rollback need git. Warn, don't block.
+        val warnings = buildList {
+            if (doctorReport.gitRepo == false) {
+                add("这个酒馆目录不是 Git 仓库，可以正常启动，但启动器的更新和回退功能用不了。")
+            }
         }
 
         if (doctorReport.httpOk == true) {
@@ -210,15 +211,10 @@ object TavernStartPreflight {
             )
         }
 
-        if (doctorReport.summaryLevel == TavernDoctorLevel.Failed) {
-            return blocked(
-                summary = doctorReport.summaryMessage.ifBlank { "启动前预检没通过，请先处理上面的环境问题。" },
-                details = listOf("这次预检没有通过，先修好再启动更稳。"),
-                doctorReport = doctorReport,
-            )
-        }
-
-        return TavernStartPreflightResult(ok = true, doctorReport = doctorReport)
+        // Every concrete "failed" cause the script knows about (missing tools, missing directory,
+        // incomplete checkout, no git) has already been handled above with a specific action, so
+        // a generic Failed level here would only ever be a duplicate without a way forward.
+        return TavernStartPreflightResult(ok = true, doctorReport = doctorReport, warnings = warnings)
     }
 
     private fun blocked(

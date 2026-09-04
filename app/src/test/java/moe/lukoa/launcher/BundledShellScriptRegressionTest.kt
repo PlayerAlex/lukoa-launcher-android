@@ -54,9 +54,29 @@ class BundledShellScriptRegressionTest {
 
     @Test
     fun `upload patch protects update and rollback`() {
-        assertTrue(script.contains("Managed upload limit could not be safely removed before update"))
-        assertTrue(script.contains("Managed upload limit could not be safely removed before rollback"))
+        val mutationReadyBlock = script.substringAfter("ensure_tavern_mutation_ready() {")
+            .substringBefore("\n}\n")
+
+        assertTrue(mutationReadyBlock.contains("upload_limit_prepare_update"))
+        assertTrue(mutationReadyBlock.contains("Managed upload limit could not be safely removed before \$kind"))
+        assertTrue(script.contains("ensure_tavern_mutation_ready \"update\" \"\$local_changes_policy\""))
+        assertTrue(script.contains("ensure_tavern_mutation_ready \"rollback\" \"\$local_changes_policy\""))
         assertTrue(script.contains("upload_limit_reapply_after_update"))
+    }
+
+    @Test
+    fun `update and rollback only stash user changes when the launcher asks for discard`() {
+        val mutationReadyBlock = script.substringAfter("ensure_tavern_mutation_ready() {")
+            .substringBefore("\n}\n")
+
+        assertTrue(script.contains("stash_local_changes()"))
+        assertTrue(script.contains("local_changes_policy=\"\${3:-keep}\""))
+        assertTrue(mutationReadyBlock.contains("if [ \"\$local_changes_policy\" = \"discard\" ]; then"))
+        assertTrue(mutationReadyBlock.contains("stash_local_changes \"\$kind\""))
+        assertTrue(mutationReadyBlock.contains("is blocked until they are discarded"))
+        assertTrue(script.contains("printf \"localChanges.stash=%s\\n\" \"\$local_changes_stash\""))
+        assertFalse(script.contains("git stash pop"))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl, args.localChangesPolicy)"))
     }
 
     @Test
@@ -73,7 +93,7 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `update uses the bundled script and keeps managed upload changes safe`() {
         assertTrue(runnerSource.contains("scriptCommand = \"update\""))
-        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl)"))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl, args.localChangesPolicy)"))
         assertTrue(script.contains("OFFICIAL_REPO=\"\${2:-\$OFFICIAL_REPO}\""))
         assertTrue(script.contains("upload_limit_prepare_update"))
         assertTrue(script.contains("uploadLimit.updateAction=restored-after-failure"))
@@ -82,8 +102,8 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `rollback uses the bundled script and restores managed upload changes`() {
         assertTrue(runnerSource.contains("scriptCommand = \"rollback\""))
-        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl)"))
-        assertTrue(script.contains("Managed upload limit could not be safely removed before rollback"))
+        assertTrue(runnerSource.contains("scriptArgs = listOf(args.target, args.repoUrl, args.localChangesPolicy)"))
+        assertTrue(script.contains("ensure_tavern_mutation_ready \"rollback\" \"\$local_changes_policy\""))
         assertTrue(script.contains("uploadLimit.rollbackAction=reapplied"))
         assertTrue(script.contains("git fetch --all --tags --prune"))
         assertFalse(runnerSource.contains("buildTavernInstallCommand"))

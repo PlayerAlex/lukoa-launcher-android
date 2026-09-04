@@ -44,6 +44,28 @@ class HighRiskCoverageGapsTest {
     }
 
     @Test
+    fun `version command codec carries discard consent and still reads legacy payloads`() {
+        val keep = TavernVersionCommandCodec.encode(target = "v1.2.3", repoUrl = "https://example.com/repo.git")
+        val discard = TavernVersionCommandCodec.encode(
+            target = "v1.2.3",
+            repoUrl = "https://example.com/repo.git",
+            discardLocalChanges = true,
+        )
+
+        // Payloads persisted by older launcher versions only ever had three parts.
+        assertEquals(3, keep.split(".").size)
+        assertEquals(4, discard.split(".").size)
+
+        val keepArgs = requireNotNull(TavernVersionCommandCodec.decode(keep))
+        val discardArgs = requireNotNull(TavernVersionCommandCodec.decode(discard))
+        assertFalse(keepArgs.discardLocalChanges)
+        assertEquals(TavernVersionCommandArgs.KEEP_POLICY, keepArgs.localChangesPolicy)
+        assertTrue(discardArgs.discardLocalChanges)
+        assertEquals(TavernVersionCommandArgs.DISCARD_POLICY, discardArgs.localChangesPolicy)
+        assertEquals(keepArgs.copy(discardLocalChanges = true), discardArgs)
+    }
+
+    @Test
     fun `mirror validators block unsafe schemes whitespace and separators`() {
         assertNull(TavernMirrorValidator.validateRepoUrl("https://example.com/repo.git"))
         assertNull(TavernMirrorValidator.validateRepoUrl("http://192.168.1.10:3000/mirror/SillyTavern.git"))

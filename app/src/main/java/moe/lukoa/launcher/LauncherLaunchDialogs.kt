@@ -139,31 +139,21 @@ fun StopTavernConfirmDialog(
     onDismiss: () -> Unit,
 ) {
     RiskyActionDialogScaffold(
-        title = "确认停止酒馆",
-        titleTone = ActionTone.Danger,
-        confirmText = "确认停止",
-        confirmTone = ActionTone.Danger,
+        title = "停止酒馆",
+        titleTone = ActionTone.Safe,
+        confirmText = "停止",
+        confirmTone = ActionTone.Safe,
         confirmEnabled = !actionsLocked,
         onConfirm = onConfirm,
         onDismiss = onDismiss,
     ) {
         Text(
-            text = "这一步只会尝试温和停止当前实例，不会顺手强制清理残留进程。",
+            text = "将停止「${profile.normalizedName}」（端口 ${profile.normalizedPort}），网页会立刻断开。",
             color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
         )
-        TavernActionProfileCard(
-            profileName = profile.normalizedName,
-            profilePath = profile.displayTavernDir,
-            profilePort = profile.normalizedPort,
-        )
         Text(
-            text = "如果普通停止后网页仍在响应，再改用“强制释放端口 / 强制清理残留进程”更稳。",
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Text(
-            text = "这一步不会删除聊天、角色、世界书或备份文件。",
+            text = "聊天记录、角色和备份都不受影响，随时可以再启动。",
             color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )

@@ -37,7 +37,17 @@ data class TavernVersionActionConfirmation(
     val sourceLabel: String,
     val detail: String,
     val riskTip: String,
-)
+    /**
+     * Files the user edited by hand. Non-empty means the dialog must obtain explicit consent to
+     * stash them; launcher-managed files are excluded because the script restores those itself.
+     */
+    val userOwnedChanges: List<String> = emptyList(),
+    /** True when git reported local changes but we could not attribute them to specific files. */
+    val hasUnattributedChanges: Boolean = false,
+) {
+    val requiresDiscardConsent: Boolean
+        get() = userOwnedChanges.isNotEmpty() || hasUnattributedChanges
+}
 
 object TavernVersionActionConfirmationBuilder {
     fun build(
@@ -48,6 +58,8 @@ object TavernVersionActionConfirmationBuilder {
     ): TavernVersionActionConfirmation {
         val repoLabel = repoLabelFor(target.repoUrl.ifBlank { fallbackRepoUrl })
         val targetVersion = target.label.ifBlank { target.target }
+        val userOwnedChanges = TavernLocalChangesGuidance.userOwnedChanges(current)
+        val hasUnattributedChanges = current.hasLocalChanges && current.changedFilePaths.isEmpty()
         val detail = when (kind) {
             TavernVersionActionKind.Update ->
                 "开始前会先自动创建一份安全备份。更新只切换程序版本，不会删除聊天、角色、世界书和插件。"
@@ -75,6 +87,8 @@ object TavernVersionActionConfirmationBuilder {
                 TavernVersionKind.Stable ->
                     "执行过程中不要切换路径、镜像源或连续重复点按钮。"
             },
+            userOwnedChanges = userOwnedChanges,
+            hasUnattributedChanges = hasUnattributedChanges,
         )
     }
 }

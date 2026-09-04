@@ -15,8 +15,6 @@ class LauncherHealthCheckTest {
             termuxExternalAppsBlocked = false,
             backgroundRunPermissionGranted = true,
             termuxBackgroundRunPermissionGranted = true,
-            allFilesAccessGranted = true,
-            installUnknownAppsGranted = true,
             termuxStoragePermissionBlocked = false,
             tavernRunning = false,
             mirrorProbeStatus = TavernMirrorProbeStatus(),
@@ -41,8 +39,6 @@ class LauncherHealthCheckTest {
             termuxExternalAppsBlocked = false,
             backgroundRunPermissionGranted = true,
             termuxBackgroundRunPermissionGranted = true,
-            allFilesAccessGranted = true,
-            installUnknownAppsGranted = true,
             termuxStoragePermissionBlocked = false,
             tavernRunning = false,
             mirrorProbeStatus = TavernMirrorProbeStatus(
@@ -77,8 +73,6 @@ class LauncherHealthCheckTest {
             termuxExternalAppsBlocked = false,
             backgroundRunPermissionGranted = true,
             termuxBackgroundRunPermissionGranted = false,
-            allFilesAccessGranted = true,
-            installUnknownAppsGranted = true,
             termuxStoragePermissionBlocked = false,
             tavernRunning = false,
             mirrorProbeStatus = TavernMirrorProbeStatus(),
@@ -104,8 +98,6 @@ class LauncherHealthCheckTest {
             termuxExternalAppsBlocked = false,
             backgroundRunPermissionGranted = false,
             termuxBackgroundRunPermissionGranted = false,
-            allFilesAccessGranted = true,
-            installUnknownAppsGranted = true,
             termuxStoragePermissionBlocked = false,
             tavernRunning = false,
             mirrorProbeStatus = TavernMirrorProbeStatus(),
@@ -133,8 +125,6 @@ class LauncherHealthCheckTest {
             termuxExternalAppsBlocked = false,
             backgroundRunPermissionGranted = true,
             termuxBackgroundRunPermissionGranted = true,
-            allFilesAccessGranted = true,
-            installUnknownAppsGranted = true,
             termuxStoragePermissionBlocked = false,
             tavernRunning = true,
             mirrorProbeStatus = TavernMirrorProbeStatus(),
@@ -147,6 +137,28 @@ class LauncherHealthCheckTest {
         )
 
         assertNull(report.primaryAction)
+    }
+
+    @Test
+    fun `complete tavern without git is a warning about update and rollback not an error`() {
+        val report = LauncherHealthCheck.build(
+            checkedAtMillis = 1L,
+            termuxInstalled = true,
+            runCommandPermissionGranted = true,
+            termuxExternalAppsBlocked = false,
+            backgroundRunPermissionGranted = true,
+            termuxBackgroundRunPermissionGranted = true,
+            termuxStoragePermissionBlocked = false,
+            tavernRunning = false,
+            mirrorProbeStatus = TavernMirrorProbeStatus(),
+            doctorReport = healthyDoctorReport().copy(gitRepo = false),
+        )
+
+        val pathItem = report.items.first { it.title == "酒馆路径" }
+        assertEquals(LauncherHealthLevel.Warning, pathItem.level)
+        assertTrue(pathItem.detail.contains("可以正常启动"))
+        assertTrue(pathItem.detail.contains("更新和回退"))
+        assertEquals(0, report.items.count { it.level == LauncherHealthLevel.Error })
     }
 
     private fun healthyDoctorReport(): TavernDoctorReport {

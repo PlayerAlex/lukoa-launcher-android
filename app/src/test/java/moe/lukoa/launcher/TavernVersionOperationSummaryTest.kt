@@ -33,6 +33,29 @@ class TavernVersionOperationSummaryTest {
         assertEquals("release", summary.target)
         assertEquals(0, summary.npmExitCode)
         assertEquals("/storage/emulated/0/Lukoa/backup-before-update.tar.gz", summary.safetyBackupPath)
+        assertEquals("", summary.localChangesStash)
+    }
+
+    @Test
+    fun `parser surfaces the stash that holds the user's local edits`() {
+        val summary = TavernVersionOperationSummaryParser.parse(
+            output = """
+                ==== SillyTavern update ====
+                target=1.14.0
+                before=abc1234
+                after=def5678
+                exitCode=0
+                npmExitCode=0
+                localChanges.stash=lukoa-before-update-20260904-013000
+                ==== end SillyTavern update ====
+            """.trimIndent(),
+            kind = TavernVersionActionKind.Update,
+            safetyBackupPath = "/backups/safe.tar.gz",
+        )
+
+        requireNotNull(summary)
+        assertTrue(summary.succeeded)
+        assertEquals("lukoa-before-update-20260904-013000", summary.localChangesStash)
     }
 
     @Test
