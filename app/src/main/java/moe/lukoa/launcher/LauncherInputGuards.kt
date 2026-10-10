@@ -2,7 +2,7 @@ package moe.lukoa.launcher
 
 object LauncherInputGuards {
     private const val COMMAND_SEPARATOR = "::"
-    private const val MAX_BACKUP_NAME_LENGTH = 48
+    private const val MAX_BACKUP_NAME_LENGTH = 100
     private const val MAX_BACKUP_PATH_LENGTH = 1024
     private const val MAX_VERSION_TARGET_LENGTH = 128
     private const val MAX_PORT_LENGTH = 5

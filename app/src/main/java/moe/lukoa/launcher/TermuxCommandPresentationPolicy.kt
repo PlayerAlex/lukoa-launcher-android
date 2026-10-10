@@ -31,6 +31,7 @@ object TermuxCommandPresentationPolicy {
         "tavern-backup-auto",
         "tavern-backup-list",
         "return-launcher",
+        "wake",
     )
 
     fun forCommand(displayCommand: String): TermuxCommandPresentation {

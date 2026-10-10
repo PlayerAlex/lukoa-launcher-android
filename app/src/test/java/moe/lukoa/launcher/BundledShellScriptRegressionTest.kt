@@ -30,6 +30,17 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `chat guard links every existing chat on its first pass`() {
+        val guardBlock = script.substringAfter("chat_guard_scan() {").substringBefore("chat_guard_rescue() {")
+        // NR == FNR misreads the second file when scan.prev is empty, so the first pass linked nothing
+        // and a chat overwritten before its first save could not be rescued.
+        assertFalse(guardBlock.contains("NR==FNR"))
+        assertFalse(guardBlock.contains("NR == FNR"))
+        assertTrue(guardBlock.contains("FILENAME == ARGV[1] { old[\$3] = \$1; next }"))
+        assertTrue(guardBlock.contains("ln -f \"\$chat_path\" \"\$link_path\""))
+    }
+
+    @Test
     fun `node memory configuration does not source executable state`() {
         assertFalse(script.contains(". \"\$NODE_MEMORY_FILE\""))
         assertTrue(script.contains("is_valid_node_memory_mb() { is_int_in_range \"\$1\" ${TavernNodeMemoryPolicy.MIN_MEGABYTES} ${TavernNodeMemoryPolicy.MAX_MEGABYTES}; }"))

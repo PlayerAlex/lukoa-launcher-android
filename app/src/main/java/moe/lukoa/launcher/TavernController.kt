@@ -27,6 +27,9 @@ class TavernController(
     private val resultRepository by lazy { TermuxResultRepositoryProvider.get(context) }
 
     fun wakeTermuxThenReturn(scope: CoroutineScope, returnDelayMs: Long): Boolean {
+        // A background no-op starts Termux without showing it. Opening the Termux screen while it has
+        // no session makes Termux create an empty one, so only do that if the quiet path fails.
+        if (runner.wakeTermuxQuietly()) return true
         val woke = runner.wakeTermux()
         if (woke) {
             scope.launch {
@@ -127,7 +130,7 @@ class TavernController(
 
         if (dispatch.presentation == TermuxCommandPresentation.Foreground) {
             scope.launch {
-                delay(250)
+                delay(FOREGROUND_SESSION_SETTLE_MS)
                 runner.wakeTermux()
             }
         }
@@ -199,7 +202,7 @@ class TavernController(
         scope.launch {
             val dispatch = runner.runForegroundTavernConsole()
             val message = if (dispatch.sent) {
-                delay(250)
+                delay(FOREGROUND_SESSION_SETTLE_MS)
                 val woke = runner.wakeTermux()
                 if (woke) {
                     "启动命令已发送。"
@@ -517,6 +520,12 @@ class TavernController(
             result.stderr.trim().takeIf { it.isNotBlank() }?.let(::add)
             result.raw.trim().takeIf { it.isNotBlank() }?.let(::add)
         }.joinToString("\n").trim()
+    }
+
+    private companion object {
+        // RUN_COMMAND creates the foreground session asynchronously. Bringing Termux to the front
+        // before it exists makes Termux open an extra empty session next to the tavern's.
+        const val FOREGROUND_SESSION_SETTLE_MS = 1_500L
     }
 
     private fun returnToLauncher() {

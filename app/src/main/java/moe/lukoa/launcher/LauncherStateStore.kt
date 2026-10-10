@@ -118,9 +118,12 @@ class LauncherStateStore(private val context: Context) {
             .edit()
             .putString(KEY_STATUS, state.status)
             .putString(KEY_SUMMARY, state.summary)
-            .putString(KEY_TERMUX_LOG, state.termuxLog)
-            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog)
-            .putString(KEY_APP_LOG, state.appLog)
+            // save() runs on every log update. Persisting the full panels rewrote ~250KB of prefs XML
+            // each time (and blocks the main thread in onPause); the complete text already lives in
+            // RuntimeLogArchive, so only keep enough to repaint the panels after a restart.
+            .putString(KEY_TERMUX_LOG, state.termuxLog.takeLast(PERSISTED_LOG_CHARS))
+            .putString(KEY_TAVERN_RUNTIME_LOG, state.tavernRuntimeLog.takeLast(PERSISTED_LOG_CHARS))
+            .putString(KEY_APP_LOG, state.appLog.takeLast(PERSISTED_LOG_CHARS))
             .putBoolean(KEY_VERIFIED, state.verified)
             .putString(KEY_OFFICIAL_VERSIONS_CACHE, state.officialVersionsCache)
             .putString(KEY_BACKUP_HISTORY, BackupHistoryReducer.sanitize(state.backupHistory).joinToString("\n"))
@@ -224,6 +227,7 @@ class LauncherStateStore(private val context: Context) {
 
     private companion object {
         const val PREFS_UI_STATE = "launcher_ui_state"
+        const val PERSISTED_LOG_CHARS = 12_000
         const val KEY_STATUS = "status"
         const val KEY_SUMMARY = "summary"
         const val KEY_TERMUX_LOG = "termux_log"

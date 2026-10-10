@@ -3915,7 +3915,9 @@ fun LukoaLauncherScreen(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Primary,
-                                maxVisibleLines = null,
+                                // Laying out the whole 120KB buffer on every update janked the page; the
+                                // full log is still in the export.
+                                maxVisibleLines = 600,
                             )
                             LogPanel(
                                 title = "启动器运行日志",

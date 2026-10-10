@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Browser
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -143,7 +144,10 @@ class TermuxCommandRunner(private val context: Context) {
             command = "log-live-delta",
             args = listOf(
                 "-c",
-                buildLiveLogDeltaCommand(LiveLogRefreshPolicy.maxBytes(reason)),
+                buildLiveLogDeltaCommand(
+                    maxBytes = LiveLogRefreshPolicy.maxBytes(reason),
+                    catchupBytes = LiveLogRefreshPolicy.catchupBytes(reason),
+                ),
             ),
             nonce = null,
             executablePath = TERMUX_SH_PATH,
@@ -747,6 +751,19 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    // Starts Termux in the background with a no-op command: the process comes up without its screen,
+    // so no empty terminal session is created.
+    fun wakeTermuxQuietly(): Boolean {
+        return runCommand(
+            command = "wake",
+            args = listOf("-c", "true"),
+            nonce = null,
+            executablePath = TERMUX_SH_PATH,
+            displayCommand = "wake",
+            background = true,
+        ).sent
+    }
+
     fun requestReturnToLauncher(): CommandDispatch {
         val returnCommand = "am start --activity-clear-top --activity-single-top --activity-reorder-to-front -n ${context.packageName}/.MainActivity >/dev/null 2>&1"
         return runCommand(
@@ -764,8 +781,13 @@ class TermuxCommandRunner(private val context: Context) {
             return CommandDispatch(sent = false, message = "打开网页失败：端口号不合法。")
         }
 
+        // Chrome-based browsers reuse the tab they opened for the same application id, so returning to
+        // the tavern no longer stacks up a new tab every time. The bundled script tags its own opens
+        // with the same id, so the tab opened at startup is the one that gets reused.
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$resolvedPort"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(Browser.EXTRA_APPLICATION_ID, context.packageName)
+            .putExtra(Browser.EXTRA_CREATE_NEW_TAB, false)
         return try {
             context.startActivity(intent)
             CommandDispatch(sent = true, message = "已请求浏览器打开酒馆网页。")
@@ -850,7 +872,19 @@ class TermuxCommandRunner(private val context: Context) {
         }
 
         return try {
-            context.startService(commandIntent)
+            // Termux documents startForegroundService for RUN_COMMAND on Android 8+: RunCommandService
+            // promotes itself to the foreground, so the call also works while Termux is idle in the
+            // background. Plain startService is refused then, which is what forced the old habit of
+            // opening the Termux screen first (and the stray empty session that came with it).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    context.startForegroundService(commandIntent)
+                } catch (_: SecurityException) {
+                    context.startService(commandIntent)
+                }
+            } else {
+                context.startService(commandIntent)
+            }
             CommandDispatch(
                 sent = true,
                 message = "命令已发送到 Termux：$displayCommand",
@@ -1474,7 +1508,7 @@ class TermuxCommandRunner(private val context: Context) {
               return 0
             }
             open_tavern_browser() {
-              command -v am >/dev/null 2>&1 && am start -a android.intent.action.VIEW -d "http://127.0.0.1:${'$'}TAVERN_PORT" >/dev/null 2>&1 || true
+              command -v am >/dev/null 2>&1 && am start -a android.intent.action.VIEW -d "http://127.0.0.1:${'$'}TAVERN_PORT" --es com.android.browser.application_id moe.lukoa.launcher >/dev/null 2>&1 || true
             }
             tavern_running_value() {
               if http_ok || is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
@@ -1758,10 +1792,20 @@ class TermuxCommandRunner(private val context: Context) {
         """.trimIndent()
     }
 
-    private fun buildLiveLogDeltaCommand(maxBytes: Int): String {
+    private fun buildLiveLogDeltaCommand(maxBytes: Int, catchupBytes: Int): String {
+        val pathConfig = tavernPathConfig()
+        // The installed script is refreshed by every bundled command, so once it has the poll
+        // command it is used directly. That spares Termux parsing the ~700-line inline prelude every
+        // second, and keeps one implementation of the poll. The inline copy below is only the
+        // fallback for a phone that has not run a bundled command since updating the app.
         return """
             set -u
             LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes
+            LUKOA_LIVE_LOG_CATCHUP_BYTES=$catchupBytes
+            installed_script="${'$'}HOME/.local/bin/lukoa-tavern.sh"
+            if [ -f "${'$'}installed_script" ] && grep -q '^cmd_log_live_poll()' "${'$'}installed_script" 2>/dev/null; then
+              LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes LUKOA_LIVE_LOG_CATCHUP_BYTES=$catchupBytes                 LUKOA_TAVERN_DIR=${shellSingleQuoted(pathConfig.normalizedTavernDir)}                 LUKOA_TAVERN_PORT=${pathConfig.normalizedPort}                 LUKOA_TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}                 exec sh "${'$'}installed_script" log-live-poll
+            fi
             ${buildSharedShellPrelude()}
             # This poll runs every second or so. Write its status to a scratch file so it never
             # replaces the result of a start/stop/update that is still being reported.

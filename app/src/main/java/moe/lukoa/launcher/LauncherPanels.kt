@@ -207,9 +207,14 @@ fun LogPanel(
     showFollowControls: Boolean = true,
     maxVisibleLines: Int? = 900,
 ) {
-    val displayContent = remember(content, maxVisibleLines) {
-        maxVisibleLines?.let(content::keepLatestLines) ?: content
+    // "Load earlier" adds a page of older lines on top of the newest window instead of laying out
+    // the whole buffer on every update.
+    var earlierPages by remember { mutableStateOf(0) }
+    val visibleLineLimit = maxVisibleLines?.let { it * (earlierPages + 1) }
+    val window = remember(content, visibleLineLimit) {
+        visibleLineLimit?.let(content::latestLinesWindow) ?: LogLinesWindow(content, hasEarlier = false)
     }
+    val displayContent = window.text
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var followLatest by remember(followLatestByDefault) { mutableStateOf(followLatestByDefault) }
@@ -304,12 +309,30 @@ fun LogPanel(
                     .background(LukoaColors.Terminal, RoundedCornerShape(12.dp))
                     .border(1.dp, accentColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
             ) {
-                Box(
+                Column(
                     modifier = Modifier
                         .matchParentSize()
                         .padding(10.dp)
                         .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    if (window.hasEarlier && maxVisibleLines != null) {
+                        LoadEarlierLogChip(
+                            accentColor = accentColor,
+                            lineCount = maxVisibleLines,
+                            onClick = {
+                                // Stay where the user is reading instead of jumping back to the end.
+                                followLatest = false
+                                earlierPages += 1
+                            },
+                        )
+                    } else if (earlierPages > 0) {
+                        Text(
+                            text = "已经到启动器保存的最早日志；更早的完整日志在 Termux 窗口里，也可以导出查看。",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                     TerminalText(
                         text = displayContent,
                     )
@@ -341,6 +364,31 @@ fun LogPanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LoadEarlierLogChip(
+    accentColor: androidx.compose.ui.graphics.Color,
+    lineCount: Int,
+    onClick: () -> Unit,
+) {
+    val feedbackClick = rememberFeedbackClick(onClick)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = feedbackClick),
+        color = LukoaColors.Background,
+        shape = LukoaCapsuleShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Text(
+            text = "↑ 点此加载更早的 $lineCount 行",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            color = accentColor,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -379,12 +427,13 @@ private fun ReturnToLatestChip(
     }
 }
 
-private fun String.keepLatestLines(maxLines: Int): String {
-    val lines = lineSequence().toList()
-    if (lines.size <= maxLines) return this
-    val omitted = lines.size - maxLines
-    return buildString {
-        appendLine("... 已隐藏前面 $omitted 行，只显示最新 $maxLines 行 ...")
-        append(lines.takeLast(maxLines).joinToString("\n"))
-    }
+data class LogLinesWindow(val text: String, val hasEarlier: Boolean)
+
+internal fun String.latestLinesWindow(maxLines: Int): LogLinesWindow {
+    // Look only at the tail: splitting the whole 120KB buffer into lines on every update was itself
+    // a noticeable part of the jank.
+    val tail = if (length > maxLines * 200) takeLast(maxLines * 200) else this
+    val lines = tail.lineSequence().toList()
+    if (tail.length == length && lines.size <= maxLines) return LogLinesWindow(this, hasEarlier = false)
+    return LogLinesWindow(lines.takeLast(maxLines).joinToString("\n"), hasEarlier = true)
 }

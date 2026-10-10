@@ -508,15 +508,17 @@ chat_guard_scan() {
     -printf '%i\t%s\t%p\n' 2>/dev/null > "$CHAT_GUARD_DIR/scan.new" || return 0
   [ -f "$CHAT_GUARD_DIR/scan.prev" ] || : > "$CHAT_GUARD_DIR/scan.prev"
 
+  # Detect the first file by FILENAME, not by comparing record counters: the counter trick treats
+  # the second file as the first when the first one is empty, which is the guard's first pass.
   # Chats that disappeared (deleted or renamed in SillyTavern): drop their links.
-  awk -F'\t' 'NR==FNR { seen[$3] = 1; next } !($3 in seen) { print $3 }' \
+  awk -F'\t' 'FILENAME == ARGV[1] { seen[$3] = 1; next } !($3 in seen) { print $3 }' \
     "$CHAT_GUARD_DIR/scan.new" "$CHAT_GUARD_DIR/scan.prev" |
     while IFS= read -r gone_path; do
       rm -f "$links_dir/${gone_path#"$guard_data_root"/}"
     done
 
   # New chats, or chats whose file was replaced since the last pass.
-  awk -F'\t' 'NR==FNR { old[$3] = $1; next } old[$3] != $1' \
+  awk -F'\t' 'FILENAME == ARGV[1] { old[$3] = $1; next } old[$3] != $1' \
     "$CHAT_GUARD_DIR/scan.prev" "$CHAT_GUARD_DIR/scan.new" |
     while IFS="$(printf '\t')" read -r _inode new_size chat_path; do
       [ -f "$chat_path" ] || continue
@@ -1024,7 +1026,9 @@ install_node_dependencies() {
 
 sync_origin_repo() {
   if [ -n "${OFFICIAL_REPO:-}" ] && git remote get-url origin >/dev/null 2>&1; then
-    git remote set-url origin "$OFFICIAL_REPO" >> "$LOG_FILE" 2>&1 || true
+    git remote set-url origin "$OFFICIAL_REPO" >> "$LOG_FILE" 2>&1 || printf "origin.sync=failed
+origin.syncNotice=没能把酒馆的 Git 源切换到 %s，这次仍会从原来的源拉取。
+" "$OFFICIAL_REPO"
   fi
 }
 
@@ -1088,7 +1092,9 @@ ensure_tavern_mutation_ready() {
   if has_tracked_changes; then
     if [ "$local_changes_policy" = "discard" ]; then
       if ! stash_local_changes "$kind"; then
-        [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+        [ -n "$upload_limit_reapply" ] && { upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || printf "uploadLimit.reapply=failed
+uploadLimit.reapplyNotice=聊天文件大小限制没能补回，请到修复工具里重新设置一次。
+"; }
         write_status "error" "SillyTavern has local tracked changes and they could not be stashed; $kind is blocked" false 78
         cat "$STATUS_FILE"
         emit_local_changes_block "$(tracked_changes)"
@@ -1096,7 +1102,9 @@ ensure_tavern_mutation_ready() {
       fi
     else
       remaining="$(tracked_changes)"
-      [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+      [ -n "$upload_limit_reapply" ] && { upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || printf "uploadLimit.reapply=failed
+uploadLimit.reapplyNotice=聊天文件大小限制没能补回，请到修复工具里重新设置一次。
+"; }
       write_status "error" "SillyTavern has local tracked changes; $kind is blocked until they are discarded" false 78
       cat "$STATUS_FILE"
       emit_local_changes_block "$remaining"
@@ -1163,7 +1171,9 @@ open_browser_when_ready() {
     i=0
     while [ "$i" -lt 60 ]; do
       if http_ok; then
-        am start -a android.intent.action.VIEW -d "http://127.0.0.1:$TAVERN_PORT" >/dev/null 2>&1 || true
+        # Tag the request with the launcher's id: Chrome-based browsers then reuse the tab they
+        # opened for it instead of adding a new one each time (same id as TermuxCommandRunner.openTavern).
+        am start -a android.intent.action.VIEW -d "http://127.0.0.1:$TAVERN_PORT"           --es com.android.browser.application_id moe.lukoa.launcher >/dev/null 2>&1 || true
         exit 0
       fi
       i=$((i + 1))
@@ -1364,6 +1374,38 @@ cmd_log_live() {
   emit_live_log_delta
 }
 
+# The app's once-a-second log poll. Unlike log-live it leaves last-command.json and status.json
+# alone (so it never replaces the result of a running start/stop/update), and only scans for
+# tavern directories when the configured one is missing.
+cmd_log_live_poll() {
+  STATUS_FILE="$RUNTIME_STATE_DIR/status.live.$$"
+  trap 'rm -f "$STATUS_FILE"' EXIT
+  if http_ok; then
+    write_status "log" "SillyTavern live log synced" true 0
+  elif is_running; then
+    write_status "log" "SillyTavern live log synced; HTTP endpoint is not responding" true 75
+  elif [ -n "$(candidate_pids | head -n 1)" ]; then
+    write_status "log" "SillyTavern live log synced; process exists but HTTP endpoint is not responding" true 75
+  elif [ ! -d "$TAVERN_DIR" ]; then
+    adopt_detected_tavern_dir >/dev/null 2>&1 || true
+    collect_tavern_dir_candidates
+    write_tavern_dir_error
+  else
+    write_status "log" "SillyTavern live log synced; process is not running" false 0
+  fi
+  cat "$STATUS_FILE"
+  emit_tavern_dir_candidates
+  emit_live_log_delta
+}
+
+# The launcher opens the browser itself (tagged so the tab is reused). SillyTavern's own
+# browserLaunch would open a second, untagged tab, so turn it off for launcher-started sessions.
+# SillyTavern's yargs parser ignores options it does not know, so older versions are unaffected.
+tavern_launch_args() {
+  [ "${LUKOA_KEEP_TAVERN_BROWSER_LAUNCH:-0}" = "1" ] && return 0
+  printf "%s" "--browserLaunchEnabled=false"
+}
+
 # When the tavern was already started in the background, keep the Termux window useful by
 # streaming the same live log a terminal start would show. Ctrl+C or closing the session only
 # stops the viewer, not SillyTavern.
@@ -1444,11 +1486,11 @@ cmd_console() {
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
     printf "[%s] starting with %s ./start.sh in %s\n" "$(timestamp)" "$runner" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    "$runner" ./start.sh 2>&1 | tee -a "$LOG_FILE"
+    "$runner" ./start.sh $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
     code="$?"
   elif [ -f "server.js" ]; then
     printf "[%s] starting with node server.js in %s\n" "$(timestamp)" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    node server.js 2>&1 | tee -a "$LOG_FILE"
+    node server.js $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
     code="$?"
   else
     write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
@@ -1523,10 +1565,10 @@ cmd_start() {
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
     printf "[%s] starting with %s ./start.sh in %s\n" "$(timestamp)" "$runner" "$TAVERN_DIR" >> "$LOG_FILE"
-    nohup "$runner" ./start.sh >> "$LOG_FILE" 2>&1 &
+    nohup "$runner" ./start.sh $(tavern_launch_args) >> "$LOG_FILE" 2>&1 &
   elif [ -f "server.js" ]; then
     printf "[%s] starting with node server.js in %s\n" "$(timestamp)" "$TAVERN_DIR" >> "$LOG_FILE"
-    nohup node server.js >> "$LOG_FILE" 2>&1 &
+    nohup node server.js $(tavern_launch_args) >> "$LOG_FILE" 2>&1 &
   else
     write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
     emit_status
@@ -1912,7 +1954,9 @@ cmd_update() {
   run_with_live_log git fetch --all --tags --prune
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
-    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+    [ -n "$upload_limit_reapply" ] && { upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || printf "uploadLimit.reapply=failed
+uploadLimit.reapplyNotice=聊天文件大小限制没能补回，请到修复工具里重新设置一次。
+"; }
     write_status "error" "git fetch failed; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== SillyTavern update ====\n"
@@ -2025,7 +2069,9 @@ cmd_rollback() {
   run_with_live_log git fetch --all --tags --prune
   fetch_code="$?"
   if [ "$fetch_code" -ne 0 ]; then
-    [ -n "$upload_limit_reapply" ] && upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+    [ -n "$upload_limit_reapply" ] && { upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || printf "uploadLimit.reapply=failed
+uploadLimit.reapplyNotice=聊天文件大小限制没能补回，请到修复工具里重新设置一次。
+"; }
     write_status "error" "git fetch failed before rollback; check tavern.log" false "$fetch_code"
     cat "$STATUS_FILE"
     printf "\n==== Recent rollback log ====\n"
@@ -2065,7 +2111,9 @@ cmd_rollback() {
   fi
 
   if [ "$code" -ne 0 ] && [ -n "$upload_limit_reapply" ]; then
-    upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || true
+    { upload_limit_reapply_after_update "$upload_limit_reapply" >/dev/null 2>&1 || printf "uploadLimit.reapply=failed
+uploadLimit.reapplyNotice=聊天文件大小限制没能补回，请到修复工具里重新设置一次。
+"; }
   fi
 
   cat "$STATUS_FILE"
@@ -3953,20 +4001,24 @@ cmd_reset_theme() {
     emit_status
     return 69
   }
-  settings_candidates="$(find "$TAVERN_DIR/data" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
-  settings_count="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | wc -l | tr -d ' ')"
-  [ "$settings_count" = "1" ] || {
-    write_status "error" "Theme reset requires exactly one SillyTavern user settings file" false 73
+  # Reset every user's theme (a broken theme often hits all of them), honouring a custom dataRoot.
+  # Each file is backed up first and restored if node cannot rewrite it.
+  theme_data_root="$(resolve_tavern_data_root)"
+  settings_candidates="$(find "$theme_data_root" -mindepth 2 -maxdepth 2 -type f -name settings.json 2>/dev/null | sort)"
+  if [ -z "$settings_candidates" ]; then
+    write_status "error" "No SillyTavern user settings file was found" false 66
     emit_status
-    printf "repair.theme.candidateCount=%s\n" "${settings_count:-0}"
-    printf "%s\n" "$settings_candidates" | sed '/^$/d;s/^/repair.theme.candidate=/'
-    return 73
-  }
-  settings_file="$(printf "%s\n" "$settings_candidates" | sed '/^$/d' | head -n 1)"
+    return 66
+  fi
   stamp="$(date +"%Y%m%d-%H%M%S")"
-  backup_file="$settings_file.lukoa-before-theme-reset-$stamp"
-  cp "$settings_file" "$backup_file" || return 74
-  if SETTINGS_FILE="$settings_file" node <<'NODE'
+  reset_count=0
+  theme_report="$STATE_DIR/theme-reset-report.txt"
+  : > "$theme_report"
+  while IFS= read -r settings_file; do
+    [ -n "$settings_file" ] || continue
+    backup_file="$settings_file.lukoa-before-theme-reset-$stamp"
+    cp "$settings_file" "$backup_file" || continue
+    if SETTINGS_FILE="$settings_file" node <<'NODE'
 const fs = require('fs');
 const path = process.env.SETTINGS_FILE;
 let value;
@@ -3984,15 +4036,26 @@ visit(value);
 if (!changed) process.exit(3);
 fs.writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
 NODE
-  then
-    write_status "reset-theme" "SillyTavern theme was reset to Dark Lite" false 0
+    then
+      printf "repair.theme.file=%s\nrepair.theme.backup=%s\n" "$settings_file" "$backup_file" >> "$theme_report"
+      reset_count=$((reset_count + 1))
+    else
+      cp "$backup_file" "$settings_file" 2>/dev/null || true
+      rm -f "$backup_file"
+      printf "repair.theme.skipped=%s\n" "$settings_file" >> "$theme_report"
+    fi
+  done <<EOF
+$settings_candidates
+EOF
+  if [ "$reset_count" -gt 0 ]; then
+    write_status "reset-theme" "SillyTavern theme was reset to Dark Lite for $reset_count user(s)" false 0
     emit_status
-    printf "repair.theme.file=%s\nrepair.theme.backup=%s\n" "$settings_file" "$backup_file"
+    cat "$theme_report"
     return 0
   fi
-  cp "$backup_file" "$settings_file" 2>/dev/null || true
   write_status "error" "The settings file did not contain a compatible theme field; no changes were kept" false 65
   emit_status
+  cat "$theme_report"
   return 65
 }
 
@@ -4950,6 +5013,9 @@ main() {
       ;;
     log-live|live-log|delta-log)
       cmd_log_live
+      ;;
+    log-live-poll)
+      cmd_log_live_poll
       ;;
     console|foreground)
       cmd_console

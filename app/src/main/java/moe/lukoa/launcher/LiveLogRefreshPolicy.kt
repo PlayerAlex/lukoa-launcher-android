@@ -11,7 +11,13 @@ object LiveLogRefreshPolicy {
     // any backlog, so a larger single request would only lose the truncated part.
     private const val FOREGROUND_RESUME_MAX_BYTES = 65_536
 
-    const val BACKLOG_DELAY_MS = 150L
+    // While the app stays open every byte is paged through. After coming back from the background
+    // only the newest window is fetched: the panel shows the latest lines anyway, and paging a 2MB
+    // backlog through it re-laid out the whole panel on every page, freezing the app on resume.
+    private const val PERIODIC_CATCHUP_BYTES = 2_097_152
+    private const val FOREGROUND_RESUME_CATCHUP_BYTES = 65_536
+
+    const val BACKLOG_DELAY_MS = 400L
     const val ACTIVE_DELAY_MS = 900L
     private const val IDLE_DELAYS_MS = 1_500L
     private const val LONG_IDLE_DELAY_MS = 3_000L
@@ -25,6 +31,13 @@ object LiveLogRefreshPolicy {
         return when (reason) {
             LiveLogRefreshReason.Periodic -> PERIODIC_MAX_BYTES
             LiveLogRefreshReason.ForegroundResume -> FOREGROUND_RESUME_MAX_BYTES
+        }
+    }
+
+    fun catchupBytes(reason: LiveLogRefreshReason): Int {
+        return when (reason) {
+            LiveLogRefreshReason.Periodic -> PERIODIC_CATCHUP_BYTES
+            LiveLogRefreshReason.ForegroundResume -> FOREGROUND_RESUME_CATCHUP_BYTES
         }
     }
 
