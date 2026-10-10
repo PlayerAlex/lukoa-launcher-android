@@ -4344,7 +4344,7 @@ run_tavern_extension_action() {
     return 69
   fi
   extension_root="$TAVERN_DIR/public/scripts/extensions/third-party"
-  output="$(LUKOA_EXTENSION_ACTION="$action" LUKOA_EXTENSION_PAYLOAD="$payload" LUKOA_EXTENSION_ROOT="$extension_root" node --input-type=module <<'NODE'
+  output="$(LUKOA_EXTENSION_ACTION="$action" LUKOA_EXTENSION_PAYLOAD="$payload" LUKOA_EXTENSION_ROOT="$extension_root" LUKOA_EXTENSION_FORCE="${LUKOA_EXTENSION_FORCE:-0}" node --input-type=module <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -4474,13 +4474,17 @@ function readGitMetadata(directory, checkRemote) {
   if (Date.now() - remoteCheckStartedAt >= 2 * 60 * 1000) {
     return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
   }
+  // Extensions installed from a tag or commit have no branch; compare them with the remote's
+  // default branch, which is what a fresh install would get.
   const branch = runGit(directory, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (!branch || branch === 'HEAD') {
+  if (!branch) {
     return { repositoryUrl, currentRevision, latestRevision: '', updateStatus: 'check_failed' };
   }
   const remoteResult = runGit(
     directory,
-    ['ls-remote', '--heads', repositoryUrl, `refs/heads/${branch}`],
+    branch === 'HEAD'
+      ? ['ls-remote', repositoryUrl, 'HEAD']
+      : ['ls-remote', '--heads', repositoryUrl, `refs/heads/${branch}`],
     15 * 1000,
   );
   const latestRevision = remoteResult?.split(/\s+/)[0] || '';
@@ -4643,7 +4647,9 @@ function findInstalledExtension(directoryName) {
 }
 
 const repository = action === 'install' ? decodeRepositoryUrl(payload) : null;
-const directoryName = action === 'list' || action === 'install'
+// check-updates covers every extension and has no directory payload; decoding the empty payload
+// used to fail it every time, so no update could ever be found.
+const directoryName = action === 'list' || action === 'install' || action === 'check-updates'
   ? ''
   : decodeDirectoryName(payload);
 let extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
@@ -4721,16 +4727,24 @@ if (action === 'delete') {
   const installed = findInstalledExtension(directoryName);
   const target = installed.target;
   const metadata = readGitMetadata(target, true);
-  if (metadata.updateStatus !== 'update_available') {
+  // With force, local edits are allowed: the current directory, edits included, becomes the
+  // rollback snapshot below, so nothing is lost and "回退" brings it back.
+  const forceUpdate = process.env.LUKOA_EXTENSION_FORCE === '1';
+  const forcible = forceUpdate && metadata.updateStatus === 'local_changes' &&
+    /^[0-9a-f]{40}$/i.test(metadata.latestRevision || '');
+  if (metadata.updateStatus !== 'update_available' && !forcible) {
     fail('Extension has local changes or no verified update', 78);
   }
   const branch = runGit(target, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (!branch || branch === 'HEAD') fail('Extension branch could not be verified', 65);
+  if (!branch) fail('Extension branch could not be verified', 65);
   const stagingRoot = resolveRoot(configuredStagingRoot, true, true);
   const stagingDirectory = childTarget(stagingRoot, `update-${process.pid}-${Date.now()}`);
+  const cloneArgs = branch === 'HEAD'
+    ? ['clone', '--depth', '1', metadata.repositoryUrl, stagingDirectory]
+    : ['clone', '--depth', '1', '--branch', branch, metadata.repositoryUrl, stagingDirectory];
   const clone = spawnSync(
     'git',
-    ['clone', '--depth', '1', '--branch', branch, metadata.repositoryUrl, stagingDirectory],
+    cloneArgs,
     {
       encoding: 'utf8',
       timeout: 5 * 60 * 1000,
@@ -5003,6 +5017,10 @@ main() {
     extensions-update|tavern-extensions-update)
       shift
       run_tavern_extension_action update "${1:-}"
+      ;;
+    extensions-update-force|tavern-extensions-update-force)
+      shift
+      LUKOA_EXTENSION_FORCE=1 run_tavern_extension_action update "${1:-}"
       ;;
     extensions-rollback|tavern-extensions-rollback)
       shift

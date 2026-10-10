@@ -284,8 +284,8 @@ class TermuxCommandRunner(private val context: Context) {
     fun runTavernExtensionSetEnabled(value: String?, enabled: Boolean): CommandDispatch =
         runTavernExtensionMutation(if (enabled) "enable" else "disable", value)
 
-    fun runTavernExtensionUpdate(value: String?): CommandDispatch =
-        runTavernExtensionMutation("update", value)
+    fun runTavernExtensionUpdate(value: String?, force: Boolean = false): CommandDispatch =
+        runTavernExtensionMutation(if (force) "update-force" else "update", value)
 
     fun runTavernExtensionRollback(value: String?): CommandDispatch =
         runTavernExtensionMutation("rollback", value)
@@ -941,7 +941,7 @@ class TermuxCommandRunner(private val context: Context) {
         nonce: String? = null,
     ): CommandDispatch {
         val scriptText = try {
-            context.assets.open("lukoa-tavern.sh").bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            bundledScriptText()
         } catch (error: Exception) {
             return CommandDispatch(
                 sent = false,
@@ -977,6 +977,14 @@ class TermuxCommandRunner(private val context: Context) {
             background = background,
             stdin = plan.stdin,
         )
+    }
+
+    // The bundled script is ~5000 lines and never changes while the app runs; read it once.
+    private fun bundledScriptText(): String {
+        cachedBundledScript?.let { return it }
+        return context.assets.open("lukoa-tavern.sh").bufferedReader(StandardCharsets.UTF_8)
+            .use { it.readText() }
+            .also { cachedBundledScript = it }
     }
 
     private fun shellSingleQuoted(value: String): String {
@@ -1244,14 +1252,6 @@ class TermuxCommandRunner(private val context: Context) {
                 append_tavern_candidate "${'$'}candidate"
               done
             }
-            discover_tavern_dir() {
-              collect_tavern_dir_candidates
-              if [ "${'$'}{TAVERN_CANDIDATE_COUNT:-0}" -eq 1 ] && [ -n "${'$'}{TAVERN_CANDIDATE_FIRST:-}" ]; then
-                DISCOVERED_TAVERN_DIR="${'$'}TAVERN_CANDIDATE_FIRST"
-                return 0
-              fi
-              return 1
-            }
             adopt_detected_tavern_dir() {
               collect_tavern_dir_candidates
               return 1
@@ -1319,22 +1319,6 @@ class TermuxCommandRunner(private val context: Context) {
               "logFile": "${'$'}LOG_FILE"
             }
             EOF
-            }
-            emit_status_snapshot() {
-              if [ -f "${'$'}STATUS_FILE" ]; then
-                cat "${'$'}STATUS_FILE"
-              fi
-              if [ -f "${'$'}LOG_FILE" ]; then
-                printf "\n==== SillyTavern recent log: %s ====\n" "${'$'}LOG_FILE"
-                if command -v tail >/dev/null 2>&1; then
-                  tail -n "${'$'}{LUKOA_LOG_LINES:-240}" "${'$'}LOG_FILE" 2>/dev/null || true
-                else
-                  cat "${'$'}LOG_FILE" 2>/dev/null || true
-                fi
-                printf "\n==== end SillyTavern recent log ====\n"
-              else
-                printf "\nNo SillyTavern log file yet: %s\n" "${'$'}LOG_FILE"
-              fi
             }
             file_size_bytes() {
               wc -c < "${'$'}1" 2>/dev/null | tr -d '[:space:]'
@@ -1493,275 +1477,13 @@ class TermuxCommandRunner(private val context: Context) {
                   process_matches_tavern "${'$'}pid" && printf "%s\n" "${'$'}pid"
                 done || true
             }
-            kill_candidate_pids() {
-              pids="${'$'}(candidate_pids | tr '\n' ' ')"
-              if [ -z "${'$'}pids" ]; then
-                return 1
-              fi
-              kill ${'$'}pids 2>/dev/null || true
-              sleep 1
-              for pid in ${'$'}pids; do
-                if kill -0 "${'$'}pid" 2>/dev/null; then
-                  kill -9 "${'$'}pid" 2>/dev/null || true
-                fi
-              done
-              return 0
-            }
-            open_tavern_browser() {
-              command -v am >/dev/null 2>&1 && am start -a android.intent.action.VIEW -d "http://127.0.0.1:${'$'}TAVERN_PORT" --es com.android.browser.application_id moe.lukoa.launcher >/dev/null 2>&1 || true
-            }
-            tavern_running_value() {
-              if http_ok || is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
-                printf "true"
-              else
-                printf "false"
-              fi
-            }
-            start_script_runner() {
-              if command -v bash >/dev/null 2>&1; then
-                printf "bash"
-              else
-                printf "sh"
-              fi
-            }
-            tracked_changes() {
-              git status --porcelain --untracked-files=no 2>/dev/null || true
-            }
-            only_package_lock_tracked_changes() {
-              changes="${'$'}(tracked_changes)"
-              [ -n "${'$'}changes" ] || return 1
-              printf "%s\n" "${'$'}changes" | grep -Ev '^[ MADRCU?!]{2} package-lock\.json${'$'}' >/dev/null 2>&1 && return 1
-              return 0
-            }
-            cleanup_install_generated_changes() {
-              if [ ! -d .git ]; then
-                return 0
-              fi
-              if only_package_lock_tracked_changes; then
-                printf "[%s] cleanup generated package-lock.json change\n" "${'$'}(timestamp)" >> "${'$'}LOG_FILE"
-                git checkout -- package-lock.json >> "${'$'}LOG_FILE" 2>&1 || true
-              fi
-              return 0
-            }
-            has_tracked_changes() {
-              [ -n "${'$'}(tracked_changes)" ]
-            }
-            remote_default_branch() {
-              branch="${'$'}(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
-              if [ -z "${'$'}branch" ]; then
-                branch="${'$'}(git remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p' | head -n 1)"
-              fi
-              if [ -z "${'$'}branch" ]; then
-                for candidate in release main master staging; do
-                  if git show-ref --verify --quiet "refs/remotes/origin/${'$'}candidate"; then
-                    branch="${'$'}candidate"
-                    break
-                  fi
-                done
-              fi
-              printf "%s" "${'$'}branch"
-            }
-            valid_version_target() {
-              target="${'$'}1"
-              case "${'$'}target" in
-                ''|-*|*::*|*..*|*//*|*/|*[!A-Za-z0-9._/@+-]*)
-                  return 1
-                  ;;
-              esac
-              return 0
-            }
-            checkout_requested_target() {
-              target="${'$'}1"
-              if [ -z "${'$'}target" ]; then
-                return 64
-              fi
-              if ! valid_version_target "${'$'}target"; then
-                return 64
-              fi
-              if git show-ref --verify --quiet "refs/remotes/origin/${'$'}target"; then
-                if git show-ref --verify --quiet "refs/heads/${'$'}target"; then
-                  git checkout "${'$'}target" >> "${'$'}LOG_FILE" 2>&1 &&
-                    git merge --ff-only "origin/${'$'}target" >> "${'$'}LOG_FILE" 2>&1
-                else
-                  git checkout -B "${'$'}target" "origin/${'$'}target" >> "${'$'}LOG_FILE" 2>&1
-                fi
-                return "${'$'}?"
-              fi
-              if git show-ref --verify --quiet "refs/tags/${'$'}target"; then
-                git checkout "tags/${'$'}target" >> "${'$'}LOG_FILE" 2>&1
-                return "${'$'}?"
-              fi
-              git checkout "${'$'}target" >> "${'$'}LOG_FILE" 2>&1
-            }
-            checkout_update_target() {
-              requested="${'$'}{1:-}"
-              if [ -n "${'$'}requested" ]; then
-                checkout_requested_target "${'$'}requested"
-                return "${'$'}?"
-              fi
-              current_branch="${'$'}(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf HEAD)"
-              upstream="${'$'}(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-              if [ "${'$'}current_branch" != "HEAD" ] && [ -n "${'$'}upstream" ]; then
-                git pull --ff-only >> "${'$'}LOG_FILE" 2>&1
-                return "${'$'}?"
-              fi
-
-              target_branch="${'$'}current_branch"
-              if [ "${'$'}target_branch" = "HEAD" ] || ! git show-ref --verify --quiet "refs/remotes/origin/${'$'}target_branch"; then
-                target_branch="${'$'}(remote_default_branch)"
-              fi
-              if [ -z "${'$'}target_branch" ]; then
-                return 80
-              fi
-
-              if git show-ref --verify --quiet "refs/heads/${'$'}target_branch"; then
-                git checkout "${'$'}target_branch" >> "${'$'}LOG_FILE" 2>&1 &&
-                  git merge --ff-only "origin/${'$'}target_branch" >> "${'$'}LOG_FILE" 2>&1
-              else
-                git checkout -B "${'$'}target_branch" "origin/${'$'}target_branch" >> "${'$'}LOG_FILE" 2>&1
-              fi
-            }
-            emit_official_versions() {
-              if ! command -v git >/dev/null 2>&1; then
-                return 69
-              fi
-              stable_file="${'$'}STATE_DIR/official-stable-tags.txt"
-              heads_file="${'$'}STATE_DIR/official-heads.txt"
-              git ls-remote --tags --refs "${'$'}OFFICIAL_REPO" 2>"${'$'}STATE_DIR/official-version-error.log" |
-                awk '{ name=${'$'}2; sub(/^refs\/tags\//, "", name); if (name ~ /^v?[0-9]+(\.[0-9]+){1,3}${'$'}/) print name " " substr(${'$'}1, 1, 12) }' |
-                sort -Vr |
-                head -n 5 > "${'$'}stable_file"
-              stable_code="${'$'}?"
-              git ls-remote --heads "${'$'}OFFICIAL_REPO" 2>>"${'$'}STATE_DIR/official-version-error.log" > "${'$'}heads_file"
-              heads_code="${'$'}?"
-              if [ "${'$'}stable_code" -ne 0 ] || [ "${'$'}heads_code" -ne 0 ]; then
-                return 70
-              fi
-
-              printf "official.repo=%s\n" "${'$'}OFFICIAL_REPO"
-              i=1
-              while IFS=' ' read -r tag commit; do
-                [ -n "${'$'}tag" ] || continue
-                printf "stable.%s.name=%s\n" "${'$'}i" "${'$'}tag"
-                printf "stable.%s.target=%s\n" "${'$'}i" "${'$'}tag"
-                printf "stable.%s.commit=%s\n" "${'$'}i" "${'$'}commit"
-                i=${'$'}((i + 1))
-              done < "${'$'}stable_file"
-
-              i=1
-              for branch in staging stats-2.0 release main dev develop testing test preview next canary beta alpha; do
-                [ "${'$'}i" -le 3 ] || break
-                line="${'$'}(awk -v ref="refs/heads/${'$'}branch" '${'$'}2 == ref { print ${'$'}1 " " ${'$'}2; exit }' "${'$'}heads_file")"
-                [ -n "${'$'}line" ] || continue
-                commit="${'$'}(printf "%s" "${'$'}line" | awk '{print substr(${'$'}1, 1, 12)}')"
-                printf "test.%s.name=%s\n" "${'$'}i" "${'$'}branch"
-                printf "test.%s.target=%s\n" "${'$'}i" "${'$'}branch"
-                printf "test.%s.commit=%s\n" "${'$'}i" "${'$'}commit"
-                i=${'$'}((i + 1))
-              done
-              return 0
-            }
-            install_node_dependencies() {
-              if [ ! -f package.json ]; then
-                return 0
-              fi
-              if ! command -v npm >/dev/null 2>&1; then
-                return 69
-              fi
-              if [ -n "${'$'}{NPM_REGISTRY:-}" ]; then
-                printf "[%s] npm registry=%s\n" "${'$'}(timestamp)" "${'$'}NPM_REGISTRY" >> "${'$'}LOG_FILE"
-              fi
-              npm install --no-audit --no-fund >> "${'$'}LOG_FILE" 2>&1
-              npm_code="${'$'}?"
-              cleanup_install_generated_changes
-              return "${'$'}npm_code"
-            }
-            sync_origin_repo() {
-              if [ -n "${'$'}{OFFICIAL_REPO:-}" ] && git remote get-url origin >/dev/null 2>&1; then
-                git remote set-url origin "${'$'}OFFICIAL_REPO" >> "${'$'}LOG_FILE" 2>&1 || true
-              fi
-            }
-            ensure_tavern_mutation_ready() {
-              action="${'$'}1"
-              if http_ok || is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
-                write_status "error" "Please stop SillyTavern before ${'$'}action" true 77
-                cat "${'$'}STATUS_FILE"
-                return 77
-              fi
-              adopt_detected_tavern_dir >/dev/null 2>&1 || true
-              if [ ! -d "${'$'}TAVERN_DIR" ]; then
-                collect_tavern_dir_candidates
-                write_tavern_dir_error
-                cat "${'$'}STATUS_FILE"
-                emit_tavern_dir_candidates
-                return "${'$'}(missing_tavern_dir_exit_code)"
-              fi
-              if ! command -v git >/dev/null 2>&1; then
-                write_status "error" "git command not found in Termux" false 69
-                cat "${'$'}STATUS_FILE"
-                return 69
-              fi
-              cd "${'$'}TAVERN_DIR" || {
-                write_status "error" "failed to enter SillyTavern directory" false 74
-                cat "${'$'}STATUS_FILE"
-                return 74
-              }
-              if [ ! -d .git ]; then
-                write_status "error" "SillyTavern directory is not a git repository" false 65
-                cat "${'$'}STATUS_FILE"
-                return 65
-              fi
-              cleanup_install_generated_changes
-              if has_tracked_changes; then
-                write_status "error" "SillyTavern has local tracked changes; update or rollback is blocked" false 78
-                cat "${'$'}STATUS_FILE"
-                printf "\n==== Git local changes ====\n"
-                tracked_changes
-                printf "==== end Git local changes ====\n"
-                return 78
-              fi
-              sync_origin_repo
-              return 0
-            }
-            emit_git_version_info() {
-              printf "directory=%s\n" "${'$'}TAVERN_DIR"
-              if [ -f package.json ]; then
-                package_version="${'$'}(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n 1)"
-                [ -n "${'$'}package_version" ] && printf "package.version=%s\n" "${'$'}package_version"
-              fi
-              if command -v git >/dev/null 2>&1 && [ -d .git ]; then
-                cleanup_install_generated_changes
-                printf "git.branch=%s\n" "${'$'}(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)"
-                printf "git.commit=%s\n" "${'$'}(git rev-parse --short HEAD 2>/dev/null || printf unknown)"
-                printf "git.describe=%s\n" "${'$'}(git describe --tags --always --dirty 2>/dev/null || printf unknown)"
-                printf "git.remote=%s\n" "${'$'}(git remote get-url origin 2>/dev/null || printf unknown)"
-                upstream="${'$'}(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-                [ -n "${'$'}upstream" ] && printf "git.upstream=%s\n" "${'$'}upstream"
-                changes="${'$'}(tracked_changes)"
-                if [ -n "${'$'}changes" ]; then
-                  printf "git.localChanges=1\n"
-                else
-                  printf "git.localChanges=0\n"
-                fi
-                if [ -s "${'$'}ROLLBACK_FILE" ]; then
-                  printf "rollback.target=%s\n" "${'$'}(cat "${'$'}ROLLBACK_FILE" 2>/dev/null || true)"
-                fi
-                printf "\n==== Git local changes ====\n"
-                if [ -n "${'$'}changes" ]; then
-                  printf "%s\n" "${'$'}changes"
-                else
-                  printf "clean\n"
-                fi
-              else
-                printf "git=unavailable or not a git repository\n"
-              fi
-            }
         """.trimIndent()
     }
 
     private fun buildLogSnapshotCommand(): String {
         return """
             set -u
+            ${installedScriptDelegation("log", "cmd_log", "LUKOA_LOG_LINES=240")}
             ${buildSharedShellPrelude()}
             adopt_detected_tavern_dir >/dev/null 2>&1 || true
             if http_ok; then
@@ -1792,20 +1514,38 @@ class TermuxCommandRunner(private val context: Context) {
         """.trimIndent()
     }
 
-    private fun buildLiveLogDeltaCommand(maxBytes: Int, catchupBytes: Int): String {
+    // Frequent read-only commands run the installed copy of the bundled script when it is there.
+    // Every bundled command refreshes that copy, so it matches this app version; using it spares
+    // Termux from parsing the ~700-line inline prelude each time and keeps one implementation of
+    // these commands. The inline prelude that follows is only the fallback for a fresh install.
+    private fun installedScriptDelegation(
+        scriptCommand: String,
+        requiredFunction: String,
+        extraEnv: String = "",
+    ): String {
         val pathConfig = tavernPathConfig()
-        // The installed script is refreshed by every bundled command, so once it has the poll
-        // command it is used directly. That spares Termux parsing the ~700-line inline prelude every
-        // second, and keeps one implementation of the poll. The inline copy below is only the
-        // fallback for a phone that has not run a bundled command since updating the app.
+        val env = listOf(
+            extraEnv,
+            "LUKOA_TAVERN_DIR=${shellSingleQuoted(pathConfig.normalizedTavernDir)}",
+            "LUKOA_TAVERN_PORT=${pathConfig.normalizedPort}",
+            "LUKOA_TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}",
+        ).filter { it.isNotBlank() }.joinToString(" ")
+        return "installed_script=\"${'$'}HOME/.local/bin/lukoa-tavern.sh\"; " +
+            "if [ -f \"${'$'}installed_script\" ] && grep -q '^$requiredFunction()' \"${'$'}installed_script\" 2>/dev/null && " +
+            "grep -q '^cmd_log_live_poll()' \"${'$'}installed_script\" 2>/dev/null; then " +
+            "$env exec sh \"${'$'}installed_script\" $scriptCommand; fi"
+    }
+
+    private fun buildLiveLogDeltaCommand(maxBytes: Int, catchupBytes: Int): String {
         return """
             set -u
             LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes
             LUKOA_LIVE_LOG_CATCHUP_BYTES=$catchupBytes
-            installed_script="${'$'}HOME/.local/bin/lukoa-tavern.sh"
-            if [ -f "${'$'}installed_script" ] && grep -q '^cmd_log_live_poll()' "${'$'}installed_script" 2>/dev/null; then
-              LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes LUKOA_LIVE_LOG_CATCHUP_BYTES=$catchupBytes                 LUKOA_TAVERN_DIR=${shellSingleQuoted(pathConfig.normalizedTavernDir)}                 LUKOA_TAVERN_PORT=${pathConfig.normalizedPort}                 LUKOA_TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}                 exec sh "${'$'}installed_script" log-live-poll
-            fi
+            ${installedScriptDelegation(
+                scriptCommand = "log-live-poll",
+                requiredFunction = "cmd_log_live_poll",
+                extraEnv = "LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes LUKOA_LIVE_LOG_CATCHUP_BYTES=$catchupBytes",
+            )}
             ${buildSharedShellPrelude()}
             # This poll runs every second or so. Write its status to a scratch file so it never
             # replaces the result of a start/stop/update that is still being reported.
@@ -1833,6 +1573,7 @@ class TermuxCommandRunner(private val context: Context) {
     private fun buildStatusSnapshotCommand(): String {
         return """
             set -u
+            ${installedScriptDelegation("status", "cmd_status", "LUKOA_LOG_LINES=240")}
             ${buildSharedShellPrelude()}
             adopt_detected_tavern_dir >/dev/null 2>&1 || true
             if http_ok; then
@@ -2280,6 +2021,9 @@ class TermuxCommandRunner(private val context: Context) {
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
         const val TERMUX_TRANSCRIPT_ROWS = 20_000
+
+        @Volatile
+        private var cachedBundledScript: String? = null
         @SuppressLint("SdCardPath")
         const val TERMUX_SH_PATH = "/data/data/com.termux/files/usr/bin/sh"
         const val TERMUX_SCRIPT_PATH = "$TERMUX_HOME/.local/bin/lukoa-tavern.sh"

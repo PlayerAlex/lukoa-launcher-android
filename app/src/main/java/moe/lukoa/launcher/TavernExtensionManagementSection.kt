@@ -157,8 +157,11 @@ fun TavernExtensionManagementSection(
                     Text("扩展：${extension.displayName}")
                     Text("当前实例：$instanceLabel")
                     Text("版本：${extension.currentRevision.take(7)} → ${extension.latestRevision.take(7)}")
-                    Text("启动器会重新下载已检查的公开 GitHub 版本，校验清单后再替换原目录。")
-                    Text("当前扩展会保留为最近一次快照；替换失败时会自动恢复，不会直接在原目录执行 git pull。")
+                    if (extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges) {
+                        Text("这个扩展里有你改过的文件。更新会用远端版本替换整个目录，你的改动连同旧版本一起保存为回退快照，需要时点「回退」就能找回。")
+                    }
+                    Text("启动器会重新下载已检查的版本，校验清单后再替换原目录。")
+                    Text("当前扩展会保留为最近一次快照；替换失败时会自动恢复，不会直接在原目录执行 git pull。刷新酒馆网页后生效。")
                 }
             },
             confirmButton = {
@@ -167,7 +170,9 @@ fun TavernExtensionManagementSection(
                         pendingUpdate = null
                         onUpdate(extension.directoryName)
                     },
-                ) { Text("确认更新") }
+                ) {
+                    Text(if (extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges) "保存改动并更新" else "确认更新")
+                }
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingUpdate = null }) { Text("取消") }

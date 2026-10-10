@@ -59,7 +59,7 @@ class TavernProfileMigrationGuardTest {
     }
 
     @Test
-    fun `clone cannot migrate to traditional default directory`() {
+    fun `clone can only take the traditional default directory when no other profile uses it`() {
         val config = TavernPathConfig().addSuggestedProfile()
 
         val decision = TavernProfileMigrationGuard.evaluate(
@@ -72,7 +72,8 @@ class TavernProfileMigrationGuardTest {
         )
 
         assertTrue(decision is TavernProfileMigrationDecision.Blocked)
-        assertTrue((decision as TavernProfileMigrationDecision.Blocked).message.contains("传统默认目录 ~/SillyTavern 只建议留给主实例"))
+        // The main profile still lives in ~/SillyTavern here, so the shared-directory check stops it.
+        assertTrue((decision as TavernProfileMigrationDecision.Blocked).message.contains("已经被"))
     }
 
     @Test

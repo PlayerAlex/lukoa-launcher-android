@@ -130,15 +130,17 @@ object TavernExtensionActionPolicy {
         tavernRunning: Boolean,
     ): String? = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再更新扩展。"
-        extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges ->
-            "扩展包含本地改动，为避免覆盖你的修改，启动器不会自动更新。"
-        extension.updateStatus != TavernExtensionUpdateStatus.UpdateAvailable ->
+        extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges && !isRevision(extension.latestRevision) ->
+            "扩展包含本地改动，请先检查更新；确认远端版本后，可以把改动保存为回退快照再更新。"
+        extension.updateStatus != TavernExtensionUpdateStatus.UpdateAvailable &&
+            extension.updateStatus != TavernExtensionUpdateStatus.LocalChanges ->
             "请先检查更新；只有确认发现新版本且没有本地改动时才能更新。"
         TavernExtensionCommandCodec.normalizeRepositoryUrl(extension.repositoryUrl) == null ->
             "扩展来源不是 http(s) 形式的 Git 仓库地址，启动器无法自动更新。"
         !isRevision(extension.currentRevision) || !isRevision(extension.latestRevision) ->
             "扩展版本信息不完整，请重新检查更新。"
-        extension.currentRevision.equals(extension.latestRevision, ignoreCase = true) ->
+        extension.updateStatus != TavernExtensionUpdateStatus.LocalChanges &&
+            extension.currentRevision.equals(extension.latestRevision, ignoreCase = true) ->
             "当前扩展已经是检查到的最新版本。"
         else -> null
     }

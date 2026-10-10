@@ -138,7 +138,9 @@ object TermuxResultStore {
             buildList {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
-                    add(decodeResult(item))
+                    // Skip a damaged entry instead of losing the whole history: an exception here used
+                    // to empty the list, and the next save then wrote the empty list back.
+                    runCatching { decodeResult(item) }.getOrNull()?.let(::add)
                 }
             }
         }.getOrDefault(emptyList())

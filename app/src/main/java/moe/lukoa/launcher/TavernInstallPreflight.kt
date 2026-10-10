@@ -52,32 +52,21 @@ object TavernInstallPreflight {
             )
         }
 
+        // A stale or missing version list is only a warning: git clone of a missing target fails
+        // cleanly without touching anything, so refusing up front only adds a refresh step.
+        val warnings = mutableListOf<String>()
         if (request.choice.kind != TavernVersionKind.Custom) {
-            if (!officialVersions.hasData) {
-                return TavernInstallPreflightResult(
-                    ok = false,
-                    blockingMessage = "还没从当前源读到官方版本列表，请先检测镜像源或刷新版本列表。",
-                )
-            }
-            if (!sameRepoUrl(officialVersions.repoUrl, request.repoUrl)) {
-                return TavernInstallPreflightResult(
-                    ok = false,
-                    blockingMessage = "当前缓存的版本列表不是这个源的，请先刷新官方版本列表。",
-                )
-            }
-            val targetExists = officialVersions.all.any { candidate ->
-                candidate.kind == request.choice.kind &&
-                    candidate.target.equals(request.target, ignoreCase = true)
-            }
-            if (!targetExists) {
-                return TavernInstallPreflightResult(
-                    ok = false,
-                    blockingMessage = "当前源里没有找到 ${request.choice.label}，请先刷新官方版本列表。",
-                )
+            when {
+                !officialVersions.hasData ->
+                    warnings += "还没从当前源读到官方版本列表，没法提前确认这个版本存在；不存在时安装会直接失败，不会改动任何文件。"
+                !sameRepoUrl(officialVersions.repoUrl, request.repoUrl) ->
+                    warnings += "当前缓存的版本列表不是这个源的，没法提前确认这个版本存在。"
+                officialVersions.all.none { candidate ->
+                    candidate.kind == request.choice.kind &&
+                        candidate.target.equals(request.target, ignoreCase = true)
+                } -> warnings += "当前源的版本列表里没有找到 ${request.choice.label}，可能需要刷新列表；不存在时安装会直接失败。"
             }
         }
-
-        val warnings = mutableListOf<String>()
         if (isRiskyTestChoice(request.choice)) {
             warnings += "你选的是测试版，可能会有 bug 或兼容问题。"
         }

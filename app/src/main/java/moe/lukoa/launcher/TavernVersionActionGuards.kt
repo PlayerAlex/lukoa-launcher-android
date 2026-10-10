@@ -51,8 +51,8 @@ object TavernVersionActionGuards {
     fun relationHint(state: TavernVersionActionState, target: TavernVersionChoice?): String? {
         if (target == null || state.updateDisabledReason != null && state.rollbackDisabledReason != null) return null
         return when (state.relation) {
-            TavernTargetRelation.Newer -> "目标比当前新，只能更新。"
-            TavernTargetRelation.Older -> "目标比当前旧，只能回退。"
+            TavernTargetRelation.Newer -> "目标比当前新。"
+            TavernTargetRelation.Older -> "目标比当前旧，切换前建议先备份。"
             TavernTargetRelation.Same -> "已经是这个版本。"
             TavernTargetRelation.Unknown -> "无法判断新旧，执行前先备份。"
         }
@@ -103,24 +103,12 @@ object TavernVersionActionGuards {
         }
     }
 
+    // The version list used to gate both buttons. The script fetches before checking out, and a
+    // missing ref fails cleanly, so an old or unrefreshed list no longer blocks anything.
+    @Suppress("UNUSED_PARAMETER")
     private fun officialSelectionReason(
         target: TavernVersionChoice?,
         officialVersions: TavernOfficialVersions,
         currentRepoUrl: String,
-    ): String? {
-        if (!TavernVersionCatalog.requiresOfficialCatalog(target)) return null
-        if (!TavernVersionCatalog.matchesCurrentMirror(target, currentRepoUrl)) {
-            return "已选版本来自旧 Git 源，请重新选择。"
-        }
-        if (!officialVersions.hasData) {
-            return "先读取当前源的官方版本列表。"
-        }
-        if (!TavernVersionCatalog.listMatchesCurrentMirror(officialVersions, currentRepoUrl)) {
-            return "当前版本列表不是这个 Git 源的，请先刷新。"
-        }
-        if (!TavernVersionCatalog.containsChoice(officialVersions, target)) {
-            return "当前版本列表里没有这个目标，请先刷新。"
-        }
-        return null
-    }
+    ): String? = null
 }

@@ -45,6 +45,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-extensions-install" to 10 * 60_000L,
         "tavern-extensions-check-updates" to 3 * 60_000L,
         "tavern-extensions-update" to 10 * 60_000L,
+        "tavern-extensions-update-force" to 10 * 60_000L,
         "tavern-extensions-rollback" to 3 * 60_000L,
         "tavern-backup-list" to 24_000L,
         "tavern-version-startup" to 4_000L,

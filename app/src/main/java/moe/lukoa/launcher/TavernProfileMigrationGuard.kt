@@ -62,14 +62,8 @@ object TavernProfileMigrationGuard {
         )?.let { reason ->
             return TavernProfileMigrationDecision.Blocked(reason)
         }
-        if (targetKind == TavernProfileMigrationTargetKind.TraditionalDefault &&
-            profile.id != TavernProfileDefaults.MAIN_PROFILE_ID
-        ) {
-            return TavernProfileMigrationDecision.Blocked(
-                "传统默认目录 ~/SillyTavern 只建议留给主实例。分身实例请迁移到启动器托管目录，或自己填写一个自定义地址。",
-            )
-        }
-
+        // ~/SillyTavern used to be reserved for the main profile. The occupied-profile check below
+        // already stops two profiles sharing it, and anything else there is moved aside first.
         val occupiedProfile = config.availableProfiles
             .firstOrNull {
                 it.id != profile.id &&

@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import android.content.Context
 import java.io.File
+import java.util.concurrent.Executors
 
 object RuntimeLogArchive {
     private const val MAX_EXPORT_LOG_CHARS = 120_000
@@ -13,14 +14,28 @@ object RuntimeLogArchive {
     private const val MAX_ARCHIVE_BYTES = 4L * 1024 * 1024
     private const val KEEP_AFTER_TRIM_BYTES = 1024 * 1024
 
+    // Appends arrive from the UI thread on every log poll. One background thread keeps them off the
+    // main thread and in order; reads go through the same thread so an export sees every append.
+    private val io = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "lukoa-log-archive").apply { isDaemon = true }
+    }
+
     fun ensureSeeded(context: Context, state: LauncherUiState) {
-        seedIfEmpty(termuxCommandFile(context), state.termuxLog)
-        seedIfEmpty(tavernRuntimeFile(context), state.tavernRuntimeLog)
-        seedIfEmpty(appFile(context), state.appLog)
+        val appContext = context.applicationContext
+        io.execute {
+            runCatching {
+                seedIfEmpty(termuxCommandFile(appContext), state.termuxLog)
+                seedIfEmpty(tavernRuntimeFile(appContext), state.tavernRuntimeLog)
+                seedIfEmpty(appFile(appContext), state.appLog)
+            }
+        }
     }
 
     fun appendApp(context: Context, text: String) {
-        appendStructured(context, APP_FILE, "App", text)
+        if (text.isBlank()) return
+        val appContext = context.applicationContext
+        val entry = logEntry("App", text)
+        io.execute { appendEntry(appContext, APP_FILE, entry) }
     }
 
     fun appendTermuxCommand(context: Context, text: String) {
@@ -32,28 +47,28 @@ object RuntimeLogArchive {
     }
 
     fun readTermuxCommand(context: Context, fallback: String = ""): String {
-        return read(termuxCommandFile(context), fallback, legacyFallbackFile = legacyTermuxFile(context))
+        val appContext = context.applicationContext
+        return onIo(fallback) { read(termuxCommandFile(appContext), fallback, legacyFallbackFile = legacyTermuxFile(appContext)) }
     }
 
     fun readTavernRuntime(context: Context, fallback: String = ""): String {
-        return read(tavernRuntimeFile(context), fallback)
+        val appContext = context.applicationContext
+        return onIo(fallback) { read(tavernRuntimeFile(appContext), fallback) }
     }
 
     fun readApp(context: Context, fallback: String = ""): String {
-        return read(appFile(context), fallback)
-    }
-
-    private fun appendStructured(context: Context, fileName: String, source: String, text: String) {
-        if (text.isBlank()) return
-        val file = logDir(context).resolve(fileName)
-        val entry = logEntry(source, text)
-        val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
-        file.appendText(prefix + entry, Charsets.UTF_8)
+        val appContext = context.applicationContext
+        return onIo(fallback) { read(appFile(appContext), fallback) }
     }
 
     private fun appendRaw(context: Context, fileName: String, text: String) {
         val entry = text.trim()
         if (entry.isBlank()) return
+        val appContext = context.applicationContext
+        io.execute { appendEntry(appContext, fileName, entry) }
+    }
+
+    private fun appendEntry(context: Context, fileName: String, entry: String) {
         // The archive used to grow without bound while the tavern streamed full prompts, and a
         // full disk turned every poll into a crash.
         runCatching {
@@ -62,6 +77,10 @@ object RuntimeLogArchive {
             val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
             file.appendText(prefix + entry, Charsets.UTF_8)
         }
+    }
+
+    private fun <T> onIo(fallback: T, block: () -> T): T {
+        return runCatching { io.submit(block).get() }.getOrDefault(fallback)
     }
 
     private fun trimIfLarge(file: File) {

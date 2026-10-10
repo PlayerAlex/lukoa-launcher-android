@@ -79,7 +79,7 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `update is allowed only for a checked clean newer revision, running or not`() {
+    fun `update needs a checked newer revision and keeps local edits in the snapshot`() {
         val ready = TavernExtensionRecord(
             directoryName = "Mint",
             displayName = "Mint",
@@ -94,9 +94,18 @@ class TavernExtensionManagementTest {
         assertNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, false))
         assertNotNull(TavernExtensionActionPolicy.updateDisabledReason(ready, true, false))
         assertNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, true))
-        assertNotNull(
+        // Local edits no longer block once the remote revision is known: they go into the rollback
+        // snapshot and the update runs with force.
+        assertNull(
             TavernExtensionActionPolicy.updateDisabledReason(
                 ready.copy(updateStatus = TavernExtensionUpdateStatus.LocalChanges),
+                false,
+                false,
+            ),
+        )
+        assertNotNull(
+            TavernExtensionActionPolicy.updateDisabledReason(
+                ready.copy(updateStatus = TavernExtensionUpdateStatus.LocalChanges, latestRevision = ""),
                 false,
                 false,
             ),

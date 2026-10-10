@@ -30,6 +30,17 @@ class BundledShellScriptRegressionTest {
     }
 
     @Test
+    fun `extension update check and forced update stay reachable`() {
+        // check-updates has no directory payload; decoding it failed every check before 1.0.2-beta3.
+        assertTrue(script.contains("action === 'list' || action === 'install' || action === 'check-updates'"))
+        assertTrue(script.contains("extensions-update-force|tavern-extensions-update-force"))
+        assertTrue(script.contains("LUKOA_EXTENSION_FORCE=1 run_tavern_extension_action update"))
+        assertTrue(script.contains("metadata.updateStatus === 'local_changes'"))
+        // Detached checkouts compare against the remote default branch instead of failing.
+        assertTrue(script.contains("['ls-remote', repositoryUrl, 'HEAD']"))
+    }
+
+    @Test
     fun `chat guard links every existing chat on its first pass`() {
         val guardBlock = script.substringAfter("chat_guard_scan() {").substringBefore("chat_guard_rescue() {")
         // NR == FNR misreads the second file when scan.prev is empty, so the first pass linked nothing

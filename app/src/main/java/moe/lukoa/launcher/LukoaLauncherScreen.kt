@@ -3147,17 +3147,9 @@ fun LukoaLauncherScreen(
         directoryName: String,
         commandName: String,
         busyText: String,
-        stoppedRequirementText: String,
     ) {
         val validationError = TavernExtensionCommandCodec.validateDirectoryName(directoryName)
         when {
-            tavernRunning -> update(
-                stoppedRequirementText,
-                "",
-                false,
-                allowRunningInference = false,
-            )
-
             validationError != null -> update(
                 "扩展目录无效：$validationError",
                 "",
@@ -3185,13 +3177,6 @@ fun LukoaLauncherScreen(
         val normalizedRepository = TavernExtensionCommandCodec.normalizeRepositoryUrl(repositoryUrl)
         val validationError = TavernExtensionCommandCodec.validateRepositoryUrl(repositoryUrl)
         when {
-            tavernRunning -> update(
-                "安装扩展前必须先停止酒馆。",
-                "",
-                false,
-                allowRunningInference = false,
-            )
-
             validationError != null || normalizedRepository == null -> update(
                 validationError ?: "GitHub 扩展地址无效。",
                 "",
@@ -3246,7 +3231,6 @@ fun LukoaLauncherScreen(
             directoryName = directoryName,
             commandName = "tavern-extensions-delete",
             busyText = "删除酒馆扩展",
-            stoppedRequirementText = "删除扩展前必须先停止酒馆。",
         )
     }
 
@@ -3256,7 +3240,6 @@ fun LukoaLauncherScreen(
             directoryName = directoryName,
             commandName = if (enabled) "tavern-extensions-enable" else "tavern-extensions-disable",
             busyText = "${actionText}酒馆扩展",
-            stoppedRequirementText = "${actionText}扩展前必须先停止酒馆。",
         )
     }
 
@@ -3283,11 +3266,13 @@ fun LukoaLauncherScreen(
     }
 
     fun updateTavernExtension(directoryName: String) {
+        val hasLocalChanges = tavernExtensionState.extensions
+            .firstOrNull { it.directoryName == directoryName }
+            ?.updateStatus == TavernExtensionUpdateStatus.LocalChanges
         runTavernExtensionMutation(
             directoryName = directoryName,
-            commandName = "tavern-extensions-update",
+            commandName = if (hasLocalChanges) "tavern-extensions-update-force" else "tavern-extensions-update",
             busyText = "更新酒馆扩展",
-            stoppedRequirementText = "更新扩展前必须先停止酒馆。",
         )
     }
 
@@ -3296,7 +3281,6 @@ fun LukoaLauncherScreen(
             directoryName = directoryName,
             commandName = "tavern-extensions-rollback",
             busyText = "回退酒馆扩展",
-            stoppedRequirementText = "回退扩展前必须先停止酒馆。",
         )
     }
 
