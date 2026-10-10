@@ -76,7 +76,6 @@ object TavernVersionActionGuards {
             target == null -> "先选目标版本。"
             else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
         } ?: when {
-            relation == TavernTargetRelation.Older -> "目标更旧，不能更新。"
             relation == TavernTargetRelation.Same -> "当前已经是这个版本。"
             else -> null
         }
@@ -97,7 +96,6 @@ object TavernVersionActionGuards {
             target == null -> "先选目标版本。"
             else -> officialSelectionReason(target, officialVersions, currentRepoUrl)
         } ?: when {
-            relation == TavernTargetRelation.Newer -> "目标更新，不能回退。"
             relation == TavernTargetRelation.Same -> "当前已经是这个版本。"
             // Unknown relation (commit hash / non-semver branch) is allowed on both sides; the
             // confirmation dialog already tells the user to back up when the direction is unclear.

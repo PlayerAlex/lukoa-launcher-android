@@ -99,10 +99,14 @@ object TavernLogSignals {
             .trimEnd()
     }
 
+    // Compiled once: stripAnsi runs on every log poll.
+    private val ansiOsc = Regex("\u001B\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)")
+    private val ansiCsi = Regex("\u001B\\[[0-?]*[ -/]*[@-~]")
+
     fun stripAnsi(value: String): String {
         return value
-            .replace(Regex("\u001B\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)"), "")
-            .replace(Regex("\u001B\\[[0-?]*[ -/]*[@-~]"), "")
+            .replace(ansiOsc, "")
+            .replace(ansiCsi, "")
     }
 
     private fun prepareForAnalysis(value: String): String {

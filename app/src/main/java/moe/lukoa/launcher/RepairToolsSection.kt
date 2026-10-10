@@ -306,7 +306,7 @@ fun RepairToolsSection(
                 val confirmUploadLimit: (Int) -> Unit = { limit ->
                     confirmation = RepairConfirmation(
                         "设置上传限制为 ${TavernUploadLimitPolicy.label(limit)}",
-                        "只会修改当前实例中负责接收上传文件的程序部分。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
+                        "只会修改当前实例中负责接收上传文件的程序部分，下次启动酒馆时生效。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
                     ) { onSetUploadLimit(limit) }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -316,9 +316,9 @@ fun RepairToolsSection(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("repair-upload-choice-$limit"),
-                            enabled = !actionsLocked && !tavernRunning,
+                            enabled = !actionsLocked,
                             accentColor = LukoaColors.Primary,
-                            unavailableHint = mutationUnavailableHint,
+                            unavailableHint = lockedOnlyHint,
                             onShowHint = onShowHint,
                             onClick = { confirmUploadLimit(limit) },
                         )
@@ -328,9 +328,9 @@ fun RepairToolsSection(
                         modifier = Modifier
                             .weight(1f)
                             .testTag("repair-upload-choice-custom"),
-                        enabled = !actionsLocked && !tavernRunning,
+                        enabled = !actionsLocked,
                         accentColor = LukoaColors.Primary,
-                        unavailableHint = mutationUnavailableHint,
+                        unavailableHint = lockedOnlyHint,
                         onShowHint = onShowHint,
                         onClick = {
                             customValueRequest = RepairCustomValueRequest(
@@ -345,10 +345,10 @@ fun RepairToolsSection(
                 SettingsFeedbackActionButton(
                     text = "恢复酒馆默认值",
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !actionsLocked && !tavernRunning && uploadLimitStatus.currentMegabytes != null,
+                    enabled = !actionsLocked && uploadLimitStatus.currentMegabytes != null,
                     accentColor = LukoaColors.Primary,
                     unavailableHint = when {
-                        mutationUnavailableHint != null -> mutationUnavailableHint
+                        lockedOnlyHint != null -> lockedOnlyHint
                         uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"
                         else -> null
                     },

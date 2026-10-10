@@ -130,7 +130,6 @@ object TavernExtensionActionPolicy {
         tavernRunning: Boolean,
     ): String? = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再更新扩展。"
-        tavernRunning -> "更新扩展前必须先停止酒馆，避免运行中的文件被替换。"
         extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges ->
             "扩展包含本地改动，为避免覆盖你的修改，启动器不会自动更新。"
         extension.updateStatus != TavernExtensionUpdateStatus.UpdateAvailable ->
@@ -150,7 +149,6 @@ object TavernExtensionActionPolicy {
         tavernRunning: Boolean,
     ): String? = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再回退扩展。"
-        tavernRunning -> "回退扩展前必须先停止酒馆，避免运行中的文件被替换。"
         !isRevision(extension.rollbackRevision) -> "这个扩展还没有可用的更新前快照。"
         else -> null
     }

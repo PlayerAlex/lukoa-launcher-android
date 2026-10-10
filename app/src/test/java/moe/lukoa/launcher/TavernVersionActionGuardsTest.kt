@@ -41,14 +41,14 @@ class TavernVersionActionGuardsTest {
     }
 
     @Test
-    fun `stopped instance keeps existing version relation rules`() {
+    fun `stopped instance can switch to any target in either direction`() {
         val updateState = evaluate(newerTarget)
         val rollbackState = evaluate(olderTarget)
 
         assertNull(updateState.updateDisabledReason)
+        assertNull(updateState.rollbackDisabledReason)
+        assertNull(rollbackState.updateDisabledReason)
         assertNull(rollbackState.rollbackDisabledReason)
-        assertEquals("目标更旧，不能更新。", rollbackState.updateDisabledReason)
-        assertEquals("目标更新，不能回退。", updateState.rollbackDisabledReason)
     }
 
     @Test

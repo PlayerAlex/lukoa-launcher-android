@@ -31,7 +31,7 @@ class LauncherVersionManagementUiTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun versionPage_newerTargetEnablesUpdateAndDisablesRollback() {
+    fun versionPage_newerTargetEnablesBothDirections() {
         var updateCount = 0
         var rollbackCount = 0
         setVersionPageContent(
@@ -51,7 +51,7 @@ class LauncherVersionManagementUiTest {
         composeRule.onNodeWithText("回退版本")
             .performScrollTo()
             .assertIsDisplayed()
-            .assertIsNotEnabled()
+            .assertIsEnabled()
         composeRule.onNodeWithText("更新版本")
             .performScrollTo()
             .assertIsDisplayed()
@@ -65,7 +65,7 @@ class LauncherVersionManagementUiTest {
     }
 
     @Test
-    fun versionPage_olderTargetDisablesUpdateAndEnablesRollback() {
+    fun versionPage_olderTargetEnablesBothDirections() {
         var rollbackCount = 0
         setVersionPageContent(
             target = versionChoice("1.12.0"),
@@ -74,7 +74,7 @@ class LauncherVersionManagementUiTest {
 
         composeRule.onNodeWithText("更新版本")
             .performScrollTo()
-            .assertIsNotEnabled()
+            .assertIsEnabled()
         advancePastClickDebounce()
         composeRule.onNodeWithText("回退版本")
             .performScrollTo()

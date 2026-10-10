@@ -557,16 +557,18 @@ class LauncherSettingsUiTest {
             }
         }
 
-        composeRule.onNodeWithText("读取用户").performScrollTo().assertIsNotEnabled()
+        // Listing users only reads, so it stays available; creating still needs a stopped tavern.
+        composeRule.onNodeWithText("读取用户").performScrollTo().assertIsEnabled()
         composeRule.onNodeWithText("新增用户").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("修复 npm 依赖").performScrollTo().assertIsNotEnabled()
-        composeRule.onNodeWithText("500MB").performScrollTo().assertIsNotEnabled()
+        // The upload limit patch is only read at startup, so it can be changed while running.
+        composeRule.onNodeWithText("500MB").performScrollTo().assertIsEnabled()
         composeRule.onNodeWithText("当前上传限制").performScrollTo().assertIsEnabled()
         // 运行内存只写启动器自己的配置文件，下次启动才生效，所以酒馆运行中也允许改。
         composeRule.onNodeWithTag("repair-memory-choice-4096").performScrollTo().assertIsEnabled()
         composeRule.onNodeWithTag("repair-memory-choice-custom").performScrollTo().assertIsEnabled()
-        composeRule.onNodeWithTag("repair-upload-choice-custom").performScrollTo().assertIsNotEnabled()
-        composeRule.onAllNodesWithText("需先停止酒馆").assertCountEquals(1)
+        composeRule.onNodeWithTag("repair-upload-choice-custom").performScrollTo().assertIsEnabled()
+        composeRule.onAllNodesWithText("可读取").assertCountEquals(1)
         composeRule.onAllNodesWithText("部分需先停止酒馆").assertCountEquals(1)
         composeRule.onNodeWithText("酒馆正在运行；修改类操作需要先停止酒馆。")
             .assertDoesNotExist()
@@ -576,7 +578,7 @@ class LauncherSettingsUiTest {
             .assertDoesNotExist()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("读取用户").performScrollTo().performClick()
+        composeRule.onNodeWithText("新增用户").performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals("酒馆正在运行，请先停止酒馆再管理用户。", hints.last())
         }
@@ -782,7 +784,7 @@ class LauncherSettingsUiTest {
     }
 
     @Test
-    fun extensionManagementSection_runningKeepsReadEnabledAndLocksDelete() {
+    fun extensionManagementSection_runningKeepsAllExtensionActionsEnabled() {
         composeRule.setContent {
             LukoaTheme {
                 Column(
@@ -807,10 +809,10 @@ class LauncherSettingsUiTest {
         }
 
         composeRule.onNode(hasText("读取扩展") and hasClickAction()).assertIsEnabled()
-        composeRule.onNode(hasText("安装扩展") and hasClickAction()).assertIsNotEnabled()
+        // Extensions are static files served from disk; a page reload picks up changes.
         composeRule.onNode(hasText("检查更新") and hasClickAction()).assertIsEnabled()
-        composeRule.onNode(hasText("删除") and hasClickAction()).assertIsNotEnabled()
-        composeRule.onNode(hasText("停用") and hasClickAction()).assertIsNotEnabled()
+        composeRule.onNode(hasText("删除") and hasClickAction()).assertIsEnabled()
+        composeRule.onNode(hasText("停用") and hasClickAction()).assertIsEnabled()
     }
 
     @Test

@@ -155,7 +155,7 @@ fun TavernUserManagementSection(
                 title = "当前实例",
                 detail = when {
                     actionsLocked -> "当前有其他任务正在处理，用户操作暂时不可用。"
-                    tavernRunning -> "酒馆正在运行，请先停止后再读取或修改用户。"
+                    tavernRunning -> "酒馆运行中可以读取用户；新增或删除用户需要先停止酒馆。"
                     state.message == "尚未读取当前酒馆的用户。" -> null
                     state.message.startsWith("已读取") -> null
                     else -> state.message
@@ -170,11 +170,12 @@ fun TavernUserManagementSection(
             SettingsFeedbackActionButton(
                 text = if (state.loading) "读取中..." else "读取用户",
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !actionsLocked && !state.loading && !tavernRunning,
+                enabled = !actionsLocked && !state.loading,
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
                     state.loading -> "正在读取用户，请稍等。"
-                    else -> userActionsUnavailableHint
+                    actionsLocked -> userActionsUnavailableHint
+                    else -> null
                 },
                 onShowHint = onShowHint,
                 onClick = onRefresh,
@@ -251,7 +252,7 @@ private fun TavernUserManagementHeader(
         StatusPill(
             text = when {
                 actionsLocked -> "当前忙碌"
-                tavernRunning -> "需先停止酒馆"
+                tavernRunning && state.users.isEmpty() -> "可读取"
                 state.loading -> "读取中"
                 state.users.isEmpty() -> "未读取"
                 else -> "${state.users.size} 位用户"

@@ -79,7 +79,7 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `update is allowed only for a checked clean newer github revision while tavern is stopped`() {
+    fun `update is allowed only for a checked clean newer revision, running or not`() {
         val ready = TavernExtensionRecord(
             directoryName = "Mint",
             displayName = "Mint",
@@ -93,7 +93,7 @@ class TavernExtensionManagementTest {
 
         assertNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, false))
         assertNotNull(TavernExtensionActionPolicy.updateDisabledReason(ready, true, false))
-        assertNotNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, true))
+        assertNull(TavernExtensionActionPolicy.updateDisabledReason(ready, false, true))
         assertNotNull(
             TavernExtensionActionPolicy.updateDisabledReason(
                 ready.copy(updateStatus = TavernExtensionUpdateStatus.LocalChanges),
@@ -125,7 +125,7 @@ class TavernExtensionManagementTest {
     }
 
     @Test
-    fun `rollback requires a validated snapshot revision and stopped tavern`() {
+    fun `rollback requires a validated snapshot revision`() {
         val ready = TavernExtensionRecord(
             directoryName = "Mint",
             displayName = "Mint",
@@ -136,7 +136,7 @@ class TavernExtensionManagementTest {
 
         assertNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, false, false))
         assertNotNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, true, false))
-        assertNotNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, false, true))
+        assertNull(TavernExtensionActionPolicy.rollbackDisabledReason(ready, false, true))
         assertNotNull(
             TavernExtensionActionPolicy.rollbackDisabledReason(
                 ready.copy(rollbackRevision = ""),

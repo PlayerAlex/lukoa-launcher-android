@@ -71,12 +71,10 @@ fun TavernExtensionManagementSection(
     }
     val deleteUnavailableHint = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再删除扩展。"
-        tavernRunning -> "删除扩展前必须先停止酒馆，避免扩展文件仍在使用。"
         else -> null
     }
     val toggleUnavailableHint = when {
         actionsLocked -> "当前有其他任务正在处理，请等任务完成后再启用或停用扩展。"
-        tavernRunning -> "启用或停用扩展前必须先停止酒馆，避免运行中的文件被移动。"
         else -> null
     }
     val repositoryError = repositoryInput.takeIf { it.isNotBlank() }
@@ -231,12 +229,12 @@ fun TavernExtensionManagementSection(
                     normalizedRepository?.let { Text("来源：$it") }
                     targetDirectory?.let { Text("目标目录：$it") }
                     Text("启动器会先下载到暂存区并检查扩展清单，不会覆盖同名的已启用或已停用扩展。")
-                    Text("安装完成后扩展默认启用，下次启动酒馆时生效。")
+                    Text("安装完成后扩展默认启用，刷新酒馆网页就会生效。")
                 }
             },
             confirmButton = {
                 Button(
-                    enabled = !actionsLocked && !tavernRunning && normalizedRepository != null,
+                    enabled = !actionsLocked && normalizedRepository != null,
                     onClick = {
                         val repositoryUrl = normalizedRepository ?: return@Button
                         showInstallDialog = false
@@ -277,11 +275,10 @@ fun TavernExtensionManagementSection(
             SettingsFeedbackActionButton(
                 text = "安装扩展",
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !actionsLocked && !tavernRunning && state.rootDirectory.isNotBlank(),
+                enabled = !actionsLocked && state.rootDirectory.isNotBlank(),
                 accentColor = LukoaColors.Primary,
                 unavailableHint = when {
                     actionsLocked -> "当前有其他任务正在处理，请等任务完成后再安装扩展。"
-                    tavernRunning -> "安装扩展前必须先停止酒馆。"
                     state.rootDirectory.isBlank() -> "请先读取扩展，确认当前实例的扩展目录。"
                     else -> null
                 },
@@ -371,9 +368,9 @@ fun TavernExtensionManagementSection(
                         TavernExtensionRow(
                             extension = extension,
                             fullPath = extensionTargetDirectory(state, extension),
-                            toggleEnabled = !actionsLocked && !tavernRunning,
+                            toggleEnabled = !actionsLocked,
                             toggleUnavailableHint = toggleUnavailableHint,
-                            deleteEnabled = !actionsLocked && !tavernRunning,
+                            deleteEnabled = !actionsLocked,
                             deleteUnavailableHint = deleteUnavailableHint,
                             updateEnabled = updateDisabledReason == null,
                             updateUnavailableHint = updateDisabledReason,

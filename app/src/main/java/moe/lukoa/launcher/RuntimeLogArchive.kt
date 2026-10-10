@@ -10,6 +10,8 @@ object RuntimeLogArchive {
     private const val TAVERN_RUNTIME_FILE = "tavern-runtime.log"
     private const val APP_FILE = "app.log"
     private const val LEGACY_TERMUX_FILE = "termux.log"
+    private const val MAX_ARCHIVE_BYTES = 4L * 1024 * 1024
+    private const val KEEP_AFTER_TRIM_BYTES = 1024 * 1024
 
     fun ensureSeeded(context: Context, state: LauncherUiState) {
         seedIfEmpty(termuxCommandFile(context), state.termuxLog)
@@ -52,9 +54,25 @@ object RuntimeLogArchive {
     private fun appendRaw(context: Context, fileName: String, text: String) {
         val entry = text.trim()
         if (entry.isBlank()) return
-        val file = logDir(context).resolve(fileName)
-        val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
-        file.appendText(prefix + entry, Charsets.UTF_8)
+        // The archive used to grow without bound while the tavern streamed full prompts, and a
+        // full disk turned every poll into a crash.
+        runCatching {
+            val file = logDir(context).resolve(fileName)
+            trimIfLarge(file)
+            val prefix = if (file.exists() && file.length() > 0L) "\n\n" else ""
+            file.appendText(prefix + entry, Charsets.UTF_8)
+        }
+    }
+
+    private fun trimIfLarge(file: File) {
+        if (!file.exists() || file.length() <= MAX_ARCHIVE_BYTES) return
+        val keep = ByteArray(KEEP_AFTER_TRIM_BYTES)
+        java.io.RandomAccessFile(file, "r").use { input ->
+            input.seek(file.length() - KEEP_AFTER_TRIM_BYTES)
+            input.readFully(keep)
+        }
+        val firstLineBreak = keep.indexOf('\n'.code.toByte()).coerceAtLeast(0)
+        file.writeBytes(keep.copyOfRange(firstLineBreak + 1, keep.size))
     }
 
     private fun seedIfEmpty(file: File, value: String) {

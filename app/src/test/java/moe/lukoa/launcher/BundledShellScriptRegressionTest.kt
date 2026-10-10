@@ -132,8 +132,8 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `extension mutations are limited to stopped tavern direct child directories`() {
         assertTrue(script.contains("run_tavern_extension_action()"))
-        assertTrue(script.contains("delete|disable|enable|install|update|rollback)"))
-        assertTrue(script.contains("repair_require_stopped || return"))
+        // Extensions are static files served from disk, so mutations no longer require a stopped tavern.
+        assertFalse(script.contains("delete|disable|enable|install|update|rollback)"))
         assertTrue(script.contains(".lukoa-disabled-third-party"))
         assertTrue(script.contains("path.dirname(target) !== root"))
         assertTrue(script.contains("targetStat.isSymbolicLink()"))
@@ -190,7 +190,7 @@ class BundledShellScriptRegressionTest {
         val extensionBlock = script.substringAfter("run_tavern_extension_action() {")
             .substringBefore("run_tavern_user_action() {")
 
-        assertTrue(extensionBlock.contains("delete|disable|enable|install|update|rollback)"))
+        assertFalse(extensionBlock.contains("repair_require_stopped"))
         assertTrue(script.contains("extensions-update|tavern-extensions-update"))
         assertTrue(script.contains("extensions-rollback|tavern-extensions-rollback"))
         assertTrue(extensionBlock.contains(".lukoa-extension-rollbacks"))
@@ -234,7 +234,7 @@ class BundledShellScriptRegressionTest {
         assertTrue(cloneBlock.contains("path_is_inside \"${'$'}target\" \"${'$'}managed_root\""))
         assertTrue(cloneBlock.contains("Clone target is outside the launcher managed root"))
         assertTrue(cloneBlock.contains("Source uses an external dataRoot"))
-        assertTrue(cloneBlock.contains("find \"${'$'}TAVERN_DIR\" -type l"))
+        assertTrue(cloneBlock.contains("-path \"${'$'}TAVERN_DIR/node_modules\" -prune -o -type l"))
         assertTrue(cloneBlock.contains(".lukoa-clone-staging-"))
         assertTrue(cloneBlock.contains("cp -a \"${'$'}TAVERN_DIR/.\" \"${'$'}staging/\""))
         assertTrue(cloneBlock.contains("mv \"${'$'}staging\" \"${'$'}target\""))

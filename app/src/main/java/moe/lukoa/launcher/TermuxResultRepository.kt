@@ -102,7 +102,11 @@ object TermuxResultRepositoryProvider {
                     withContext(Dispatchers.IO) { TermuxResultStore.recent(appContext) }
                 },
                 persistResult = { result ->
-                    withContext(Dispatchers.IO) { TermuxResultStore.save(appContext, result) }
+                    // Log polls arrive every second and are only consumed live; persisting each one
+                    // rewrote the whole result history in SharedPreferences.
+                    if (result.command != "log") {
+                        withContext(Dispatchers.IO) { TermuxResultStore.save(appContext, result) }
+                    }
                 },
             ).also { instance = it }
         }

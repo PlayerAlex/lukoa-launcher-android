@@ -346,7 +346,8 @@ fun LukoaLauncherScreen(
     val pendingTaskNeedsRecovery = pendingTaskUiVisibility.showRecoveryUi
     val showBusyOperationPanel = pendingTaskUiVisibility.showBusyUi
     val issueAnalysis = remember(termuxLog, tavernRuntimeLog, status) {
-        TavernIssueAnalyzer.analyze("$termuxLog\n\n$tavernRuntimeLog", status)
+        // Only recent output matters for diagnosis; scanning the full 240KB on every poll janked the UI.
+        TavernIssueAnalyzer.analyze("${termuxLog.takeLast(20_000)}\n\n${tavernRuntimeLog.takeLast(20_000)}", status)
     }
     val scope = rememberCoroutineScope()
     val runtimeLogSessionGate = remember(discardInitialRuntimeLogSnapshot) {
@@ -1226,11 +1227,19 @@ fun LukoaLauncherScreen(
             return
         }
 
-        val newRuntimeLog = if (tavernRuntimeLog.contains(runtimeLogOutput)) {
+        // A live delta is new bytes from tavern.log by construction. SillyTavern repeats the same
+        // lines for every generation, so deduplicating it by content would hide real output; only
+        // whole recent-log snapshots need the contains() check.
+        val isLiveDelta = TermuxLogDelta.extractLiveLogBody(termuxOutput) != null
+        val newRuntimeLog = if (!isLiveDelta && tavernRuntimeLog.contains(runtimeLogOutput)) {
             tavernRuntimeLog
         } else {
             RuntimeLogArchive.appendTavernRuntime(context, runtimeLogOutput)
-            appendRawLog(tavernRuntimeLog, runtimeLogOutput)
+            if (isLiveDelta) {
+                appendLiveRuntimeLog(tavernRuntimeLog, runtimeLogOutput)
+            } else {
+                appendRawLog(tavernRuntimeLog, runtimeLogOutput)
+            }
         }
         applyDetectedTavernState(termuxOutput, newRuntimeLog)
     }
@@ -3336,6 +3345,8 @@ fun LukoaLauncherScreen(
         termuxExternalAppsBlocked,
     ) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var nextPollDelayMs = LiveLogRefreshPolicy.ACTIVE_DELAY_MS
+            var idlePolls = 0
             try {
                 while (termuxInstalled && runCommandPermissionGranted && !termuxExternalAppsBlocked) {
                     if (!logRefreshInFlight) {
@@ -3353,10 +3364,18 @@ fun LukoaLauncherScreen(
                             ) {
                                 foregroundLogCatchUpPending = false
                             }
+                            val sentBytes = LiveLogRefreshPolicy.sentBytes(termuxOutput)
+                            idlePolls = if (sentBytes > 0) 0 else idlePolls + 1
                             updateTermuxLogOnly(termuxOutput, ok)
+                            nextPollDelayMs = LiveLogRefreshPolicy.nextDelayMillis(
+                                pendingBytes = LiveLogRefreshPolicy.pendingBytes(termuxOutput),
+                                sentBytes = sentBytes,
+                                idlePolls = idlePolls,
+                                tavernRunning = tavernRunning || tavernStarting,
+                            )
                         }
                     }
-                    delay(900)
+                    delay(if (logRefreshInFlight) LiveLogRefreshPolicy.BACKLOG_DELAY_MS else nextPollDelayMs)
                 }
             } finally {
                 logRefreshInFlight = false

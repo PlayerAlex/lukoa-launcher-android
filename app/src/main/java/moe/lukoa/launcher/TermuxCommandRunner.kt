@@ -83,12 +83,13 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    // Runs the bundled script's console command so the foreground session gets the same chat
+    // guard, log size cap and wake lock as the other start paths.
     fun runForegroundTavernConsole(): CommandDispatch {
-        return runCommand(
+        return runBundledScriptCommand(
             command = "foreground-console",
-            args = listOf("-c", buildForegroundConsoleCommand()),
-            nonce = null,
-            executablePath = TERMUX_SH_PATH,
+            scriptCommand = "console",
+            scriptArgs = emptyList(),
             displayCommand = "foreground-console",
             background = false,
         )
@@ -886,6 +887,12 @@ class TermuxCommandRunner(private val context: Context) {
             appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
             appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
             appendLine("fi")
+            // Termux keeps only 2000 rows of scrollback by default, so one long prompt pushes the
+            // rest of the SillyTavern console out of reach.
+            appendLine("if ! grep -q '^terminal-transcript-rows' \"\$HOME/.termux/termux.properties\" 2>/dev/null; then")
+            appendLine("  printf '\\nterminal-transcript-rows=$TERMUX_TRANSCRIPT_ROWS\\n' >> \"\$HOME/.termux/termux.properties\"")
+            appendLine("  command -v termux-reload-settings >/dev/null 2>&1 && termux-reload-settings >/dev/null 2>&1 || true")
+            appendLine("fi")
         }
     }
 
@@ -1311,28 +1318,51 @@ class TermuxCommandRunner(private val context: Context) {
               if [ "${'$'}cursor" -gt "${'$'}size" ]; then
                 cursor=0
               fi
+              # Keep in sync with emit_live_log_delta in lukoa-tavern.sh: page through the
+              # backlog instead of dropping everything older than the last max_bytes.
               max_bytes="${'$'}{LUKOA_LIVE_LOG_MAX_BYTES:-65536}"
               case "${'$'}max_bytes" in ''|*[!0-9]*) max_bytes=65536 ;; esac
-              new_bytes="${'$'}((size - cursor))"
-              start="${'$'}((cursor + 1))"
+              catchup_bytes="${'$'}{LUKOA_LIVE_LOG_CATCHUP_BYTES:-2097152}"
+              case "${'$'}catchup_bytes" in ''|*[!0-9]*) catchup_bytes=2097152 ;; esac
               omitted=0
-              if [ "${'$'}new_bytes" -gt "${'$'}max_bytes" ]; then
-                omitted="${'$'}((new_bytes - max_bytes))"
-                start="${'$'}((size - max_bytes + 1))"
-                new_bytes="${'$'}max_bytes"
+              if [ "${'$'}((size - cursor))" -gt "${'$'}catchup_bytes" ]; then
+                omitted="${'$'}((size - cursor - catchup_bytes))"
+                cursor="${'$'}((size - catchup_bytes))"
               fi
+              new_bytes="${'$'}((size - cursor))"
+              chunk_file="${'$'}LOG_SYNC_CURSOR_FILE.chunk.${'$'}${'$'}"
+              : > "${'$'}chunk_file"
+              if [ "${'$'}new_bytes" -gt "${'$'}max_bytes" ]; then
+                tail -c +"${'$'}((cursor + 1))" "${'$'}LOG_FILE" 2>/dev/null | head -c "${'$'}max_bytes" > "${'$'}chunk_file.raw"
+                raw_bytes="${'$'}(file_size_bytes "${'$'}chunk_file.raw")"
+                partial_bytes=0
+                if [ "${'$'}(tail -c 1 "${'$'}chunk_file.raw" | wc -l)" -eq 0 ]; then
+                  partial_bytes="${'$'}(tail -n 1 "${'$'}chunk_file.raw" | wc -c | tr -d '[:space:]')"
+                fi
+                if [ "${'$'}partial_bytes" -gt 0 ] && [ "${'$'}partial_bytes" -lt "${'$'}raw_bytes" ]; then
+                  head -c "${'$'}((raw_bytes - partial_bytes))" "${'$'}chunk_file.raw" > "${'$'}chunk_file"
+                  rm -f "${'$'}chunk_file.raw"
+                else
+                  mv -f "${'$'}chunk_file.raw" "${'$'}chunk_file"
+                fi
+              elif [ "${'$'}new_bytes" -gt 0 ]; then
+                tail -c +"${'$'}((cursor + 1))" "${'$'}LOG_FILE" 2>/dev/null | head -c "${'$'}new_bytes" > "${'$'}chunk_file"
+              fi
+              sent_bytes="${'$'}(file_size_bytes "${'$'}chunk_file")"
+              case "${'$'}sent_bytes" in ''|*[!0-9]*) sent_bytes=0 ;; esac
+              cursor_after="${'$'}((cursor + sent_bytes))"
               printf "liveLog.cursor.before=%s\n" "${'$'}cursor"
-              printf "liveLog.cursor.after=%s\n" "${'$'}size"
-              printf "liveLog.bytes=%s\n" "${'$'}new_bytes"
+              printf "liveLog.cursor.after=%s\n" "${'$'}cursor_after"
+              printf "liveLog.bytes=%s\n" "${'$'}sent_bytes"
+              printf "liveLog.pending=%s\n" "${'$'}((size - cursor_after))"
               printf "\n==== SillyTavern live log: %s ====\n" "${'$'}LOG_FILE"
               if [ "${'$'}omitted" -gt 0 ]; then
-                printf "[lukoa] 前面 %s 字节日志太多，已从最新部分继续同步。\n" "${'$'}omitted"
+                printf "[lukoa] 积压的日志超过 %s 字节，跳过了更早的 %s 字节，完整内容在 %s。\n" "${'$'}catchup_bytes" "${'$'}omitted" "${'$'}LOG_FILE"
               fi
-              if [ "${'$'}new_bytes" -gt 0 ]; then
-                tail -c +"${'$'}start" "${'$'}LOG_FILE" 2>/dev/null || true
-              fi
+              cat "${'$'}chunk_file" 2>/dev/null || true
+              rm -f "${'$'}chunk_file"
               printf "\n==== end SillyTavern live log ====\n"
-              printf "%s\n" "${'$'}size" > "${'$'}LOG_SYNC_CURSOR_FILE.${'$'}${'$'}"
+              printf "%s\n" "${'$'}cursor_after" > "${'$'}LOG_SYNC_CURSOR_FILE.${'$'}${'$'}"
               mv "${'$'}LOG_SYNC_CURSOR_FILE.${'$'}${'$'}" "${'$'}LOG_SYNC_CURSOR_FILE"
             }
             http_probe_available() {
@@ -1695,98 +1725,6 @@ class TermuxCommandRunner(private val context: Context) {
         """.trimIndent()
     }
 
-    private fun buildForegroundConsoleCommand(): String {
-        return """
-            set -u
-            ${buildSharedShellPrelude()}
-            open_browser_when_ready() {
-              (
-                i=0
-                while [ "${'$'}i" -lt 60 ]; do
-                  if http_ok; then
-                    open_tavern_browser
-                    exit 0
-                  fi
-                  i=${'$'}((i + 1))
-                  sleep 1
-                done
-              ) &
-            }
-            if http_ok; then
-              write_status "running" "SillyTavern is already running and HTTP endpoint is responding" true 0
-              echo "SillyTavern is already running; opening browser."
-              open_tavern_browser
-              emit_status_snapshot
-              exit 0
-            fi
-            if is_running; then
-              if http_probe_available; then
-                write_status "unreachable" "SillyTavern process already exists, but HTTP endpoint is not responding" true 75
-                echo "SillyTavern process already exists, but HTTP endpoint is not responding."
-                emit_status_snapshot
-                exit 75
-              fi
-              write_status "running-unknown" "SillyTavern process already exists; install curl for HTTP verification" true 0
-              echo "SillyTavern process already exists; install curl for HTTP verification."
-              emit_status_snapshot
-              exit 0
-            fi
-            if [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
-              if http_probe_available; then
-                write_status "unreachable" "SillyTavern process already exists, but HTTP endpoint is not responding" true 75
-                echo "SillyTavern process already exists, but HTTP endpoint is not responding."
-                emit_status_snapshot
-                exit 75
-              fi
-              write_status "running-unknown" "SillyTavern process already exists; install curl for HTTP verification" true 0
-              echo "SillyTavern process already exists; install curl for HTTP verification."
-              emit_status_snapshot
-              exit 0
-            fi
-            adopt_detected_tavern_dir >/dev/null 2>&1 || true
-            if [ ! -d "${'$'}TAVERN_DIR" ]; then
-              collect_tavern_dir_candidates
-              write_tavern_dir_error
-              cat "${'$'}STATUS_FILE"
-              emit_tavern_dir_candidates
-              exit "${'$'}(missing_tavern_dir_exit_code)"
-            fi
-            if ! command -v node >/dev/null 2>&1; then
-              write_status "error" "node command not found in Termux" false 69
-              echo "node command not found in Termux"
-              exit 69
-            fi
-            cd "${'$'}TAVERN_DIR" || {
-              write_status "error" "failed to enter SillyTavern directory" false 74
-              echo "failed to enter SillyTavern directory"
-              exit 74
-            }
-            printf "\n[%s] ===== Lukoa launcher foreground session =====\n" "${'$'}(timestamp)" | tee -a "${'$'}LOG_FILE"
-            printf "[%s] Termux foreground logging is enabled. Log file: %s\n" "${'$'}(timestamp)" "${'$'}LOG_FILE" | tee -a "${'$'}LOG_FILE"
-            write_status "starting" "SillyTavern is starting in Termux foreground log mode" true 0
-            printf "%s\n" "${'$'}${'$'}" > "${'$'}PID_FILE"
-            open_browser_when_ready
-            if [ -f "./start.sh" ]; then
-              runner="${'$'}(start_script_runner)"
-              printf "[%s] starting with %s ./start.sh in %s\n" "${'$'}(timestamp)" "${'$'}runner" "${'$'}TAVERN_DIR" | tee -a "${'$'}LOG_FILE"
-              "${'$'}runner" ./start.sh 2>&1 | tee -a "${'$'}LOG_FILE"
-              code="${'$'}?"
-            elif [ -f "server.js" ]; then
-              printf "[%s] starting with node server.js in %s\n" "${'$'}(timestamp)" "${'$'}TAVERN_DIR" | tee -a "${'$'}LOG_FILE"
-              node server.js 2>&1 | tee -a "${'$'}LOG_FILE"
-              code="${'$'}?"
-            else
-              write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
-              echo "no start.sh or server.js found in SillyTavern directory"
-              rm -f "${'$'}PID_FILE"
-              exit 65
-            fi
-            rm -f "${'$'}PID_FILE"
-            write_status "stopped" "SillyTavern foreground session exited" false "${'$'}code"
-            exit "${'$'}code"
-        """.trimIndent()
-    }
-
     private fun buildLogSnapshotCommand(): String {
         return """
             set -u
@@ -1825,7 +1763,10 @@ class TermuxCommandRunner(private val context: Context) {
             set -u
             LUKOA_LIVE_LOG_MAX_BYTES=$maxBytes
             ${buildSharedShellPrelude()}
-            adopt_detected_tavern_dir >/dev/null 2>&1 || true
+            # This poll runs every second or so. Write its status to a scratch file so it never
+            # replaces the result of a start/stop/update that is still being reported.
+            STATUS_FILE="${'$'}RUNTIME_STATE_DIR/status.live.${'$'}${'$'}"
+            trap 'rm -f "${'$'}STATUS_FILE"' EXIT
             if http_ok; then
               write_status "log" "SillyTavern live log synced" true 0
             elif is_running; then
@@ -1833,6 +1774,7 @@ class TermuxCommandRunner(private val context: Context) {
             elif [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
               write_status "log" "SillyTavern live log synced; process exists but HTTP endpoint is not responding" true 75
             elif [ ! -d "${'$'}TAVERN_DIR" ]; then
+              adopt_detected_tavern_dir >/dev/null 2>&1 || true
               collect_tavern_dir_candidates
               write_tavern_dir_error
             else
@@ -2293,6 +2235,7 @@ class TermuxCommandRunner(private val context: Context) {
         const val TERMUX_RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
+        const val TERMUX_TRANSCRIPT_ROWS = 20_000
         @SuppressLint("SdCardPath")
         const val TERMUX_SH_PATH = "/data/data/com.termux/files/usr/bin/sh"
         const val TERMUX_SCRIPT_PATH = "$TERMUX_HOME/.local/bin/lukoa-tavern.sh"

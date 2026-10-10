@@ -309,7 +309,8 @@ write_status() {
   safe_dir="$(json_escape "$TAVERN_DIR")"
   safe_profile_id="$(json_escape "${TAVERN_PROFILE_ID:-main}")"
   safe_runtime_state_dir="$(json_escape "$RUNTIME_STATE_DIR")"
-  cat > "$STATUS_FILE" <<EOF
+  # Write then rename, so a log poll reading status.json never sees half a file.
+  cat > "$STATUS_FILE.$$" <<EOF
 {
   "app": "$APP_NAME",
   "time": "$now",
@@ -325,6 +326,7 @@ write_status() {
   "logFile": "$LOG_FILE"
 }
 EOF
+  mv -f "$STATUS_FILE.$$" "$STATUS_FILE"
 }
 
 write_command() {
@@ -382,30 +384,208 @@ emit_live_log_delta() {
     cursor=0
   fi
 
+  # Termux caps the stdout it hands back to the app at roughly 100KB, so each sync returns at most
+  # max_bytes and the cursor only advances past what was actually sent; the next sync continues
+  # from there. Only a backlog beyond catchup_bytes is skipped.
   max_bytes="${LUKOA_LIVE_LOG_MAX_BYTES:-65536}"
   case "$max_bytes" in ''|*[!0-9]*) max_bytes=65536 ;; esac
-  new_bytes="$((size - cursor))"
-  start="$((cursor + 1))"
+  catchup_bytes="${LUKOA_LIVE_LOG_CATCHUP_BYTES:-2097152}"
+  case "$catchup_bytes" in ''|*[!0-9]*) catchup_bytes=2097152 ;; esac
   omitted=0
-  if [ "$new_bytes" -gt "$max_bytes" ]; then
-    omitted="$((new_bytes - max_bytes))"
-    start="$((size - max_bytes + 1))"
-    new_bytes="$max_bytes"
+  if [ "$((size - cursor))" -gt "$catchup_bytes" ]; then
+    omitted="$((size - cursor - catchup_bytes))"
+    cursor="$((size - catchup_bytes))"
   fi
+  new_bytes="$((size - cursor))"
+  chunk_file="$LOG_SYNC_CURSOR_FILE.chunk.$$"
+  : > "$chunk_file"
+  if [ "$new_bytes" -gt "$max_bytes" ]; then
+    tail -c +"$((cursor + 1))" "$LOG_FILE" 2>/dev/null | head -c "$max_bytes" > "$chunk_file.raw"
+    # Stop at the last complete line so a multi-byte character is never cut in half. Byte-exact
+    # tools only: sed would drop carriage returns and push the cursor off a line boundary.
+    raw_bytes="$(file_size_bytes "$chunk_file.raw")"
+    partial_bytes=0
+    if [ "$(tail -c 1 "$chunk_file.raw" | wc -l)" -eq 0 ]; then
+      partial_bytes="$(tail -n 1 "$chunk_file.raw" | wc -c | tr -d '[:space:]')"
+    fi
+    if [ "$partial_bytes" -gt 0 ] && [ "$partial_bytes" -lt "$raw_bytes" ]; then
+      head -c "$((raw_bytes - partial_bytes))" "$chunk_file.raw" > "$chunk_file"
+      rm -f "$chunk_file.raw"
+    else
+      mv -f "$chunk_file.raw" "$chunk_file"
+    fi
+  elif [ "$new_bytes" -gt 0 ]; then
+    tail -c +"$((cursor + 1))" "$LOG_FILE" 2>/dev/null | head -c "$new_bytes" > "$chunk_file"
+  fi
+  sent_bytes="$(file_size_bytes "$chunk_file")"
+  case "$sent_bytes" in ''|*[!0-9]*) sent_bytes=0 ;; esac
+  cursor_after="$((cursor + sent_bytes))"
 
   printf "liveLog.cursor.before=%s\n" "$cursor"
-  printf "liveLog.cursor.after=%s\n" "$size"
-  printf "liveLog.bytes=%s\n" "$new_bytes"
+  printf "liveLog.cursor.after=%s\n" "$cursor_after"
+  printf "liveLog.bytes=%s\n" "$sent_bytes"
+  printf "liveLog.pending=%s\n" "$((size - cursor_after))"
   printf "\n==== SillyTavern live log: %s ====\n" "$LOG_FILE"
   if [ "$omitted" -gt 0 ]; then
-    printf "[lukoa] 前面 %s 字节日志太多，已从最新部分继续同步。\n" "$omitted"
+    printf "[lukoa] 积压的日志超过 %s 字节，跳过了更早的 %s 字节，完整内容在 %s。\n" "$catchup_bytes" "$omitted" "$LOG_FILE"
   fi
-  if [ "$new_bytes" -gt 0 ]; then
-    tail -c +"$start" "$LOG_FILE" 2>/dev/null || true
-  fi
+  cat "$chunk_file" 2>/dev/null || true
+  rm -f "$chunk_file"
   printf "\n==== end SillyTavern live log ====\n"
-  printf "%s\n" "$size" > "$LOG_SYNC_CURSOR_FILE.$$"
+  printf "%s\n" "$cursor_after" > "$LOG_SYNC_CURSOR_FILE.$$"
   mv "$LOG_SYNC_CURSOR_FILE.$$" "$LOG_SYNC_CURSOR_FILE"
+}
+
+# ---- tavern.log size cap ----
+# SillyTavern prints every full prompt to the console, so tavern.log can reach several GB.
+# Node and tee both append with O_APPEND, so truncating in place is safe while it runs.
+tavern_log_max_bytes() {
+  log_max_mb="${LUKOA_TAVERN_LOG_MAX_MB:-32}"
+  case "$log_max_mb" in ''|*[!0-9]*) log_max_mb=32 ;; esac
+  [ "$log_max_mb" -ge 1 ] || log_max_mb=1
+  printf "%s" "$((log_max_mb * 1024 * 1024))"
+}
+
+rotate_tavern_log_if_large() {
+  [ -f "$LOG_FILE" ] || return 0
+  log_size="$(file_size_bytes "$LOG_FILE")"
+  case "$log_size" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$log_size" -gt "$(tavern_log_max_bytes)" ] || return 0
+  tail -c 1048576 "$LOG_FILE" > "$LOG_FILE.old" 2>/dev/null || true
+  : > "$LOG_FILE"
+  printf "[%s] [lukoa] tavern.log 超过 %sMB，已清空；清空前最后 1MB 保存在 %s\n" \
+    "$(timestamp)" "$(($(tavern_log_max_bytes) / 1048576))" "$LOG_FILE.old" >> "$LOG_FILE"
+}
+
+# ---- chat guard ----
+# SillyTavern's front end can save an empty or truncated chat over a long one (for example when
+# the page freezes and reloads mid-load), and its own 50 rolling backups are then pushed out by
+# the broken saves. The guard keeps a hard link to the last seen version of every chat file;
+# SillyTavern replaces chat files with an atomic rename, so the link keeps the old content alive
+# at no extra storage cost. When a large chat is replaced by one less than half its size, the old
+# version is moved next to it as a new chat file the user can open from "管理聊天文件".
+CHAT_GUARD_DIR="$RUNTIME_STATE_DIR/chat-guard"
+CHAT_GUARD_PID_FILE="$CHAT_GUARD_DIR/pid"
+CHAT_GUARD_RESCUE_TAG="露科亚救回"
+
+chat_guard_enabled() {
+  [ "${LUKOA_CHAT_GUARD:-1}" != "0" ]
+}
+
+chat_guard_running() {
+  [ -f "$CHAT_GUARD_PID_FILE" ] || return 1
+  guard_pid="$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null)"
+  case "$guard_pid" in ''|*[!0-9]*) return 1 ;; esac
+  kill -0 "$guard_pid" 2>/dev/null
+}
+
+stop_chat_guard() {
+  if chat_guard_running; then
+    kill "$(cat "$CHAT_GUARD_PID_FILE")" 2>/dev/null || true
+  fi
+  rm -f "$CHAT_GUARD_PID_FILE"
+}
+
+# $1: pid whose lifetime the guard follows (the SillyTavern launcher process).
+# $2: optional terminal to echo rescue notices to (foreground console mode).
+start_chat_guard() {
+  watch_pid="$1"
+  guard_tty="${2:-}"
+  stop_chat_guard
+  self_script="$HOME_DIR/.local/bin/lukoa-tavern.sh"
+  [ -x "$self_script" ] || self_script="$0"
+  [ -f "$self_script" ] || return 0
+  mkdir -p "$CHAT_GUARD_DIR" 2>/dev/null || return 0
+  LUKOA_TAVERN_DIR="$TAVERN_DIR" LUKOA_TAVERN_PORT="$TAVERN_PORT" LUKOA_TAVERN_PROFILE_ID="${TAVERN_PROFILE_ID:-main}" \
+    nohup sh "$self_script" __chat-guard "$watch_pid" "$guard_tty" > "$CHAT_GUARD_DIR/guard.log" 2>&1 &
+}
+
+chat_guard_scan() {
+  # $1 = 1 on the first pass: link everything without judging, since nothing was seen yet.
+  first_pass="$1"
+  links_dir="$CHAT_GUARD_DIR/links"
+  find "$guard_data_root" -type f -name '*.jsonl' \( -path '*/chats/*' -o -path '*/group chats/*' \) \
+    -printf '%i\t%s\t%p\n' 2>/dev/null > "$CHAT_GUARD_DIR/scan.new" || return 0
+  [ -f "$CHAT_GUARD_DIR/scan.prev" ] || : > "$CHAT_GUARD_DIR/scan.prev"
+
+  # Chats that disappeared (deleted or renamed in SillyTavern): drop their links.
+  awk -F'\t' 'NR==FNR { seen[$3] = 1; next } !($3 in seen) { print $3 }' \
+    "$CHAT_GUARD_DIR/scan.new" "$CHAT_GUARD_DIR/scan.prev" |
+    while IFS= read -r gone_path; do
+      rm -f "$links_dir/${gone_path#"$guard_data_root"/}"
+    done
+
+  # New chats, or chats whose file was replaced since the last pass.
+  awk -F'\t' 'NR==FNR { old[$3] = $1; next } old[$3] != $1' \
+    "$CHAT_GUARD_DIR/scan.prev" "$CHAT_GUARD_DIR/scan.new" |
+    while IFS="$(printf '\t')" read -r _inode new_size chat_path; do
+      [ -f "$chat_path" ] || continue
+      link_path="$links_dir/${chat_path#"$guard_data_root"/}"
+      if [ "$first_pass" != "1" ] && [ -f "$link_path" ]; then
+        old_size="$(stat -c %s "$link_path" 2>/dev/null || printf 0)"
+        if [ "$old_size" -ge "$guard_min_bytes" ] && [ "$((new_size * 2))" -lt "$old_size" ]; then
+          chat_guard_rescue "$chat_path" "$link_path" "$old_size" "$new_size"
+        fi
+      fi
+      mkdir -p "$(dirname "$link_path")" 2>/dev/null
+      # Hard links cost nothing; fall back to a copy where the filesystem refuses them.
+      ln -f "$chat_path" "$link_path" 2>/dev/null || cp -f "$chat_path" "$link_path" 2>/dev/null || rm -f "$link_path"
+    done
+  mv -f "$CHAT_GUARD_DIR/scan.new" "$CHAT_GUARD_DIR/scan.prev"
+}
+
+chat_guard_rescue() {
+  chat_path="$1"
+  old_link="$2"
+  chat_dir="$(dirname "$chat_path")"
+  chat_base="$(basename "$chat_path" .jsonl)"
+  rescue_path="$chat_dir/$chat_base [$CHAT_GUARD_RESCUE_TAG $(date +%m%d-%H%M%S)].jsonl"
+  mv -f "$old_link" "$rescue_path" 2>/dev/null || return 0
+  # Keep the three newest rescues of each chat.
+  ls -1t "$chat_dir/$chat_base [$CHAT_GUARD_RESCUE_TAG "*"].jsonl" 2>/dev/null | tail -n +4 |
+    while IFS= read -r stale_rescue; do rm -f "$stale_rescue"; done
+  rescue_note="聊天守护：「$chat_base」被一个小得多的版本覆盖了（$(($3 / 1024))KB -> $(($4 / 1024))KB），覆盖前的版本已救回为「$(basename "$rescue_path" .jsonl)」。在酒馆里打开这个角色，点「管理聊天文件」就能找到。"
+  printf "[%s] [lukoa] %s\n" "$(timestamp)" "$rescue_note" >> "$LOG_FILE"
+  if [ -n "${guard_tty:-}" ] && [ -w "$guard_tty" ]; then
+    printf "\n[lukoa] %s\n\n" "$rescue_note" > "$guard_tty" 2>/dev/null || true
+  fi
+  printf "%s\t%s\t%s\n" "$(timestamp)" "$chat_path" "$rescue_path" >> "$CHAT_GUARD_DIR/rescued.tsv"
+}
+
+cmd_chat_guard_loop() {
+  watch_pid="${1:-}"
+  case "$watch_pid" in ''|*[!0-9]*) return 64 ;; esac
+  guard_tty="${2:-}"
+  mkdir -p "$CHAT_GUARD_DIR/links"
+  printf "%s\n" "$$" > "$CHAT_GUARD_PID_FILE"
+  guard_data_root="$(resolve_tavern_data_root)"
+  guard_min_bytes="$(( ${LUKOA_CHAT_GUARD_MIN_KB:-256} * 1024 ))"
+  guard_interval="${LUKOA_CHAT_GUARD_INTERVAL:-10}"
+  case "$guard_interval" in ''|*[!0-9]*|0) guard_interval=10 ;; esac
+  wake_locked=0
+  if [ "${LUKOA_WAKE_LOCK:-1}" != "0" ] && command -v termux-wake-lock >/dev/null 2>&1; then
+    termux-wake-lock >/dev/null 2>&1 && wake_locked=1
+  fi
+  trap 'chat_guard_exit' INT TERM
+  rm -f "$CHAT_GUARD_DIR/scan.prev"
+  first=1
+  while kill -0 "$watch_pid" 2>/dev/null; do
+    rotate_tavern_log_if_large
+    if chat_guard_enabled && [ -d "$guard_data_root" ]; then
+      chat_guard_scan "$first"
+      first=0
+    fi
+    sleep "$guard_interval"
+  done
+  chat_guard_exit
+}
+
+chat_guard_exit() {
+  if [ "${wake_locked:-0}" = "1" ] && command -v termux-wake-unlock >/dev/null 2>&1; then
+    termux-wake-unlock >/dev/null 2>&1 || true
+  fi
+  [ "$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null)" = "$$" ] && rm -f "$CHAT_GUARD_PID_FILE"
+  exit 0
 }
 
 is_running() {
@@ -1184,12 +1364,27 @@ cmd_log_live() {
   emit_live_log_delta
 }
 
+# When the tavern was already started in the background, keep the Termux window useful by
+# streaming the same live log a terminal start would show. Ctrl+C or closing the session only
+# stops the viewer, not SillyTavern.
+follow_tavern_log_in_terminal() {
+  tty -s 2>/dev/null || return 0
+  [ -f "$LOG_FILE" ] || return 0
+  printf "
+[lukoa] 酒馆已经在后台运行，下面是实时日志（按 Ctrl+C 或关闭窗口只会退出查看，酒馆继续运行）。
+
+"
+  # emit_status just printed the recent lines, so only follow new output here.
+  tail -n 0 -f "$LOG_FILE" 2>/dev/null || true
+}
+
 cmd_console() {
   write_command "console"
   if http_ok; then
     write_status "running" "SillyTavern is already running and HTTP endpoint is responding" true 0
     open_browser_when_ready
     emit_status
+    follow_tavern_log_in_terminal
     return 0
   fi
 
@@ -1236,10 +1431,14 @@ cmd_console() {
     return 74
   }
 
+  rotate_tavern_log_if_large
+  # Output goes through tee, so Node no longer sees a terminal and would drop colors.
+  export FORCE_COLOR="${FORCE_COLOR:-1}"
   printf "\n[%s] ===== Lukoa launcher foreground session =====\n" "$(timestamp)" | tee -a "$LOG_FILE"
   printf "[%s] Termux foreground logging is enabled. Log file: %s\n" "$(timestamp)" "$LOG_FILE" | tee -a "$LOG_FILE"
   write_status "starting" "SillyTavern is starting in Termux foreground log mode" true 0
   printf "%s\n" "$$" > "$PID_FILE"
+  start_chat_guard "$$" "$(tty 2>/dev/null || true)"
   open_browser_when_ready
 
   if [ -f "./start.sh" ]; then
@@ -1319,6 +1518,7 @@ cmd_start() {
   }
 
   write_command "start"
+  rotate_tavern_log_if_large
   printf "\n[%s] ===== Lukoa launcher start session =====\n" "$(timestamp)" >> "$LOG_FILE"
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
@@ -1335,6 +1535,7 @@ cmd_start() {
 
   pid="$!"
   printf "%s\n" "$pid" > "$PID_FILE"
+  start_chat_guard "$pid"
   if http_probe_available && wait_for_http 45; then
     write_status "running" "SillyTavern HTTP endpoint is responding" true 0
     emit_status
@@ -1354,6 +1555,7 @@ cmd_start() {
 
 cmd_stop() {
   write_command "stop"
+  stop_chat_guard
   if ! is_running; then
     rm -f "$PID_FILE"
     if [ -n "$(candidate_pids | head -n 1)" ]; then
@@ -1401,6 +1603,7 @@ cmd_stop() {
 
 cmd_force_cleanup() {
   write_command "force-cleanup"
+  stop_chat_guard
   cleaned_any=0
 
   if is_running; then
@@ -2377,6 +2580,13 @@ cmd_backup() {
       -C "$manifest_dir" "$manifest_name" 2>"$error_file"
   fi
   code="$?"
+  # GNU tar exits 1 when SillyTavern writes a file while it is being read (a chat save, a log
+  # line). The archive is still complete and the listing check below verifies it, so treat that
+  # as a warning rather than throwing the whole backup away.
+  if [ "$code" -eq 1 ] && [ -s "$archive" ] &&
+    ! grep -v 'file changed as we read it' "$error_file" 2>/dev/null | grep -q .; then
+    code=0
+  fi
 
   verify_code=0
   if [ "$code" -eq 0 ]; then
@@ -2819,8 +3029,10 @@ cmd_backup_export_to() {
     emit_status
     return 73
   fi
-  if ! path_is_inside "$destination" "/storage/emulated/0" &&
-    ! path_is_inside "$destination" "$HOME_DIR/storage/shared" &&
+  # Export only copies the archive, so any shared storage works, including SD cards (/storage/XXXX-XXXX).
+  if ! path_is_inside "$destination" "/storage" &&
+    ! path_is_inside "$destination" "/sdcard" &&
+    ! path_is_inside "$destination" "$HOME_DIR/storage" &&
     ! path_is_inside "$destination" "$HOME_DIR/storage/downloads"; then
     write_status "error" "Export destination must be in Android shared storage" false 73
     cat "$STATUS_FILE"
@@ -3542,8 +3754,10 @@ cmd_clone_profile_dir() {
     emit_status
     return 73
   fi
-  if find "$TAVERN_DIR" -type l -print -quit 2>/dev/null | grep -q .; then
-    write_status "error" "Source contains symbolic links; independent clone is blocked" false 73
+  # npm fills node_modules/.bin with relative symlinks, which cp -a copies correctly. Only links
+  # elsewhere (for example a shared data folder) would make the clone share data with the source.
+  if find "$TAVERN_DIR" -path "$TAVERN_DIR/node_modules" -prune -o -type l -print 2>/dev/null | grep -q .; then
+    write_status "error" "Source contains symbolic links outside node_modules; independent clone is blocked" false 73
     emit_status
     return 73
   fi
@@ -3922,7 +4136,6 @@ cmd_upload_limit_status() {
 
 cmd_upload_limit_set() {
   write_command "upload-limit-set"
-  repair_require_stopped || return "$?"
   limit="${1:-}"
   if ! is_valid_upload_limit_mb "$limit"; then
     write_status "error" "Unsupported upload limit" false 64
@@ -3977,7 +4190,6 @@ NODE
 
 cmd_upload_limit_reset() {
   write_command "upload-limit-reset"
-  repair_require_stopped || return "$?"
   command -v node >/dev/null 2>&1 || {
     write_status "error" "node command not found in Termux" false 69
     emit_status
@@ -4056,11 +4268,8 @@ NODE
 run_tavern_extension_action() {
   action="${1:-list}"
   payload="${2:-}"
-  case "$action" in
-    delete|disable|enable|install|update|rollback)
-      repair_require_stopped || return "$?"
-      ;;
-  esac
+  # Extensions are static front-end files that SillyTavern serves straight from disk, so they can
+  # be changed while it runs; the browser picks them up after a page reload.
   command -v node >/dev/null 2>&1 || {
     write_status "error" "node command not found in Termux" false 69
     emit_status
@@ -4559,7 +4768,11 @@ NODE
 run_tavern_user_action() {
   action="${1:-list}"
   payload="${2:-}"
-  repair_require_stopped || return "$?"
+  # Listing only reads. Creating or deleting still needs SillyTavern stopped because the running
+  # server keeps its user list in memory and would overwrite the change.
+  if [ "$action" != "list" ]; then
+    repair_require_stopped || return "$?"
+  fi
   command -v node >/dev/null 2>&1 || {
     write_status "error" "node command not found in Termux" false 69
     emit_status
@@ -4740,6 +4953,10 @@ main() {
       ;;
     console|foreground)
       cmd_console
+      ;;
+    __chat-guard)
+      shift
+      cmd_chat_guard_loop "$@"
       ;;
     start)
       cmd_start

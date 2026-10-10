@@ -361,9 +361,5 @@ object TavernIssueAnalyzer {
         return needles.maxOfOrNull { text.lastIndexOf(it) } ?: -1
     }
 
-    private fun stripAnsi(value: String): String {
-        return value
-            .replace(Regex("\u001B\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)"), "")
-            .replace(Regex("\u001B\\[[0-?]*[ -/]*[@-~]"), "")
-    }
+    private fun stripAnsi(value: String): String = TavernLogSignals.stripAnsi(value)
 }
