@@ -1486,11 +1486,11 @@ cmd_console() {
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
     printf "[%s] starting with %s ./start.sh in %s\n" "$(timestamp)" "$runner" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    "$runner" ./start.sh $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
+    run_with_live_log "$runner" ./start.sh $(tavern_launch_args)
     code="$?"
   elif [ -f "server.js" ]; then
     printf "[%s] starting with node server.js in %s\n" "$(timestamp)" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    node server.js $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
+    run_with_live_log node server.js $(tavern_launch_args)
     code="$?"
   else
     write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
@@ -1500,7 +1500,11 @@ cmd_console() {
   fi
 
   rm -f "$PID_FILE"
-  write_status "stopped" "SillyTavern foreground session exited" false "$code"
+  if [ "$code" -eq 0 ]; then
+    write_status "stopped" "SillyTavern foreground session exited" false 0
+  else
+    write_status "error" "SillyTavern foreground session exited with an error" false "$code"
+  fi
   emit_status
   return "$code"
 }
@@ -2266,7 +2270,7 @@ backup_write_test() {
 }
 
 read_config_data_root() {
-  config_path="$TAVERN_DIR/config.yaml"
+  config_path="${1:-$TAVERN_DIR}/config.yaml"
   [ -f "$config_path" ] || return 1
   raw="$(
     sed -n 's/^[[:space:]]*dataRoot[[:space:]]*:[[:space:]]*//p' "$config_path" 2>/dev/null |
@@ -2284,7 +2288,8 @@ read_config_data_root() {
 }
 
 resolve_tavern_data_root() {
-  configured="$(read_config_data_root || true)"
+  resolved_tavern_dir="${1:-$TAVERN_DIR}"
+  configured="$(read_config_data_root "${2:-$resolved_tavern_dir}" || true)"
   if [ -z "$configured" ]; then
     configured="data"
   fi
@@ -2309,7 +2314,7 @@ resolve_tavern_data_root() {
       printf "%s/%s" "$HOME_DIR" "${configured#~/}"
       ;;
     *)
-      printf "%s/%s" "$TAVERN_DIR" "$configured"
+      printf "%s/%s" "$resolved_tavern_dir" "$configured"
       ;;
   esac
 }
@@ -2782,6 +2787,7 @@ validate_restore_archive() {
   archive_path="$1"
   list_file="$2"
   error_file="$3"
+  type_list_file="$list_file.types"
   expected_root="${4:-}"
   [ -n "$expected_root" ] || expected_root="$(restore_root_name_from_archive "$archive_path")"
   if ! tar -tzf "$archive_path" > "$list_file" 2>>"$error_file"; then
@@ -2801,6 +2807,19 @@ validate_restore_archive() {
   else
     return 72
   fi
+  if ! tar -tvzf "$archive_path" > "$type_list_file" 2>>"$error_file"; then
+    printf "restore archive entry types cannot be checked\n" >> "$error_file"
+    rm -f "$type_list_file"
+    return 72
+  fi
+  if ! awk '
+    substr($0, 1, 1) !~ /^[-d]$/ { bad = 1; print "unsafe archive entry type: " $0 }
+    END { exit bad ? 1 : 0 }
+  ' "$type_list_file" >> "$error_file"; then
+    rm -f "$type_list_file"
+    return 72
+  fi
+  rm -f "$type_list_file"
   if ! archive_contains_entry "$expected_root" "$list_file"; then
     printf "restore archive does not contain expected root: %s\n" "$expected_root" >> "$error_file"
     return 73
@@ -3416,6 +3435,11 @@ cmd_restore() {
     return 69
   fi
 
+  if [ -L "$archive" ]; then
+    write_status "error" "Backup archive links cannot be applied" false 73
+    emit_status
+    return 73
+  fi
   if [ ! -f "$archive" ]; then
     write_status "error" "Backup archive not found: $archive" false 66
     emit_status
@@ -3484,8 +3508,17 @@ cmd_restore() {
     return 74
   fi
 
+  unsafe_stage_entry="$(find "$temp_dir" ! -type d ! -type f -print -quit 2>>"$error_file")"
+  stage_check_code="$?"
+  if [ "$stage_check_code" -ne 0 ] || [ -n "$unsafe_stage_entry" ]; then
+    safe_remove_restore_temp_dir "$temp_dir"
+    write_status "error" "Backup contains an unsafe link or special file" false 73
+    emit_status
+    return 73
+  fi
+
   restore_source_dir="$temp_dir/$restore_root_name"
-  if [ ! -d "$restore_source_dir" ]; then
+  if [ ! -d "$restore_source_dir" ] || [ -L "$restore_source_dir" ]; then
     safe_remove_restore_temp_dir "$temp_dir"
     write_status "error" "backup archive does not contain the expected tavern directory" false 73
     emit_status
@@ -3585,11 +3618,71 @@ cmd_restore() {
     return 0
   fi
 
+  external_root="$(manifest_value_from_archive "$restore_archive" "externalDataRoot" || true)"
+  external_stage=""
+  restore_preflight_error=""
+  if [ -n "$external_root" ] && [ "$external_root" != "none" ]; then
+    external_parent="$(dirname "$external_root")"
+    external_base="$(basename "$external_root")"
+    external_stage="$temp_dir/$external_base"
+    current_data_root="$(resolve_tavern_data_root)"
+    case "$external_root" in
+      /*) ;;
+      *) restore_preflight_error="Backup external dataRoot is not an absolute path" ;;
+    esac
+    case "$external_root" in
+      *"/../"*|*"/./"*|*/..|*/.|*//*|*/)
+        restore_preflight_error="Backup external dataRoot is not normalized" ;;
+    esac
+    if [ ! -d "$external_parent" ] || [ -L "$external_root" ] ||
+       [ "$external_root" != "$(canonical_existing_path "$external_root")" ] ||
+       [ "$external_root" != "$(canonical_existing_path "$current_data_root")" ] ||
+       [ ! -d "$external_stage" ] || [ -L "$external_stage" ] ||
+       [ "$external_base" = "$restore_root_name" ] ||
+       { [ -e "$external_root" ] && [ ! -d "$external_root" ]; } ||
+       path_is_inside "$TAVERN_DIR" "$external_root" ||
+       path_is_inside "$external_root" "$TAVERN_DIR" ||
+       path_is_inside "$HOME_DIR" "$external_root" ||
+       path_is_inside "$STATE_DIR" "$external_root" ||
+       path_is_inside "$external_root" "$STATE_DIR" ||
+       path_is_inside "$restore_archive" "$external_root"; then
+      restore_preflight_error="Backup external dataRoot does not match a safe current dataRoot"
+    fi
+  fi
+  restored_data_root="$(resolve_tavern_data_root "$TAVERN_DIR" "$restore_source_dir")"
+  if [ -n "$external_stage" ]; then
+    if [ "$external_root" != "$(canonical_existing_path "$restored_data_root")" ]; then
+      restore_preflight_error="Restored configuration does not match the backup external dataRoot"
+    fi
+  elif ! path_is_inside "$restored_data_root" "$TAVERN_DIR"; then
+    restore_preflight_error="Backup refers to external user data without a matching dataRoot directory"
+  fi
+  if [ -n "$restore_preflight_error" ]; then
+    safe_remove_restore_temp_dir "$temp_dir"
+    write_status "error" "$restore_preflight_error" false 73
+    emit_status
+    return 73
+  fi
+
   parent="$(dirname "$TAVERN_DIR")"
   base="$(basename "$TAVERN_DIR")"
-  mkdir -p "$parent"
+  if ! mkdir -p "$parent"; then
+    safe_remove_restore_temp_dir "$temp_dir"
+    write_status "error" "failed to prepare SillyTavern parent directory" false 73
+    emit_status
+    return 73
+  fi
   rollback_dir="$parent/$base.lukoa-before-restore-$stamp"
   failed_restore_dir="$parent/$base.lukoa-failed-restore-$stamp"
+  if [ -e "$rollback_dir" ] || [ -L "$rollback_dir" ] ||
+     [ -e "$failed_restore_dir" ] || [ -L "$failed_restore_dir" ] ||
+     { [ -n "$external_stage" ] &&
+       { [ -e "$external_root.lukoa-before-restore-$stamp" ] || [ -L "$external_root.lukoa-before-restore-$stamp" ]; }; }; then
+    safe_remove_restore_temp_dir "$temp_dir"
+    write_status "error" "Restore safety directory already exists" false 73
+    emit_status
+    return 73
+  fi
 
   if [ -e "$TAVERN_DIR" ]; then
     if ! mv "$TAVERN_DIR" "$rollback_dir" 2>>"$error_file"; then
@@ -3616,43 +3709,36 @@ cmd_restore() {
     return 74
   fi
 
-  external_root="$(manifest_value_from_archive "$restore_archive" "externalDataRoot" || true)"
   external_restored="none"
   external_rollback="none"
-  if [ -n "$external_root" ] && [ "$external_root" != "none" ]; then
-    external_base="$(basename "$external_root")"
-    external_stage="$temp_dir/$external_base"
-    if [ -e "$external_stage" ] && ! path_is_inside "$external_root" "$TAVERN_DIR"; then
-      external_parent="$(dirname "$external_root")"
-      mkdir -p "$external_parent"
-      if [ -e "$external_root" ]; then
-        external_rollback="$external_root.lukoa-before-restore-$stamp"
-        if ! mv "$external_root" "$external_rollback" 2>>"$error_file"; then
-          mv "$TAVERN_DIR" "$failed_restore_dir" 2>/dev/null || true
-          [ -n "$rollback_dir" ] && [ -e "$rollback_dir" ] && mv "$rollback_dir" "$TAVERN_DIR" 2>/dev/null || true
-          safe_remove_restore_temp_dir "$temp_dir"
-          write_status "error" "failed to move current external dataRoot aside; restore was rolled back if possible" false 74
-          cat "$STATUS_FILE"
-          printf "\n==== restore error ====\n"
-          cat "$error_file" 2>/dev/null || true
-          printf "==== end SillyTavern restore ====\n"
-          return 74
-        fi
-      fi
-      if mv "$external_stage" "$external_root" 2>>"$error_file"; then
-        external_restored="$external_root"
-      else
-        [ "$external_rollback" != "none" ] && [ -e "$external_rollback" ] && mv "$external_rollback" "$external_root" 2>/dev/null || true
+  if [ -n "$external_stage" ]; then
+    if [ -e "$external_root" ]; then
+      external_rollback="$external_root.lukoa-before-restore-$stamp"
+      if ! mv "$external_root" "$external_rollback" 2>>"$error_file"; then
         mv "$TAVERN_DIR" "$failed_restore_dir" 2>/dev/null || true
         [ -n "$rollback_dir" ] && [ -e "$rollback_dir" ] && mv "$rollback_dir" "$TAVERN_DIR" 2>/dev/null || true
         safe_remove_restore_temp_dir "$temp_dir"
-        write_status "error" "failed to restore external dataRoot; restore was rolled back if possible" false 74
+        write_status "error" "failed to move current external dataRoot aside; restore was rolled back if possible" false 74
         cat "$STATUS_FILE"
         printf "\n==== restore error ====\n"
         cat "$error_file" 2>/dev/null || true
         printf "==== end SillyTavern restore ====\n"
         return 74
       fi
+    fi
+    if mv "$external_stage" "$external_root" 2>>"$error_file"; then
+      external_restored="$external_root"
+    else
+      [ "$external_rollback" != "none" ] && [ -e "$external_rollback" ] && mv "$external_rollback" "$external_root" 2>/dev/null || true
+      mv "$TAVERN_DIR" "$failed_restore_dir" 2>/dev/null || true
+      [ -n "$rollback_dir" ] && [ -e "$rollback_dir" ] && mv "$rollback_dir" "$TAVERN_DIR" 2>/dev/null || true
+      safe_remove_restore_temp_dir "$temp_dir"
+      write_status "error" "failed to restore external dataRoot; restore was rolled back if possible" false 74
+      cat "$STATUS_FILE"
+      printf "\n==== restore error ====\n"
+      cat "$error_file" 2>/dev/null || true
+      printf "==== end SillyTavern restore ====\n"
+      return 74
     fi
   fi
 
