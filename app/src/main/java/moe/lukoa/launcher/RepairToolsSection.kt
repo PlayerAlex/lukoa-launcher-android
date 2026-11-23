@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
@@ -162,12 +163,22 @@ fun RepairToolsSection(
     }
     val lockedOnlyHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     val uploadStatusText = uploadLimitStatus.currentMegabytes?.let(TavernUploadLimitPolicy::label)
-        ?: if (uploadLimitStatus.checking) "检查中…" else "尚未读取"
+        ?: if (uploadLimitStatus.checking) "读取中…" else "点此读取"
     val uploadStatusTone = when {
         uploadLimitStatus.checking -> LukoaColors.Primary
         uploadLimitStatus.currentMegabytes != null -> LukoaColors.Primary
         else -> LukoaColors.TextSecondary
     }
+    val memoryStatusText = when {
+        nodeMemoryStatus.checking -> "读取中…"
+        nodeMemoryStatus.configured == null -> "点此读取"
+        else -> nodeMemoryStatus.displayLabel
+    }
+    val customMemorySelected = nodeMemoryStatus.configured == true &&
+        nodeMemoryStatus.megabytes != null &&
+        nodeMemoryStatus.megabytes !in TavernNodeMemoryPolicy.presetMegabytes
+    val customUploadSelected = uploadLimitStatus.currentMegabytes != null &&
+        uploadLimitStatus.currentMegabytes !in TavernUploadLimitPolicy.presetMegabytes
     confirmation?.let { request ->
         AlertDialog(
             onDismissRequest = { confirmation = null },
@@ -221,10 +232,13 @@ fun RepairToolsSection(
             }
         }
         RepairToolsGroup(grouped = !showSectionContainer) {
-            SettingsSubsection(
-                title = "常用修复",
-                detail = "酒馆安装中断、启动时报缺少文件或依赖错误时，可以重新下载依赖。只有酒馆网页因为主题设置损坏而打不开时，才重置主题。两项都会先保留旧文件并再次确认。",
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RepairToolsCardHeader(
+                    title = "常用修复",
+                    subtitle = "安装中断缺依赖，或网页主题异常打不开时使用。",
+                    badge = if (tavernRunning) "需先停止酒馆" else null,
+                    infoText = "酒馆安装中断、启动时报缺少文件或依赖错误时，可重新下载依赖；只有酒馆网页因主题设置损坏而打不开时，才需要重置主题。\n两项操作都会先备份旧文件并再次确认。",
+                )
                 SettingsFeedbackActionButton(
                     text = "修复 npm 依赖",
                     modifier = Modifier.fillMaxWidth(),
@@ -258,14 +272,16 @@ fun RepairToolsSection(
             }
         }
         RepairToolsGroup(grouped = !showSectionContainer) {
-            SettingsSubsection(
-                title = "酒馆运行内存",
-                detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；手机内存充足且酒馆提示内存不足时可以再调高。设置过高可能让系统关闭 Termux。改完下次启动酒馆时生效，不需要先停止。",
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RepairToolsCardHeader(
+                    title = "酒馆运行内存",
+                    subtitle = "一般选 4GB（小内存手机选 2GB），下次启动生效。",
+                    infoText = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。\n内存充足且酒馆提示内存不足时可调高；设置过高可能导致系统结束 Termux。修改后下次启动生效，无需先停止酒馆。",
+                )
                 SettingsEntryRow(
                     title = "当前内存上限",
-                    detail = nodeMemoryStatus.message,
-                    value = nodeMemoryStatus.displayLabel,
+                    detail = nodeMemoryStatus.message.ifBlank { "点此重新读取当前实例内存设置。" },
+                    value = memoryStatusText,
                     valueColor = if (nodeMemoryStatus.configured == true || nodeMemoryStatus.checking) {
                         LukoaColors.Primary
                     } else {
@@ -283,7 +299,7 @@ fun RepairToolsSection(
                         "启动器只会保存当前实例的内存设置，不直接修改酒馆启动脚本，下次启动酒馆时生效。手机内存不足时，设置过高可能导致系统关闭 Termux。",
                     ) { onSetNodeMemory(memory) }
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TavernNodeMemoryPolicy.presetMegabytes.forEach { memory ->
                         val selected = nodeMemoryStatus.configured == true && nodeMemoryStatus.megabytes == memory
                         SettingsCompactChoiceButton(
@@ -292,7 +308,8 @@ fun RepairToolsSection(
                                 .weight(1f)
                                 .testTag("repair-memory-choice-$memory"),
                             enabled = !actionsLocked,
-                            accentColor = if (selected) LukoaColors.Accent else LukoaColors.Primary,
+                            selected = selected,
+                            accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                             unavailableHint = lockedOnlyHint,
                             onShowHint = onShowHint,
                             onClick = { confirmMemory(memory) },
@@ -304,7 +321,8 @@ fun RepairToolsSection(
                             .weight(1f)
                             .testTag("repair-memory-choice-custom"),
                         enabled = !actionsLocked,
-                        accentColor = LukoaColors.Primary,
+                        selected = customMemorySelected,
+                        accentColor = if (customMemorySelected) LukoaColors.Primary else LukoaColors.TextSecondary,
                         unavailableHint = lockedOnlyHint,
                         onShowHint = onShowHint,
                         onClick = {
@@ -335,13 +353,15 @@ fun RepairToolsSection(
             }
         }
         RepairToolsGroup(grouped = !showSectionContainer) {
-            SettingsSubsection(
-                title = "聊天文件大小",
-                detail = "这里限制一次最多能导入多大的聊天记录文件。修改会改动酒馆程序文件，因此版本页会显示本地修改；更新或回退酒馆时启动器会自动先撤掉再补回，也可以随时用下方按钮恢复默认值。",
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RepairToolsCardHeader(
+                    title = "聊天文件大小",
+                    subtitle = "调整单次导入聊天的体积上限，下次启动生效。",
+                    infoText = "这里限制一次最多能导入多大的聊天记录文件。\n修改会改动酒馆程序文件，因此版本页会提示存在本地修改；更新或回退酒馆时启动器会自动先撤掉再补回，也可随时点下方恢复酒馆默认值。",
+                )
                 SettingsEntryRow(
                     title = "当前上传限制",
-                    detail = uploadLimitStatus.message,
+                    detail = uploadLimitStatus.message.ifBlank { "点此重新读取当前实例的上传限制。" },
                     value = uploadStatusText,
                     valueColor = if (uploadLimitStatus.patchState == TavernUploadLimitPatchState.ChangedOrOverwritten) {
                         LukoaColors.Accent
@@ -364,15 +384,17 @@ fun RepairToolsSection(
                         "只会修改当前实例中负责接收上传文件的程序部分，下次启动酒馆时生效。修改前会保存原文件和原来的数值；如果当前版本不支持，启动器会停止操作。限制越大，占用的内存也会越多。",
                     ) { onSetUploadLimit(limit) }
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TavernUploadLimitPolicy.presetMegabytes.forEach { limit ->
+                        val selected = uploadLimitStatus.currentMegabytes == limit
                         SettingsCompactChoiceButton(
                             text = TavernUploadLimitPolicy.label(limit),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("repair-upload-choice-$limit"),
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Primary,
+                            selected = selected,
+                            accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                             unavailableHint = lockedOnlyHint,
                             onShowHint = onShowHint,
                             onClick = { confirmUploadLimit(limit) },
@@ -384,7 +406,8 @@ fun RepairToolsSection(
                             .weight(1f)
                             .testTag("repair-upload-choice-custom"),
                         enabled = !actionsLocked,
-                        accentColor = LukoaColors.Primary,
+                        selected = customUploadSelected,
+                        accentColor = if (customUploadSelected) LukoaColors.Primary else LukoaColors.TextSecondary,
                         unavailableHint = lockedOnlyHint,
                         onShowHint = onShowHint,
                         onClick = {
@@ -401,7 +424,7 @@ fun RepairToolsSection(
                     text = "恢复酒馆默认值",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !actionsLocked && uploadLimitStatus.currentMegabytes != null,
-                    accentColor = LukoaColors.Primary,
+                    accentColor = LukoaColors.TextSecondary,
                     unavailableHint = when {
                         lockedOnlyHint != null -> lockedOnlyHint
                         uploadLimitStatus.currentMegabytes == null -> "请先点击“当前上传限制”读取当前值，再恢复酒馆默认值。"
@@ -489,6 +512,50 @@ private fun RepairCustomValueDialog(
 }
 
 @Composable
+private fun RepairToolsCardHeader(
+    title: String,
+    subtitle: String,
+    infoText: String,
+    badge: String? = null,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            if (!badge.isNullOrBlank()) {
+                StatusPill(
+                    text = badge,
+                    active = true,
+                    toneColor = LukoaColors.Accent,
+                    activeBackground = LukoaColors.AccentSoft,
+                )
+            }
+            InfoPopoverButton(
+                contentDescription = "查看${title}说明",
+                title = title,
+                body = infoText,
+            )
+        }
+        if (subtitle.isNotBlank()) {
+            Text(
+                text = subtitle,
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
 private fun RepairToolsGroup(
     grouped: Boolean,
     content: @Composable () -> Unit,
@@ -502,7 +569,7 @@ private fun RepairToolsGroup(
             .fillMaxWidth()
             .testTag("repair-tools-dialog-group"),
         color = LukoaColors.Surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(

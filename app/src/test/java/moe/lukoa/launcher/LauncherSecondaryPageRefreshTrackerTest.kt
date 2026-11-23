@@ -37,4 +37,22 @@ class LauncherSecondaryPageRefreshTrackerTest {
         assertNull(tracker.next(null, actionInProgress = true))
         assertNull(tracker.next(null, actionInProgress = false))
     }
+
+    @Test
+    fun `extension, health check, and repair tools auto-refresh on page entry`() {
+        val tracker = LauncherSecondaryPageRefreshTracker()
+
+        assertEquals(
+            LauncherSecondaryPageRefreshTarget.ExtensionManagement,
+            tracker.next(LauncherSecondaryPage.ExtensionManagement, actionInProgress = false),
+        )
+        assertEquals(
+            LauncherSecondaryPageRefreshTarget.RepairTools,
+            tracker.next(LauncherSecondaryPage.RepairTools, actionInProgress = false),
+        )
+        assertEquals(
+            LauncherSecondaryPageRefreshTarget.HealthCheck,
+            tracker.next(LauncherSecondaryPage.HealthCheck, actionInProgress = false),
+        )
+    }
 }

@@ -3,11 +3,14 @@ package moe.lukoa.launcher
 enum class LauncherSecondaryPageRefreshTarget {
     VersionManagement,
     Backup,
+    ExtensionManagement,
     TavernConfig,
     ServerPlugins,
     QuickImport,
+    HealthCheck,
     ChatGuard,
     StorageCleanup,
+    RepairTools,
     GitStash,
 }
 
@@ -26,15 +29,17 @@ class LauncherSecondaryPageRefreshTracker {
                     LauncherSecondaryPageRefreshTarget.VersionManagement
 
                 LauncherSecondaryPage.Backup -> LauncherSecondaryPageRefreshTarget.Backup
+                LauncherSecondaryPage.ExtensionManagement ->
+                    LauncherSecondaryPageRefreshTarget.ExtensionManagement
+
                 LauncherSecondaryPage.TavernConfig -> LauncherSecondaryPageRefreshTarget.TavernConfig
                 LauncherSecondaryPage.ServerPlugins -> LauncherSecondaryPageRefreshTarget.ServerPlugins
                 LauncherSecondaryPage.QuickImport -> LauncherSecondaryPageRefreshTarget.QuickImport
+                LauncherSecondaryPage.HealthCheck -> LauncherSecondaryPageRefreshTarget.HealthCheck
                 LauncherSecondaryPage.ChatGuard -> LauncherSecondaryPageRefreshTarget.ChatGuard
                 LauncherSecondaryPage.StorageCleanup -> LauncherSecondaryPageRefreshTarget.StorageCleanup
+                LauncherSecondaryPage.RepairTools -> LauncherSecondaryPageRefreshTarget.RepairTools
                 LauncherSecondaryPage.GitStash -> LauncherSecondaryPageRefreshTarget.GitStash
-                LauncherSecondaryPage.ExtensionManagement,
-                LauncherSecondaryPage.HealthCheck,
-                LauncherSecondaryPage.RepairTools,
                 LauncherSecondaryPage.Debug,
                 LauncherSecondaryPage.TaskCenter,
                 null -> null

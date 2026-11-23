@@ -331,6 +331,7 @@ internal fun SettingsCompactChoiceButton(
     unavailableHint: String?,
     onShowHint: (String) -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
     onClick: () -> Unit,
 ) {
     val canShowUnavailableHint = !enabled && !unavailableHint.isNullOrBlank()
@@ -346,12 +347,15 @@ internal fun SettingsCompactChoiceButton(
         enabled = acceptsClick,
         accentColor = if (enabled) accentColor else LukoaColors.Dim,
     )
+    val containerColor = if (selected && enabled) LukoaColors.Primary else style.containerColor
+    val borderColor = if (selected && enabled) LukoaColors.Primary else style.borderColor
+    val contentColor = if (selected && enabled) LukoaColors.OnPrimary else style.contentColor
     Box(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(LukoaCapsuleShape)
-            .background(style.containerColor)
-            .border(1.dp, style.borderColor, LukoaCapsuleShape)
+            .background(containerColor)
+            .border(1.dp, borderColor, LukoaCapsuleShape)
             .clickable(
                 enabled = acceptsClick,
                 role = Role.Button,
@@ -366,10 +370,10 @@ internal fun SettingsCompactChoiceButton(
         Text(
             text = text,
             modifier = Modifier.fillMaxWidth(),
-            color = style.contentColor,
+            color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = if (selected && enabled) FontWeight.Bold else FontWeight.SemiBold,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
         )

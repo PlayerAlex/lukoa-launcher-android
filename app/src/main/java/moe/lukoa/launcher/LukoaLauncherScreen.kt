@@ -258,6 +258,7 @@ fun LukoaLauncherScreen(
     var lastNotifiedConfigSaved by remember { mutableStateOf(false) }
     var lastNotifiedQuickImportFile by remember { mutableStateOf("") }
     var lastNotifiedStorageFreed by remember { mutableStateOf<Long?>(null) }
+    var repairToolsUploadAutoCheckedProfileId by rememberSaveable { mutableStateOf("") }
     var autoStartAttempted by rememberSaveable { mutableStateOf(false) }
     var lastBackPressAtMillis by remember { mutableLongStateOf(0L) }
     var tavernLaunchMode by remember { mutableStateOf(initialTavernLaunchMode) }
@@ -2844,6 +2845,25 @@ fun LukoaLauncherScreen(
         secondaryPage = LauncherSecondaryPage.TaskCenter
     }
 
+    fun checkUploadLimit() {
+        runGuarded(
+            "检查上传限制",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
+            uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
+            onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
+                guardedUpdate(newStatus, termuxOutput, ok)
+                if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
+                    uploadLimitStatus = uploadLimitStatus.copy(
+                        checking = false,
+                        message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
+                    )
+                }
+            }
+        }
+    }
+
     fun resetUploadLimitToVersionDefault() {
         runGuarded(
             "恢复默认聊天文件大小",
@@ -3670,9 +3690,15 @@ fun LukoaLauncherScreen(
             LauncherSecondaryPageRefreshTarget.Backup -> {
                 backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
             }
+            LauncherSecondaryPageRefreshTarget.ExtensionManagement -> refreshTavernExtensions()
             LauncherSecondaryPageRefreshTarget.TavernConfig -> opsCoordinator.refreshTavernConfig()
             LauncherSecondaryPageRefreshTarget.ServerPlugins -> opsCoordinator.refreshServerPlugins()
             LauncherSecondaryPageRefreshTarget.QuickImport -> opsCoordinator.refreshQuickImportPaths()
+            LauncherSecondaryPageRefreshTarget.HealthCheck -> {
+                if (healthCheckReport == null && !healthCheckInFlight) {
+                    runHealthCheck()
+                }
+            }
             LauncherSecondaryPageRefreshTarget.ChatGuard -> {
                 if (opsUiState.chatGuardState.snapshot == null && !opsUiState.chatGuardState.loading) {
                     opsCoordinator.refreshChatGuardStatus()
@@ -3683,6 +3709,11 @@ fun LukoaLauncherScreen(
                     opsCoordinator.scanTavernStorage()
                 }
             }
+            LauncherSecondaryPageRefreshTarget.RepairTools -> {
+                if (!opsUiState.nodeMemoryStatus.checking) {
+                    opsCoordinator.checkNodeMemoryStatus()
+                }
+            }
             LauncherSecondaryPageRefreshTarget.GitStash -> {
                 if (opsUiState.gitStashState.gitAvailable == null && !opsUiState.gitStashState.loading) {
                     opsCoordinator.refreshGitStash()
@@ -3690,6 +3721,29 @@ fun LukoaLauncherScreen(
             }
 
             null -> Unit
+        }
+    }
+
+    LaunchedEffect(
+        secondaryPage,
+        actionInProgress,
+        tavernPathConfig.activeProfile.id,
+        opsUiState.nodeMemoryStatus.configured,
+        opsUiState.nodeMemoryStatus.checking,
+        uploadLimitStatus.currentMegabytes,
+        uploadLimitStatus.checking,
+    ) {
+        val activeProfileId = tavernPathConfig.activeProfile.id
+        if (
+            secondaryPage == LauncherSecondaryPage.RepairTools &&
+            !actionInProgress &&
+            !opsUiState.nodeMemoryStatus.checking &&
+            !uploadLimitStatus.checking &&
+            uploadLimitStatus.currentMegabytes == null &&
+            repairToolsUploadAutoCheckedProfileId != activeProfileId
+        ) {
+            repairToolsUploadAutoCheckedProfileId = activeProfileId
+            checkUploadLimit()
         }
     }
 
@@ -4566,24 +4620,7 @@ fun LukoaLauncherScreen(
                             onCheckNodeMemory = opsCoordinator::checkNodeMemoryStatus,
                             onSetNodeMemory = opsCoordinator::setNodeMemory,
                             onResetNodeMemory = opsCoordinator::resetNodeMemory,
-                            onCheckUploadLimit = {
-                                runGuarded(
-                                    "检查上传限制",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
-                                    onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
-                                        guardedUpdate(newStatus, termuxOutput, ok)
-                                        if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
-                                            uploadLimitStatus = uploadLimitStatus.copy(
-                                                checking = false,
-                                                message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
-                                            )
-                                        }
-                                    }
-                                }
-                            },
+                            onCheckUploadLimit = ::checkUploadLimit,
                             onSetUploadLimit = { megabytes ->
                                 runGuarded(
                                     "修改上传限制",
@@ -5061,24 +5098,7 @@ fun LukoaLauncherScreen(
                                 onCheckNodeMemory = opsCoordinator::checkNodeMemoryStatus,
                                 onSetNodeMemory = opsCoordinator::setNodeMemory,
                                 onResetNodeMemory = opsCoordinator::resetNodeMemory,
-                                onCheckUploadLimit = {
-                                    runGuarded(
-                                        "检查上传限制",
-                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
-                                        allowRunningInference = false,
-                                    ) { guardedUpdate ->
-                                        uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
-                                        onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
-                                            guardedUpdate(newStatus, termuxOutput, ok)
-                                            if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
-                                                uploadLimitStatus = uploadLimitStatus.copy(
-                                                    checking = false,
-                                                    message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
+                                onCheckUploadLimit = ::checkUploadLimit,
                                 onSetUploadLimit = { megabytes ->
                                     runGuarded(
                                         "修改上传限制",

@@ -141,6 +141,7 @@ fun TavernChatGuardContent(
                 SettingsCompactChoiceButton(
                     text = if (kb >= 1024) "${kb / 1024}MB" else "${kb}KB",
                     enabled = !actionsLocked,
+                    selected = selected,
                     accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                     modifier = Modifier.weight(1f),
                     unavailableHint = lockedHint,
@@ -164,6 +165,7 @@ fun TavernChatGuardContent(
                 SettingsCompactChoiceButton(
                     text = "${seconds}秒",
                     enabled = !actionsLocked,
+                    selected = selected,
                     accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                     modifier = Modifier.weight(1f),
                     unavailableHint = lockedHint,
