@@ -21,7 +21,7 @@ enum class LukoaThemeStyle(
     Daylight(
         wireValue = "daylight",
         label = "日间浅色",
-        summary = "清爽中性白底搭配深炭黑文字，白天阅读清晰通透。",
+        summary = "柔和护眼浅灰纸感底色，不刺眼、通透耐看。",
         isLight = true,
     ),
     ;
@@ -76,34 +76,34 @@ object LukoaPalettes {
         primarySoft = Color(0xFF353535),
         accent = Color(0xFFCFCFCF),
         accentSoft = Color(0xFF383838),
-        danger = Color(0xFFE5787C),
-        dangerSoft = Color(0xFF3A2324),
-        stop = Color(0xFFE67E82),
+        danger = Color(0xFFC97A7D),
+        dangerSoft = Color(0xFF332627),
+        stop = Color(0xFFC47A7D),
         terminal = Color(0xFF161616),
     )
 
     /**
-     * 纯正中性日间浅色系：R=G=B 柔白纸感层级 + 深炭黑主色，
-     * 白天通透不刺眼，高对比度清晰易读。
+     * 柔和中性日间浅灰系：用低眩光雾灰纸感替代刺眼纯白，
+     * R=G=B 零偏色，搭配克制柔红警示色，白天长时间观看依然舒适。
      */
     val Daylight = LukoaColorPalette(
-        background = Color(0xFFF2F2F2),
-        surface = Color(0xFFFFFFFF),
-        elevated = Color(0xFFF8F8F8),
-        border = Color(0xFFDDDDDD),
-        textPrimary = Color(0xFF141414),
-        textSecondary = Color(0xFF5C5C5C),
-        dim = Color(0xFF8A8A8A),
-        primary = Color(0xFF1A1A1A),
-        primaryHover = Color(0xFF000000),
-        onPrimary = Color(0xFFFFFFFF),
-        primarySoft = Color(0xFFE6E6E6),
-        accent = Color(0xFF2E2E2E),
-        accentSoft = Color(0xFFE8E8E8),
-        danger = Color(0xFFBC2C34),
-        dangerSoft = Color(0xFFFDECEE),
-        stop = Color(0xFFC2323A),
-        terminal = Color(0xFFFAFAFA),
+        background = Color(0xFFE6E6E6),
+        surface = Color(0xFFEEEEEE),
+        elevated = Color(0xFFF3F3F3),
+        border = Color(0xFFD2D2D2),
+        textPrimary = Color(0xFF262626),
+        textSecondary = Color(0xFF5A5A5A),
+        dim = Color(0xFF828282),
+        primary = Color(0xFF333333),
+        primaryHover = Color(0xFF242424),
+        onPrimary = Color(0xFFEFEFEF),
+        primarySoft = Color(0xFFDCDCDC),
+        accent = Color(0xFF3D3D3D),
+        accentSoft = Color(0xFFDFDFDF),
+        danger = Color(0xFF9E4448),
+        dangerSoft = Color(0xFFEDE2E2),
+        stop = Color(0xFF9E484C),
+        terminal = Color(0xFFEAEAEA),
     )
 
     fun forStyle(style: LukoaThemeStyle): LukoaColorPalette = when (style) {

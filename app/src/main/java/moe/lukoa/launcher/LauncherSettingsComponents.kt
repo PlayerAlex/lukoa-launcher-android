@@ -595,7 +595,7 @@ internal fun LukoaTextField(
 @Composable
 internal fun LukoaSwitchRow(
     title: String,
-    detail: String,
+    detail: String = "",
     checked: Boolean,
     enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -620,18 +620,20 @@ internal fun LukoaSwitchRow(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = detail,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            if (detail.isNotBlank()) {
+                Text(
+                    text = detail,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = LukoaColors.Background,
+                checkedThumbColor = LukoaColors.OnPrimary,
                 checkedTrackColor = LukoaColors.Primary,
                 uncheckedThumbColor = LukoaColors.TextSecondary,
                 uncheckedTrackColor = LukoaColors.Elevated,

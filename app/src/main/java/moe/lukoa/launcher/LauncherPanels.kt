@@ -364,70 +364,64 @@ fun LogPanel(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            AnimatedVisibility(
-                visible = showFilterControls && filterBarOpen,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = LukoaColors.Elevated,
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Border),
+            if (showFilterControls && filterExpandedByDefault) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = LukoaColors.Elevated,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            LogFilterChip(
-                                text = if (filterResult.errorLines > 0) "只看报错 (${filterResult.errorLines})" else "只看报错",
-                                active = errorsOnly,
-                                activeTone = LukoaColors.Danger,
-                                highlightBadge = !errorsOnly && filterResult.errorLines > 0,
-                                onClick = { errorsOnly = !errorsOnly },
-                            )
-                            LogFilterChip(
-                                text = if (searchExpanded || searchQuery.isNotBlank()) "收起搜索" else "搜索",
-                                active = searchExpanded || searchQuery.isNotBlank(),
-                                activeTone = LukoaColors.Primary,
-                                onClick = {
-                                    if (searchExpanded && searchQuery.isNotBlank()) {
-                                        searchQuery = ""
-                                    }
-                                    searchExpanded = !searchExpanded
-                                },
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            LogFilterChip(
-                                text = if (copiedNotice) "已复制" else "复制",
-                                active = copiedNotice,
-                                activeTone = LukoaColors.Primary,
-                                onClick = {
-                                    val copied = runCatching {
-                                        val clipboard = context.getSystemService(ClipboardManager::class.java)
-                                        clipboard?.setPrimaryClip(ClipData.newPlainText(title, displayContent))
-                                        clipboard != null
-                                    }.getOrDefault(false)
-                                    if (copied) copiedNotice = true
-                                },
-                            )
-                        }
-                    }
-                    AnimatedVisibility(
-                        visible = searchExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut(),
-                    ) {
-                        LukoaSearchField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = "输入关键词筛选日志（如 429、port）",
+                        LogFilterChip(
+                            text = if (filterResult.errorLines > 0) "只看报错 (${filterResult.errorLines})" else "只看报错",
+                            active = errorsOnly,
+                            activeTone = LukoaColors.Danger,
+                            highlightBadge = !errorsOnly && filterResult.errorLines > 0,
+                            onClick = { errorsOnly = !errorsOnly },
+                        )
+                        LogFilterChip(
+                            text = if (searchExpanded || searchQuery.isNotBlank()) "收起搜索" else "搜索",
+                            active = searchExpanded || searchQuery.isNotBlank(),
+                            activeTone = LukoaColors.Primary,
+                            onClick = {
+                                if (searchExpanded && searchQuery.isNotBlank()) {
+                                    searchQuery = ""
+                                }
+                                searchExpanded = !searchExpanded
+                            },
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        LogFilterChip(
+                            text = if (copiedNotice) "已复制" else "复制",
+                            active = copiedNotice,
+                            activeTone = LukoaColors.Primary,
+                            onClick = {
+                                val copied = runCatching {
+                                    val clipboard = context.getSystemService(ClipboardManager::class.java)
+                                    clipboard?.setPrimaryClip(ClipData.newPlainText(title, displayContent))
+                                    clipboard != null
+                                }.getOrDefault(false)
+                                if (copied) copiedNotice = true
+                            },
                         )
                     }
+                }
+                AnimatedVisibility(
+                    visible = searchExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    LukoaSearchField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = "输入关键词筛选日志（如 429、port）",
+                    )
                 }
             }
             Box(
@@ -492,25 +486,25 @@ fun LogPanel(
                 }
             }
             if ((showFilterControls && !filterExpandedByDefault) || headerExtraAction != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (showFilterControls && !filterExpandedByDefault) {
-                        val hasFilterActive = errorsOnly || searchQuery.isNotBlank() || filterBarOpen
-                        LogFilterChip(
-                            text = when {
-                                filterBarOpen -> "收起筛选"
-                                filterResult.errorLines > 0 -> "筛选 (${filterResult.errorLines})"
-                                else -> "筛选"
-                            },
-                            active = hasFilterActive,
-                            activeTone = if (!filterBarOpen && filterResult.errorLines > 0) LukoaColors.Danger else LukoaColors.Primary,
-                            highlightBadge = !filterBarOpen && filterResult.errorLines > 0,
-                            onClick = { filterBarOpen = !filterBarOpen },
-                        )
-                        if (!filterBarOpen) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (showFilterControls && !filterExpandedByDefault) {
+                            val hasFilterActive = errorsOnly || searchQuery.isNotBlank() || filterBarOpen
+                            LogFilterChip(
+                                text = when {
+                                    filterBarOpen -> "收起筛选"
+                                    filterResult.errorLines > 0 -> "筛选 (${filterResult.errorLines})"
+                                    else -> "筛选"
+                                },
+                                active = hasFilterActive,
+                                activeTone = if (!filterBarOpen && filterResult.errorLines > 0) LukoaColors.Danger else LukoaColors.Primary,
+                                highlightBadge = !filterBarOpen && filterResult.errorLines > 0,
+                                onClick = { filterBarOpen = !filterBarOpen },
+                            )
                             LogFilterChip(
                                 text = if (copiedNotice) "已复制" else "复制日志",
                                 active = copiedNotice,
@@ -524,10 +518,68 @@ fun LogPanel(
                                     if (copied) copiedNotice = true
                                 },
                             )
+                            if (isFilterActive) {
+                                Text(
+                                    text = "${filterResult.matchedLines}/${filterResult.totalLines} 行",
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        headerExtraAction?.invoke()
+                    }
+                    AnimatedVisibility(
+                        visible = showFilterControls && !filterExpandedByDefault && filterBarOpen,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut(),
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = LukoaColors.Elevated,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, LukoaColors.Border),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                LukoaSearchField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = "输入关键词筛选日志（如 429、port）",
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    LogFilterChip(
+                                        text = if (filterResult.errorLines > 0) "只看报错 (${filterResult.errorLines})" else "只看报错",
+                                        active = errorsOnly,
+                                        activeTone = LukoaColors.Danger,
+                                        highlightBadge = !errorsOnly && filterResult.errorLines > 0,
+                                        onClick = { errorsOnly = !errorsOnly },
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    if (isFilterActive) {
+                                        LogFilterChip(
+                                            text = "重置",
+                                            active = false,
+                                            activeTone = LukoaColors.TextSecondary,
+                                            onClick = {
+                                                errorsOnly = false
+                                                searchQuery = ""
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.weight(1f))
-                    headerExtraAction?.invoke()
                 }
             }
         }

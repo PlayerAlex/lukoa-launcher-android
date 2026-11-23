@@ -107,9 +107,21 @@ fun TavernControlSection(
         primaryEnabled = primaryEnabled,
         primaryDisabledReason = primaryDisabledReason,
     )
-    val primaryColor = when {
-        shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
+    val offeringStop = shouldOfferStopTavern(tavernRunning, tavernStarting)
+    val primaryContainerColor = when {
+        actionInProgress -> LukoaColors.Elevated
+        offeringStop -> LukoaColors.DangerSoft
         else -> LukoaColors.Primary
+    }
+    val primaryContentColor = when {
+        actionInProgress -> LukoaColors.TextSecondary
+        offeringStop -> LukoaColors.Stop
+        else -> LukoaColors.OnPrimary
+    }
+    val primaryBorder = if (!actionInProgress && offeringStop && primaryEnabled) {
+        BorderStroke(1.dp, LukoaColors.Stop.copy(alpha = 0.45f))
+    } else {
+        null
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
@@ -143,7 +155,14 @@ fun TavernControlSection(
                 if (activeProfileLabel.isNotBlank() && profileCount > 1) {
                     val switchEnabled = !actionInProgress && onOpenQuickSwitchProfile != null
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                enabled = switchEnabled,
+                                role = Role.Button,
+                                onClick = { onOpenQuickSwitchProfile?.invoke() },
+                            )
+                            .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -152,32 +171,26 @@ fun TavernControlSection(
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Surface(
-                            modifier = Modifier.clickable(
-                                enabled = switchEnabled,
-                                role = Role.Button,
-                                onClick = { onOpenQuickSwitchProfile?.invoke() },
-                            ),
-                            color = LukoaColors.Elevated,
-                            shape = LukoaCapsuleShape,
-                            border = BorderStroke(1.dp, LukoaColors.Border),
-                        ) {
-                            Text(
-                                text = "$activeProfileLabel · $activePort · 切换",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                color = LukoaColors.TextPrimary,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        Text(
+                            text = "$activeProfileLabel ($activePort) ›",
+                            color = LukoaColors.Primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 if (tavernRunning && onCopyTavernUrl != null) {
                     val localUrl = "http://127.0.0.1:$activePort"
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                role = Role.Button,
+                                onClick = rememberFeedbackClick(onCopyTavernUrl),
+                            )
+                            .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -186,25 +199,14 @@ fun TavernControlSection(
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Surface(
-                            modifier = Modifier.clickable(
-                                role = Role.Button,
-                                onClick = rememberFeedbackClick(onCopyTavernUrl),
-                            ),
-                            color = LukoaColors.Elevated,
-                            shape = LukoaCapsuleShape,
-                            border = BorderStroke(1.dp, LukoaColors.Border),
-                        ) {
-                            Text(
-                                text = localUrl,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                color = LukoaColors.TextPrimary,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        Text(
+                            text = localUrl,
+                            color = LukoaColors.Primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 Row(
@@ -262,9 +264,10 @@ fun TavernControlSection(
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
+            border = primaryBorder,
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (actionInProgress) LukoaColors.Elevated else primaryColor,
-                contentColor = if (actionInProgress) LukoaColors.TextSecondary else LukoaColors.Background,
+                containerColor = primaryContainerColor,
+                contentColor = primaryContentColor,
                 disabledContainerColor = LukoaColors.Elevated,
                 disabledContentColor = LukoaColors.Dim,
             ),

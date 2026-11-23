@@ -81,7 +81,18 @@ fun IssueAnalysisPanel(
     issues: List<TavernIssue>,
     actionsLocked: Boolean,
     onQuickFixAction: (LauncherQuickFixAction) -> Unit,
+    showSectionContainer: Boolean = true,
 ) {
+    if (!showSectionContainer) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            IssueAnalysisBody(
+                issues = issues,
+                actionsLocked = actionsLocked,
+                onQuickFixAction = onQuickFixAction,
+            )
+        }
+        return
+    }
     val hasDanger = issues.any { it.severity == IssueSeverity.Danger }
     SectionPanel(
         title = "失败后一键修复",

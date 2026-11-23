@@ -255,7 +255,6 @@ fun LukoaLauncherScreen(
     var acknowledgedRescueCount by rememberSaveable { mutableIntStateOf(0) }
     val topBannerController = remember { LukoaTopBannerController() }
     var lastNotifiedPermissionTitle by rememberSaveable { mutableStateOf("") }
-    var lastNotifiedDangerIssueTitle by rememberSaveable { mutableStateOf("") }
     var lastNotifiedUpdateTag by rememberSaveable { mutableStateOf("") }
     var lastNotifiedConfigSaved by remember { mutableStateOf(false) }
     var lastNotifiedQuickImportFile by remember { mutableStateOf("") }
@@ -4098,27 +4097,6 @@ fun LukoaLauncherScreen(
         }
     }
 
-    val topDangerIssue = issueAnalysis.firstOrNull { it.severity == IssueSeverity.Danger }
-    LaunchedEffect(topDangerIssue?.title) {
-        val issue = topDangerIssue
-        if (issue == null) {
-            lastNotifiedDangerIssueTitle = ""
-            return@LaunchedEffect
-        }
-        if (issue.title != lastNotifiedDangerIssueTitle) {
-            lastNotifiedDangerIssueTitle = issue.title
-            topBannerController.show(
-                title = "检测到异常：${issue.title}",
-                detail = issue.detail,
-                tone = LukoaTopBannerTone.Danger,
-                actionLabel = "一键修复",
-                onAction = { showIssueAnalysisDialog = true },
-                autoDismissMs = 8_500L,
-                dedupeKey = "issue-${issue.title}",
-            )
-        }
-    }
-
     LaunchedEffect(showGithubUpdateBadge, githubUpdateState.latest?.tagName) {
         val latest = githubUpdateState.latest ?: return@LaunchedEffect
         if (showGithubUpdateBadge && latest.tagName != lastNotifiedUpdateTag) {
@@ -4586,27 +4564,6 @@ fun LukoaLauncherScreen(
                                 accentColor = LukoaColors.Primary,
                                 infoText = "显示酒馆和 Termux 实时输出。点底部「筛选」可只看报错或搜关键词，点「复制日志」可一键复制。",
                                 filterExpandedByDefault = false,
-                                headerExtraAction = if (issueAnalysis.isNotEmpty()) {
-                                    {
-                                        Surface(
-                                            modifier = Modifier.clickable { showIssueAnalysisDialog = true },
-                                            color = LukoaColors.DangerSoft,
-                                            shape = LukoaCapsuleShape,
-                                            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.45f)),
-                                        ) {
-                                            Text(
-                                                text = "报错修复(${issueAnalysis.size})",
-                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                                                color = LukoaColors.Danger,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    null
-                                },
                                 // Laying out the whole 120KB buffer on every update janked the page; the
                                 // full log is still in the export.
                                 maxVisibleLines = 600,

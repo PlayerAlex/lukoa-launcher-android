@@ -536,59 +536,81 @@ internal fun ToolboxDebugContent(
     onShowHint: (String) -> Unit,
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    if (issues.isNotEmpty()) {
-        IssueAnalysisPanel(
-            issues = issues,
-            actionsLocked = actionsLocked,
-            onQuickFixAction = onQuickFixAction,
-        )
-    }
-    ManagementDialogActionCard(title = "诊断与日志") {
-        Text(
-            text = "导出内容适合用于排查问题；清除只会整理启动器页面里的日志，不会删除酒馆聊天或备份。",
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        SettingsFeedbackActionButton(
-            text = "导出诊断日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onExportDiagnostic,
-        )
-        SettingsFeedbackActionButton(
-            text = "清除页面日志",
-            enabled = !actionsLocked,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onClick = onClearLogs,
-        )
-    }
-    if (issues.isEmpty()) {
-        IssueAnalysisPanel(
-            issues = issues,
-            actionsLocked = actionsLocked,
-            onQuickFixAction = onQuickFixAction,
-        )
-    }
-    ManagementDialogActionCard(title = "强制处理") {
-        Text(
-            text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        TimedDangerFeedbackActionButton(
-            text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
-            enabled = !actionsLocked,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = lockedHint,
-            onShowHint = onShowHint,
-            onConfirmed = onForceCleanup,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel(
+                if (issues.isEmpty()) "报错诊断" else "报错诊断（${issues.size} 条）",
+            )
+            IssueAnalysisPanel(
+                issues = issues,
+                actionsLocked = actionsLocked,
+                onQuickFixAction = onQuickFixAction,
+                showSectionContainer = false,
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("诊断与日志")
+            SettingsEntryGroup {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "导出内容适合用于排查问题；清除只会整理启动器页面里的日志，不会删除酒馆聊天或备份。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        SettingsFeedbackActionButton(
+                            text = "导出诊断日志",
+                            enabled = !actionsLocked,
+                            accentColor = LukoaColors.Primary,
+                            modifier = Modifier.weight(1f),
+                            unavailableHint = lockedHint,
+                            onShowHint = onShowHint,
+                            onClick = onExportDiagnostic,
+                        )
+                        SettingsFeedbackActionButton(
+                            text = "清除页面日志",
+                            enabled = !actionsLocked,
+                            accentColor = LukoaColors.TextSecondary,
+                            modifier = Modifier.weight(1f),
+                            unavailableHint = lockedHint,
+                            onShowHint = onShowHint,
+                            onClick = onClearLogs,
+                        )
+                    }
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("强制处理")
+            SettingsEntryGroup {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = TavernForceCleanupButtonUi.hintFor(forceCleanupSuggestion),
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TimedDangerFeedbackActionButton(
+                        text = TavernForceCleanupButtonUi.labelFor(forceCleanupSuggestion),
+                        enabled = !actionsLocked,
+                        modifier = Modifier.fillMaxWidth(),
+                        unavailableHint = lockedHint,
+                        onShowHint = onShowHint,
+                        onConfirmed = onForceCleanup,
+                    )
+                }
+            }
+        }
     }
 }
 

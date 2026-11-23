@@ -189,7 +189,7 @@ class TavernPhaseCUiTest {
         }
 
         composeRule.onNodeWithText("当前实例").assertIsDisplayed()
-        composeRule.onNodeWithText("分身 2 · 8001 · 切换").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("分身 2 (8001) ›").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assertTrue(switchOpened) }
     }
 
@@ -333,20 +333,26 @@ class TavernPhaseCUiTest {
     fun logPanel_withCollapsedFilter_revealsFilterAndCopyInFooterWithoutCrowdingHeader() {
         composeRule.setContent {
             LukoaTheme {
-                LogPanel(
-                    title = "Termux 运行日志",
-                    content = "info line\nError: EADDRINUSE",
-                    accentColor = LukoaColors.Primary,
-                    infoText = "测试说明",
-                    filterExpandedByDefault = false,
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    LogPanel(
+                        title = "Termux 运行日志",
+                        content = "info line\nError: EADDRINUSE",
+                        accentColor = LukoaColors.Primary,
+                        infoText = "测试说明",
+                        filterExpandedByDefault = false,
+                    )
+                }
             }
         }
 
         composeRule.onNodeWithText("Termux 运行日志").assertIsDisplayed()
-        composeRule.onNodeWithText("筛选 (1)").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("筛选 (1)").performScrollTo().assertIsDisplayed().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("只看报错 (1)").assertIsDisplayed()
+        composeRule.onNodeWithText("只看报错 (1)").performScrollTo().assertIsDisplayed()
     }
 
     @Test
