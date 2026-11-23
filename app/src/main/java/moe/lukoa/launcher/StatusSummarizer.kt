@@ -26,6 +26,9 @@ object StatusSummarizer {
             merged.contains("HTTP endpoint is still responding") ||
                 merged.contains("\"exitCode\": 76") -> "停止酒馆失败：酒馆网页仍在响应"
 
+            merged.contains("SillyTavern foreground session exited with an error") ->
+                "酒馆启动后异常退出，请查看 Termux 日志"
+
             merged.contains("\"status\": \"stopped\"") ||
                 merged.contains("SillyTavern stopped") ||
                 merged.contains("SillyTavern was not running") ||

@@ -12,3 +12,4 @@ local.properties
 captures/
 .codex-tmp/
 outputs/
+__pycache__/

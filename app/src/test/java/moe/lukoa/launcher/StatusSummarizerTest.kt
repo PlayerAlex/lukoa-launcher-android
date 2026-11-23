@@ -30,6 +30,21 @@ class StatusSummarizerTest {
     }
 
     @Test
+    fun `failed foreground session remains a startup error despite earlier starting status`() {
+        val summary = StatusSummarizer.summarize(
+            status = "已同步 Termux：foreground-console",
+            termuxOutput = """
+                {"status": "starting", "running": true, "exitCode": 0}
+                {"status": "error", "running": false, "exitCode": 1,
+                 "message": "SillyTavern foreground session exited with an error"}
+            """.trimIndent(),
+            ok = false,
+        )
+
+        assertEquals("酒馆启动后异常退出，请查看 Termux 日志", summary)
+    }
+
+    @Test
     fun `port conflict is summarized separately from running state`() {
         val summary = StatusSummarizer.summarize(
             status = "启动酒馆失败。",
