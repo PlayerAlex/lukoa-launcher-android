@@ -461,7 +461,6 @@ private fun ToolboxGrid(
                     label = "聊天守护",
                     description = chatGuardDescription,
                     onClick = onOpenChatGuard,
-                    emphasized = chatGuardState.effectiveRescueCount > 0,
                 ),
                 right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
             )
@@ -472,7 +471,6 @@ private fun ToolboxGrid(
                     label = "任务中心",
                     description = backgroundTaskStatus,
                     onClick = onOpenTaskCenter,
-                    emphasized = backgroundTaskNeedsAttention,
                 ),
             )
             HorizontalDivider(color = LukoaColors.Border)

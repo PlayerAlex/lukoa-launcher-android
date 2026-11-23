@@ -160,9 +160,7 @@ fun DocumentationSection(
                             label = "documentation-page-content",
                         ) { page ->
                             when (page) {
-                                DocumentationPage.Home -> DocumentationHome(
-                                    onOpenPage = { selectedPage = it },
-                                )
+                                DocumentationPage.Home -> DocumentationHome()
                                 DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
                                 DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
                                 DocumentationPage.AdvancedFeatures -> DocumentationTopicList(ADVANCED_FEATURE_TOPICS)
@@ -232,33 +230,11 @@ private fun DocumentationPageHeader(
 }
 
 @Composable
-private fun DocumentationHome(
-    onOpenPage: (DocumentationPage) -> Unit,
-) {
+private fun DocumentationHome() {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "入门指南",
-                detail = "安装、启动、版本切换与备份说明",
-                onClick = { onOpenPage(DocumentationPage.LauncherQuestions) },
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "酒馆黑话",
-                detail = "API、角色卡、世界书、预设与常见报错",
-                onClick = { onOpenPage(DocumentationPage.TavernJargon) },
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "进阶维护",
-                detail = "局域网扫码、聊天守护、空间清理与导入",
-                onClick = { onOpenPage(DocumentationPage.AdvancedFeatures) },
-            )
-        }
-        HorizontalDivider(color = LukoaColors.Border)
         DOCUMENTATION_HOME_NOTICES.forEachIndexed { index, notice ->
             Text(
                 text = "${index + 1}. $notice",

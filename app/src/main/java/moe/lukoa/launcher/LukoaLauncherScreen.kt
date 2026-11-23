@@ -5026,14 +5026,7 @@ fun LukoaLauncherScreen(
                                 onRefresh = opsCoordinator::refreshChatGuardStatus,
                                 onSaveConfig = opsCoordinator::saveChatGuardConfig,
                                 onClearHistory = opsCoordinator::clearChatGuardHistory,
-                                onCopyPath = { path ->
-                                    val ok = onCopyText("救回聊天路径", path)
-                                    topBannerController.show(
-                                        title = if (ok) "已复制救回文件路径" else "复制路径失败",
-                                        tone = if (ok) LukoaTopBannerTone.Success else LukoaTopBannerTone.Danger,
-                                    )
-                                    ok
-                                },
+                                onCopyPath = { path -> onCopyText("救回聊天路径", path) },
                                 onShowHint = { hint -> topBannerController.show(title = hint) },
                             )
 
