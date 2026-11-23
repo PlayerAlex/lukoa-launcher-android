@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     id("com.android.application")
     id("jacoco")
     id("org.jetbrains.kotlin.android")
@@ -17,8 +17,8 @@ android {
         applicationId = "moe.lukoa.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 298
-        versionName = "1.0.2-beta10"
+        versionCode = 299
+        versionName = "1.0.2-beta11"
     }
 
     buildTypes {
