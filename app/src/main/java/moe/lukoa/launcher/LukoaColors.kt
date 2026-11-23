@@ -15,7 +15,7 @@ enum class LukoaThemeStyle(
     Monochrome(
         wireValue = "monochrome",
         label = "夜间深色",
-        summary = "纯正中性炭黑搭配柔和纯白，夜间使用护眼耐看。",
+        summary = "柔和中性深灰搭配雾白文字，告别刺眼纯黑，夜间护眼耐看。",
         isLight = false,
     ),
     Daylight(
@@ -59,27 +59,27 @@ data class LukoaColorPalette(
 
 object LukoaPalettes {
     /**
-     * 纯正中性深色系：R=G=B 零偏色炭黑层级 + 柔和哑白主色，
-     * 仅在删除/停止/报错处保留低饱和柔红。
+     * 柔和中性深灰暗色系：R=G=B 零偏色哑光深灰层级 + 柔雾白主色，
+     * 避免纯黑高反差刺眼，也不偏黄或偏冷蓝；仅在删除/停止/报错处保留低饱和柔红。
      */
     val Monochrome = LukoaColorPalette(
-        background = Color(0xFF0D0D0D),
-        surface = Color(0xFF161616),
-        elevated = Color(0xFF202020),
-        border = Color(0xFF323232),
-        textPrimary = Color(0xFFF2F2F2),
-        textSecondary = Color(0xFFA6A6A6),
-        dim = Color(0xFF707070),
-        primary = Color(0xFFEDEDED),
-        primaryHover = Color(0xFFFFFFFF),
-        onPrimary = Color(0xFF111111),
-        primarySoft = Color(0xFF292929),
-        accent = Color(0xFFDCDCDC),
-        accentSoft = Color(0xFF2C2C2C),
-        danger = Color(0xFFE56B6F),
-        dangerSoft = Color(0xFF31191A),
-        stop = Color(0xFFEB7A7E),
-        terminal = Color(0xFF080808),
+        background = Color(0xFF1C1C1C),
+        surface = Color(0xFF242424),
+        elevated = Color(0xFF2C2C2C),
+        border = Color(0xFF3A3A3A),
+        textPrimary = Color(0xFFDFDFDF),
+        textSecondary = Color(0xFFA3A3A3),
+        dim = Color(0xFF757575),
+        primary = Color(0xFFDCDCDC),
+        primaryHover = Color(0xFFEAEAEA),
+        onPrimary = Color(0xFF1A1A1A),
+        primarySoft = Color(0xFF353535),
+        accent = Color(0xFFCFCFCF),
+        accentSoft = Color(0xFF383838),
+        danger = Color(0xFFE5787C),
+        dangerSoft = Color(0xFF3A2324),
+        stop = Color(0xFFE67E82),
+        terminal = Color(0xFF161616),
     )
 
     /**

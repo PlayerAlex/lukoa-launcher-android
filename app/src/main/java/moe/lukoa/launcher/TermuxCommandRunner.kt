@@ -1067,7 +1067,7 @@ class TermuxCommandRunner(private val context: Context) {
                 )
                 putExtra(
                     "android.support.customtabs.extra.TOOLBAR_COLOR",
-                    if (LukoaColors.currentStyle.isLight) 0xFFF2F2F2.toInt() else 0xFF0D0D0D.toInt(),
+                    if (LukoaColors.currentStyle.isLight) 0xFFF2F2F2.toInt() else 0xFF1C1C1C.toInt(),
                 )
                 putExtra("android.support.customtabs.extra.ENABLE_URLBAR_HIDING", true)
             }
