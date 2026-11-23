@@ -159,56 +159,51 @@ fun TavernServerPluginSection(
         )
     }
 
-    SectionPanel(
-        title = "服务器插件",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StatusPill(
+                SettingsGroupLabel(
+                    title = "当前实例",
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
                     text = when {
                         state.loading -> "读取中"
                         snapshot == null -> "未读取"
-                        else -> "${snapshot.plugins.size} 个"
+                        else -> "${snapshot.plugins.size} 个插件"
                     },
-                    active = state.loading || snapshot != null,
-                    toneColor = LukoaColors.Primary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看服务器插件说明",
-                    title = "什么时候需要用到这里？",
-                    body = "平时一般用不到这里，普通酒馆网页扩展请去「扩展管理」安装。\n只有少数插件（如需要调用本机程序或额外后端接口）明确提醒要装「后端 / 服务器插件」时，才来这里粘贴网址安装，并顺手在酒馆设置里打开后端插件开关。",
+                    color = if (state.loading || snapshot != null) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-        },
-    ) {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "当前实例",
-                detail = state.message,
-                detailMaxLines = Int.MAX_VALUE,
-                value = instanceLabel,
-                valueColor = LukoaColors.Primary,
-                valueAsPill = true,
-            )
-            if (snapshot != null) {
-                SettingsEntryDivider()
+            SettingsEntryGroup {
                 SettingsEntryRow(
-                    title = "后端插件总开关",
-                    detail = if (snapshot.enabledInConfig) {
-                        "已开启，重启酒馆后会自动加载下方插件。"
-                    } else {
-                        "当前未开启，点此前往「酒馆设置」开启后插件才会生效。"
-                    },
-                    detailMaxLines = 3,
-                    value = if (snapshot.enabledInConfig) "已开启" else "未开启",
-                    valueColor = if (snapshot.enabledInConfig) LukoaColors.Primary else LukoaColors.TextSecondary,
-                    valueAsPill = true,
-                    onClick = onOpenTavernConfig,
+                    title = "当前实例",
+                    detail = state.message,
+                    detailMaxLines = Int.MAX_VALUE,
+                    value = instanceLabel,
+                    valueColor = LukoaColors.TextPrimary,
                 )
+                if (snapshot != null) {
+                    SettingsEntryDivider()
+                    SettingsEntryRow(
+                        title = "后端插件总开关",
+                        detail = if (snapshot.enabledInConfig) {
+                            "已开启，重启酒馆后会自动加载下方插件。"
+                        } else {
+                            "当前未开启，点此前往「酒馆设置」开启后插件才会生效。"
+                        },
+                        detailMaxLines = 3,
+                        value = if (snapshot.enabledInConfig) "已开启" else "未开启",
+                        valueColor = if (snapshot.enabledInConfig) LukoaColors.Primary else LukoaColors.TextSecondary,
+                        onClick = onOpenTavernConfig,
+                    )
+                }
             }
         }
 
@@ -223,106 +218,125 @@ fun TavernServerPluginSection(
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SettingsFeedbackActionButton(
-                text = if (state.loading) "读取中..." else "刷新列表",
-                enabled = !actionsLocked && !state.loading,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.weight(1f),
-                unavailableHint = if (state.loading) "正在读取插件列表，请稍等。" else lockedHint,
-                onShowHint = onShowHint,
-                onClick = onRefresh,
-            )
-            SettingsFeedbackActionButton(
-                text = "安装新插件",
-                enabled = !actionsLocked,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.weight(1f),
-                unavailableHint = lockedHint,
-                onShowHint = onShowHint,
-                onClick = { showInstallDialog = true },
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("操作")
+            SettingsEntryGroup {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SettingsFeedbackActionButton(
+                        text = if (state.loading) "读取中..." else "刷新列表",
+                        enabled = !actionsLocked && !state.loading,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.weight(1f),
+                        unavailableHint = if (state.loading) "正在读取插件列表，请稍等。" else lockedHint,
+                        onShowHint = onShowHint,
+                        onClick = onRefresh,
+                    )
+                    SettingsFeedbackActionButton(
+                        text = "安装新插件",
+                        enabled = !actionsLocked,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.weight(1f),
+                        unavailableHint = lockedHint,
+                        onShowHint = onShowHint,
+                        onClick = { showInstallDialog = true },
+                    )
+                }
+            }
         }
 
         val plugins = snapshot?.plugins.orEmpty()
-        if (plugins.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                plugins.forEach { plugin ->
-                    SettingsEntryGroup {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel(
+                if (plugins.isEmpty()) "已安装插件" else "已安装插件（${plugins.size} 个）",
+            )
+            if (plugins.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    plugins.forEach { plugin ->
+                        SettingsEntryGroup {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = plugin.displayName,
+                                        modifier = Modifier.weight(1f),
+                                        color = LukoaColors.TextPrimary,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = formatStorageKilobytes(plugin.directoryKilobytes),
+                                        color = LukoaColors.TextSecondary,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                }
                                 Text(
-                                    text = plugin.displayName,
-                                    modifier = Modifier.weight(1f),
-                                    color = LukoaColors.TextPrimary,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    text = formatStorageKilobytes(plugin.directoryKilobytes),
-                                    color = LukoaColors.TextSecondary,
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                            Text(
-                                text = buildList {
-                                    add("文件夹：${plugin.directoryName}")
-                                    if (plugin.version.isNotBlank()) add("版本 ${plugin.version}")
-                                }.joinToString(" · "),
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            if (plugin.description.isNotBlank()) {
-                                Text(
-                                    text = plugin.description,
+                                    text = buildList {
+                                        add("文件夹：${plugin.directoryName}")
+                                        if (plugin.version.isNotBlank()) add("版本 ${plugin.version}")
+                                    }.joinToString("，"),
                                     color = LukoaColors.TextSecondary,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                SettingsFeedbackActionButton(
-                                    text = "更新",
-                                    enabled = !actionsLocked && plugin.isGitRepository,
-                                    accentColor = LukoaColors.Primary,
-                                    modifier = Modifier.weight(1f),
-                                    unavailableHint = lockedHint ?: "这个插件是手动放进去的，暂不支持一键更新。",
-                                    onShowHint = onShowHint,
-                                    onClick = { pendingUpdate = plugin },
-                                )
-                                SettingsFeedbackActionButton(
-                                    text = "删除",
-                                    enabled = !actionsLocked,
-                                    accentColor = LukoaColors.Danger,
-                                    modifier = Modifier.weight(1f),
-                                    unavailableHint = lockedHint,
-                                    onShowHint = onShowHint,
-                                    onClick = { pendingDelete = plugin },
-                                )
+                                if (plugin.description.isNotBlank()) {
+                                    Text(
+                                        text = plugin.description,
+                                        color = LukoaColors.TextSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    SettingsFeedbackActionButton(
+                                        text = "更新",
+                                        enabled = !actionsLocked && plugin.isGitRepository,
+                                        accentColor = LukoaColors.Primary,
+                                        modifier = Modifier.weight(1f),
+                                        unavailableHint = lockedHint ?: "这个插件是手动放进去的，暂不支持一键更新。",
+                                        onShowHint = onShowHint,
+                                        onClick = { pendingUpdate = plugin },
+                                    )
+                                    SettingsFeedbackActionButton(
+                                        text = "删除",
+                                        enabled = !actionsLocked,
+                                        accentColor = LukoaColors.Danger,
+                                        modifier = Modifier.weight(1f),
+                                        unavailableHint = lockedHint,
+                                        onShowHint = onShowHint,
+                                        onClick = { pendingDelete = plugin },
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else if (snapshot != null && !state.loading) {
-            SettingsEntryGroup {
-                SettingsEntryRow(
-                    title = "还没有安装后端插件",
-                    detail = "不需要的话保持空着即可；如果某个扩展提示需要后端插件，点上方「安装新插件」。",
-                    detailMaxLines = 3,
-                )
+            } else if (snapshot != null && !state.loading) {
+                SettingsEntryGroup {
+                    SettingsEntryRow(
+                        title = "还没有安装后端插件",
+                        detail = "不需要的话保持空着即可；如果某个扩展提示需要后端插件，点上方「安装新插件」。",
+                        detailMaxLines = 3,
+                    )
+                }
+            } else {
+                SettingsEntryGroup {
+                    SettingsEntryRow(
+                        title = if (state.loading) "正在读取插件列表…" else "尚未读取插件列表",
+                        detail = if (state.loading) "请稍等，正在检查当前实例。" else "点上方「刷新列表」读取当前已安装的服务器插件。",
+                    )
+                }
             }
         }
     }

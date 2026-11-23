@@ -243,6 +243,57 @@ class LauncherVersionManagementUiTest {
         composeRule.runOnIdle { assertEquals(listOf(false), confirmations) }
     }
 
+    @Test
+    fun versionPage_localChangesOffersGuideAndDirectStashAction() {
+        var stashCount = 0
+        var openStashCount = 0
+        val currentInfo = TavernVersionInfo(
+            hasData = true,
+            directory = "~/SillyTavern",
+            packageVersion = "1.13.0",
+            branch = "release",
+            localChanges = "1",
+            changedFiles = listOf("public/index.html"),
+        )
+        val target = versionChoice("1.14.0")
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    VersionManagementSection(
+                        actionsLocked = false,
+                        tavernRunning = false,
+                        tavernStarting = false,
+                        tavernVersionInfo = currentInfo,
+                        officialVersions = TavernOfficialVersions(stable = listOf(target)),
+                        currentRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
+                        selectedVersion = target,
+                        onRefreshAllVersions = {},
+                        onSelectVersion = {},
+                        onTavernUpdate = {},
+                        onTavernRollback = {},
+                        onOpenGitStash = { openStashCount += 1 },
+                        onStashLocalChanges = { stashCount += 1 },
+                    )
+                }
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("处理指引").performScrollTo().performClick()
+        composeRule.onNodeWithText("本地改动处理指引").assertIsDisplayed()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("前往暂存管理").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, openStashCount) }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("先暂存改动").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, stashCount) }
+    }
+
     private fun setConfirmDialogContent(
         userOwnedChanges: List<String>,
         onConfirm: (Boolean) -> Unit,

@@ -38,6 +38,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-server-plugins-update" to 10 * 60_000L,
         "tavern-server-plugins-delete" to 2 * 60_000L,
         "tavern-git-stash-list" to 24_000L,
+        "tavern-git-stash-save" to 60_000L,
         "tavern-git-stash-apply" to 60_000L,
         "tavern-git-stash-drop" to 24_000L,
         "tavern-quick-import-paths" to 24_000L,

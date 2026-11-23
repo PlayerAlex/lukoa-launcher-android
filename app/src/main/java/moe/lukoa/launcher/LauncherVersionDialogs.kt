@@ -90,6 +90,13 @@ fun TavernVersionActionConfirmDialog(
                 VersionInfoLine("当前源", confirmation.sourceLabel)
             }
         }
+        if (confirmation.requiresDiscardConsent) {
+            LocalChangesConsentCard(
+                confirmation = confirmation,
+                checked = discardConsent,
+                onCheckedChange = { discardConsent = it },
+            )
+        }
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Accent.copy(alpha = 0.08f),
@@ -103,15 +110,40 @@ fun TavernVersionActionConfirmDialog(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (confirmation.requiresDiscardConsent) {
-            LocalChangesConsentCard(
-                confirmation = confirmation,
-                checked = discardConsent,
-                onCheckedChange = { discardConsent = it },
-            )
-        }
         Text(
             text = confirmation.riskTip,
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+fun TavernVersionLocalChangesRecoveryDialog(
+    kind: TavernVersionActionKind,
+    onConfirmStashAndRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val actionText = when (kind) {
+        TavernVersionActionKind.Update -> "更新"
+        TavernVersionActionKind.Rollback -> "回退"
+    }
+    RiskyActionDialogScaffold(
+        title = "检测到未收起的本地改动",
+        titleTone = ActionTone.Warning,
+        confirmText = "暂存改动并继续$actionText",
+        confirmTone = ActionTone.Safe,
+        confirmEnabled = true,
+        onConfirm = onConfirmStashAndRetry,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "酒馆程序目录里有修改过的文件，刚才的${actionText}被自动暂停以保护你的修改。",
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "点下方按钮后，启动器会先把这些改动收进「暂存管理（git stash）」，再用干净的官方文件继续完成${actionText}。你的聊天记录、角色卡和扩展不受影响，之后随时可以到「工具箱 → 暂存管理」一键放回。",
             color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -174,7 +206,7 @@ private fun LocalChangesConsentCard(
             }
             Text(
                 text = "${actionText}前会把这些改动存进 Git 暂存区（stash），酒馆会以干净的官方文件继续。" +
-                    "改动不会自动恢复，需要时可以在 Termux 里用 git stash 找回。安全备份里也有一份。",
+                    "改动不会自动恢复，需要时可以在「工具箱 → 暂存管理」里一键放回，安全备份里也有一份。",
                 color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -198,6 +230,13 @@ private fun LocalChangesConsentCard(
                     text = "我知道了，先存起来再${actionText}",
                     color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (!checked) {
+                Text(
+                    text = "勾选上方同意后，下方「${confirmation.kind.confirmLabel}」即可点击。",
+                    color = LukoaColors.Accent,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }

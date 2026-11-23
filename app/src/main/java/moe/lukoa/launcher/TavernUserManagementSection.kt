@@ -128,6 +128,7 @@ fun TavernUserManagementSection(
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
     showSectionContainer: Boolean = true,
+    compactPageLayout: Boolean = false,
 ) {
     var createDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
     var deleteUser by remember { mutableStateOf<TavernUserRecord?>(null) }
@@ -175,6 +176,98 @@ fun TavernUserManagementSection(
     }
 
     val content: @Composable () -> Unit = {
+        if (compactPageLayout) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupLabel("当前实例")
+                    SettingsEntryGroup {
+                        SettingsEntryRow(
+                            title = "当前实例",
+                            detail = when {
+                                actionsLocked -> "当前有其他任务正在处理，用户操作暂时不可用。"
+                                tavernRunning -> "酒馆运行中可以读取用户；新增或删除用户需要先停止酒馆。"
+                                state.message == "尚未读取当前酒馆的用户。" -> null
+                                state.message.startsWith("已读取") -> null
+                                else -> state.message
+                            },
+                            value = instanceLabel,
+                            valueColor = LukoaColors.TextPrimary,
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupLabel("操作")
+                    SettingsEntryGroup {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            SettingsFeedbackActionButton(
+                                text = if (state.loading) "读取中..." else "读取用户",
+                                modifier = Modifier.weight(1f),
+                                enabled = !actionsLocked && !state.loading,
+                                accentColor = LukoaColors.Primary,
+                                unavailableHint = when {
+                                    state.loading -> "正在读取用户，请稍等。"
+                                    actionsLocked -> userActionsUnavailableHint
+                                    else -> null
+                                },
+                                onShowHint = onShowHint,
+                                onClick = onRefresh,
+                            )
+                            SettingsFeedbackActionButton(
+                                text = "新增用户",
+                                modifier = Modifier.weight(1f),
+                                enabled = !actionsLocked && !tavernRunning,
+                                accentColor = LukoaColors.Primary,
+                                unavailableHint = userActionsUnavailableHint,
+                                onShowHint = onShowHint,
+                                onClick = { createDialog = true },
+                            )
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupLabel(
+                        if (state.users.isEmpty()) "酒馆用户" else "酒馆用户（${state.users.size} 位）",
+                    )
+                    if (state.users.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.users.forEach { user ->
+                                SettingsEntryGroup {
+                                    val isLastAdmin = user.admin && adminCount <= 1
+                                    TavernUserRow(
+                                        user = user,
+                                        deleteEnabled = !actionsLocked && !tavernRunning && user.handle != "default-user" && !isLastAdmin,
+                                        deleteUnavailableHint = when {
+                                            actionsLocked || tavernRunning -> userActionsUnavailableHint
+                                            user.handle == "default-user" -> "默认用户不能删除。"
+                                            isLastAdmin -> "最后一个管理员不能删除。"
+                                            else -> null
+                                        },
+                                        onShowHint = onShowHint,
+                                        onDelete = { deleteUser = user },
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        SettingsEntryGroup {
+                            SettingsEntryRow(
+                                title = if (state.loading) "正在读取用户…" else "尚未读取用户",
+                                detail = if (state.loading) {
+                                    "正在获取当前实例的酒馆账户列表。"
+                                } else {
+                                    "点击“读取用户”后，这里会按账户分别显示。"
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
         ManagementDialogSectionTitle("当前实例与状态")
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -248,6 +341,7 @@ fun TavernUserManagementSection(
                     },
                 )
             }
+        }
         }
     }
 

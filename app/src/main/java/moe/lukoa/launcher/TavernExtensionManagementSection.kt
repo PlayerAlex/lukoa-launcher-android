@@ -363,6 +363,204 @@ fun TavernExtensionManagementSection(
     }
 
     val content: @Composable () -> Unit = {
+        if (!showSectionContainer) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SettingsGroupLabel(
+                            title = "当前实例",
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = extensionManagementStatusText(state, actionsLocked),
+                            color = if (actionsLocked) LukoaColors.Accent else LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    SettingsEntryGroup {
+                        SettingsEntryRow(
+                            title = "当前实例",
+                            detail = state.message.takeUnless {
+                                it == "尚未读取当前酒馆的扩展。" || it.startsWith("已读取")
+                            },
+                            value = instanceLabel,
+                            valueColor = LukoaColors.TextPrimary,
+                        )
+                        if (state.rootDirectory.isNotBlank()) {
+                            SettingsEntryDivider()
+                            SettingsEntryRow(
+                                title = "扩展目录",
+                                value = state.rootDirectory,
+                                valueLayout = SettingsValueLayout.Supporting,
+                            )
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupLabel("操作")
+                    SettingsEntryGroup {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                SettingsFeedbackActionButton(
+                                    text = "安装扩展",
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !actionsLocked && state.rootDirectory.isNotBlank(),
+                                    accentColor = LukoaColors.Primary,
+                                    unavailableHint = when {
+                                        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再安装扩展。"
+                                        state.rootDirectory.isBlank() -> "请先读取扩展，确认当前实例的扩展目录。"
+                                        else -> null
+                                    },
+                                    onShowHint = onShowHint,
+                                    onClick = { showInstallDialog = true },
+                                )
+                                SettingsFeedbackActionButton(
+                                    text = if (state.loading) "读取中..." else "读取扩展",
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !actionsLocked && !state.loading,
+                                    accentColor = LukoaColors.Primary,
+                                    unavailableHint = when {
+                                        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再读取扩展。"
+                                        state.loading -> "正在读取扩展，请稍等。"
+                                        else -> null
+                                    },
+                                    onShowHint = onShowHint,
+                                    onClick = onRefresh,
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                SettingsFeedbackActionButton(
+                                    text = "检查更新",
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !actionsLocked && !state.loading && state.extensions.isNotEmpty(),
+                                    accentColor = LukoaColors.Primary,
+                                    unavailableHint = when {
+                                        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再检查更新。"
+                                        state.loading -> "正在读取扩展，请稍等。"
+                                        state.extensions.isEmpty() -> "请先读取扩展列表。"
+                                        else -> null
+                                    },
+                                    onShowHint = onShowHint,
+                                    onClick = onCheckUpdates,
+                                )
+                                if (state.rootDirectory.isNotBlank()) {
+                                    SecondaryActionButton(
+                                        text = "复制目录",
+                                        enabled = true,
+                                        accentColor = LukoaColors.TextSecondary,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            val copied = onCopyPath(state.rootDirectory)
+                                            onShowHint(if (copied) "扩展根目录已复制。" else "复制扩展根目录失败。")
+                                        },
+                                    )
+                                }
+                            }
+                            if (updatableCount > 0) {
+                                SettingsFeedbackActionButton(
+                                    text = "一键更新全部（$updatableCount 个）",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !actionsLocked && !state.loading,
+                                    accentColor = LukoaColors.Accent,
+                                    unavailableHint = when {
+                                        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再批量更新。"
+                                        state.loading -> "正在读取扩展，请稍等。"
+                                        else -> null
+                                    },
+                                    onShowHint = onShowHint,
+                                    onClick = { showUpdateAllDialog = true },
+                                )
+                            }
+                            if (state.extensions.size > 1) {
+                                LukoaSearchField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it.take(80) },
+                                    placeholder = "搜索扩展（名称、作者、版本或目录）",
+                                )
+                                Text(
+                                    text = "显示 ${visibleExtensions.size} / ${state.extensions.size} 个扩展",
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsGroupLabel(
+                        if (state.extensions.isEmpty()) "已安装扩展" else "已安装扩展（${state.extensions.size} 个）",
+                    )
+                    if (state.extensions.isNotEmpty()) {
+                        if (visibleExtensions.isEmpty()) {
+                            SettingsEntryGroup {
+                                SettingsEntryRow(
+                                    title = "没有匹配的扩展",
+                                    detail = "请换一个名称、作者、版本或目录关键词。",
+                                )
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                visibleExtensions.forEach { extension ->
+                                    SettingsEntryGroup {
+                                        val updateDisabledReason = TavernExtensionActionPolicy.updateDisabledReason(
+                                            extension = extension,
+                                            actionsLocked = actionsLocked,
+                                            tavernRunning = tavernRunning,
+                                        )
+                                        val rollbackDisabledReason = TavernExtensionActionPolicy.rollbackDisabledReason(
+                                            extension = extension,
+                                            actionsLocked = actionsLocked,
+                                            tavernRunning = tavernRunning,
+                                        )
+                                        TavernExtensionRow(
+                                            extension = extension,
+                                            fullPath = extensionTargetDirectory(state, extension),
+                                            toggleEnabled = !actionsLocked,
+                                            toggleUnavailableHint = toggleUnavailableHint,
+                                            deleteEnabled = !actionsLocked,
+                                            deleteUnavailableHint = deleteUnavailableHint,
+                                            updateEnabled = updateDisabledReason == null,
+                                            updateUnavailableHint = updateDisabledReason,
+                                            rollbackEnabled = rollbackDisabledReason == null,
+                                            rollbackUnavailableHint = rollbackDisabledReason,
+                                            onShowHint = onShowHint,
+                                            onCopyPath = onCopyPath,
+                                            onToggleEnabled = { pendingToggle = extension },
+                                            onUpdate = { pendingUpdate = extension },
+                                            onRollback = { pendingRollback = extension },
+                                            onDelete = { pendingDelete = extension },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (state.rootDirectory.isNotBlank() && !state.loading) {
+                        SettingsEntryGroup {
+                            SettingsEntryRow(
+                                title = "当前没有第三方扩展",
+                                detail = "这个目录中暂时没有可管理的网页扩展。",
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
         ManagementDialogSectionTitle("当前实例与状态")
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -524,6 +722,7 @@ fun TavernExtensionManagementSection(
                     detail = "这个目录中暂时没有可管理的网页扩展。",
                 )
             }
+        }
         }
     }
 

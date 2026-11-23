@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
@@ -75,6 +78,10 @@ fun VersionManagementSection(
     onTavernRollback: () -> Unit,
     onOpenSafetyBackup: () -> Unit = {},
     onOpenRepairTools: () -> Unit = {},
+    onOpenGitStash: (() -> Unit)? = null,
+    onStashLocalChanges: (() -> Unit)? = null,
+    onStopTavern: (() -> Unit)? = null,
+    onShowHint: (String) -> Unit = {},
 ) {
     val actionState = TavernVersionActionGuards.evaluate(
         current = tavernVersionInfo,
@@ -89,7 +96,7 @@ fun VersionManagementSection(
         current = tavernVersionInfo,
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         VersionTargetPickerRow(
             officialVersions = officialVersions,
             versionChoices = versionChoices,
@@ -107,19 +114,55 @@ fun VersionManagementSection(
             ),
             selectedVersion = selectedVersion,
         )
+        if (actionState.instanceActive) {
+            SettingsEntryGroup {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "酒馆正在运行，更新或回退前需要先停止酒馆。",
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (onStopTavern != null) {
+                        SettingsFeedbackActionButton(
+                            text = "立即停止酒馆",
+                            enabled = !actionsLocked,
+                            accentColor = LukoaColors.Danger,
+                            modifier = Modifier.fillMaxWidth(),
+                            unavailableHint = if (actionsLocked) "当前有其他任务正在处理，请稍等。" else null,
+                            onShowHint = onShowHint,
+                            onClick = onStopTavern,
+                        )
+                    }
+                }
+            }
+        }
         if (tavernVersionInfo.hasLocalChanges) {
-            LocalChangesNotice(versionInfo = tavernVersionInfo, onOpenRepairTools = onOpenRepairTools)
+            LocalChangesNotice(
+                versionInfo = tavernVersionInfo,
+                actionsLocked = actionsLocked,
+                tavernRunning = actionState.instanceActive,
+                onOpenRepairTools = onOpenRepairTools,
+                onOpenGitStash = onOpenGitStash,
+                onStashLocalChanges = onStashLocalChanges,
+                onShowHint = onShowHint,
+            )
         }
         VersionActionRow(
             actionState = actionState,
             actionsLocked = actionsLocked,
             onUpdate = onTavernUpdate,
             onRollback = onTavernRollback,
+            onShowHint = onShowHint,
         )
         lastOperationSummary?.let {
             VersionOperationResultSection(
                 summary = it,
                 onOpenSafetyBackup = onOpenSafetyBackup,
+                onOpenGitStash = onOpenGitStash,
             )
         }
     }
@@ -134,12 +177,8 @@ private fun VersionTargetPickerRow(
     onRefreshAllVersions: () -> Unit,
     onSelectVersion: (TavernVersionChoice) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(
-            text = "目标版本",
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.labelMedium,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsGroupLabel("目标版本")
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -176,17 +215,12 @@ private fun VersionOverviewCard(
     versionSource: String,
     selectedVersion: TavernVersionChoice?,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
+    SettingsEntryGroup {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -211,8 +245,8 @@ private fun VersionOverviewCard(
             }
             HorizontalDivider(color = LukoaColors.Border)
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 VersionInfoLine("当前酒馆位置", currentDirectory.ifBlank { "未读取" })
                 VersionInfoLine("当前酒馆来源", currentSource)
@@ -228,25 +262,31 @@ private fun VersionActionRow(
     actionsLocked: Boolean,
     onUpdate: () -> Unit,
     onRollback: () -> Unit,
+    onShowHint: (String) -> Unit,
 ) {
     val updateEnabled = !actionsLocked && actionState.updateAvailable
     val rollbackEnabled = !actionsLocked && actionState.rollbackAvailable
+    val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = "更新版本",
             enabled = updateEnabled,
             accentColor = LukoaColors.Primary,
             modifier = Modifier.weight(1f),
+            unavailableHint = lockedHint ?: actionState.updateDisabledReason,
+            onShowHint = onShowHint,
             onClick = onUpdate,
         )
-        SecondaryActionButton(
+        SettingsFeedbackActionButton(
             text = "回退版本",
             enabled = rollbackEnabled,
             accentColor = LukoaColors.Primary,
             modifier = Modifier.weight(1f),
+            unavailableHint = lockedHint ?: actionState.rollbackDisabledReason,
+            onShowHint = onShowHint,
             onClick = onRollback,
         )
     }
@@ -256,6 +296,7 @@ private fun VersionActionRow(
 private fun VersionOperationResultSection(
     summary: TavernVersionOperationSummary,
     onOpenSafetyBackup: () -> Unit,
+    onOpenGitStash: (() -> Unit)? = null,
 ) {
     val actionText = when (summary.kind) {
         TavernVersionActionKind.Update -> "更新"
@@ -267,55 +308,76 @@ private fun VersionOperationResultSection(
         else -> "任务已完成，版本未变化"
     }
     val tone = if (summary.succeeded) LukoaColors.Primary else LukoaColors.Accent
-    SectionPanel(
-        title = "上次执行结果",
-        accentColor = tone,
-        headerAction = {
-            StatusPill(
-                text = resultText,
-                active = true,
-                toneColor = tone,
-                activeBackground = if (summary.succeeded) LukoaColors.PrimarySoft else LukoaColors.AccentSoft,
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsGroupLabel(
+                title = "上次执行结果",
+                modifier = Modifier.weight(1f),
             )
-        },
-    ) {
-        VersionInfoLine("执行目标", summary.target.ifBlank { "未读取" })
-        VersionInfoLine("执行前提交", summary.beforeRevision.ifBlank { "未读取" })
-        VersionInfoLine("执行后提交", summary.afterRevision.ifBlank { "未读取" })
-        VersionInfoLine(
-            "依赖安装",
-            when (summary.npmExitCode) {
-                null -> "未报告"
-                0 -> "已完成"
-                else -> "失败（代码 ${summary.npmExitCode}）"
-            },
-        )
-        Text(
-            text = if (summary.succeeded) {
-                "程序版本切换结果已经返回；安全备份仍保留，可在备份页查看。"
-            } else {
-                "操作没有完整成功。安全备份仍保留，请先查看日志或诊断，再决定是否恢复。"
-            },
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (summary.localChangesStash.isNotBlank()) {
-            VersionInfoLine("本地改动已存入", "git stash「${summary.localChangesStash}」")
             Text(
-                text = "你之前改过的程序文件没有丢，在 Termux 的酒馆目录里执行 git stash list 可以看到，需要时用 git stash pop 取回。",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
+                text = resultText,
+                color = tone,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
-        if (summary.safetyBackupPath.isNotBlank()) {
-            VersionInfoLine("安全备份", summary.safetyBackupPath)
-            SecondaryActionButton(
-                text = "到备份页查看安全备份",
-                enabled = true,
-                accentColor = LukoaColors.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onOpenSafetyBackup,
-            )
+        SettingsEntryGroup {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                VersionInfoLine("执行目标", summary.target.ifBlank { "未读取" })
+                VersionInfoLine("执行前提交", summary.beforeRevision.ifBlank { "未读取" })
+                VersionInfoLine("执行后提交", summary.afterRevision.ifBlank { "未读取" })
+                VersionInfoLine(
+                    "依赖安装",
+                    when (summary.npmExitCode) {
+                        null -> "未报告"
+                        0 -> "已完成"
+                        else -> "失败（代码 ${summary.npmExitCode}）"
+                    },
+                )
+                Text(
+                    text = if (summary.succeeded) {
+                        "程序版本切换结果已经返回；安全备份仍保留，可在备份页查看。"
+                    } else {
+                        "操作没有完整成功。安全备份仍保留，请先查看日志或诊断，再决定是否恢复。"
+                    },
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (summary.localChangesStash.isNotBlank()) {
+                    VersionInfoLine("本地改动已存入", "git stash「${summary.localChangesStash}」")
+                    Text(
+                        text = "你之前改过的程序文件没有丢，在 Termux 的酒馆目录里执行 git stash list 可以看到，需要时用 git stash pop 取回。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (onOpenGitStash != null) {
+                        SecondaryActionButton(
+                            text = "前往暂存管理查看",
+                            enabled = true,
+                            accentColor = LukoaColors.Primary,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenGitStash,
+                        )
+                    }
+                }
+                if (summary.safetyBackupPath.isNotBlank()) {
+                    VersionInfoLine("安全备份", summary.safetyBackupPath)
+                    SecondaryActionButton(
+                        text = "到备份页查看安全备份",
+                        enabled = true,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onOpenSafetyBackup,
+                    )
+                }
+            }
         }
     }
 }
@@ -436,67 +498,233 @@ private fun CurrentVersionSection(
 @Composable
 private fun LocalChangesNotice(
     versionInfo: TavernVersionInfo,
+    actionsLocked: Boolean = false,
+    tavernRunning: Boolean = false,
     onOpenRepairTools: (() -> Unit)? = null,
+    onOpenGitStash: (() -> Unit)? = null,
+    onStashLocalChanges: (() -> Unit)? = null,
+    onShowHint: (String) -> Unit = {},
 ) {
     val userOwned = TavernLocalChangesGuidance.userOwnedChanges(versionInfo)
     val onlyManaged = userOwned.isEmpty() && versionInfo.changedFilePaths.isNotEmpty()
     val tone = if (onlyManaged) LukoaColors.Primary else LukoaColors.Accent
     val background = if (onlyManaged) LukoaColors.PrimarySoft else LukoaColors.AccentSoft
+    var showGuideDialog by rememberSaveable { mutableStateOf(false) }
+    val stashUnavailableHint = when {
+        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再试。"
+        tavernRunning -> "暂存改动前，请先停止酒馆。"
+        else -> null
+    }
+
+    if (showGuideDialog) {
+        LocalChangesGuideDialog(
+            userOwnedFiles = userOwned,
+            stashEnabled = stashUnavailableHint == null && onStashLocalChanges != null,
+            stashUnavailableHint = stashUnavailableHint,
+            onStashLocalChanges = onStashLocalChanges?.let { action ->
+                {
+                    showGuideDialog = false
+                    action()
+                }
+            },
+            onOpenGitStash = onOpenGitStash?.let { openStash ->
+                {
+                    showGuideDialog = false
+                    openStash()
+                }
+            },
+            onShowHint = onShowHint,
+            onDismiss = { showGuideDialog = false },
+        )
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = background,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, tone.copy(alpha = 0.35f)),
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(
-                imageVector = if (onlyManaged) Icons.Filled.Info else Icons.Filled.Warning,
-                contentDescription = null,
-                modifier = Modifier.size(42.dp),
-                tint = tone,
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Icon(
+                    imageVector = if (onlyManaged) Icons.Filled.Info else Icons.Filled.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = tone,
+                )
                 Text(
                     text = if (onlyManaged) "含启动器自己的修改" else "程序文件有你改过的地方",
                     color = tone,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text = when {
-                        onlyManaged ->
-                            "这是聊天文件大小设置或依赖锁文件带来的改动。更新、回退时启动器会自动先撤掉再补回，不需要你做什么。"
+            }
+            Text(
+                text = when {
+                    onlyManaged ->
+                        "这是聊天文件大小设置或依赖锁文件带来的改动。更新、回退时启动器会自动先撤掉再补回，不需要你做什么。"
 
-                        userOwned.isEmpty() ->
-                            "Git 报告有本地改动，但这次没读到具体文件。更新或回退时会先把它们存进 Git 暂存区，执行前会再让你确认。"
+                    userOwned.isEmpty() ->
+                        "Git 报告有本地改动，但这次没读到具体文件。更新或回退时会先把它们存进 Git 暂存区，执行前会再让你确认。"
 
-                        else ->
-                            "改过的文件：${userOwned.take(3).joinToString("、")}" +
-                                (if (userOwned.size > 3) " 等 ${userOwned.size} 个" else "") +
-                                "。更新或回退时会先把它们存进 Git 暂存区再继续，执行前会再让你确认。"
-                    },
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
+                    else ->
+                        "改过的文件：${userOwned.take(3).joinToString("、")}" +
+                            (if (userOwned.size > 3) " 等 ${userOwned.size} 个" else "") +
+                            "。更新或回退时会先把它们存进 Git 暂存区再继续，执行前会再让你确认。"
+                },
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (onlyManaged && onOpenRepairTools != null) {
+                SecondaryActionButton(
+                    text = "去修复工具查看",
+                    enabled = true,
+                    accentColor = tone,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenRepairTools,
                 )
-                if (onlyManaged && onOpenRepairTools != null) {
+            } else if (!onlyManaged) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     SecondaryActionButton(
-                        text = "去修复工具查看",
+                        text = "处理指引",
                         enabled = true,
                         accentColor = tone,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onOpenRepairTools,
+                        modifier = Modifier.weight(1f),
+                        onClick = { showGuideDialog = true },
                     )
+                    if (onStashLocalChanges != null) {
+                        SettingsFeedbackActionButton(
+                            text = "先暂存改动",
+                            enabled = stashUnavailableHint == null,
+                            accentColor = LukoaColors.Primary,
+                            modifier = Modifier.weight(1f),
+                            unavailableHint = stashUnavailableHint,
+                            onShowHint = onShowHint,
+                            onClick = onStashLocalChanges,
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LocalChangesGuideDialog(
+    userOwnedFiles: List<String>,
+    stashEnabled: Boolean,
+    stashUnavailableHint: String?,
+    onStashLocalChanges: (() -> Unit)?,
+    onOpenGitStash: (() -> Unit)?,
+    onShowHint: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = { Text("本地改动处理指引") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "为什么会提示这个？\n酒馆程序目录里有你（或脚本）改动过的源码文件。Git 切换版本时为了不把你的改动直接覆盖掉，会先要求把它们收起来。这不会影响聊天记录、角色卡、世界书和扩展。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (userOwnedFiles.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LukoaColors.Surface,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, LukoaColors.Border),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Text(
+                                text = "检测到的修改文件（${userOwnedFiles.size} 个）",
+                                color = LukoaColors.TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            userOwnedFiles.take(6).forEach { file ->
+                                Text(
+                                    text = file,
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (userOwnedFiles.size > 6) {
+                                Text(
+                                    text = "还有 ${userOwnedFiles.size - 6} 个文件",
+                                    color = LukoaColors.Dim,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = "方式一（推荐，一步完成）：\n1. 先确保酒馆已停止，并在上方选好目标版本；\n2. 点「更新版本」或「回退版本」；\n3. 在确认框里勾选「我知道了，先存起来再更新」，再点确认。启动器会先做完整备份，自动暂存你的改动，然后顺利更新。",
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "方式二（先收起改动再更新）：\n直接点下方「先暂存本地改动」，先把改动收进暂存区让酒馆目录恢复干净，再正常点更新即可。\n\n如何找回改动？更新完成后，到「工具箱 → 暂存管理」里点「把改动放回当前酒馆」即可随时还原。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (onStashLocalChanges != null) {
+                    SettingsFeedbackActionButton(
+                        text = "先暂存本地改动",
+                        enabled = stashEnabled,
+                        accentColor = LukoaColors.Primary,
+                        modifier = Modifier.fillMaxWidth(),
+                        unavailableHint = stashUnavailableHint,
+                        onShowHint = onShowHint,
+                        onClick = onStashLocalChanges,
+                    )
+                }
+                if (onOpenGitStash != null) {
+                    SecondaryActionButton(
+                        text = "前往暂存管理",
+                        enabled = true,
+                        accentColor = LukoaColors.TextSecondary,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onOpenGitStash,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(
+                text = "知道了",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = null,
+    )
 }
 
 @Composable

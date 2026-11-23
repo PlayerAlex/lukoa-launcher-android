@@ -1211,7 +1211,7 @@ stash_local_changes() {
   local_changes_stash="lukoa-before-$kind-$stamp"
   local_changes_files="$(tracked_changes)"
   printf "[%s] stashing local changes as %s\n%s\n" "$(timestamp)" "$local_changes_stash" "$local_changes_files" >> "$LOG_FILE"
-  git -c user.name='Lukoa Launcher' -c user.email='launcher@lukoa.invalid' \
+  git -c safe.directory="$TAVERN_DIR" -c user.name='Lukoa Launcher' -c user.email='launcher@lukoa.invalid' \
     stash push -m "$local_changes_stash" >> "$LOG_FILE" 2>&1 || return 1
   if has_tracked_changes; then
     return 1
@@ -1302,8 +1302,15 @@ checkout_requested_target() {
   fi
   if git show-ref --verify --quiet "refs/remotes/origin/$target"; then
     if git show-ref --verify --quiet "refs/heads/$target"; then
-      run_with_live_log git checkout "$target" &&
-        run_with_live_log git merge --ff-only "origin/$target"
+      if run_with_live_log git checkout "$target" &&
+        run_with_live_log git merge --ff-only "origin/$target"; then
+        return 0
+      fi
+      if [ "${local_changes_policy:-keep}" = "discard" ]; then
+        run_with_live_log git checkout -B "$target" "origin/$target"
+        return "$?"
+      fi
+      return 1
     else
       run_with_live_log git checkout -B "$target" "origin/$target"
     fi
@@ -1462,9 +1469,13 @@ ensure_tavern_mutation_ready() {
   upload_limit_prepare_update
   code="$?"
   if [ "$code" -ne 0 ]; then
-    write_status "error" "Managed upload limit could not be safely removed before $kind; source files were left unchanged" false "$code"
-    emit_status
-    return "$code"
+    if [ "$local_changes_policy" = "discard" ]; then
+      printf "[%s] upload_limit_prepare_update exited %s under discard policy; continuing via git stash\n" "$(timestamp)" "$code" >> "$LOG_FILE"
+    else
+      write_status "error" "Managed upload limit could not be safely removed before $kind; source files were left unchanged" false "$code"
+      emit_status
+      return "$code"
+    fi
   fi
   cleanup_install_generated_changes
   if has_tracked_changes; then

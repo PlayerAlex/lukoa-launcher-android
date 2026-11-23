@@ -245,6 +245,13 @@ class TermuxCommandRunner(private val context: Context) {
         displayCommand = "tavern-git-stash-list",
     )
 
+    fun runTavernGitStashSave(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-git-stash-save-direct",
+        scriptCommand = "git-stash-save",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-git-stash-save",
+    )
+
     fun runTavernGitStashApply(value: String?): CommandDispatch {
         val index = value?.trim()?.toIntOrNull()?.takeIf(TavernGitStashCommandCodec::isValidIndex)
             ?: return CommandDispatch(false, "暂存序号无效。", displayCommand = "tavern-git-stash-apply")

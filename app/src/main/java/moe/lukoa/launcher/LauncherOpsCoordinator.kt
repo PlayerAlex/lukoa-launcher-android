@@ -390,6 +390,30 @@ class LauncherOpsCoordinator(
         }
     }
 
+    fun saveGitStash(onSaved: () -> Unit = {}) {
+        runGuarded(
+            "暂存本地改动",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-git-stash-save"),
+            false,
+        ) { guardedUpdate ->
+            state.gitStashState = state.gitStashState.copy(loading = true, message = "正在把本地改动收进暂存区…")
+            onCommand("tavern-git-stash-save") { newStatus, output, ok ->
+                guardedUpdate(newStatus, output, ok)
+                if (!isTransientStatus(newStatus)) {
+                    if (TavernGitStashOutputParser.parse(output) == null) {
+                        state.gitStashState = state.gitStashState.copy(
+                            loading = false,
+                            message = if (ok) "本地改动已收进暂存区。" else "暂存本地改动失败。",
+                        )
+                    }
+                    if (ok) {
+                        onSaved()
+                    }
+                }
+            }
+        }
+    }
+
     fun applyGitStash(index: Int) {
         runGuarded(
             "恢复暂存改动",

@@ -26,6 +26,7 @@ object TermuxCommandPresentationPolicy {
         "tavern-server-plugins-update",
         "tavern-server-plugins-delete",
         "tavern-git-stash-list",
+        "tavern-git-stash-save",
         "tavern-git-stash-apply",
         "tavern-git-stash-drop",
         "tavern-quick-import-paths",

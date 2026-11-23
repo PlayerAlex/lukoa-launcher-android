@@ -333,6 +333,28 @@ object TavernIssueAnalyzer {
         if (
             activeError(
                 broadLower,
+                listOf(
+                    "has local tracked changes",
+                    "managed upload limit could not be safely removed",
+                ),
+                listOf("sillytavern source updated successfully", "sillytavern source rolled back successfully", "local changes saved to git stash"),
+            )
+        ) {
+            issues += TavernIssue(
+                title = "本地程序改动阻断了版本切换",
+                detail = "酒馆源码目录里有未收起的修改，Git 为避免覆盖你的改动暂停了更新或回退。",
+                action = "先停止酒馆，再到「版本管理」点「先暂存改动」，或在确认弹窗里勾选「先存起来再更新」即可继续；事后可在「暂存管理」里一键还原。",
+                severity = IssueSeverity.Warning,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.RecheckTavernVersion,
+                    label = "重新读取版本",
+                ),
+            )
+        }
+
+        if (
+            activeError(
+                broadLower,
                 listOf("git.localchanges=1"),
                 listOf("git.localchanges=0", "cleanup generated package-lock.json change"),
             ) &&

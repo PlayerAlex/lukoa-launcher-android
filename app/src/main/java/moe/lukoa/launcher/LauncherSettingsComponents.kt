@@ -91,12 +91,13 @@ internal fun SettingsEntryGroup(
 }
 
 @Composable
-internal fun SettingsGroupLabel(title: String) {
+internal fun SettingsGroupLabel(
+    title: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+) {
     Text(
         text = title,
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { heading() },
+        modifier = modifier.semantics { heading() },
         color = LukoaColors.TextSecondary,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
@@ -197,16 +198,17 @@ internal fun SettingsEntryRow(
         Modifier.background(color.copy(alpha = 0.08f))
     } ?: Modifier
 
+    val isSingleLineRow = detail.isNullOrBlank() && valueLayout == SettingsValueLayout.Trailing
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = if (isSingleLineRow) 50.dp else 58.dp)
             .then(backgroundModifier)
             .semantics(mergeDescendants = true) {
                 if (!enabled) disabled()
             }
             .then(interactionModifier)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = if (isSingleLineRow) 10.dp else 11.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -600,13 +602,15 @@ internal fun LukoaSwitchRow(
     enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val compactSwitch = detail.isBlank()
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 50.dp)
             .clickable(enabled = enabled, role = Role.Switch) {
                 onCheckedChange(!checked)
             }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = if (compactSwitch) 6.dp else 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

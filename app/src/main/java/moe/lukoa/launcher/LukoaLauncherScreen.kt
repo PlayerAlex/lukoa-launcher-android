@@ -242,6 +242,9 @@ fun LukoaLauncherScreen(
     var pendingTavernVersionActionConfirmation by remember {
         mutableStateOf<TavernVersionActionConfirmation?>(null)
     }
+    var pendingVersionLocalChangesRecoveryKind by remember {
+        mutableStateOf<TavernVersionActionKind?>(null)
+    }
     var pendingTavernForceCleanupConfirmation by remember {
         mutableStateOf<TavernForceCleanupConfirmation?>(null)
     }
@@ -1559,6 +1562,16 @@ fun LukoaLauncherScreen(
                             kind = summaryKind,
                             safetyBackupPath = safetyBackupPath,
                         )
+                        if (
+                            !ok &&
+                            !discardLocalChanges &&
+                            (
+                                termuxOutput.contains("has local tracked changes", ignoreCase = true) ||
+                                    termuxOutput.contains("Managed upload limit could not be safely removed", ignoreCase = true)
+                            )
+                        ) {
+                            pendingVersionLocalChangesRecoveryKind = summaryKind
+                        }
                     }
                     clearPendingLauncherTask()
                     releaseBusy(operationToken)
@@ -4225,6 +4238,24 @@ fun LukoaLauncherScreen(
         )
     }
 
+    pendingVersionLocalChangesRecoveryKind?.let { recoveryKind ->
+        TavernVersionLocalChangesRecoveryDialog(
+            kind = recoveryKind,
+            onConfirmStashAndRetry = {
+                pendingVersionLocalChangesRecoveryKind = null
+                runSelectedVersionCommandWithSafetyBackup(
+                    baseCommand = recoveryKind.baseCommand,
+                    emptyMessage = "请先选择一个版本。",
+                    busyText = recoveryKind.busyText,
+                    taskKind = recoveryKind.taskKind,
+                    safetyBackupPrefix = recoveryKind.safetyBackupPrefix,
+                    discardLocalChanges = true,
+                )
+            },
+            onDismiss = { pendingVersionLocalChangesRecoveryKind = null },
+        )
+    }
+
     if (showExportDialog) {
         ExportLogDialog(
             onExportTermux = { exportWithMode(ExportLogMode.TermuxOnly) },
@@ -4940,6 +4971,16 @@ fun LukoaLauncherScreen(
                                 onOpenRepairTools = {
                                     secondaryPage = LauncherSecondaryPage.RepairTools
                                 },
+                                onOpenGitStash = {
+                                    secondaryPage = LauncherSecondaryPage.GitStash
+                                },
+                                onStashLocalChanges = {
+                                    opsCoordinator.saveGitStash {
+                                        refreshVersionManagementData()
+                                    }
+                                },
+                                onStopTavern = ::requestStopTavern,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
                             )
 
                             LauncherSecondaryPage.Backup -> BackupSection(
@@ -4993,6 +5034,7 @@ fun LukoaLauncherScreen(
                                     topBannerController.show(title = hint)
                                     update(hint, "", false, allowRunningInference = false)
                                 },
+                                showSectionContainer = false,
                             )
 
                             LauncherSecondaryPage.TavernConfig -> TavernConfigManagementSection(
@@ -5136,6 +5178,11 @@ fun LukoaLauncherScreen(
                                 actionsLocked = actionInProgress,
                                 tavernRunning = tavernRunning,
                                 onRefresh = opsCoordinator::refreshGitStash,
+                                onSaveStash = {
+                                    opsCoordinator.saveGitStash {
+                                        refreshVersionManagementData()
+                                    }
+                                },
                                 onApply = opsCoordinator::applyGitStash,
                                 onDrop = opsCoordinator::dropGitStash,
                                 onShowHint = { hint -> topBannerController.show(title = hint) },
@@ -5197,6 +5244,7 @@ fun LukoaLauncherScreen(
                                 },
                                 onShowHint = { hint -> topBannerController.show(title = hint) },
                                 showSectionContainer = false,
+                                compactPageLayout = true,
                             )
                             }
                         }

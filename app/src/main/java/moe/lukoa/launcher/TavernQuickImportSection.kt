@@ -48,24 +48,16 @@ fun TavernQuickImportSection(
     val chatCharDirs = state.paths?.chatCharacterDirs.orEmpty()
     val chatCharError = TavernQuickImportCommandCodec.validateChatCharacterDir(state.chatCharacterDir)
 
-    SectionPanel(
-        title = "快捷导入",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
-            InfoPopoverButton(
-                contentDescription = "查看快捷导入说明",
-                title = "快捷导入",
-                body = "直接从手机文件里选角色卡（PNG / JSON / CHARX）、世界书、预设、主题（JSON）或聊天记录（JSONL），支持一次多选批量导入。\n启动器会自动放进酒馆对应位置；若已有同名文件会自动改名保留，绝不覆盖旧档。",
-            )
-        },
-    ) {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "当前实例",
-                value = instanceLabel,
-                valueColor = LukoaColors.Primary,
-                valueAsPill = true,
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("当前实例")
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "当前实例",
+                    value = instanceLabel,
+                    valueColor = LukoaColors.TextPrimary,
+                )
+            }
         }
 
         if (state.lastImportedFiles.isNotEmpty() || state.lastImportedFile.isNotBlank()) {
@@ -84,29 +76,36 @@ fun TavernQuickImportSection(
             )
         }
 
-        ManagementDialogSectionTitle("选择要导入的类型（可一次多选）")
-        val generalKinds = listOf(
-            TavernQuickImportKind.Character,
-            TavernQuickImportKind.World,
-            TavernQuickImportKind.Preset,
-            TavernQuickImportKind.Theme,
-        )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            generalKinds.chunked(2).forEach { pair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+            SettingsGroupLabel("选择要导入的类型（可一次多选）")
+            val generalKinds = listOf(
+                TavernQuickImportKind.Character,
+                TavernQuickImportKind.World,
+                TavernQuickImportKind.Preset,
+                TavernQuickImportKind.Theme,
+            )
+            SettingsEntryGroup {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    pair.forEach { kind ->
-                        SettingsFeedbackActionButton(
-                            text = kind.label,
-                            enabled = !actionsLocked,
-                            accentColor = LukoaColors.Primary,
-                            modifier = Modifier.weight(1f),
-                            unavailableHint = lockedHint,
-                            onShowHint = onShowHint,
-                            onClick = { onPickAndImport(kind) },
-                        )
+                    generalKinds.chunked(2).forEach { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            pair.forEach { kind ->
+                                SettingsFeedbackActionButton(
+                                    text = kind.label,
+                                    enabled = !actionsLocked,
+                                    accentColor = LukoaColors.Primary,
+                                    modifier = Modifier.weight(1f),
+                                    unavailableHint = lockedHint,
+                                    onShowHint = onShowHint,
+                                    onClick = { onPickAndImport(kind) },
+                                )
+                            }
+                        }
                     }
                 }
             }

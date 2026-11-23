@@ -109,42 +109,38 @@ fun TavernConfigManagementSection(
     val securityWarnings = TavernConfigPolicy.securityWarnings(draftPatch)
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
-    SectionPanel(
-        title = "酒馆设置",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StatusPill(
+                SettingsGroupLabel(
+                    title = "当前实例",
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
                     text = when {
                         state.loading -> "读取中"
                         snapshot == null -> "未读取"
                         snapshot.exists -> "已读取"
                         else -> "默认配置"
                     },
-                    active = state.loading || snapshot != null,
-                    toneColor = LukoaColors.Primary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看酒馆设置说明",
-                    title = "酒馆设置",
-                    body = "这里可以直接开关常用的酒馆功能，不用手动打开配置文件修改。每次保存前都会自动备份原配置；改完后重启酒馆即可生效。",
+                    color = if (state.loading || snapshot != null) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-        },
-    ) {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "当前实例",
-                detail = state.message,
-                detailMaxLines = 3,
-                value = instanceLabel,
-                valueColor = LukoaColors.Primary,
-                valueAsPill = true,
-            )
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "当前实例",
+                    detail = state.message,
+                    detailMaxLines = 3,
+                    value = instanceLabel,
+                    valueColor = LukoaColors.TextPrimary,
+                )
+            }
         }
 
         if (state.savedNeedsRestart && tavernRunning) {
@@ -168,11 +164,12 @@ fun TavernConfigManagementSection(
                 onShowHint = onShowHint,
                 onClick = onRefresh,
             )
-            return@SectionPanel
+            return
         }
 
-        ManagementDialogSectionTitle("用电脑 / 平板一起玩")
-        SettingsEntryGroup {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("用电脑 / 平板一起玩")
+            SettingsEntryGroup {
             LukoaSwitchRow(
                 title = "允许同一 Wi-Fi 下的设备访问",
                 detail = "开启后，电脑或平板连同一个 Wi-Fi 就能在浏览器打开手机上的酒馆。",
@@ -296,6 +293,7 @@ fun TavernConfigManagementSection(
                 }
             }
         }
+        }
 
         securityWarnings.forEach { warning ->
             NoticeCard(
@@ -305,23 +303,25 @@ fun TavernConfigManagementSection(
             )
         }
 
-        ManagementDialogSectionTitle("流畅度与聊天保护")
-        SettingsEntryGroup {
-            LukoaSwitchRow(
-                title = "角色卡很多时省内存加速",
-                detail = "按需加载角色卡，角色多时能明显加快打开速度、减少卡顿。",
-                checked = lazyLoadCharacters,
-                enabled = !actionsLocked,
-                onCheckedChange = { lazyLoadCharacters = it },
-            )
-            SettingsEntryDivider()
-            LukoaSwitchRow(
-                title = "酒馆自带聊天自动留底",
-                detail = "每次保存聊天时额外留一份旧档，防止误删或覆盖。",
-                checked = chatBackupEnabled,
-                enabled = !actionsLocked,
-                onCheckedChange = { chatBackupEnabled = it },
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("流畅度与聊天保护")
+            SettingsEntryGroup {
+                LukoaSwitchRow(
+                    title = "角色卡很多时省内存加速",
+                    detail = "按需加载角色卡，角色多时能明显加快打开速度、减少卡顿。",
+                    checked = lazyLoadCharacters,
+                    enabled = !actionsLocked,
+                    onCheckedChange = { lazyLoadCharacters = it },
+                )
+                SettingsEntryDivider()
+                LukoaSwitchRow(
+                    title = "酒馆自带聊天自动留底",
+                    detail = "每次保存聊天时额外留一份旧档，防止误删或覆盖。",
+                    checked = chatBackupEnabled,
+                    enabled = !actionsLocked,
+                    onCheckedChange = { chatBackupEnabled = it },
+                )
+            }
         }
 
         LukoaCollapsibleCard(
@@ -345,6 +345,7 @@ fun TavernConfigManagementSection(
                     SettingsCompactChoiceButton(
                         text = if (limit == -1) "不限" else "$limit",
                         enabled = !actionsLocked,
+                        selected = selected,
                         accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                         modifier = Modifier.weight(1f),
                         unavailableHint = lockedHint,

@@ -50,124 +50,131 @@ internal fun HealthCheckContent(
     showRunHealthCheckAction: Boolean = true,
 ) {
     val effectiveReport = report.takeIf { it?.hasData == true }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Text(
-                    text = effectiveReport?.summaryTitle ?: "还没体检",
+                SettingsGroupLabel(
+                    title = "体检概览",
                     modifier = Modifier.weight(1f),
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
-                StatusPill(
+                Text(
                     text = summaryPillText(effectiveReport),
-                    active = effectiveReport != null,
-                    toneColor = summaryTone(effectiveReport),
-                    activeBackground = summaryTone(effectiveReport).copy(alpha = 0.14f),
+                    color = summaryTone(effectiveReport),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            Text(
-                text = effectiveReport?.summaryDetail
-                    ?: "点“一键体检”后，启动器会把权限、路径、镜像源和酒馆环境一起看一遍。",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            effectiveReport?.let {
-                Text(
-                    text = "上次体检：${formatCheckedAt(it.checkedAtMillis)}",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                )
+            SettingsEntryGroup {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = effectiveReport?.summaryTitle ?: "还没体检",
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = effectiveReport?.summaryDetail
+                            ?: "点“一键体检”后，启动器会把权限、路径、镜像源和酒馆环境一起看一遍。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    effectiveReport?.let {
+                        Text(
+                            text = "上次体检：${formatCheckedAt(it.checkedAtMillis)}",
+                            color = LukoaColors.Dim,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    if (showRunHealthCheckAction || effectiveReport?.primaryAction != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            if (showRunHealthCheckAction) {
+                                SecondaryActionButton(
+                                    text = if (checking) "体检中..." else "一键体检",
+                                    enabled = !actionsLocked && !checking,
+                                    accentColor = LukoaColors.Primary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("health-check-run-action"),
+                                    onClick = onRunHealthCheck,
+                                )
+                            }
+                            effectiveReport?.primaryAction?.let { action ->
+                                SecondaryActionButton(
+                                    text = action.label,
+                                    enabled = !actionsLocked && !checking,
+                                    accentColor = primaryActionColor(action.type),
+                                    modifier = Modifier.weight(1f),
+                                    onClick = onPrimaryAction,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
-    }
 
-    if (showRunHealthCheckAction || effectiveReport?.primaryAction != null) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (showRunHealthCheckAction) {
-                SecondaryActionButton(
-                    text = if (checking) "体检中..." else "一键体检",
-                    enabled = !actionsLocked && !checking,
-                    accentColor = LukoaColors.Primary,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("health-check-run-action"),
-                    onClick = onRunHealthCheck,
-                )
-            }
-            effectiveReport?.primaryAction?.let { action ->
-                SecondaryActionButton(
-                    text = action.label,
-                    enabled = !actionsLocked && !checking,
-                    accentColor = primaryActionColor(action.type),
-                    modifier = Modifier.weight(1f),
-                    onClick = onPrimaryAction,
-                )
+        val items = effectiveReport?.items.orEmpty()
+        if (items.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsGroupLabel("检查明细（${items.size} 项）")
+                SettingsEntryGroup {
+                    items.forEachIndexed { index, item ->
+                        if (index > 0) SettingsEntryDivider()
+                        HealthCheckItemRow(item)
+                    }
+                }
             }
         }
-    }
-
-    effectiveReport?.items?.takeIf { it.isNotEmpty() }?.forEach { item ->
-        HealthCheckItemRow(item)
     }
 }
 
 @Composable
 private fun HealthCheckItemRow(item: LauncherHealthItem) {
     val toneColor = item.level.toneColor()
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = item.title,
-                    modifier = Modifier.weight(1f),
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                StatusPill(
-                    text = item.level.label(),
-                    active = item.level != LauncherHealthLevel.Unknown,
-                    toneColor = toneColor,
-                    activeBackground = toneColor.copy(alpha = 0.14f),
-                )
-            }
             Text(
-                text = item.detail,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
+                text = item.title,
+                modifier = Modifier.weight(1f),
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = item.level.label(),
+                color = toneColor,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
+        Text(
+            text = item.detail,
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

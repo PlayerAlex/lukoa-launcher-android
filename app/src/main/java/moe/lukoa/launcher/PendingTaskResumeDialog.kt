@@ -490,73 +490,148 @@ internal fun BackgroundTaskCenterContent(
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (showIntroCard) {
             ManagementDialogIntroCard(
                 "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
             )
-        }
-        ManagementDialogActionCard("当前任务与操作") {
-            when {
-                pendingTask != null -> {
-                    PendingTaskStateHeader(activeLockLabel = activeLockLabel)
-                    PendingTaskSummaryCard(task = pendingTask)
-                    ToneActionButton(
-                        text = "检查最新结果",
-                        enabled = true,
-                        tone = ActionTone.Safe,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onCheckPendingTask,
-                    )
-                    ToneActionButton(
-                        text = "前往对应页面",
-                        enabled = true,
-                        tone = ActionTone.Neutral,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onOpenPendingTaskPage,
-                    )
-                    ToneActionButton(
-                        text = "不再跟踪这次操作",
-                        enabled = true,
-                        tone = ActionTone.Warning,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { confirmAbandon = true },
-                    )
-                }
+            ManagementDialogActionCard("当前任务与操作") {
+                when {
+                    pendingTask != null -> {
+                        PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                        PendingTaskSummaryCard(task = pendingTask)
+                        ToneActionButton(
+                            text = "检查最新结果",
+                            enabled = true,
+                            tone = ActionTone.Safe,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onCheckPendingTask,
+                        )
+                        ToneActionButton(
+                            text = "前往对应页面",
+                            enabled = true,
+                            tone = ActionTone.Neutral,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenPendingTaskPage,
+                        )
+                        ToneActionButton(
+                            text = "不再跟踪这次操作",
+                            enabled = true,
+                            tone = ActionTone.Warning,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { confirmAbandon = true },
+                        )
+                    }
 
-                !activeLockLabel.isNullOrBlank() -> {
-                    PendingTaskStateHeader(activeLockLabel = activeLockLabel)
-                    Text(
-                        text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                    !activeLockLabel.isNullOrBlank() -> {
+                        PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                        Text(
+                            text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
+                            color = LukoaColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
 
-                else -> BackgroundTaskIdleCard()
+                    else -> BackgroundTaskIdleCard()
+                }
             }
-        }
-
-        ManagementDialogSectionTitle("最近任务结果")
-        if (recentResults.isEmpty()) {
-            Text(
-                text = "还没有可显示的耗时任务结果。",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
         } else {
-            recentResults.forEach { result ->
-                BackgroundTaskResultCard(result = result)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsGroupLabel("当前任务")
+                SettingsEntryGroup {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        when {
+                            pendingTask != null -> {
+                                PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                                PendingTaskSummaryCard(task = pendingTask)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    ToneActionButton(
+                                        text = "检查最新结果",
+                                        enabled = true,
+                                        tone = ActionTone.Safe,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = onCheckPendingTask,
+                                    )
+                                    ToneActionButton(
+                                        text = "前往对应页面",
+                                        enabled = true,
+                                        tone = ActionTone.Neutral,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = onOpenPendingTaskPage,
+                                    )
+                                }
+                                ToneActionButton(
+                                    text = "不再跟踪这次操作",
+                                    enabled = true,
+                                    tone = ActionTone.Warning,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { confirmAbandon = true },
+                                )
+                            }
+
+                            !activeLockLabel.isNullOrBlank() -> {
+                                PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                                Text(
+                                    text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
+                                    color = LukoaColors.TextPrimary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+
+                            else -> {
+                                Text(
+                                    text = "当前没有待确认任务",
+                                    color = LukoaColors.TextPrimary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = "新的备份、恢复、版本操作和实例目录任务会自动出现在这里。",
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
-        ToneActionButton(
-            text = "刷新最近结果",
-            enabled = true,
-            tone = ActionTone.Neutral,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onRefreshResults,
-        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (showIntroCard) {
+                ManagementDialogSectionTitle("最近任务结果")
+            } else {
+                SettingsGroupLabel("最近任务结果")
+            }
+            if (recentResults.isEmpty()) {
+                SettingsEntryGroup {
+                    SettingsEntryRow(
+                        title = "暂无耗时任务结果",
+                        detail = "还没有可显示的耗时任务结果。",
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    recentResults.forEach { result ->
+                        BackgroundTaskResultCard(result = result)
+                    }
+                }
+            }
+            ToneActionButton(
+                text = "刷新最近结果",
+                enabled = true,
+                tone = ActionTone.Neutral,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onRefreshResults,
+            )
+        }
     }
 }
 

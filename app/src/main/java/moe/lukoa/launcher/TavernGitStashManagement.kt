@@ -7,7 +7,8 @@ data class TavernGitStashEntry(
     val createdAt: String,
 ) {
     val isLukoaManaged: Boolean
-        get() = message.contains("lukoa-before-", ignoreCase = true)
+        get() = message.contains("lukoa-before-", ignoreCase = true) ||
+            message.contains("lukoa-manual-", ignoreCase = true)
 }
 
 data class TavernGitStashState(

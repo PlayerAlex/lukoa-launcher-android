@@ -92,6 +92,7 @@ class TavernController(
             "tavern-server-plugins-update" -> runner.runTavernServerPluginUpdate(parsed.argument)
             "tavern-server-plugins-delete" -> runner.runTavernServerPluginDelete(parsed.argument)
             "tavern-git-stash-list" -> runner.runTavernGitStashList()
+            "tavern-git-stash-save" -> runner.runTavernGitStashSave()
             "tavern-git-stash-apply" -> runner.runTavernGitStashApply(parsed.argument)
             "tavern-git-stash-drop" -> runner.runTavernGitStashDrop(parsed.argument)
             "tavern-quick-import-paths" -> runner.runTavernQuickImportPaths(parsed.argument)
@@ -454,6 +455,7 @@ class TavernController(
             "tavern-server-plugins-update" -> "正在更新服务器插件。"
             "tavern-server-plugins-delete" -> "正在删除服务器插件。"
             "tavern-git-stash-list" -> "正在读取本地暂存记录。"
+            "tavern-git-stash-save" -> "正在把本地程序改动收进暂存区。"
             "tavern-git-stash-apply" -> "正在恢复暂存的本地改动。"
             "tavern-git-stash-drop" -> "正在删除选中的暂存记录。"
             "tavern-quick-import-paths" -> "正在解析酒馆常用数据目录。"
@@ -530,6 +532,7 @@ class TavernController(
             "tavern-server-plugins-update" -> if (ok) "服务器插件已更新，重启酒馆后生效。" else "更新服务器插件失败。"
             "tavern-server-plugins-delete" -> if (ok) "服务器插件已删除。" else "删除服务器插件失败。"
             "tavern-git-stash-list" -> if (ok) "本地暂存列表已刷新。" else "读取本地暂存列表失败。"
+            "tavern-git-stash-save" -> if (ok) "本地改动已安全收进暂存区，现在可以正常更新或回退。" else "暂存本地改动失败，请先确认酒馆已停止。"
             "tavern-git-stash-apply" -> if (ok) "暂存改动已恢复到当前目录（原暂存记录仍保留）。" else "恢复暂存改动失败，可能存在版本代码冲突。"
             "tavern-git-stash-drop" -> if (ok) "选中的暂存记录已删除。" else "删除暂存记录失败。"
             "tavern-quick-import-paths" -> if (ok) "酒馆数据目录已解析。" else "解析酒馆数据目录失败。"

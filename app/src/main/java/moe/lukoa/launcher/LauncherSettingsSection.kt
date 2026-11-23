@@ -442,29 +442,30 @@ internal fun LauncherUpdateSettingsPanel(
         )
     }
 
-    SectionPanel(
-        title = "启动器更新",
-        accentColor = LukoaColors.Primary,
-        containerColor = LukoaColors.Elevated,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = updateStatusText,
-                    active = githubUpdateState.hasUpdate || githubUpdateState.checking || githubUpdateState.downloading,
-                    toneColor = updateStatusTone,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看启动器更新说明",
-                    title = "启动器更新",
-                    body = "这里更新的是露科亚启动器本身，不是 SillyTavern 酒馆。\n点“检查更新”只会查询新版本；发现新版后，你再决定是否下载安装。\n大多数人选稳定版；想提前体验新功能时再选测试版。酒馆的更新和回退请到“版本”页。",
-                )
-            }
-        },
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsGroupLabel(
+                title = "启动器更新",
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = updateStatusText,
+                color = updateStatusTone,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            InfoPopoverButton(
+                contentDescription = "查看启动器更新说明",
+                title = "启动器更新",
+                body = "这里更新的是露科亚启动器本身，不是 SillyTavern 酒馆。\n点“检查更新”只会查询新版本；发现新版后，你再决定是否下载安装。\n大多数人选稳定版；想提前体验新功能时再选测试版。酒馆的更新和回退请到“版本管理”页。",
+            )
+        }
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前版本",
@@ -504,23 +505,22 @@ internal fun LauncherUpdateSettingsPanel(
             )
             SettingsEntryDivider()
             SettingsEntryRow(
+                title = "更新通道",
+                value = githubUpdateState.channel.label,
+                valueColor = LukoaColors.TextSecondary,
+                enabled = !updateLocked,
+                onClick = onOpenUpdateChannelSettings,
+                unavailableHint = if (updateLocked) "更新任务正在进行，完成后才能切换更新通道。" else null,
+                onShowHint = onShowHint,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
                 title = "修改仓库地址",
                 value = repository,
                 valueLayout = SettingsValueLayout.Supporting,
                 enabled = !updateLocked,
                 onClick = onOpenRepositorySettings,
                 unavailableHint = if (updateLocked) "更新任务正在进行，完成后才能修改仓库地址。" else null,
-                onShowHint = onShowHint,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "更新通道",
-                value = githubUpdateState.channel.label,
-                valueColor = LukoaColors.Primary,
-                valueAsPill = true,
-                enabled = !updateLocked,
-                onClick = onOpenUpdateChannelSettings,
-                unavailableHint = if (updateLocked) "更新任务正在进行，完成后才能切换更新通道。" else null,
                 onShowHint = onShowHint,
             )
         }
@@ -548,7 +548,7 @@ internal fun LauncherUpdateSettingsPanel(
             SettingsFeedbackActionButton(
                 text = "打开发布页",
                 enabled = !updateLocked && releasePageAvailable,
-                accentColor = LukoaColors.Primary,
+                accentColor = LukoaColors.TextSecondary,
                 modifier = Modifier.weight(1f),
                 unavailableHint = when {
                     updateLocked -> "更新任务正在进行，请稍等。"
@@ -592,7 +592,7 @@ internal fun InstanceManagementPanel(
     onToggleAutoStartTavern: () -> Unit = {},
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -607,13 +607,6 @@ internal fun InstanceManagementPanel(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
-            StatusPill(
-                text = tavernPathConfig.activeProfileLabel,
-                active = true,
-                modifier = Modifier.widthIn(max = 112.dp),
-                toneColor = LukoaColors.Primary,
-                activeBackground = LukoaColors.PrimarySoft,
-            )
             InfoPopoverButton(
                 contentDescription = "查看实例与运行环境说明",
                 title = "实例与运行环境",
@@ -621,134 +614,137 @@ internal fun InstanceManagementPanel(
             )
         }
 
-        SettingsGroupLabel("当前酒馆实例")
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "实例名称",
-                value = tavernPathConfig.activeProfileLabel,
-                valueColor = LukoaColors.TextPrimary,
-                onClick = onOpenProfileManagement,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "酒馆路径",
-                value = tavernPathConfig.displayTavernDir,
-                valueLayout = SettingsValueLayout.Supporting,
-                onClick = onOpenDirectorySettings,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "访问端口",
-                value = tavernPathConfig.normalizedPort.toString(),
-                valueColor = LukoaColors.TextPrimary,
-                onClick = onOpenPortSettings,
-            )
-            if (onOpenUserManagement != null) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("当前酒馆实例")
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "实例名称",
+                    value = tavernPathConfig.activeProfileLabel,
+                    valueColor = LukoaColors.TextPrimary,
+                    onClick = onOpenProfileManagement,
+                )
                 SettingsEntryDivider()
                 SettingsEntryRow(
-                    title = "酒馆用户管理",
-                    value = "进入",
+                    title = "酒馆路径",
+                    value = tavernPathConfig.displayTavernDir,
+                    valueLayout = SettingsValueLayout.Supporting,
+                    onClick = onOpenDirectorySettings,
+                )
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "访问端口",
+                    value = tavernPathConfig.normalizedPort.toString(),
+                    valueColor = LukoaColors.TextPrimary,
+                    onClick = onOpenPortSettings,
+                )
+                if (onOpenUserManagement != null) {
+                    SettingsEntryDivider()
+                    SettingsEntryRow(
+                        title = "酒馆用户管理",
+                        value = "进入",
+                        valueColor = LukoaColors.TextSecondary,
+                        onClick = onOpenUserManagement,
+                    )
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("启动与外观")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SettingsQuickToggleCard(
+                    label = "外观主题",
+                    value = themeStyle.label,
+                    modifier = Modifier.weight(1f),
+                    onClick = onToggleThemeStyle,
+                )
+                SettingsQuickToggleCard(
+                    label = "启动方式",
+                    value = launchMode.shortLabel,
+                    modifier = Modifier.weight(1f),
+                    onClick = onToggleLaunchMode,
+                )
+            }
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "打开酒馆的浏览器",
+                    value = preferredBrowserLabel,
                     valueColor = LukoaColors.TextSecondary,
-                    onClick = onOpenUserManagement,
+                    onClick = onOpenBrowserPreference,
+                )
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "返回酒馆方式",
+                    value = browserOpenMode.shortLabel,
+                    valueColor = LukoaColors.TextSecondary,
+                    onClick = onOpenBrowserOpenMode,
+                )
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "添加到桌面一键启动",
+                    value = "添加",
+                    valueColor = LukoaColors.TextSecondary,
+                    onClick = onPinQuickStartShortcut,
+                )
+            }
+            SettingsEntryGroup {
+                LukoaSwitchRow(
+                    title = "打开启动器自动启动酒馆",
+                    checked = autoStartTavernOnLaunch,
+                    enabled = true,
+                    onCheckedChange = { onToggleAutoStartTavern() },
+                )
+                SettingsEntryDivider()
+                LukoaSwitchRow(
+                    title = "前台保持屏幕常亮",
+                    checked = keepScreenOn,
+                    enabled = true,
+                    onCheckedChange = { onToggleKeepScreenOn() },
+                )
+                SettingsEntryDivider()
+                LukoaSwitchRow(
+                    title = "运行状态通知栏控制",
+                    checked = runningNotificationEnabled,
+                    enabled = true,
+                    onCheckedChange = { onToggleRunningNotification() },
                 )
             }
         }
 
-        SettingsGroupLabel("启动与外观")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SettingsQuickToggleCard(
-                label = "外观主题",
-                value = themeStyle.label,
-                hint = if (themeStyle.isLight) "点此切夜间" else "点此切日间",
-                modifier = Modifier.weight(1f),
-                onClick = onToggleThemeStyle,
-            )
-            SettingsQuickToggleCard(
-                label = "启动方式",
-                value = launchMode.shortLabel,
-                hint = "点此切换",
-                modifier = Modifier.weight(1f),
-                onClick = onToggleLaunchMode,
-            )
-        }
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "打开酒馆的浏览器",
-                value = preferredBrowserLabel,
-                valueColor = LukoaColors.TextSecondary,
-                onClick = onOpenBrowserPreference,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "返回酒馆方式",
-                value = browserOpenMode.shortLabel,
-                valueColor = LukoaColors.TextSecondary,
-                onClick = onOpenBrowserOpenMode,
-            )
-            SettingsEntryDivider()
-            LukoaSwitchRow(
-                title = "打开启动器自动启动酒馆",
-                checked = autoStartTavernOnLaunch,
-                enabled = true,
-                onCheckedChange = { onToggleAutoStartTavern() },
-            )
-            SettingsEntryDivider()
-            LukoaSwitchRow(
-                title = "前台保持屏幕常亮",
-                checked = keepScreenOn,
-                enabled = true,
-                onCheckedChange = { onToggleKeepScreenOn() },
-            )
-            SettingsEntryDivider()
-            LukoaSwitchRow(
-                title = "运行状态通知栏控制",
-                checked = runningNotificationEnabled,
-                enabled = true,
-                onCheckedChange = { onToggleRunningNotification() },
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "添加到桌面一键启动",
-                value = "添加",
-                valueColor = LukoaColors.TextSecondary,
-                onClick = onPinQuickStartShortcut,
-            )
-        }
-
-        SettingsGroupLabel("网络与权限")
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "网络与镜像源",
-                value = mirrorProbeStatus.overallLevel.label(),
-                valueColor = mirrorTone,
-                valueAsPill = true,
-                onClick = onOpenMirrorSettings,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "权限中心",
-                value = if (permissionNotice.pendingItems.isEmpty()) {
-                    "已就绪"
-                } else {
-                    "${permissionNotice.pendingItems.size} 项待处理"
-                },
-                valueColor = when (permissionNotice.tone) {
-                    PermissionNoticeTone.Info -> LukoaColors.TextSecondary
-                    PermissionNoticeTone.Warning -> LukoaColors.Danger
-                },
-                valueAsPill = permissionNotice.pendingItems.isNotEmpty(),
-                onClick = onOpenPermissionCenter,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "唤醒延迟",
-                value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
-                valueColor = LukoaColors.TextSecondary,
-                onClick = onOpenWakeDelaySettings,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel("网络与权限")
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "网络与镜像源",
+                    value = mirrorProbeStatus.overallLevel.label(),
+                    valueColor = mirrorTone,
+                    onClick = onOpenMirrorSettings,
+                )
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "权限中心",
+                    value = if (permissionNotice.pendingItems.isEmpty()) {
+                        "已就绪"
+                    } else {
+                        "${permissionNotice.pendingItems.size} 项待处理"
+                    },
+                    valueColor = when (permissionNotice.tone) {
+                        PermissionNoticeTone.Info -> LukoaColors.TextSecondary
+                        PermissionNoticeTone.Warning -> LukoaColors.Danger
+                    },
+                    onClick = onOpenPermissionCenter,
+                )
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "唤醒延迟",
+                    value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
+                    valueColor = LukoaColors.TextSecondary,
+                    onClick = onOpenWakeDelaySettings,
+                )
+            }
         }
     }
 }
@@ -757,7 +753,6 @@ internal fun InstanceManagementPanel(
 private fun SettingsQuickToggleCard(
     label: String,
     value: String,
-    hint: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -774,26 +769,31 @@ private fun SettingsQuickToggleCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = label,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.labelMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    text = "切换",
+                    color = LukoaColors.Dim,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
             Text(
                 text = value,
                 color = LukoaColors.TextPrimary,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = hint,
-                color = LukoaColors.Dim,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
             )
         }
     }

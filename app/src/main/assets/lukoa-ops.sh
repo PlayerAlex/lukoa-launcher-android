@@ -639,6 +639,36 @@ cmd_git_stash_list() {
   emit_git_stash_list
 }
 
+cmd_git_stash_save() {
+  if is_running_quick; then
+    write_status "error" "Please stop SillyTavern before stashing local changes" true 77
+    cat "$STATUS_FILE"
+    return 77
+  fi
+  [ -d "$TAVERN_DIR/.git" ] || { write_status "error" "Not a Git repository" false 65; cat "$STATUS_FILE"; return 65; }
+  command -v git >/dev/null 2>&1 || { write_status "error" "git command not found in Termux" false 69; cat "$STATUS_FILE"; return 69; }
+  gs_changes="$(git -C "$TAVERN_DIR" -c safe.directory="$TAVERN_DIR" status --porcelain --untracked-files=no 2>/dev/null || true)"
+  if [ -z "$gs_changes" ]; then
+    write_status "git-stash-save" "Working tree is already clean" false 0
+    cat "$STATUS_FILE"
+    emit_git_stash_list
+    return 0
+  fi
+  gs_stamp="$(date +"%Y%m%d-%H%M%S")"
+  gs_name="lukoa-manual-$gs_stamp"
+  if ! git -C "$TAVERN_DIR" -c safe.directory="$TAVERN_DIR" -c user.name='Lukoa Launcher' -c user.email='launcher@lukoa.invalid' \
+    stash push -m "$gs_name" 2>&1; then
+    write_status "error" "Failed to stash local changes" false 78
+    cat "$STATUS_FILE"
+    emit_git_stash_list
+    return 78
+  fi
+  write_status "git-stash-save" "Local changes saved to git stash ($gs_name)" false 0
+  cat "$STATUS_FILE"
+  printf "\nlocalChanges.stash=%s\n" "$gs_name"
+  emit_git_stash_list
+}
+
 cmd_git_stash_apply() {
   if is_running_quick; then
     write_status "error" "Please stop SillyTavern before applying a git stash" true 77
@@ -1019,6 +1049,7 @@ main() {
     server-plugins-update|tavern-server-plugins-update) shift; run_tavern_server_plugins_action update "${1:-}" ;;
     server-plugins-delete|tavern-server-plugins-delete) shift; run_tavern_server_plugins_action delete "${1:-}" ;;
     git-stash-list|tavern-git-stash-list) cmd_git_stash_list ;;
+    git-stash-save|tavern-git-stash-save) cmd_git_stash_save ;;
     git-stash-apply|tavern-git-stash-apply) shift; cmd_git_stash_apply "${1:-}" ;;
     git-stash-drop|tavern-git-stash-drop) shift; cmd_git_stash_drop "${1:-}" ;;
     quick-import-paths|tavern-quick-import-paths) shift; cmd_quick_import_paths "${1:-default-user}" ;;
