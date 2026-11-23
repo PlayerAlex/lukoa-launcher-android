@@ -9,6 +9,9 @@ class BundledShellScriptRegressionTest {
     private val script by lazy {
         File("src/main/assets/lukoa-tavern.sh").readText(Charsets.UTF_8)
     }
+    private val opsScript by lazy {
+        File("src/main/assets/lukoa-ops.sh").readText(Charsets.UTF_8)
+    }
     private val runnerSource by lazy {
         File("src/main/java/moe/lukoa/launcher/TermuxCommandRunner.kt").readText(Charsets.UTF_8)
     }
@@ -331,5 +334,41 @@ class BundledShellScriptRegressionTest {
         assertTrue(stopBlock.contains("wait_for_pids_exit"))
         assertTrue(cwdBlock.contains("TAVERN_DIR_REAL"))
         assertTrue(script.contains("strip_trailing_slashes()"))
+    }
+
+    @Test
+    fun `chat guard config ops script and compressed foreground transport preserve safety invariants`() {
+        assertFalse(script.contains(". \"\$CHAT_GUARD_CONFIG_FILE\""))
+        assertTrue(script.contains("load_chat_guard_config()"))
+        assertTrue(script.contains("cmd_chat_guard_status()"))
+        assertTrue(script.contains("cmd_chat_guard_set()"))
+        assertTrue(script.contains("cmd_chat_guard_clear_history()"))
+        assertTrue(script.contains("cmd_restart_console()"))
+        assertTrue(script.contains("extensions-update-all|tavern-extensions-update-all"))
+
+        // Verify the foreground compressed command stays comfortably under the 65KB limit.
+        val foregroundPlan = TermuxScriptCommandBuilder.installAndRun(
+            scriptText = script,
+            scriptCommand = "console",
+            scriptArgs = emptyList(),
+            runtimeSetup = "export LUKOA_TAVERN_DIR='\$HOME/SillyTavern'",
+            transport = TermuxScriptTransport.CompressedArgument,
+        )
+        assertTrue(foregroundPlan.command.toByteArray(Charsets.UTF_8).size < 63_000)
+
+        // Verify opsScript safety invariants for config, storage cleanup, server plugins, stash, quick import.
+        assertTrue(opsScript.contains("run_tavern_config_action()"))
+        assertTrue(opsScript.contains("config.yaml.lukoa-backup-"))
+        assertTrue(opsScript.contains("config.yaml.lukoa-tmp."))
+        assertTrue(opsScript.contains("config.basicAuthHasPassword="))
+        assertFalse(opsScript.contains("config.basicAuthPassword="))
+        assertTrue(opsScript.contains("cmd_storage_clean()"))
+        assertTrue(opsScript.contains("Unsupported cleanup category"))
+        assertTrue(opsScript.contains("run_tavern_server_plugins_action()"))
+        assertTrue(opsScript.contains("Plugin target escaped plugins root"))
+        assertTrue(opsScript.contains("cmd_git_stash_apply()"))
+        assertFalse(opsScript.contains("git stash pop"))
+        assertTrue(opsScript.contains("cmd_quick_import()"))
+        assertTrue(opsScript.contains("Staged import file is outside LukoaLauncher/imports"))
     }
 }

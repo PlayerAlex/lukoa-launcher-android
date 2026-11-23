@@ -79,6 +79,23 @@ class TavernController(
             "log" -> runner.runLogSnapshot()
             "status" -> runner.runStatusSnapshot()
             "stop" -> runner.runStopTavern()
+            "restart" -> runner.runRestartTavern()
+            "tavern-chat-guard-status" -> runner.runTavernChatGuardStatus()
+            "tavern-chat-guard-set" -> runner.runTavernChatGuardSet(parsed.argument)
+            "tavern-chat-guard-clear-history" -> runner.runTavernChatGuardClearHistory()
+            "tavern-config-read" -> runner.runTavernConfigRead()
+            "tavern-config-set" -> runner.runTavernConfigSet(parsed.argument)
+            "tavern-storage-scan" -> runner.runTavernStorageScan()
+            "tavern-storage-clean" -> runner.runTavernStorageClean(parsed.argument)
+            "tavern-server-plugins-list" -> runner.runTavernServerPluginsList()
+            "tavern-server-plugins-install" -> runner.runTavernServerPluginInstall(parsed.argument)
+            "tavern-server-plugins-update" -> runner.runTavernServerPluginUpdate(parsed.argument)
+            "tavern-server-plugins-delete" -> runner.runTavernServerPluginDelete(parsed.argument)
+            "tavern-git-stash-list" -> runner.runTavernGitStashList()
+            "tavern-git-stash-apply" -> runner.runTavernGitStashApply(parsed.argument)
+            "tavern-git-stash-drop" -> runner.runTavernGitStashDrop(parsed.argument)
+            "tavern-quick-import-paths" -> runner.runTavernQuickImportPaths(parsed.argument)
+            "tavern-quick-import" -> runner.runTavernQuickImport(parsed.argument)
             "tavern-force-cleanup" -> runner.runForceCleanupTavern()
             "tavern-version" -> runner.runTavernVersion()
             "tavern-version-startup" -> runner.runTavernVersion()
@@ -100,6 +117,7 @@ class TavernController(
             "tavern-extensions-check-updates" -> runner.runTavernExtensionCheckUpdates()
             "tavern-extensions-update" -> runner.runTavernExtensionUpdate(parsed.argument)
             "tavern-extensions-update-force" -> runner.runTavernExtensionUpdate(parsed.argument, force = true)
+            "tavern-extensions-update-all" -> runner.runTavernExtensionUpdateAll()
             "tavern-extensions-rollback" -> runner.runTavernExtensionRollback(parsed.argument)
             "tavern-official-versions" -> runner.runTavernOfficialVersions()
             "termux-storage-permission" -> runner.requestTermuxStoragePermission()
@@ -151,7 +169,7 @@ class TavernController(
                     rawResultOutput(result).ifBlank { TermuxOutputDisplayFormatter.format(result) },
                     ok,
                 )
-                if (ok && parsed.name == "start") {
+                if (ok && (parsed.name == "start" || parsed.name == "restart")) {
                     delay(600)
                     val openResult = runner.openTavern()
                     if (!openResult.sent) {
@@ -199,11 +217,46 @@ class TavernController(
     }
 
     fun handleForegroundStart(scope: CoroutineScope, update: LauncherUpdate) {
-        update("正在打开 Termux 酒馆窗口。", "", false)
+        handleForegroundConsoleDispatch(
+            scope = scope,
+            initialMessage = "正在打开 Termux 酒馆窗口。",
+            returnedMessage = "启动命令已返回。",
+            failedMessage = "启动酒馆失败。",
+            sentMessage = "启动命令已发送。",
+            wakeFallbackMessage = "启动命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点启动。",
+            dispatchAction = { runner.runForegroundTavernConsole() },
+            update = update,
+        )
+    }
+
+    fun handleForegroundRestart(scope: CoroutineScope, update: LauncherUpdate) {
+        handleForegroundConsoleDispatch(
+            scope = scope,
+            initialMessage = "正在停止旧实例并在 Termux 前台重启酒馆。",
+            returnedMessage = "重启命令已返回。",
+            failedMessage = "重启酒馆失败。",
+            sentMessage = "重启命令已发送。",
+            wakeFallbackMessage = "重启命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点重启。",
+            dispatchAction = { runner.runForegroundTavernRestart() },
+            update = update,
+        )
+    }
+
+    private fun handleForegroundConsoleDispatch(
+        scope: CoroutineScope,
+        initialMessage: String,
+        returnedMessage: String,
+        failedMessage: String,
+        sentMessage: String,
+        wakeFallbackMessage: String,
+        dispatchAction: () -> CommandDispatch,
+        update: LauncherUpdate,
+    ) {
+        update(initialMessage, "", false)
         scope.launch {
             val startTime = System.currentTimeMillis()
             val dispatch = withContext(Dispatchers.Default) {
-                runner.runForegroundTavernConsole()
+                dispatchAction()
             }
             if (!dispatch.sent) {
                 update(dispatch.message, "", false)
@@ -228,20 +281,16 @@ class TavernController(
                     TermuxOutputDisplayFormatter.format(immediateResult)
                 }
                 val message = when {
-                    ok -> "启动命令已返回。"
+                    ok -> returnedMessage
                     TermuxPermissionSignals.externalAppsBlocked(output) ->
                         "Termux 外部调用未开启。请复制权限命令到 Termux 执行。"
-                    else -> "启动酒馆失败。"
+                    else -> failedMessage
                 }
                 update(message, output, ok)
                 return@launch
             }
             val woke = runner.wakeTermux()
-            val message = if (woke) {
-                "启动命令已发送。"
-            } else {
-                "启动命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点启动。"
-            }
+            val message = if (woke) sentMessage else wakeFallbackMessage
             update(message, "", true)
         }
     }
@@ -387,8 +436,26 @@ class TavernController(
             "status" -> "正在查询酒馆状态。"
             "log" -> "正在读取酒馆运行日志。"
             "stop" -> "停止命令已发送到 Termux。"
+            "restart" -> "正在后台重启酒馆，就绪后会自动打开浏览器。"
+            "tavern-chat-guard-status" -> "正在读取聊天守护状态。"
+            "tavern-chat-guard-set" -> "正在保存聊天守护设置。"
+            "tavern-chat-guard-clear-history" -> "正在清空救回记录列表。"
+            "tavern-config-read" -> "正在读取酒馆 config.yaml 配置。"
+            "tavern-config-set" -> "正在备份并保存酒馆 config.yaml 配置。"
+            "tavern-storage-scan" -> "正在扫描当前实例的磁盘占用。"
+            "tavern-storage-clean" -> "正在执行安全空间清理。"
+            "tavern-server-plugins-list" -> "正在读取当前酒馆服务器插件。"
+            "tavern-server-plugins-install" -> "正在下载并安装服务器插件。"
+            "tavern-server-plugins-update" -> "正在更新服务器插件。"
+            "tavern-server-plugins-delete" -> "正在删除服务器插件。"
+            "tavern-git-stash-list" -> "正在读取本地暂存记录。"
+            "tavern-git-stash-apply" -> "正在恢复暂存的本地改动。"
+            "tavern-git-stash-drop" -> "正在删除选中的暂存记录。"
+            "tavern-quick-import-paths" -> "正在解析酒馆常用数据目录。"
+            "tavern-quick-import" -> "正在把文件导入到酒馆目录。"
+            "tavern-extensions-update-all" -> "正在批量更新可安全更新的酒馆扩展（自动跳过本地改动）。"
             "tavern-force-cleanup" -> "强制清理命令已发送到 Termux。"
-            "start" -> "启动命令已发送到 Termux。"
+            "start" -> "正在后台静默启动酒馆，就绪后会自动打开浏览器。"
             "tavern-version" -> "正在读取酒馆版本。"
             "tavern-version-startup" -> "正在检测酒馆版本。"
             "tavern-doctor" -> "正在后台体检当前环境。"
@@ -440,8 +507,26 @@ class TavernController(
             "status" -> if (ok) "状态已刷新。" else "状态查询失败。"
             "log" -> if (ok) "酒馆运行日志已同步。" else "同步酒馆运行日志失败。"
             "stop" -> if (ok) "停止命令已返回。" else "停止酒馆失败。"
+            "restart" -> if (ok) "酒馆已在后台重启并就绪。" else "重启酒馆失败。"
+            "tavern-chat-guard-status" -> if (ok) "聊天守护状态已刷新。" else "读取聊天守护状态失败。"
+            "tavern-chat-guard-set" -> if (ok) "聊天守护设置已保存。" else "保存聊天守护设置失败。"
+            "tavern-chat-guard-clear-history" -> if (ok) "救回记录列表已清空（聊天文件未受影响）。" else "清空救回记录列表失败。"
+            "tavern-config-read" -> if (ok) "酒馆核心配置已读取。" else "读取酒馆 config.yaml 配置失败。"
+            "tavern-config-set" -> if (ok) "酒馆核心配置已保存并自动备份原文件，重启酒馆后生效。" else "保存酒馆配置失败，原 config.yaml 未被破坏。"
+            "tavern-storage-scan" -> if (ok) "空间扫描已完成。" else "扫描磁盘占用失败。"
+            "tavern-storage-clean" -> if (ok) "安全空间清理已完成，聊天和角色卡未受影响。" else "安全空间清理失败。"
+            "tavern-server-plugins-list" -> if (ok) "服务器插件列表已读取。" else "读取服务器插件失败。"
+            "tavern-server-plugins-install" -> if (ok) "服务器插件已安装，开启总开关并重启酒馆后生效。" else "安装服务器插件失败。"
+            "tavern-server-plugins-update" -> if (ok) "服务器插件已更新，重启酒馆后生效。" else "更新服务器插件失败。"
+            "tavern-server-plugins-delete" -> if (ok) "服务器插件已删除。" else "删除服务器插件失败。"
+            "tavern-git-stash-list" -> if (ok) "本地暂存列表已刷新。" else "读取本地暂存列表失败。"
+            "tavern-git-stash-apply" -> if (ok) "暂存改动已恢复到当前目录（原暂存记录仍保留）。" else "恢复暂存改动失败，可能存在版本代码冲突。"
+            "tavern-git-stash-drop" -> if (ok) "选中的暂存记录已删除。" else "删除暂存记录失败。"
+            "tavern-quick-import-paths" -> if (ok) "酒馆数据目录已解析。" else "解析酒馆数据目录失败。"
+            "tavern-quick-import" -> if (ok) "文件已成功导入酒馆目录，刷新网页后可见。" else "导入文件到酒馆目录失败。"
+            "tavern-extensions-update-all" -> if (ok) "批量更新扩展已完成（已自动跳过有本地改动的扩展）。" else "批量更新扩展失败。"
             "tavern-force-cleanup" -> if (ok) "强制清理已返回。" else "强制清理残留进程失败。"
-            "start" -> if (ok) "启动命令已返回。" else "启动酒馆失败。"
+            "start" -> if (ok) "酒馆已在后台启动并就绪。" else "启动酒馆失败。"
             "tavern-version" -> if (ok) "酒馆版本已读取。" else "读取酒馆版本失败。"
             "tavern-version-startup" -> if (ok) "酒馆版本已读取。" else "检测酒馆版本失败。"
             "tavern-doctor" -> if (ok) "体检已完成。" else "体检失败。"

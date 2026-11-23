@@ -1,5 +1,10 @@
 package moe.lukoa.launcher
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -36,16 +41,25 @@ class LauncherToolboxUiTest {
         composeRule.onNodeWithText("修复工具").assertIsDisplayed()
         composeRule.onNodeWithText("Debug 区").assertIsDisplayed()
         composeRule.onNodeWithText("任务中心").assertIsDisplayed()
-        composeRule.onAllNodesWithText("敬请期待").assertCountEquals(3)
+        composeRule.onNodeWithText("聊天守护").assertIsDisplayed()
+        composeRule.onNodeWithText("空间清理").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("暂存管理").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("敬请期待").assertCountEquals(0)
     }
 
     @Test
     fun toolboxSection_primaryEntriesOpenTheirExistingFunctions() {
         var healthCheckCount = 0
         var taskCenterCount = 0
+        var chatGuardRefreshCount = 0
+        var storageScanCount = 0
+        var gitStashRefreshCount = 0
         setToolboxContent(
             onRunHealthCheck = { healthCheckCount += 1 },
             onOpenBackgroundTaskCenter = { taskCenterCount += 1 },
+            onRefreshChatGuard = { chatGuardRefreshCount += 1 },
+            onScanStorage = { storageScanCount += 1 },
+            onRefreshGitStash = { gitStashRefreshCount += 1 },
         )
 
         advancePastClickDebounce()
@@ -71,6 +85,24 @@ class LauncherToolboxUiTest {
         advancePastClickDebounce()
         composeRule.onNodeWithText("任务中心").performClick()
         composeRule.runOnIdle { assertEquals(1, taskCenterCount) }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("聊天守护").performClick()
+        composeRule.onNodeWithText("刷新守护状态").performScrollTo().assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(1, chatGuardRefreshCount) }
+        composeRule.onNodeWithText("关闭").performClick()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("空间清理").performScrollTo().performClick()
+        composeRule.onNodeWithText("扫描当前空间占用").performScrollTo().assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(1, storageScanCount) }
+        composeRule.onNodeWithText("关闭").performClick()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("暂存管理").performScrollTo().performClick()
+        composeRule.onNodeWithText("读取暂存记录").performScrollTo().assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(1, gitStashRefreshCount) }
+        composeRule.onNodeWithText("关闭").performClick()
     }
 
     @Test
@@ -133,18 +165,30 @@ class LauncherToolboxUiTest {
         onRepairToolsOpenSignalConsumed: () -> Unit = {},
         onRunHealthCheck: () -> Unit = {},
         onOpenBackgroundTaskCenter: () -> Unit = {},
+        onRefreshChatGuard: () -> Unit = {},
+        onScanStorage: () -> Unit = {},
+        onRefreshGitStash: () -> Unit = {},
         onForceCleanup: () -> Unit = {},
     ) {
         composeRule.setContent {
             LukoaTheme {
-                ToolboxSection(
-                    healthCheckReport = healthCheckReport,
-                    repairToolsOpenSignal = repairToolsOpenSignal,
-                    onRepairToolsOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
-                    onRunHealthCheck = onRunHealthCheck,
-                    onOpenBackgroundTaskCenter = onOpenBackgroundTaskCenter,
-                    onForceCleanup = onForceCleanup,
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    ToolboxSection(
+                        healthCheckReport = healthCheckReport,
+                        repairToolsOpenSignal = repairToolsOpenSignal,
+                        onRepairToolsOpenSignalConsumed = onRepairToolsOpenSignalConsumed,
+                        onRunHealthCheck = onRunHealthCheck,
+                        onOpenBackgroundTaskCenter = onOpenBackgroundTaskCenter,
+                        onRefreshChatGuard = onRefreshChatGuard,
+                        onScanStorage = onScanStorage,
+                        onRefreshGitStash = onRefreshGitStash,
+                        onForceCleanup = onForceCleanup,
+                    )
+                }
             }
         }
     }

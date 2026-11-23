@@ -68,6 +68,9 @@ enum class LauncherSecondaryPage(
     VersionManagement("版本管理"),
     Backup("备份"),
     ExtensionManagement("扩展管理"),
+    TavernConfig("酒馆设置"),
+    ServerPlugins("服务器插件"),
+    QuickImport("快捷导入"),
 }
 
 @Composable

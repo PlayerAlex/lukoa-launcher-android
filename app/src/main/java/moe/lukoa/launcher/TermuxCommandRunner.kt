@@ -96,6 +96,199 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runForegroundTavernRestart(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "foreground-restart-console",
+            scriptCommand = "restart-console",
+            scriptArgs = emptyList(),
+            displayCommand = "foreground-restart-console",
+            background = false,
+        )
+    }
+
+    fun runRestartTavern(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "restart-direct",
+            scriptCommand = "restart",
+            scriptArgs = emptyList(),
+            displayCommand = "restart",
+        )
+    }
+
+    fun runTavernChatGuardStatus(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "tavern-chat-guard-status-direct",
+            scriptCommand = "chat-guard-status",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-chat-guard-status",
+        )
+    }
+
+    fun runTavernChatGuardSet(value: String?): CommandDispatch {
+        val config = TavernChatGuardCommandCodec.decode(value)
+            ?: return CommandDispatch(false, "聊天守护参数无效。", displayCommand = "tavern-chat-guard-set")
+        return runBundledScriptCommand(
+            command = "tavern-chat-guard-set-direct",
+            scriptCommand = "chat-guard-set",
+            scriptArgs = listOf(
+                if (config.enabled) "1" else "0",
+                if (config.wakeLockEnabled) "1" else "0",
+                config.minKilobytes.toString(),
+                config.intervalSeconds.toString(),
+            ),
+            displayCommand = "tavern-chat-guard-set",
+        )
+    }
+
+    fun runTavernChatGuardClearHistory(): CommandDispatch {
+        return runBundledScriptCommand(
+            command = "tavern-chat-guard-clear-history-direct",
+            scriptCommand = "chat-guard-clear-history",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-chat-guard-clear-history",
+        )
+    }
+
+    fun runTavernConfigRead(): CommandDispatch {
+        return runOpsScriptCommand(
+            command = "tavern-config-read-direct",
+            scriptCommand = "config-read",
+            scriptArgs = emptyList(),
+            displayCommand = "tavern-config-read",
+        )
+    }
+
+    fun runTavernConfigSet(value: String?): CommandDispatch {
+        val payload = value.orEmpty().trim()
+        if (!TavernConfigCommandCodec.isValidEncodedPayload(payload)) {
+            return CommandDispatch(false, "酒馆配置参数无效。", displayCommand = "tavern-config-set")
+        }
+        return runOpsScriptCommand(
+            command = "tavern-config-set-direct",
+            scriptCommand = "config-set",
+            scriptArgs = listOf(payload),
+            displayCommand = "tavern-config-set",
+        )
+    }
+
+    fun runTavernStorageScan(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-storage-scan-direct",
+        scriptCommand = "storage-scan",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-storage-scan",
+    )
+
+    fun runTavernStorageClean(value: String?): CommandDispatch {
+        val categories = TavernStorageCommandCodec.decodeCategories(value)
+            ?: return CommandDispatch(false, "空间清理选项无效。", displayCommand = "tavern-storage-clean")
+        return runOpsScriptCommand(
+            command = "tavern-storage-clean-direct",
+            scriptCommand = "storage-clean",
+            scriptArgs = listOf(categories.joinToString(",") { it.wireKey }),
+            displayCommand = "tavern-storage-clean",
+        )
+    }
+
+    fun runTavernServerPluginsList(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-server-plugins-list-direct",
+        scriptCommand = "server-plugins-list",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-server-plugins-list",
+    )
+
+    fun runTavernServerPluginInstall(value: String?): CommandDispatch {
+        val encoded = value.orEmpty().trim()
+        val decoded = TavernServerPluginCommandCodec.decode(encoded)
+        if (decoded == null || TavernServerPluginCommandCodec.validateRepositoryUrl(decoded) != null) {
+            return CommandDispatch(false, "服务器插件 Git 地址无效。", displayCommand = "tavern-server-plugins-install")
+        }
+        return runOpsScriptCommand(
+            command = "tavern-server-plugins-install-direct",
+            scriptCommand = "server-plugins-install",
+            scriptArgs = listOf(encoded),
+            displayCommand = "tavern-server-plugins-install",
+        )
+    }
+
+    fun runTavernServerPluginUpdate(value: String?): CommandDispatch {
+        val encoded = value.orEmpty().trim()
+        val decoded = TavernServerPluginCommandCodec.decode(encoded)
+        if (decoded == null || TavernServerPluginCommandCodec.validateDirectoryName(decoded) != null) {
+            return CommandDispatch(false, "服务器插件目录名无效。", displayCommand = "tavern-server-plugins-update")
+        }
+        return runOpsScriptCommand(
+            command = "tavern-server-plugins-update-direct",
+            scriptCommand = "server-plugins-update",
+            scriptArgs = listOf(encoded),
+            displayCommand = "tavern-server-plugins-update",
+        )
+    }
+
+    fun runTavernServerPluginDelete(value: String?): CommandDispatch {
+        val encoded = value.orEmpty().trim()
+        val decoded = TavernServerPluginCommandCodec.decode(encoded)
+        if (decoded == null || TavernServerPluginCommandCodec.validateDirectoryName(decoded) != null) {
+            return CommandDispatch(false, "服务器插件目录名无效。", displayCommand = "tavern-server-plugins-delete")
+        }
+        return runOpsScriptCommand(
+            command = "tavern-server-plugins-delete-direct",
+            scriptCommand = "server-plugins-delete",
+            scriptArgs = listOf(encoded),
+            displayCommand = "tavern-server-plugins-delete",
+        )
+    }
+
+    fun runTavernGitStashList(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-git-stash-list-direct",
+        scriptCommand = "git-stash-list",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-git-stash-list",
+    )
+
+    fun runTavernGitStashApply(value: String?): CommandDispatch {
+        val index = value?.trim()?.toIntOrNull()?.takeIf(TavernGitStashCommandCodec::isValidIndex)
+            ?: return CommandDispatch(false, "暂存序号无效。", displayCommand = "tavern-git-stash-apply")
+        return runOpsScriptCommand(
+            command = "tavern-git-stash-apply-direct",
+            scriptCommand = "git-stash-apply",
+            scriptArgs = listOf(index.toString()),
+            displayCommand = "tavern-git-stash-apply",
+        )
+    }
+
+    fun runTavernGitStashDrop(value: String?): CommandDispatch {
+        val index = value?.trim()?.toIntOrNull()?.takeIf(TavernGitStashCommandCodec::isValidIndex)
+            ?: return CommandDispatch(false, "暂存序号无效。", displayCommand = "tavern-git-stash-drop")
+        return runOpsScriptCommand(
+            command = "tavern-git-stash-drop-direct",
+            scriptCommand = "git-stash-drop",
+            scriptArgs = listOf(index.toString()),
+            displayCommand = "tavern-git-stash-drop",
+        )
+    }
+
+    fun runTavernQuickImportPaths(value: String?): CommandDispatch {
+        val handle = TavernQuickImportCommandCodec.normalizeUserHandle(value.orEmpty())
+        return runOpsScriptCommand(
+            command = "tavern-quick-import-paths-direct",
+            scriptCommand = "quick-import-paths",
+            scriptArgs = listOf(handle),
+            displayCommand = "tavern-quick-import-paths",
+        )
+    }
+
+    fun runTavernQuickImport(value: String?): CommandDispatch {
+        val decoded = TavernQuickImportCommandCodec.decode(value)
+            ?: return CommandDispatch(false, "快捷导入参数无效。", displayCommand = "tavern-quick-import")
+        val (kind, userHandle, stagedPath) = decoded
+        return runOpsScriptCommand(
+            command = "tavern-quick-import-direct",
+            scriptCommand = "quick-import",
+            scriptArgs = listOf(kind.wireValue, stagedPath, userHandle),
+            displayCommand = "tavern-quick-import",
+        )
+    }
+
     fun requestTermuxStoragePermission(): CommandDispatch {
         val returnCommand = "am start --activity-clear-top --activity-single-top --activity-reorder-to-front -n ${context.packageName}/.MainActivity >/dev/null 2>&1 || true"
         val storageCommand = """
@@ -286,6 +479,14 @@ class TermuxCommandRunner(private val context: Context) {
 
     fun runTavernExtensionUpdate(value: String?, force: Boolean = false): CommandDispatch =
         runTavernExtensionMutation(if (force) "update-force" else "update", value)
+
+    fun runTavernExtensionUpdateAll(): CommandDispatch = runBundledScriptCommand(
+        command = "tavern-extensions-update-all-direct",
+        scriptCommand = "extensions-update-all",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-extensions-update-all",
+        background = false,
+    )
 
     fun runTavernExtensionRollback(value: String?): CommandDispatch =
         runTavernExtensionMutation("rollback", value)
@@ -994,6 +1195,63 @@ class TermuxCommandRunner(private val context: Context) {
         return context.assets.open("lukoa-tavern.sh").bufferedReader(StandardCharsets.UTF_8)
             .use { it.readText() }
             .also { cachedBundledScript = it }
+    }
+
+    private fun opsScriptText(): String {
+        cachedOpsScript?.let { return it }
+        return context.assets.open("lukoa-ops.sh").bufferedReader(StandardCharsets.UTF_8)
+            .use { it.readText() }
+            .also { cachedOpsScript = it }
+    }
+
+    private fun runOpsScriptCommand(
+        command: String,
+        scriptCommand: String,
+        scriptArgs: List<String>,
+        displayCommand: String,
+        background: Boolean = TermuxCommandPresentationPolicy
+            .forCommand(displayCommand)
+            .runsInBackground,
+        nonce: String? = null,
+    ): CommandDispatch {
+        val scriptText = try {
+            opsScriptText()
+        } catch (error: Exception) {
+            return CommandDispatch(
+                sent = false,
+                message = "读取内置维护脚本失败：${error.message ?: error.javaClass.simpleName}",
+                displayCommand = displayCommand,
+            )
+        }
+        val plan = try {
+            TermuxScriptCommandBuilder.installAndRun(
+                scriptText = scriptText,
+                scriptCommand = scriptCommand,
+                scriptArgs = scriptArgs,
+                runtimeSetup = buildRuntimeSetupCommand(),
+                transport = if (background) {
+                    TermuxScriptTransport.Stdin
+                } else {
+                    TermuxScriptTransport.CompressedArgument
+                },
+                scriptFileName = "lukoa-ops.sh",
+            )
+        } catch (error: Exception) {
+            return CommandDispatch(
+                sent = false,
+                message = "准备维护脚本失败：${error.message ?: error.javaClass.simpleName}",
+                displayCommand = displayCommand,
+            )
+        }
+        return runCommand(
+            command = command,
+            args = listOf("-c", plan.command),
+            nonce = nonce,
+            executablePath = TERMUX_SH_PATH,
+            displayCommand = displayCommand,
+            background = background,
+            stdin = plan.stdin,
+        )
     }
 
     private fun shellSingleQuoted(value: String): String {
@@ -2135,10 +2393,12 @@ class TermuxCommandRunner(private val context: Context) {
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
         const val TERMUX_TRANSCRIPT_ROWS = 20_000
-        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-launch-fix-1"
+        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-ops-b-1"
 
         @Volatile
         private var cachedBundledScript: String? = null
+        @Volatile
+        private var cachedOpsScript: String? = null
         @SuppressLint("SdCardPath")
         const val TERMUX_SH_PATH = "/data/data/com.termux/files/usr/bin/sh"
         const val TERMUX_SCRIPT_PATH = "$TERMUX_HOME/.local/bin/lukoa-tavern.sh"

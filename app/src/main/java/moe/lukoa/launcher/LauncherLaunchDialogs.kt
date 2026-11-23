@@ -161,6 +161,36 @@ fun StopTavernConfirmDialog(
 }
 
 @Composable
+fun RestartTavernConfirmDialog(
+    profile: TavernProfile,
+    launchMode: TavernLaunchMode,
+    actionsLocked: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    RiskyActionDialogScaffold(
+        title = "重启酒馆",
+        titleTone = ActionTone.Warning,
+        confirmText = "立即重启",
+        confirmTone = ActionTone.Safe,
+        confirmEnabled = !actionsLocked,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text = "将先安全停止「${profile.normalizedName}」（端口 ${profile.normalizedPort}），再按「${launchMode.label}」重新启动。",
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "网页会短暂断开，重新就绪后会自动打开浏览器；聊天记录、角色和备份都不受影响。",
+            color = LukoaColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
 fun ForceCleanupTavernConfirmDialog(
     confirmation: TavernForceCleanupConfirmation,
     actionsLocked: Boolean,

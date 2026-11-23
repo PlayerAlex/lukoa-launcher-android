@@ -7,6 +7,14 @@ data class TermuxStructuredOutput(
     val uploadLimitStatus: TavernUploadLimitStatus? = null,
     val users: List<TavernUserRecord>? = null,
     val extensions: TavernExtensionSnapshot? = null,
+    val chatGuardSnapshot: TavernChatGuardSnapshot? = null,
+    val chatGuardRescueCountHint: Int? = null,
+    val configSnapshot: TavernConfigSnapshot? = null,
+    val storageSnapshot: TavernStorageSnapshot? = null,
+    val serverPluginsSnapshot: TavernServerPluginSnapshot? = null,
+    val gitStashSnapshot: Pair<Boolean, List<TavernGitStashEntry>>? = null,
+    val quickImportPaths: TavernQuickImportPaths? = null,
+    val quickImportedFile: String? = null,
 )
 
 object TermuxStructuredOutputParser {
@@ -18,6 +26,7 @@ object TermuxStructuredOutputParser {
             .takeIf { it.hasData || it.notInstalled }
         val officialVersions = TavernOfficialVersionParser.parse(output)
             .takeIf { it.hasData }
+        val chatGuardSnapshot = TavernChatGuardOutputParser.parse(output)
         return TermuxStructuredOutput(
             versionInfo = versionInfo,
             officialVersions = officialVersions,
@@ -25,6 +34,15 @@ object TermuxStructuredOutputParser {
             uploadLimitStatus = TavernUploadLimitStatusParser.parse(output),
             users = TavernUserOutputParser.parse(output),
             extensions = TavernExtensionOutputParser.parse(output),
+            chatGuardSnapshot = chatGuardSnapshot,
+            chatGuardRescueCountHint = chatGuardSnapshot?.rescueCount
+                ?: TavernChatGuardOutputParser.parseRescueCountHint(output),
+            configSnapshot = TavernConfigOutputParser.parse(output),
+            storageSnapshot = TavernStorageOutputParser.parse(output),
+            serverPluginsSnapshot = TavernServerPluginOutputParser.parse(output),
+            gitStashSnapshot = TavernGitStashOutputParser.parse(output),
+            quickImportPaths = TavernQuickImportOutputParser.parsePaths(output),
+            quickImportedFile = TavernQuickImportOutputParser.parseImportedTargetFile(output),
         )
     }
 }

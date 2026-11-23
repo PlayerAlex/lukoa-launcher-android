@@ -41,6 +41,26 @@ class MainActivity : ComponentActivity() {
     private var backupDocumentFlowState = BackupDocumentFlowState()
     private var backupDocumentResult by mutableStateOf<BackupDocumentResult?>(null)
     private var backupDocumentOperationInProgress = false
+    private var pendingQuickImportKind: TavernQuickImportKind? = null
+    private var quickImportStagedFile by mutableStateOf<TavernQuickImportStagedFile?>(null)
+    private val quickImportPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val kind = pendingQuickImportKind ?: return@registerForActivityResult
+        pendingQuickImportKind = null
+        if (uri == null) {
+            quickImportStagedFile = TavernQuickImportStagedFile(
+                ok = false,
+                kind = kind,
+                message = "已取消选择要导入的文件。",
+            )
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch {
+            val staged = withContext(Dispatchers.IO) {
+                TavernQuickImportStager.stageUri(applicationContext, kind, uri)
+            }
+            quickImportStagedFile = staged
+        }
+    }
     private val backupFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
             backupDocumentFlowState = backupDocumentFlowState.copy(
@@ -123,6 +143,8 @@ class MainActivity : ComponentActivity() {
         val tavernMirrorConfig = tavernMirrorStore.load()
         val tavernPathStore = TavernPathStore(applicationContext)
         val tavernPathConfig = tavernPathStore.load()
+        val tavernLaunchModeStore = TavernLaunchModeStore(applicationContext)
+        val initialTavernLaunchMode = tavernLaunchModeStore.load()
         val ignoredUpdateTag = githubUpdateStore.loadIgnoredUpdateTag()
         val firstTavernStartGuideSeen = stateStore.hasSeenFirstTavernStartGuide()
         val shouldRunStartupRefresh = isTermuxInstalled && hasRunCommandPermission
@@ -145,6 +167,7 @@ class MainActivity : ComponentActivity() {
                     initialGithubUpdateChannel = githubUpdateChannel,
                     initialTavernMirrorConfig = tavernMirrorConfig,
                     initialTavernPathConfig = tavernPathConfig,
+                    initialTavernLaunchMode = initialTavernLaunchMode,
                     initialIgnoredUpdateTag = ignoredUpdateTag,
                     initialTermuxInstalled = isTermuxInstalled,
                     initialRunCommandPermissionGranted = hasRunCommandPermission,
@@ -171,6 +194,10 @@ class MainActivity : ComponentActivity() {
                     onForegroundStart = { update ->
                         controller.handleForegroundStart(lifecycleScope, update)
                     },
+                    onForegroundRestart = { update ->
+                        controller.handleForegroundRestart(lifecycleScope, update)
+                    },
+                    onSaveTavernLaunchMode = tavernLaunchModeStore::save,
                     onOpenTavern = { update ->
                         controller.openTavern(update)
                     },
@@ -233,6 +260,21 @@ class MainActivity : ComponentActivity() {
                     onPickExternalBackup = ::pickExternalBackup,
                     onPickBackupExportDestination = ::pickBackupExportDestination,
                     onOpenBackupExportLocation = ::openBackupExportLocation,
+                    quickImportStagedFile = quickImportStagedFile,
+                    onConsumeQuickImportStagedFile = { quickImportStagedFile = null },
+                    onPickQuickImportFile = { kind ->
+                        pendingQuickImportKind = kind
+                        try {
+                            quickImportPicker.launch(kind.mimeTypes)
+                        } catch (_: Exception) {
+                            pendingQuickImportKind = null
+                            quickImportStagedFile = TavernQuickImportStagedFile(
+                                ok = false,
+                                kind = kind,
+                                message = "无法打开系统文件选择器，请检查手机文件管理器。",
+                            )
+                        }
+                    },
                     onSaveTavernMirrorConfig = tavernMirrorStore::save,
                     onSaveTavernPathConfig = tavernPathStore::save,
                     onSaveGithubRepository = githubUpdateStore::saveRepository,

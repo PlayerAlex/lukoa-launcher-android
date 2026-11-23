@@ -35,6 +35,7 @@ fun TavernExtensionManagementSection(
     onInstall: (String) -> Unit = {},
     onCheckUpdates: () -> Unit = {},
     onUpdate: (String) -> Unit = {},
+    onUpdateAll: () -> Unit = {},
     onRollback: (String) -> Unit = {},
     onCopyPath: (String) -> Boolean = { false },
     onShowHint: (String) -> Unit = {},
@@ -53,8 +54,11 @@ fun TavernExtensionManagementSection(
         mutableStateOf<TavernExtensionRecord?>(null)
     }
     var showInstallDialog by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf(false) }
+    var showUpdateAllDialog by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf(false) }
     var repositoryInput by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
     var searchQuery by rememberSaveable(instanceLabel, state.rootDirectory) { mutableStateOf("") }
+    val updatableCount = state.extensions.count { it.updateStatus == TavernExtensionUpdateStatus.UpdateAvailable }
+    val localChangesCount = state.extensions.count { it.updateStatus == TavernExtensionUpdateStatus.LocalChanges }
     val normalizedQuery = searchQuery.trim()
     val visibleExtensions = if (normalizedQuery.isBlank()) {
         state.extensions
@@ -253,6 +257,33 @@ fun TavernExtensionManagementSection(
         )
     }
 
+    if (showUpdateAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateAllDialog = false },
+            title = { Text("一键更新全部扩展") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("将依次更新 $updatableCount 个已检测到新版本的扩展，并为每个扩展自动保留最近一次回退快照。")
+                    if (localChangesCount > 0) {
+                        Text("有 $localChangesCount 个存在本地改动的扩展会自动跳过，不会覆盖你的修改。")
+                    }
+                    Text("更新完成后刷新酒馆网页或重启酒馆即可生效。")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateAllDialog = false
+                        onUpdateAll()
+                    },
+                ) { Text("开始批量更新") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showUpdateAllDialog = false }) { Text("取消") }
+            },
+        )
+    }
+
     val content: @Composable () -> Unit = {
         ManagementDialogSectionTitle("当前实例与状态")
         SettingsEntryGroup {
@@ -317,6 +348,22 @@ fun TavernExtensionManagementSection(
                 onShowHint = onShowHint,
                 onClick = onCheckUpdates,
             )
+
+            if (updatableCount > 0) {
+                SettingsFeedbackActionButton(
+                    text = "一键更新全部（$updatableCount 个）",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !actionsLocked && !state.loading,
+                    accentColor = LukoaColors.Accent,
+                    unavailableHint = when {
+                        actionsLocked -> "当前有其他任务正在处理，请等任务完成后再批量更新。"
+                        state.loading -> "正在读取扩展，请稍等。"
+                        else -> null
+                    },
+                    onShowHint = onShowHint,
+                    onClick = { showUpdateAllDialog = true },
+                )
+            }
 
             if (state.rootDirectory.isNotBlank()) {
                 SecondaryActionButton(
@@ -433,7 +480,7 @@ private fun TavernExtensionManagementHeader(
         InfoPopoverButton(
             contentDescription = "查看扩展管理说明",
             title = "扩展管理",
-            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n可以粘贴公开 GitHub 仓库地址安装扩展；启动器会先下载到暂存区并校验清单，不会覆盖同名目录。\n检查到公开 GitHub 更新后，可以安全替换并保留最近一次快照；更新、回退、启停和删除前都必须停止酒馆。",
+            body = "这里只管理当前酒馆的第三方网页扩展，不会处理服务器插件。\n可以粘贴公开 GitHub 仓库地址安装扩展；启动器会先下载到暂存区并校验清单，不会覆盖同名目录。\n检查到公开 GitHub 更新后，可以安全替换并保留最近一次快照；酒馆运行中也可以操作，变更后刷新网页或重启酒馆即可生效。",
         )
     }
 }

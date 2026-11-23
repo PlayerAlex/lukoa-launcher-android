@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# LUKOA_SCRIPT_REV=2026-11-23-launch-fix-1
+# LUKOA_SCRIPT_REV=2026-11-23-ops-b-1
 
 set -u
 
@@ -487,10 +487,41 @@ rotate_tavern_log_if_large() {
 # version is moved next to it as a new chat file the user can open from "管理聊天文件".
 CHAT_GUARD_DIR="$RUNTIME_STATE_DIR/chat-guard"
 CHAT_GUARD_PID_FILE="$CHAT_GUARD_DIR/pid"
+CHAT_GUARD_CONFIG_FILE="$RUNTIME_STATE_DIR/chat-guard.env"
 CHAT_GUARD_RESCUE_TAG="露科亚救回"
 
+load_chat_guard_config() {
+  CG_ENABLED="1"
+  CG_WAKE_LOCK="1"
+  CG_MIN_KB="256"
+  CG_INTERVAL_SEC="10"
+  if [ -f "$CHAT_GUARD_CONFIG_FILE" ]; then
+    cg_v="$(sed -n "s/^LUKOA_CHAT_GUARD='\([01]\)'$/\1/p" "$CHAT_GUARD_CONFIG_FILE" | head -n 1)"
+    [ -n "$cg_v" ] && CG_ENABLED="$cg_v"
+    cg_v="$(sed -n "s/^LUKOA_WAKE_LOCK='\([01]\)'$/\1/p" "$CHAT_GUARD_CONFIG_FILE" | head -n 1)"
+    [ -n "$cg_v" ] && CG_WAKE_LOCK="$cg_v"
+    cg_v="$(sed -n "s/^LUKOA_CHAT_GUARD_MIN_KB='\([0-9][0-9]*\)'$/\1/p" "$CHAT_GUARD_CONFIG_FILE" | head -n 1)"
+    is_int_in_range "${cg_v:-}" 32 8192 && CG_MIN_KB="$cg_v"
+    cg_v="$(sed -n "s/^LUKOA_CHAT_GUARD_INTERVAL='\([0-9][0-9]*\)'$/\1/p" "$CHAT_GUARD_CONFIG_FILE" | head -n 1)"
+    is_int_in_range "${cg_v:-}" 5 120 && CG_INTERVAL_SEC="$cg_v"
+  fi
+  if [ -n "${LUKOA_CHAT_GUARD:-}" ]; then
+    [ "$LUKOA_CHAT_GUARD" = "0" ] && CG_ENABLED="0" || CG_ENABLED="1"
+  fi
+  if [ -n "${LUKOA_WAKE_LOCK:-}" ]; then
+    [ "$LUKOA_WAKE_LOCK" = "0" ] && CG_WAKE_LOCK="0" || CG_WAKE_LOCK="1"
+  fi
+  if [ -n "${LUKOA_CHAT_GUARD_MIN_KB:-}" ]; then
+    case "$LUKOA_CHAT_GUARD_MIN_KB" in ''|*[!0-9]*) ;; *) CG_MIN_KB="$LUKOA_CHAT_GUARD_MIN_KB" ;; esac
+  fi
+  if [ -n "${LUKOA_CHAT_GUARD_INTERVAL:-}" ]; then
+    case "$LUKOA_CHAT_GUARD_INTERVAL" in ''|*[!0-9]*|0) ;; *) CG_INTERVAL_SEC="$LUKOA_CHAT_GUARD_INTERVAL" ;; esac
+  fi
+}
+
 chat_guard_enabled() {
-  [ "${LUKOA_CHAT_GUARD:-1}" != "0" ]
+  load_chat_guard_config
+  [ "$CG_ENABLED" != "0" ]
 }
 
 chat_guard_running() {
@@ -603,13 +634,12 @@ cmd_chat_guard_loop() {
   mkdir -p "$CHAT_GUARD_DIR/links"
   printf "%s\n" "$$" > "$CHAT_GUARD_PID_FILE.$$" && mv -f "$CHAT_GUARD_PID_FILE.$$" "$CHAT_GUARD_PID_FILE"
   guard_data_root="$(resolve_tavern_data_root)"
-  guard_min_kb="${LUKOA_CHAT_GUARD_MIN_KB:-256}"
-  case "$guard_min_kb" in ''|*[!0-9]*) guard_min_kb=256 ;; esac
+  load_chat_guard_config
+  guard_min_kb="$CG_MIN_KB"
   guard_min_bytes="$(( guard_min_kb * 1024 ))"
-  guard_interval="${LUKOA_CHAT_GUARD_INTERVAL:-10}"
-  case "$guard_interval" in ''|*[!0-9]*|0) guard_interval=10 ;; esac
+  guard_interval="$CG_INTERVAL_SEC"
   wake_locked=0
-  if [ "${LUKOA_WAKE_LOCK:-1}" != "0" ] && command -v termux-wake-lock >/dev/null 2>&1; then
+  if [ "$CG_WAKE_LOCK" != "0" ] && command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock >/dev/null 2>&1 && wake_locked=1
   fi
   trap 'chat_guard_exit' INT TERM
@@ -617,7 +647,11 @@ cmd_chat_guard_loop() {
   first=1
   while kill -0 "$watch_pid" 2>/dev/null; do
     rotate_tavern_log_if_large
-    if chat_guard_enabled && [ -d "$guard_data_root" ]; then
+    load_chat_guard_config
+    guard_min_kb="$CG_MIN_KB"
+    guard_min_bytes="$(( guard_min_kb * 1024 ))"
+    guard_interval="$CG_INTERVAL_SEC"
+    if [ "$CG_ENABLED" != "0" ] && [ -d "$guard_data_root" ]; then
       chat_guard_scan "$first"
       first=0
     fi
@@ -632,6 +666,86 @@ chat_guard_exit() {
   fi
   [ "$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null)" = "$$" ] && rm -f "$CHAT_GUARD_PID_FILE"
   exit 0
+}
+
+emit_chat_guard_snapshot() {
+  load_chat_guard_config
+  cg_running=0
+  cg_pid=""
+  if chat_guard_running; then
+    cg_running=1
+    cg_pid="$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null || true)"
+  fi
+  cg_linked=0
+  if [ -d "$CHAT_GUARD_DIR/links" ]; then
+    cg_linked="$(find "$CHAT_GUARD_DIR/links" -type f 2>/dev/null | wc -l | tr -d '[:space:]')"
+    case "$cg_linked" in ''|*[!0-9]*) cg_linked=0 ;; esac
+  fi
+  cg_rescues=0
+  if [ -s "$CHAT_GUARD_DIR/rescued.tsv" ]; then
+    cg_rescues="$(wc -l < "$CHAT_GUARD_DIR/rescued.tsv" | tr -d '[:space:]')"
+    case "$cg_rescues" in ''|*[!0-9]*) cg_rescues=0 ;; esac
+  fi
+  printf "\n==== Lukoa chat guard ====\n"
+  printf "chatGuard.enabled=%s\n" "$CG_ENABLED"
+  printf "chatGuard.wakeLock=%s\n" "$CG_WAKE_LOCK"
+  printf "chatGuard.minKb=%s\n" "$CG_MIN_KB"
+  printf "chatGuard.intervalSec=%s\n" "$CG_INTERVAL_SEC"
+  printf "chatGuard.running=%s\n" "$cg_running"
+  printf "chatGuard.pid=%s\n" "$cg_pid"
+  printf "chatGuard.linkedCount=%s\n" "$cg_linked"
+  printf "chatGuard.rescueCount=%s\n" "$cg_rescues"
+  if [ -s "$CHAT_GUARD_DIR/rescued.tsv" ]; then
+    tail -n 30 "$CHAT_GUARD_DIR/rescued.tsv" | while IFS="$(printf '\t')" read -r r_ts r_chat r_rescue; do
+      [ -n "${r_rescue:-}" ] || continue
+      r_exists="false"
+      r_kb=0
+      if [ -f "$r_rescue" ]; then
+        r_exists="true"
+        r_bytes="$(file_size_bytes "$r_rescue")"
+        case "$r_bytes" in ''|*[!0-9]*) r_bytes=0 ;; esac
+        r_kb="$(( (r_bytes + 1023) / 1024 ))"
+      fi
+      printf "chatGuard.rescue=%s\t%s\t%s\t%s\t%s\n" "$r_ts" "$r_chat" "$r_rescue" "$r_exists" "$r_kb"
+    done
+  fi
+  printf "==== end Lukoa chat guard ====\n"
+}
+
+cmd_chat_guard_status() {
+  write_command "chat-guard-status"
+  write_status "chat-guard-status" "Chat guard status collected" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  emit_chat_guard_snapshot
+}
+
+cmd_chat_guard_set() {
+  write_command "chat-guard-set"
+  cg_en="${1:-}"
+  cg_wl="${2:-}"
+  cg_min="${3:-}"
+  cg_int="${4:-}"
+  case "$cg_en" in 0|1) ;; *) write_status "error" "Invalid chat guard enabled flag" "$(tavern_running_value)" 64; emit_status; return 64 ;; esac
+  case "$cg_wl" in 0|1) ;; *) write_status "error" "Invalid wake lock flag" "$(tavern_running_value)" 64; emit_status; return 64 ;; esac
+  is_int_in_range "$cg_min" 32 8192 || { write_status "error" "Invalid chat guard minimum size (32-8192 KB)" "$(tavern_running_value)" 64; emit_status; return 64; }
+  is_int_in_range "$cg_int" 5 120 || { write_status "error" "Invalid chat guard scan interval (5-120s)" "$(tavern_running_value)" 64; emit_status; return 64; }
+  {
+    printf "LUKOA_CHAT_GUARD='%s'\n" "$cg_en"
+    printf "LUKOA_WAKE_LOCK='%s'\n" "$cg_wl"
+    printf "LUKOA_CHAT_GUARD_MIN_KB='%s'\n" "$cg_min"
+    printf "LUKOA_CHAT_GUARD_INTERVAL='%s'\n" "$cg_int"
+  } > "$CHAT_GUARD_CONFIG_FILE.$$" && mv -f "$CHAT_GUARD_CONFIG_FILE.$$" "$CHAT_GUARD_CONFIG_FILE"
+  write_status "chat-guard-set" "Chat guard configuration saved" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  emit_chat_guard_snapshot
+}
+
+cmd_chat_guard_clear_history() {
+  write_command "chat-guard-clear-history"
+  rm -f "$CHAT_GUARD_DIR/rescued.tsv" 2>/dev/null || true
+  write_status "chat-guard-clear-history" "Chat guard rescue log cleared (chat files untouched)" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  emit_chat_guard_snapshot
 }
 
 is_running() {
@@ -1437,6 +1551,9 @@ cmd_status() {
     write_status "stopped" "SillyTavern process is not running" false 0
   fi
   emit_status
+  if [ -s "$CHAT_GUARD_DIR/rescued.tsv" ]; then
+    printf "chatGuard.rescueCount=%s\n" "$(wc -l < "$CHAT_GUARD_DIR/rescued.tsv" | tr -d '[:space:]')"
+  fi
   emit_tavern_dir_candidates
 }
 
@@ -1559,6 +1676,9 @@ cmd_log() {
     write_status "log" "SillyTavern recent log exported; process is not running" false 0
   fi
   emit_status
+  if [ -s "$CHAT_GUARD_DIR/rescued.tsv" ]; then
+    printf "chatGuard.rescueCount=%s\n" "$(wc -l < "$CHAT_GUARD_DIR/rescued.tsv" | tr -d '[:space:]')"
+  fi
   emit_tavern_dir_candidates
 }
 
@@ -4300,6 +4420,19 @@ cmd_restart() {
   cmd_start
 }
 
+cmd_restart_console() {
+  old_quiet="${LUKOA_QUIET:-0}"
+  LUKOA_QUIET=1
+  cmd_stop
+  stop_code="$?"
+  LUKOA_QUIET="$old_quiet"
+  if [ "$stop_code" -ne 0 ]; then
+    emit_status
+    return "$stop_code"
+  fi
+  cmd_console
+}
+
 repair_require_stopped() {
   if http_ok || is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
     write_status "error" "Please stop SillyTavern before running this repair" true 77
@@ -5013,7 +5146,7 @@ function findInstalledExtension(directoryName) {
 const repository = action === 'install' ? decodeRepositoryUrl(payload) : null;
 // check-updates covers every extension and has no directory payload; decoding the empty payload
 // used to fail it every time, so no update could ever be found.
-const directoryName = action === 'list' || action === 'install' || action === 'check-updates'
+const directoryName = action === 'list' || action === 'install' || action === 'check-updates' || action === 'update-all'
   ? ''
   : decodeDirectoryName(payload);
 let extensionRoot = resolveRoot(configuredRoot) || configuredRoot;
@@ -5147,6 +5280,62 @@ if (action === 'delete') {
     if (fs.existsSync(stagingDirectory)) fs.rmSync(stagingDirectory, { recursive: true, force: true });
     throw error;
   }
+} else if (action === 'update-all') {
+  let batchUpdated = 0;
+  let batchSkippedLocal = 0;
+  let batchFailed = 0;
+  const allInstalled = [
+    ...readExtensions(extensionRoot, true, true).map(e => ({ dir: e.directoryName, target: childTarget(extensionRoot, e.directoryName), meta: e })),
+    ...readExtensions(disabledRoot, false, true).map(e => ({ dir: e.directoryName, target: childTarget(disabledRoot, e.directoryName), meta: e })),
+  ];
+  for (const item of allInstalled) {
+    if (item.meta.updateStatus === 'local_changes') {
+      batchSkippedLocal += 1;
+      continue;
+    }
+    if (item.meta.updateStatus !== 'update_available') continue;
+    try {
+      const branch = runGit(item.target, ['rev-parse', '--abbrev-ref', 'HEAD']);
+      if (!branch) throw new Error('no branch');
+      const stagingRoot = resolveRoot(configuredStagingRoot, true, true);
+      const stagingDir = childTarget(stagingRoot, `batch-${process.pid}-${Date.now()}-${batchUpdated}`);
+      const cArgs = branch === 'HEAD'
+        ? ['clone', '--depth', '1', item.meta.repositoryUrl, stagingDir]
+        : ['clone', '--depth', '1', '--branch', branch, item.meta.repositoryUrl, stagingDir];
+      const cl = spawnSync('git', cArgs, { encoding: 'utf8', timeout: 3 * 60 * 1000, maxBuffer: 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+      if (cl.error || cl.status !== 0) {
+        if (fs.existsSync(stagingDir)) fs.rmSync(stagingDir, { recursive: true, force: true });
+        throw new Error('clone failed');
+      }
+      requireRegularDirectory(stagingDir);
+      validateExtensionManifest(stagingDir);
+      const stagedRev = runGit(stagingDir, ['rev-parse', 'HEAD']);
+      if (!stagedRev || stagedRev.toLowerCase() !== item.meta.latestRevision.toLowerCase()) {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+        throw new Error('rev mismatch');
+      }
+      const rbRoot = resolveRoot(configuredRollbackRoot, true, true);
+      const rbTarget = childTarget(rbRoot, item.dir);
+      if (fs.existsSync(rbTarget)) {
+        requireRegularDirectory(rbTarget);
+        fs.rmSync(rbTarget, { recursive: true, force: false });
+      }
+      fs.renameSync(item.target, rbTarget);
+      try {
+        fs.renameSync(stagingDir, item.target);
+        batchUpdated += 1;
+      } catch (err) {
+        fs.renameSync(rbTarget, item.target);
+        if (fs.existsSync(stagingDir)) fs.rmSync(stagingDir, { recursive: true, force: true });
+        throw err;
+      }
+    } catch (_) {
+      batchFailed += 1;
+    }
+  }
+  console.log(`extension.batchUpdated=${batchUpdated}`);
+  console.log(`extension.batchSkippedLocal=${batchSkippedLocal}`);
+  console.log(`extension.batchFailed=${batchFailed}`);
 } else if (action === 'rollback') {
   const installed = findInstalledExtension(directoryName);
   const rollbackRoot = resolveRoot(configuredRollbackRoot, false, true);
@@ -5386,6 +5575,9 @@ main() {
       shift
       LUKOA_EXTENSION_FORCE=1 run_tavern_extension_action update "${1:-}"
       ;;
+    extensions-update-all|tavern-extensions-update-all)
+      run_tavern_extension_action update-all ""
+      ;;
     extensions-rollback|tavern-extensions-rollback)
       shift
       run_tavern_extension_action rollback "${1:-}"
@@ -5417,6 +5609,19 @@ main() {
       ;;
     restart)
       cmd_restart
+      ;;
+    restart-console|tavern-restart-console)
+      cmd_restart_console
+      ;;
+    chat-guard-status|tavern-chat-guard-status)
+      cmd_chat_guard_status
+      ;;
+    chat-guard-set|tavern-chat-guard-set)
+      shift
+      cmd_chat_guard_set "$@"
+      ;;
+    chat-guard-clear-history|tavern-chat-guard-clear-history)
+      cmd_chat_guard_clear_history
       ;;
     official-versions|tavern-official-versions)
       cmd_official_versions

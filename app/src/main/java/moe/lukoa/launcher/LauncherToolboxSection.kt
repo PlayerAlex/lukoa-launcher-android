@@ -44,6 +44,9 @@ private enum class ToolboxDialogDestination {
     HealthCheck,
     RepairTools,
     Debug,
+    ChatGuard,
+    StorageCleanup,
+    GitStash,
 }
 
 @Composable
@@ -52,12 +55,18 @@ fun ToolboxSection(
     healthCheckInFlight: Boolean = false,
     actionsLocked: Boolean = false,
     tavernRunning: Boolean = false,
+    instanceLabel: String = "主实例",
     uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
+    chatGuardState: TavernChatGuardState = TavernChatGuardState(),
+    storageState: TavernStorageState = TavernStorageState(),
+    gitStashState: TavernGitStashState = TavernGitStashState(),
     forceCleanupSuggestion: TavernForceCleanupSuggestion? = null,
     backgroundTaskStatus: String = "当前空闲",
     backgroundTaskNeedsAttention: Boolean = false,
     repairToolsOpenSignal: Int = 0,
     onRepairToolsOpenSignalConsumed: () -> Unit = {},
+    chatGuardOpenSignal: Int = 0,
+    onChatGuardOpenSignalConsumed: () -> Unit = {},
     onRunHealthCheck: () -> Unit = {},
     onRunHealthCheckPrimaryAction: () -> Unit = {},
     onRepairDependencies: () -> Unit = {},
@@ -66,6 +75,15 @@ fun ToolboxSection(
     onCheckUploadLimit: () -> Unit = {},
     onSetUploadLimit: (Int) -> Unit = {},
     onResetUploadLimit: () -> Unit = {},
+    onRefreshChatGuard: () -> Unit = {},
+    onSaveChatGuardConfig: (TavernChatGuardConfig) -> Unit = {},
+    onClearChatGuardHistory: () -> Unit = {},
+    onScanStorage: () -> Unit = {},
+    onCleanStorage: (Set<TavernStorageCleanupCategory>) -> Unit = {},
+    onRefreshGitStash: () -> Unit = {},
+    onApplyGitStash: (Int) -> Unit = {},
+    onDropGitStash: (Int) -> Unit = {},
+    onCopyText: (String, String) -> Boolean = { _, _ -> false },
     onForceCleanup: () -> Unit = {},
     onClearLogs: () -> Unit = {},
     onExportDiagnostic: () -> Unit = {},
@@ -78,6 +96,16 @@ fun ToolboxSection(
         if (repairToolsOpenSignal > 0) {
             activeDialog = ToolboxDialogDestination.RepairTools
             onRepairToolsOpenSignalConsumed()
+        }
+    }
+
+    LaunchedEffect(chatGuardOpenSignal) {
+        if (chatGuardOpenSignal > 0) {
+            activeDialog = ToolboxDialogDestination.ChatGuard
+            onChatGuardOpenSignalConsumed()
+            if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
+                onRefreshChatGuard()
+            }
         }
     }
 
@@ -129,6 +157,53 @@ fun ToolboxSection(
             )
         }
 
+        ToolboxDialogDestination.ChatGuard -> ToolboxContentDialog(
+            title = "聊天守护",
+            onDismiss = { activeDialog = null },
+        ) {
+            TavernChatGuardContent(
+                state = chatGuardState,
+                instanceLabel = instanceLabel,
+                actionsLocked = actionsLocked,
+                tavernRunning = tavernRunning,
+                onRefresh = onRefreshChatGuard,
+                onSaveConfig = onSaveChatGuardConfig,
+                onClearHistory = onClearChatGuardHistory,
+                onCopyPath = { path -> onCopyText("救回聊天路径", path) },
+                onShowHint = showHint,
+            )
+        }
+
+        ToolboxDialogDestination.StorageCleanup -> ToolboxContentDialog(
+            title = "空间清理",
+            onDismiss = { activeDialog = null },
+        ) {
+            TavernStorageContent(
+                state = storageState,
+                instanceLabel = instanceLabel,
+                actionsLocked = actionsLocked,
+                onScan = onScanStorage,
+                onClean = onCleanStorage,
+                onShowHint = showHint,
+            )
+        }
+
+        ToolboxDialogDestination.GitStash -> ToolboxContentDialog(
+            title = "暂存管理",
+            onDismiss = { activeDialog = null },
+        ) {
+            TavernGitStashContent(
+                state = gitStashState,
+                instanceLabel = instanceLabel,
+                actionsLocked = actionsLocked,
+                tavernRunning = tavernRunning,
+                onRefresh = onRefreshGitStash,
+                onApply = onApplyGitStash,
+                onDrop = onDropGitStash,
+                onShowHint = showHint,
+            )
+        }
+
         null -> Unit
     }
 
@@ -168,9 +243,30 @@ fun ToolboxSection(
                 ToolboxGrid(
                     backgroundTaskStatus = backgroundTaskStatus,
                     backgroundTaskNeedsAttention = backgroundTaskNeedsAttention,
+                    chatGuardState = chatGuardState,
+                    storageState = storageState,
+                    gitStashState = gitStashState,
                     onOpenRepairTools = { activeDialog = ToolboxDialogDestination.RepairTools },
                     onOpenDebug = { activeDialog = ToolboxDialogDestination.Debug },
                     onOpenTaskCenter = onOpenBackgroundTaskCenter,
+                    onOpenChatGuard = {
+                        activeDialog = ToolboxDialogDestination.ChatGuard
+                        if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
+                            onRefreshChatGuard()
+                        }
+                    },
+                    onOpenStorageCleanup = {
+                        activeDialog = ToolboxDialogDestination.StorageCleanup
+                        if (storageState.snapshot == null && !actionsLocked && !storageState.loading) {
+                            onScanStorage()
+                        }
+                    },
+                    onOpenGitStash = {
+                        activeDialog = ToolboxDialogDestination.GitStash
+                        if (gitStashState.gitAvailable == null && !actionsLocked && !gitStashState.loading) {
+                            onRefreshGitStash()
+                        }
+                    },
                 )
             }
         }
@@ -268,10 +364,29 @@ private fun ToolboxHealthCard(
 private fun ToolboxGrid(
     backgroundTaskStatus: String,
     backgroundTaskNeedsAttention: Boolean,
+    chatGuardState: TavernChatGuardState,
+    storageState: TavernStorageState,
+    gitStashState: TavernGitStashState,
     onOpenRepairTools: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenTaskCenter: () -> Unit,
+    onOpenChatGuard: () -> Unit,
+    onOpenStorageCleanup: () -> Unit,
+    onOpenGitStash: () -> Unit,
 ) {
+    val chatGuardDescription = when {
+        chatGuardState.effectiveRescueCount > 0 -> "已救回 ${chatGuardState.effectiveRescueCount} 条聊天"
+        chatGuardState.snapshot?.running == true -> "后台守护中"
+        else -> "防写坏救回与防休眠"
+    }
+    val storageDescription = storageState.snapshot?.let {
+        "可清约 ${formatStorageKilobytes(it.totalCleanableKb)}"
+    } ?: "空间体检与安全清理"
+    val gitStashDescription = when {
+        gitStashState.entries.isNotEmpty() -> "${gitStashState.entries.size} 条暂存改动"
+        gitStashState.gitAvailable == true -> "暂无暂存改动"
+        else -> "恢复更新暂存改动"
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Surface,
@@ -291,12 +406,17 @@ private fun ToolboxGrid(
                     onClick = onOpenTaskCenter,
                     emphasized = backgroundTaskNeedsAttention,
                 ),
-                right = HubGridEntry("敬请期待", "", null),
+                right = HubGridEntry(
+                    label = "聊天守护",
+                    description = chatGuardDescription,
+                    onClick = onOpenChatGuard,
+                    emphasized = chatGuardState.effectiveRescueCount > 0,
+                ),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("敬请期待", "", null),
-                right = HubGridEntry("敬请期待", "", null),
+                left = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
+                right = HubGridEntry("暂存管理", gitStashDescription, onOpenGitStash),
             )
         }
     }

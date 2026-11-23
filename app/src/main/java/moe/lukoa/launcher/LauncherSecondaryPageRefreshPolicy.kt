@@ -3,6 +3,9 @@ package moe.lukoa.launcher
 enum class LauncherSecondaryPageRefreshTarget {
     VersionManagement,
     Backup,
+    TavernConfig,
+    ServerPlugins,
+    QuickImport,
 }
 
 class LauncherSecondaryPageRefreshTracker {
@@ -20,6 +23,9 @@ class LauncherSecondaryPageRefreshTracker {
                     LauncherSecondaryPageRefreshTarget.VersionManagement
 
                 LauncherSecondaryPage.Backup -> LauncherSecondaryPageRefreshTarget.Backup
+                LauncherSecondaryPage.TavernConfig -> LauncherSecondaryPageRefreshTarget.TavernConfig
+                LauncherSecondaryPage.ServerPlugins -> LauncherSecondaryPageRefreshTarget.ServerPlugins
+                LauncherSecondaryPage.QuickImport -> LauncherSecondaryPageRefreshTarget.QuickImport
                 LauncherSecondaryPage.ExtensionManagement,
                 null -> null
             }

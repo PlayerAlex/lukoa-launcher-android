@@ -72,19 +72,25 @@ class TavernIssueAnalyzerTest {
             termuxLog = "Error: listen EADDRINUSE: address already in use 0.0.0.0:8000",
             status = "",
         )
-        assertTrue(portIssues.any { it.title == "酒馆端口被占用" })
+        val portIssue = portIssues.firstOrNull { it.title == "酒馆端口被占用" }
+        assertTrue(portIssue != null)
+        assertEquals(LauncherQuickFixActionType.ForceCleanupPort, portIssue?.quickFixAction?.type)
 
         val oomIssues = TavernIssueAnalyzer.analyze(
             termuxLog = "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory",
             status = "",
         )
-        assertTrue(oomIssues.any { it.title == "Node.js 内存不足" })
+        val oomIssue = oomIssues.firstOrNull { it.title == "Node.js 内存不足" }
+        assertTrue(oomIssue != null)
+        assertEquals(LauncherQuickFixActionType.OpenRepairTools, oomIssue?.quickFixAction?.type)
 
         val moduleIssues = TavernIssueAnalyzer.analyze(
             termuxLog = "Error: Cannot find module 'express'",
             status = "",
         )
-        assertTrue(moduleIssues.any { it.title == "酒馆依赖缺失或损坏" })
+        val moduleIssue = moduleIssues.firstOrNull { it.title == "酒馆依赖缺失或损坏" }
+        assertTrue(moduleIssue != null)
+        assertEquals(LauncherQuickFixActionType.OpenRepairTools, moduleIssue?.quickFixAction?.type)
 
         val nodeIssues = TavernIssueAnalyzer.analyze(
             termuxLog = "Unsupported Node.js version v16.20.0. SillyTavern requires Node.js v18 or higher.",

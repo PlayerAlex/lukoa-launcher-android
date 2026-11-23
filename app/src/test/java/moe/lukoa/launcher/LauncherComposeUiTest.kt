@@ -117,6 +117,15 @@ class LauncherComposeUiTest {
                     onOpenExtensionManagement = {
                         openedPage = LauncherSecondaryPage.ExtensionManagement
                     },
+                    onOpenTavernConfig = {
+                        openedPage = LauncherSecondaryPage.TavernConfig
+                    },
+                    onOpenServerPlugins = {
+                        openedPage = LauncherSecondaryPage.ServerPlugins
+                    },
+                    onOpenQuickImport = {
+                        openedPage = LauncherSecondaryPage.QuickImport
+                    },
                 )
             }
         }
@@ -137,6 +146,24 @@ class LauncherComposeUiTest {
         composeRule.onNode(hasText("扩展管理") and hasClickAction()).performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.ExtensionManagement, openedPage)
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("酒馆设置") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.TavernConfig, openedPage)
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("服务器插件") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.ServerPlugins, openedPage)
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNode(hasText("快捷导入") and hasClickAction()).performClick()
+        composeRule.runOnIdle {
+            assertEquals(LauncherSecondaryPage.QuickImport, openedPage)
         }
     }
 

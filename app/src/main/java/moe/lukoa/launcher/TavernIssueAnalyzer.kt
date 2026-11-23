@@ -60,6 +60,10 @@ object TavernIssueAnalyzer {
                 detail = "当前端口已经被别的进程或残留酒馆占用了，启动会立刻失败。",
                 action = "先在工具箱尝试“强制释放端口”，或在设置里给当前实例换一个空闲端口。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.ForceCleanupPort,
+                    label = "强制释放端口",
+                ),
             )
         }
 
@@ -73,8 +77,12 @@ object TavernIssueAnalyzer {
             issues += TavernIssue(
                 title = "Node.js 内存不足",
                 detail = "酒馆启动或运行过程中触发了 Node.js 内存上限崩溃。",
-                action = "打开工具箱 → 检查与修复，调高 Node.js 内存上限后再重新启动酒馆。",
+                action = "打开工具箱 → 修复工具，调高 Node.js 内存上限后再重新启动酒馆。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.OpenRepairTools,
+                    label = "去调高内存上限",
+                ),
             )
         }
 
@@ -88,8 +96,12 @@ object TavernIssueAnalyzer {
             issues += TavernIssue(
                 title = "酒馆依赖缺失或损坏",
                 detail = "启动时找不到所需的 Node.js 模块，常见于依赖没装完或更新中断。",
-                action = "先停止酒馆，再到工具箱 → 检查与修复里点“修复 npm 依赖”。",
+                action = "先停止酒馆，再到工具箱 → 修复工具里点“修复 npm 依赖”。",
                 severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.OpenRepairTools,
+                    label = "去修复 npm 依赖",
+                ),
             )
         }
 

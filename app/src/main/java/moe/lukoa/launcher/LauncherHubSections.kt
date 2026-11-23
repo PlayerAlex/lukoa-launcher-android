@@ -44,6 +44,9 @@ fun TavernHubSection(
     onOpenVersionManagement: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenExtensionManagement: () -> Unit,
+    onOpenTavernConfig: () -> Unit = {},
+    onOpenServerPlugins: () -> Unit = {},
+    onOpenQuickImport: () -> Unit = {},
 ) {
     val statusText = when {
         actionInProgress -> "正在处理任务"
@@ -102,6 +105,9 @@ fun TavernHubSection(
             onOpenVersionManagement = onOpenVersionManagement,
             onOpenBackup = onOpenBackup,
             onOpenExtensionManagement = onOpenExtensionManagement,
+            onOpenTavernConfig = onOpenTavernConfig,
+            onOpenServerPlugins = onOpenServerPlugins,
+            onOpenQuickImport = onOpenQuickImport,
         )
     }
 }
@@ -111,6 +117,9 @@ private fun TavernManagementGrid(
     onOpenVersionManagement: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenExtensionManagement: () -> Unit,
+    onOpenTavernConfig: () -> Unit,
+    onOpenServerPlugins: () -> Unit,
+    onOpenQuickImport: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -126,12 +135,12 @@ private fun TavernManagementGrid(
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
                 left = HubGridEntry("扩展管理", "管理第三方扩展", onOpenExtensionManagement),
-                right = HubGridEntry("敬请期待", "", null),
+                right = HubGridEntry("酒馆设置", "局域网、代理与开关", onOpenTavernConfig),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("敬请期待", "", null),
-                right = HubGridEntry("敬请期待", "", null),
+                left = HubGridEntry("服务器插件", "管理 plugins 后端插件", onOpenServerPlugins),
+                right = HubGridEntry("快捷导入", "导入角色卡、世界书与预设", onOpenQuickImport),
             )
         }
     }

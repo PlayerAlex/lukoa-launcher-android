@@ -35,6 +35,7 @@ object TermuxScriptCommandBuilder {
         scriptArgs: List<String>,
         runtimeSetup: String,
         transport: TermuxScriptTransport,
+        scriptFileName: String = "lukoa-tavern.sh",
     ): TermuxScriptCommandPlan {
         require(scriptCommand.isNotBlank()) { "script command cannot be blank" }
         val quotedArgs = (listOf(scriptCommand) + scriptArgs).joinToString(" ") { shellSingleQuoted(it) }
@@ -43,6 +44,7 @@ object TermuxScriptCommandBuilder {
             runtimeSetup = runtimeSetup,
             finalCommand = "exec \"\$target_script\" $quotedArgs",
             transport = transport,
+            scriptFileName = scriptFileName,
         )
     }
 
@@ -51,6 +53,7 @@ object TermuxScriptCommandBuilder {
         runtimeSetup: String,
         finalCommand: String,
         transport: TermuxScriptTransport,
+        scriptFileName: String = "lukoa-tavern.sh",
     ): TermuxScriptCommandPlan {
         val normalized = scriptText.replace("\r\n", "\n").replace("\r", "\n")
         require(normalized.isNotBlank()) { "script cannot be blank" }
@@ -65,8 +68,8 @@ object TermuxScriptCommandBuilder {
         val command = buildString {
             appendLine("set -eu")
             appendLine("mkdir -p \"\$HOME/.local/bin\" \"\$HOME/.local/state/lukoa-launcher\" \"\$HOME/.config/lukoa-launcher\" \"\$HOME/.termux\"")
-            appendLine("target_script=\"\$HOME/.local/bin/lukoa-tavern.sh\"")
-            appendLine("staged_script=\"\$HOME/.local/bin/.lukoa-tavern.sh.\$\$\"")
+            appendLine("target_script=\"\$HOME/.local/bin/$scriptFileName\"")
+            appendLine("staged_script=\"\$HOME/.local/bin/.$scriptFileName.\$\$\"")
             appendLine("cleanup_staged_script() { rm -f \"\$staged_script\"; }")
             appendLine("trap cleanup_staged_script EXIT HUP INT TERM")
             appendLine("umask 077")

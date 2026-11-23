@@ -12,6 +12,7 @@ import unittest
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "app/src/main/assets/lukoa-tavern.sh"
+OPS_SCRIPT = Path(__file__).resolve().parents[1] / "app/src/main/assets/lukoa-ops.sh"
 
 
 def shell_tools():
@@ -207,6 +208,112 @@ class TavernShellSafetyTest(unittest.TestCase):
         )
         self.assertEqual("error", status["status"])
         self.assertEqual(23, status["exitCode"])
+
+    def test_chat_guard_config_roundtrip_and_history_clear(self):
+        set_res = self.run_script("chat-guard-set", "1", "0", "512", "20")
+        self.assertEqual(0, set_res.returncode, set_res.stdout + set_res.stderr)
+        self.assertIn("chatGuard.enabled=1", set_res.stdout)
+        self.assertIn("chatGuard.wakeLock=0", set_res.stdout)
+        self.assertIn("chatGuard.minKb=512", set_res.stdout)
+        self.assertIn("chatGuard.intervalSec=20", set_res.stdout)
+
+        guard_dir = self.root / "state/profiles/main/chat-guard"
+        guard_dir.mkdir(parents=True, exist_ok=True)
+        rescued_file = self.tavern / "chat [露科亚救回 1123-100000].jsonl"
+        rescued_file.write_text("{\"mes\":\"hello\"}\n", encoding="utf-8")
+        (guard_dir / "rescued.tsv").write_text(
+            f"2026-11-23T10:00:00Z\t{self.posix(self.tavern / 'chat.jsonl')}\t{self.posix(rescued_file)}\n",
+            encoding="utf-8",
+        )
+
+        status_res = self.run_script("chat-guard-status")
+        self.assertEqual(0, status_res.returncode, status_res.stdout + status_res.stderr)
+        self.assertIn("chatGuard.rescueCount=1", status_res.stdout)
+        self.assertIn("chatGuard.rescue=2026-11-23T10:00:00Z", status_res.stdout)
+
+        clear_res = self.run_script("chat-guard-clear-history")
+        self.assertEqual(0, clear_res.returncode, clear_res.stdout + clear_res.stderr)
+        self.assertIn("chatGuard.rescueCount=0", clear_res.stdout)
+        # Clearing history must never delete the rescued chat file itself
+        self.assertTrue(rescued_file.is_file())
+
+    def run_ops_script(self, *args):
+        environment = os.environ.copy()
+        shell_path = self.posix(Path(self.shell).parent)
+        node = shutil.which("node")
+        node_path = self.posix(Path(node).parent) if node else ""
+        environment["PATH"] = ":".join(
+            part for part in (shell_path, node_path, "/usr/bin", "/bin") if part
+        )
+        environment.update(
+            HOME=self.posix(self.home),
+            LUKOA_HOME=self.posix(self.home),
+            LUKOA_STATE_DIR=self.posix(self.root / "state"),
+            LUKOA_TAVERN_DIR=self.posix(self.tavern),
+            LUKOA_CONFIG_FILE=self.posix(self.root / "absent-config.env"),
+            TAVERN_PORT="65534",
+        )
+        return subprocess.run(
+            [self.shell, self.posix(OPS_SCRIPT), *map(str, args)],
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def test_ops_storage_clean_preserves_chats_and_characters(self):
+        chats = self.tavern / "data/default-user/chats/Alice"
+        chars = self.tavern / "data/default-user/characters"
+        thumbs = self.tavern / "data/default-user/thumbnails"
+        leftover = self.tavern / ".lukoa-before-repair-123"
+        state_profile = self.root / "state/profiles/main"
+        for d in (chats, chars, thumbs, leftover, state_profile):
+            d.mkdir(parents=True, exist_ok=True)
+        chat_file = chats / "story.jsonl"
+        char_file = chars / "alice.png"
+        thumb_file = thumbs / "alice.jpg"
+        old_log = state_profile / "tavern.log.old"
+        chat_file.write_text("important chat\n", encoding="utf-8")
+        char_file.write_text("important card\n", encoding="utf-8")
+        thumb_file.write_text("x" * 4096, encoding="utf-8")
+        (leftover / "junk.txt").write_text("y" * 4096, encoding="utf-8")
+        old_log.write_text("old log\n", encoding="utf-8")
+
+        scan_res = self.run_ops_script("storage-scan")
+        self.assertEqual(0, scan_res.returncode, scan_res.stdout + scan_res.stderr)
+        self.assertIn("storage.leftoverDirsCount=1", scan_res.stdout)
+
+        clean_res = self.run_ops_script("storage-clean", "old_logs,thumbnails,leftover_dirs")
+        self.assertEqual(0, clean_res.returncode, clean_res.stdout + clean_res.stderr)
+        self.assertIn("storage.freedKb=", clean_res.stdout)
+        self.assertFalse(old_log.exists())
+        self.assertFalse(thumb_file.exists())
+        self.assertFalse(leftover.exists())
+        self.assertTrue(chat_file.is_file())
+        self.assertTrue(char_file.is_file())
+
+    def test_ops_quick_import_avoids_overwrite_and_rejects_outside_paths(self):
+        imports_dir = self.home / "storage/downloads/LukoaLauncher/imports"
+        imports_dir.mkdir(parents=True, exist_ok=True)
+        chars_dir = self.tavern / "data/default-user/characters"
+        chars_dir.mkdir(parents=True, exist_ok=True)
+        existing = chars_dir / "hero.png"
+        existing.write_text("original", encoding="utf-8")
+
+        staged = imports_dir / "hero.png"
+        staged.write_text("new-version", encoding="utf-8")
+        res = self.run_ops_script("quick-import", "character", self.posix(staged), "default-user")
+        self.assertEqual(0, res.returncode, res.stdout + res.stderr)
+        self.assertEqual("original", existing.read_text(encoding="utf-8"))
+        imported_copies = [p for p in chars_dir.glob("hero (导入 *).png")]
+        self.assertEqual(1, len(imported_copies))
+        self.assertEqual("new-version", imported_copies[0].read_text(encoding="utf-8"))
+        self.assertFalse(staged.exists())
+
+        outside = self.root / "evil.png"
+        outside.write_text("evil", encoding="utf-8")
+        bad = self.run_ops_script("quick-import", "character", self.posix(outside), "default-user")
+        self.assertEqual(64, bad.returncode, bad.stdout + bad.stderr)
 
 
 if __name__ == "__main__":

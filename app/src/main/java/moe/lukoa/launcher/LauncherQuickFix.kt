@@ -7,6 +7,8 @@ enum class LauncherQuickFixActionType {
     PrepareTermuxEnvironment,
     OpenPathSettings,
     OpenNetworkSettings,
+    OpenRepairTools,
+    ForceCleanupPort,
     RecheckTavernVersion,
     RequestTermuxStoragePermission,
 }

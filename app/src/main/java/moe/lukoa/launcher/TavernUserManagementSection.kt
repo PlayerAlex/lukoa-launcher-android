@@ -57,7 +57,7 @@ fun TavernUserManagementSettingsPanel(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     ManagementDialogIntroCard(
-                        "这里管理当前酒馆实例中的登录账户。读取和修改前需要先停止酒馆，删除账户时仍会保留对应的数据目录。",
+                        "这里管理当前酒馆实例中的登录账户。酒馆运行中可直接读取用户列表，新增或删除账户前需要先停止酒馆；删除账户时仍会保留对应的数据目录。",
                     )
                     dialogStateHolder.SaveableStateProvider("user-management-dialog") {
                         TavernUserManagementSection(
@@ -264,7 +264,7 @@ private fun TavernUserManagementHeader(
         InfoPopoverButton(
             contentDescription = "查看用户管理说明",
             title = "用户管理",
-            body = "这里管理的是当前这套酒馆里的登录账号，不是启动器的实例。\n“显示名称”是页面里看到的昵称；“登录标识”是登录时使用的英文短名，也是这个用户的数据文件夹名。\n为了避免用户文件被同时写入，读取、新增或删除前都要先停止酒馆。",
+            body = "这里管理的是当前这套酒馆里的登录账号，不是启动器的实例。\n“显示名称”是页面里看到的昵称；“登录标识”是登录时使用的英文短名，也是这个用户的数据文件夹名。\n酒馆运行中可以查看用户列表；为了避免用户文件被同时写入，新增或删除前需要先停止酒馆。",
         )
     }
 }

@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +55,9 @@ fun TavernControlSection(
     wakeEnabled: Boolean,
     primaryEnabled: Boolean,
     primaryDisabledReason: String?,
+    launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
+    onToggleLaunchMode: () -> Unit = {},
+    onRestartTavern: () -> Unit = {},
     onWakeTermux: () -> Unit,
     onPrimaryAction: () -> Unit,
     onOpenTavern: () -> Unit,
@@ -63,6 +68,8 @@ fun TavernControlSection(
         onClick = onPrimaryAction,
         minIntervalMs = if (shouldOfferStopTavern(tavernRunning, tavernStarting)) 0L else 260L,
     )
+    val restartClick = rememberFeedbackClick(onRestartTavern)
+    val launchModeClick = rememberFeedbackClick(onToggleLaunchMode)
     val openTavernClick = rememberFeedbackClick(onOpenTavern)
     val exportClick = rememberFeedbackClick(onExportLog)
     var tipIndex by remember { mutableIntStateOf(0) }
@@ -138,6 +145,36 @@ fun TavernControlSection(
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "启动方式",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Surface(
+                        modifier = Modifier.clickable(
+                            enabled = !actionInProgress,
+                            role = Role.Button,
+                            onClick = launchModeClick,
+                        ),
+                        color = LukoaColors.PrimarySoft,
+                        shape = LukoaCapsuleShape,
+                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.28f)),
+                    ) {
+                        Text(
+                            text = "${launchMode.shortLabel} · 点此切换",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = LukoaColors.Primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
@@ -190,6 +227,17 @@ fun TavernControlSection(
                 text = primaryDisabledReason,
                 color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (tavernRunning && !tavernStarting) {
+            SecondaryActionButton(
+                text = "一键重启酒馆（${launchMode.shortLabel}）",
+                enabled = !actionInProgress,
+                accentColor = LukoaColors.Accent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                onClick = restartClick,
             )
         }
 
