@@ -881,6 +881,8 @@ class TermuxCommandRunner(private val context: Context) {
                     context.startForegroundService(commandIntent)
                 } catch (_: SecurityException) {
                     context.startService(commandIntent)
+                } catch (_: IllegalStateException) {
+                    context.startService(commandIntent)
                 }
             } else {
                 context.startService(commandIntent)
@@ -904,6 +906,13 @@ class TermuxCommandRunner(private val context: Context) {
                 nonce = nonce,
                 displayCommand = displayCommand,
             )
+        } catch (stateError: IllegalStateException) {
+            CommandDispatch(
+                sent = false,
+                message = "系统拦截了后台调用 Termux，请回到启动器前台再试（${stateError.message ?: stateError.javaClass.simpleName}）。",
+                nonce = nonce,
+                displayCommand = displayCommand,
+            )
         } catch (error: Exception) {
             CommandDispatch(
                 sent = false,
@@ -918,12 +927,12 @@ class TermuxCommandRunner(private val context: Context) {
         return buildString {
             appendConfigFileWrite(this)
             appendMirrorExports(this)
-            appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -q '^allow-external-apps=true' \"\$HOME/.termux/termux.properties\"; then")
+            appendLine("if [ ! -f \"\$HOME/.termux/termux.properties\" ] || ! grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true([[:space:]]|\$)' \"\$HOME/.termux/termux.properties\"; then")
             appendLine("  printf '\\nallow-external-apps=true\\n' >> \"\$HOME/.termux/termux.properties\"")
             appendLine("fi")
             // Termux keeps only 2000 rows of scrollback by default, so one long prompt pushes the
             // rest of the SillyTavern console out of reach.
-            appendLine("if ! grep -q '^terminal-transcript-rows' \"\$HOME/.termux/termux.properties\" 2>/dev/null; then")
+            appendLine("if ! grep -Eq '^[[:space:]]*terminal-transcript-rows[[:space:]]*=' \"\$HOME/.termux/termux.properties\" 2>/dev/null; then")
             appendLine("  printf '\\nterminal-transcript-rows=$TERMUX_TRANSCRIPT_ROWS\\n' >> \"\$HOME/.termux/termux.properties\"")
             appendLine("  command -v termux-reload-settings >/dev/null 2>&1 && termux-reload-settings >/dev/null 2>&1 || true")
             appendLine("fi")
@@ -1016,13 +1025,14 @@ class TermuxCommandRunner(private val context: Context) {
 
     private fun appendConfigFileWrite(builder: StringBuilder) {
         val pathConfig = tavernPathConfig()
-        val tavernDirArg = shellSingleQuoted(pathConfig.normalizedTavernDir)
-        val tavernPortArg = shellSingleQuoted(pathConfig.normalizedPort.toString())
-        val profileIdArg = shellSingleQuoted(pathConfig.activeProfile.id)
+        val dirLine = "TAVERN_DIR=${shellSingleQuoted(pathConfig.normalizedTavernDir)}"
+        val portLine = "TAVERN_PORT=${pathConfig.normalizedPort}"
+        val profileLine = "TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}"
         builder.appendLine(
-            "printf 'TAVERN_DIR=\"%s\"\\nTAVERN_PORT=%s\\nTAVERN_PROFILE_ID=\"%s\"\\n' " +
-                "$tavernDirArg $tavernPortArg $profileIdArg > " +
-                "\"\$HOME/.config/lukoa-launcher/config.env\"",
+            "printf '%s\\n%s\\n%s\\n' " +
+                "${shellSingleQuoted(dirLine)} ${shellSingleQuoted(portLine)} ${shellSingleQuoted(profileLine)} > " +
+                "\"\$HOME/.config/lukoa-launcher/config.env.\$\$\" && " +
+                "mv -f \"\$HOME/.config/lukoa-launcher/config.env.\$\$\" \"\$HOME/.config/lukoa-launcher/config.env\"",
         )
     }
 
@@ -1064,17 +1074,17 @@ class TermuxCommandRunner(private val context: Context) {
             APP_CONFIG_NPM_REGISTRY=$appNpmRegistry
             if [ -n "${'$'}{LUKOA_TAVERN_DIR:-}" ]; then
               TAVERN_DIR="${'$'}LUKOA_TAVERN_DIR"
-            elif [ -z "${'$'}{TAVERN_DIR:-}" ]; then
+            elif [ -n "${'$'}{APP_CONFIG_TAVERN_DIR:-}" ]; then
               TAVERN_DIR="${'$'}APP_CONFIG_TAVERN_DIR"
             fi
             if [ -n "${'$'}{LUKOA_TAVERN_PORT:-}" ]; then
               TAVERN_PORT="${'$'}LUKOA_TAVERN_PORT"
-            elif [ -z "${'$'}{TAVERN_PORT:-}" ]; then
+            elif [ -n "${'$'}{APP_CONFIG_TAVERN_PORT:-}" ]; then
               TAVERN_PORT="${'$'}APP_CONFIG_TAVERN_PORT"
             fi
             if [ -n "${'$'}{LUKOA_TAVERN_PROFILE_ID:-}" ]; then
               TAVERN_PROFILE_ID="${'$'}LUKOA_TAVERN_PROFILE_ID"
-            elif [ -z "${'$'}{TAVERN_PROFILE_ID:-}" ]; then
+            elif [ -n "${'$'}{APP_CONFIG_TAVERN_PROFILE_ID:-}" ]; then
               TAVERN_PROFILE_ID="${'$'}APP_CONFIG_TAVERN_PROFILE_ID"
             fi
             profile_slot_number() {
@@ -1154,6 +1164,13 @@ class TermuxCommandRunner(private val context: Context) {
               export npm_config_registry="${'$'}NPM_REGISTRY"
               export NPM_CONFIG_REGISTRY="${'$'}NPM_REGISTRY"
             fi
+            strip_trailing_slashes() {
+              trimmed_path="${'$'}1"
+              while [ "${'$'}{#trimmed_path}" -gt 1 ] && [ "${'$'}{trimmed_path%/}" != "${'$'}trimmed_path" ]; do
+                trimmed_path="${'$'}{trimmed_path%/}"
+              done
+              printf "%s" "${'$'}trimmed_path"
+            }
             expand_launcher_path() {
               path="${'$'}1"
               if [ -z "${'$'}path" ]; then
@@ -1161,20 +1178,24 @@ class TermuxCommandRunner(private val context: Context) {
                 return 0
               fi
               if [ "${'$'}path" = "~" ] || [ "${'$'}path" = "\${'$'}HOME" ]; then
-                printf "%s" "${'$'}HOME_DIR"
+                strip_trailing_slashes "${'$'}HOME_DIR"
                 return 0
               fi
               if [ "${'$'}{path#~/}" != "${'$'}path" ]; then
-                printf "%s/%s" "${'$'}HOME_DIR" "${'$'}{path#~/}"
+                strip_trailing_slashes "${'$'}HOME_DIR/${'$'}{path#~/}"
                 return 0
               fi
               if [ "${'$'}{path#\${'$'}HOME/}" != "${'$'}path" ]; then
-                printf "%s/%s" "${'$'}HOME_DIR" "${'$'}{path#\${'$'}HOME/}"
+                strip_trailing_slashes "${'$'}HOME_DIR/${'$'}{path#\${'$'}HOME/}"
                 return 0
               fi
-              printf "%s" "${'$'}path"
+              strip_trailing_slashes "${'$'}path"
             }
             TAVERN_DIR="${'$'}(expand_launcher_path "${'$'}TAVERN_DIR")"
+            TAVERN_DIR_REAL=""
+            if [ -d "${'$'}TAVERN_DIR" ]; then
+              TAVERN_DIR_REAL="${'$'}(cd "${'$'}TAVERN_DIR" 2>/dev/null && pwd -P || true)"
+            fi
             looks_like_tavern_dir() {
               dir="${'$'}1"
               [ -n "${'$'}dir" ] || return 1
@@ -1386,8 +1407,69 @@ class TermuxCommandRunner(private val context: Context) {
             http_probe_available() {
               command -v curl >/dev/null 2>&1
             }
+            http_probe_code() {
+              probe_url="${'$'}1"
+              curl --noproxy '*' -sS --connect-timeout 2 --max-time 3 -o /dev/null -w '%{http_code}' "${'$'}probe_url" 2>/dev/null || printf '000'
+            }
+            port_listening() {
+              port_hex="${'$'}(printf '%04X' "${'$'}TAVERN_PORT" 2>/dev/null || printf '')"
+              [ -n "${'$'}port_hex" ] || return 1
+              for table in /proc/net/tcp /proc/net/tcp6; do
+                [ -r "${'$'}table" ] || continue
+                awk -v target="${'$'}port_hex" '
+                  NR > 1 {
+                    split(${'$'}2, local, ":")
+                    if (toupper(local[2]) == target && ${'$'}4 == "0A") {
+                      found = 1
+                      exit
+                    }
+                  }
+                  END { exit found ? 0 : 1 }
+                ' "${'$'}table" 2>/dev/null && return 0
+              done
+              return 1
+            }
             http_ok() {
-              http_probe_available && curl -fsS --max-time 3 "http://127.0.0.1:${'$'}TAVERN_PORT/" >/dev/null 2>&1
+              if ! http_probe_available; then
+                return 2
+              fi
+              probe_code="${'$'}(http_probe_code "http://127.0.0.1:${'$'}TAVERN_PORT/")"
+              if [ "${'$'}probe_code" = "000" ]; then
+                probe_code="${'$'}(http_probe_code "http://[::1]:${'$'}TAVERN_PORT/")"
+              fi
+              case "${'$'}probe_code" in
+                200|204|301|302|303|307|308|401)
+                  return 0
+                  ;;
+                403)
+                  if is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
+                    return 0
+                  fi
+                  return 1
+                  ;;
+                *)
+                  return 1
+                  ;;
+              esac
+            }
+            tavern_http_ready() {
+              if http_probe_available; then
+                http_ok
+                return "${'$'}?"
+              fi
+              port_listening && { is_running || [ -n "${'$'}(candidate_pids | head -n 1)" ]; }
+            }
+            is_within_startup_grace() {
+              [ -f "${'$'}STATUS_FILE" ] || return 1
+              grep -q '"status"[[:space:]]*:[[:space:]]*"starting"' "${'$'}STATUS_FILE" 2>/dev/null || return 1
+              grace_sec="${'$'}{LUKOA_STARTUP_GRACE_SEC:-120}"
+              case "${'$'}grace_sec" in ''|*[!0-9]*) grace_sec=120 ;; esac
+              [ "${'$'}grace_sec" -gt 0 ] || return 1
+              file_mtime="${'$'}(stat -c %Y "${'$'}STATUS_FILE" 2>/dev/null || printf 0)"
+              now_epoch="${'$'}(date +%s 2>/dev/null || printf 0)"
+              case "${'$'}file_mtime" in ''|*[!0-9]*) return 1 ;; esac
+              case "${'$'}now_epoch" in ''|*[!0-9]*) return 1 ;; esac
+              [ "${'$'}file_mtime" -gt 0 ] && [ "${'$'}now_epoch" -ge "${'$'}file_mtime" ] && [ "${'$'}((now_epoch - file_mtime))" -le "${'$'}grace_sec" ]
             }
             is_running() {
               if [ ! -f "${'$'}PID_FILE" ]; then
@@ -1410,10 +1492,20 @@ class TermuxCommandRunner(private val context: Context) {
             process_cwd_matches() {
               pid="${'$'}1"
               cwd="${'$'}(readlink "/proc/${'$'}pid/cwd" 2>/dev/null || true)"
+              [ -n "${'$'}cwd" ] || return 1
+              if [ -z "${'$'}{TAVERN_DIR_REAL:-}" ] && [ -d "${'$'}TAVERN_DIR" ]; then
+                TAVERN_DIR_REAL="${'$'}(cd "${'$'}TAVERN_DIR" 2>/dev/null && pwd -P || true)"
+              fi
               [ "${'$'}cwd" = "${'$'}TAVERN_DIR" ] && return 0
               case "${'$'}cwd" in
                 "${'$'}TAVERN_DIR"/*) return 0 ;;
               esac
+              if [ -n "${'$'}{TAVERN_DIR_REAL:-}" ] && [ "${'$'}TAVERN_DIR_REAL" != "${'$'}TAVERN_DIR" ]; then
+                [ "${'$'}cwd" = "${'$'}TAVERN_DIR_REAL" ] && return 0
+                case "${'$'}cwd" in
+                  "${'$'}TAVERN_DIR_REAL"/*) return 0 ;;
+                esac
+              fi
               return 1
             }
             process_matches_tavern() {
@@ -1428,10 +1520,16 @@ class TermuxCommandRunner(private val context: Context) {
               }
               has_script_arg() {
                 script_name="${'$'}1"
-                printf "%s\n" "${'$'}args_lines" | grep -Fx \
+                if printf "%s\n" "${'$'}args_lines" | grep -Fx \
                   -e "${'$'}script_name" \
                   -e "./${'$'}script_name" \
-                  -e "${'$'}TAVERN_DIR/${'$'}script_name" >/dev/null 2>&1
+                  -e "${'$'}TAVERN_DIR/${'$'}script_name" >/dev/null 2>&1; then
+                  return 0
+                fi
+                if [ -n "${'$'}{TAVERN_DIR_REAL:-}" ] && [ "${'$'}TAVERN_DIR_REAL" != "${'$'}TAVERN_DIR" ]; then
+                  printf "%s\n" "${'$'}args_lines" | grep -Fx -e "${'$'}TAVERN_DIR_REAL/${'$'}script_name" >/dev/null 2>&1 && return 0
+                fi
+                return 1
               }
               case "${'$'}exe" in
                 node|nodejs)
@@ -1456,6 +1554,9 @@ class TermuxCommandRunner(private val context: Context) {
               if command -v pgrep >/dev/null 2>&1; then
                 {
                   pgrep -f "${'$'}TAVERN_DIR" 2>/dev/null || true
+                  if [ -n "${'$'}{TAVERN_DIR_REAL:-}" ] && [ "${'$'}TAVERN_DIR_REAL" != "${'$'}TAVERN_DIR" ]; then
+                    pgrep -f "${'$'}TAVERN_DIR_REAL" 2>/dev/null || true
+                  fi
                   pgrep -f "server\\.js" 2>/dev/null || true
                   pgrep -f "start\\.sh" 2>/dev/null || true
                 } | sort -u | while IFS= read -r pid; do
@@ -1531,7 +1632,8 @@ class TermuxCommandRunner(private val context: Context) {
             "LUKOA_TAVERN_PROFILE_ID=${shellSingleQuoted(pathConfig.activeProfile.id)}",
         ).filter { it.isNotBlank() }.joinToString(" ")
         return "installed_script=\"${'$'}HOME/.local/bin/lukoa-tavern.sh\"; " +
-            "if [ -f \"${'$'}installed_script\" ] && grep -q '^$requiredFunction()' \"${'$'}installed_script\" 2>/dev/null && " +
+            "if [ -f \"${'$'}installed_script\" ] && grep -q '^# LUKOA_SCRIPT_REV=$BUNDLED_SCRIPT_REVISION${'$'}' \"${'$'}installed_script\" 2>/dev/null && " +
+            "grep -q '^$requiredFunction()' \"${'$'}installed_script\" 2>/dev/null && " +
             "grep -q '^cmd_log_live_poll()' \"${'$'}installed_script\" 2>/dev/null; then " +
             "$env exec sh \"${'$'}installed_script\" $scriptCommand; fi"
     }
@@ -1551,7 +1653,7 @@ class TermuxCommandRunner(private val context: Context) {
             # replaces the result of a start/stop/update that is still being reported.
             STATUS_FILE="${'$'}RUNTIME_STATE_DIR/status.live.${'$'}${'$'}"
             trap 'rm -f "${'$'}STATUS_FILE"' EXIT
-            if http_ok; then
+            if tavern_http_ready; then
               write_status "log" "SillyTavern live log synced" true 0
             elif is_running; then
               write_status "log" "SillyTavern live log synced; HTTP endpoint is not responding" true 75
@@ -1580,13 +1682,25 @@ class TermuxCommandRunner(private val context: Context) {
               write_status "running" "SillyTavern HTTP endpoint is responding" true 0
             elif is_running; then
               if http_probe_available; then
-                write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+                if is_within_startup_grace; then
+                  write_status "starting" "SillyTavern is starting; HTTP endpoint is not ready yet" true 0
+                else
+                  write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+                fi
+              elif port_listening; then
+                write_status "running" "SillyTavern process is listening on port ${'$'}TAVERN_PORT" true 0
               else
                 write_status "running-unknown" "SillyTavern process exists; install curl for HTTP verification" true 0
               fi
             elif [ -n "${'$'}(candidate_pids | head -n 1)" ]; then
               if http_probe_available; then
-                write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+                if is_within_startup_grace; then
+                  write_status "starting" "SillyTavern is starting; HTTP endpoint is not ready yet" true 0
+                else
+                  write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+                fi
+              elif port_listening; then
+                write_status "running" "SillyTavern process is listening on port ${'$'}TAVERN_PORT" true 0
               else
                 write_status "running-unknown" "SillyTavern process exists; install curl for HTTP verification" true 0
               fi
@@ -2021,6 +2135,7 @@ class TermuxCommandRunner(private val context: Context) {
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
         const val TERMUX_TRANSCRIPT_ROWS = 20_000
+        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-launch-fix-1"
 
         @Volatile
         private var cachedBundledScript: String? = null

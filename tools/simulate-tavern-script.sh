@@ -219,4 +219,77 @@ check "F: explains the upload limit could not be removed" 'grep_out "Managed upl
 check "F: HEAD untouched and nothing stashed" '[ "$(tavern_tag)" = "1.13.0" ] && [ "$(stash_count)" = "0" ]'
 check "F: user note still present" 'grep -q "user note" "$TAVERN/src/server-main.js"'
 
+# ------------------------------------------------------------------ G. launch: port arg, real console exit code, BasicAuth & proxy bypass
+tavern_git checkout -q -- src/server-main.js
+cat > "$TAVERN/start.sh" <<'EOF'
+#!/bin/sh
+printf "LAUNCH_ARGS=%s\n" "$*"
+exit 42
+EOF
+chmod +x "$TAVERN/start.sh"
+LUKOA_CHAT_GUARD=0 run 70-console-real-exit-and-port console
+check "G: console returns real start.sh exit code (42) instead of tee's 0" '[ "$LAST_EXIT" -eq 42 ] && grep_out "\"exitCode\": 42"'
+check "G: console passes --port=$LUKOA_TAVERN_PORT and --browserLaunchEnabled=false" \
+  'grep_out "LAUNCH_ARGS=.*--port=$LUKOA_TAVERN_PORT" && grep_out -- "--browserLaunchEnabled=false"'
+
+if command -v curl >/dev/null 2>&1; then
+  node -e '
+    const http = require("http");
+    const server = http.createServer((req, res) => {
+      res.writeHead(401, { "WWW-Authenticate": "Basic realm=\"SillyTavern\"" });
+      res.end("Unauthorized");
+    });
+    server.listen(Number(process.env.LUKOA_TAVERN_PORT), "127.0.0.1");
+    setTimeout(() => process.exit(0), 20000);
+  ' >/dev/null 2>&1 &
+  AUTH_SERVER_PID="$!"
+  for _try in 1 2 3 4 5 6 7 8 9 10; do
+    curl --noproxy '*' -sS -o /dev/null "http://127.0.0.1:$LUKOA_TAVERN_PORT/" 2>/dev/null && break
+    sleep 0.2 2>/dev/null || sleep 1
+  done
+  http_proxy="http://127.0.0.1:1" HTTP_PROXY="http://127.0.0.1:1" ALL_PROXY="socks5://127.0.0.1:1" \
+    LUKOA_TAVERN_DIR="$TAVERN/" run 71-status-basic-auth-under-proxy status
+  kill "$AUTH_SERVER_PID" 2>/dev/null || true
+  wait "$AUTH_SERVER_PID" 2>/dev/null || true
+  check "G: status detects 401 BasicAuth SillyTavern even when proxy env vars point to a dead proxy" \
+    '[ "$LAST_EXIT" -eq 0 ] && grep_out "\"status\": \"running\"" && grep_out "\"running\": true"'
+  check "G: trailing slash in LUKOA_TAVERN_DIR is stripped" \
+    'grep_out "\"tavernDir\": \"$TAVERN\""'
+fi
+
+if [ -r "/proc/$$/cwd" ] && [ -r "/proc/$$/status" ]; then
+  cat > "$TAVERN/server.js" <<'EOF'
+const http = require('http');
+const portArg = process.argv.find((a) => a.startsWith('--port='));
+const port = portArg ? Number(portArg.split('=')[1]) : 8000;
+const server = http.createServer((req, res) => { res.writeHead(200); res.end('ok'); });
+server.listen(port, '127.0.0.1', () => { console.log(`SillyTavern is listening on IPv4: 127.0.0.1:${port}`); });
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+EOF
+  cat > "$TAVERN/start.sh" <<'EOF'
+#!/bin/sh
+node server.js "$@"
+EOF
+  chmod +x "$TAVERN/start.sh"
+  LUKOA_CHAT_GUARD=0 run 72-start-real-tree start
+  check "G: background start launches start.sh -> node server.js on custom port" \
+    '[ "$LAST_EXIT" -eq 0 ] && grep_out "\"status\": \"running\""'
+  run 73-stop-real-tree stop
+  check "G: stop cleanly terminates start.sh + child node server.js and frees port" \
+    '[ "$LAST_EXIT" -eq 0 ] && grep_out "SillyTavern stopped"'
+
+  cat > "$TAVERN/start.sh" <<'EOF'
+#!/bin/sh
+echo "fatal startup error"
+exit 1
+EOF
+  chmod +x "$TAVERN/start.sh"
+  crash_t0="$(date +%s)"
+  LUKOA_CHAT_GUARD=0 run 74-start-fast-crash start
+  crash_t1="$(date +%s)"
+  check "G: background start detects immediate crash fast instead of waiting 45s" \
+    '[ "$LAST_EXIT" -eq 70 ] && [ "$((crash_t1 - crash_t0))" -lt 10 ]'
+fi
+tavern_git checkout -q -- start.sh server.js
+
 finish

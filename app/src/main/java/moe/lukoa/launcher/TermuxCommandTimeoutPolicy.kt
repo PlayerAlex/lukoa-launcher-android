@@ -48,7 +48,7 @@ object TermuxCommandTimeoutPolicy {
         "tavern-extensions-update-force" to 10 * 60_000L,
         "tavern-extensions-rollback" to 3 * 60_000L,
         "tavern-backup-list" to 24_000L,
-        "tavern-version-startup" to 4_000L,
+        "tavern-version-startup" to 10_000L,
         "tavern-official-versions" to 60_000L,
         "termux-storage-permission" to 60_000L,
         "termux-repo-status" to 24_000L,

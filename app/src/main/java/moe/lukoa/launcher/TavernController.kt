@@ -201,19 +201,48 @@ class TavernController(
     fun handleForegroundStart(scope: CoroutineScope, update: LauncherUpdate) {
         update("正在打开 Termux 酒馆窗口。", "", false)
         scope.launch {
-            val dispatch = runner.runForegroundTavernConsole()
-            val message = if (dispatch.sent) {
-                delay(FOREGROUND_SESSION_SETTLE_MS)
-                val woke = runner.wakeTermux()
-                if (woke) {
-                    "启动命令已发送。"
-                } else {
-                    "启动命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点启动。"
-                }
-            } else {
-                dispatch.message
+            val startTime = System.currentTimeMillis()
+            val dispatch = withContext(Dispatchers.Default) {
+                runner.runForegroundTavernConsole()
             }
-            update(message, "", dispatch.sent && !message.contains("失败"))
+            if (!dispatch.sent) {
+                update(dispatch.message, "", false)
+                return@launch
+            }
+            // Wait through the foreground session settle window while listening for an immediate
+            // rejection or fast crash (e.g. external-apps blocked, port conflict, missing node).
+            // In the normal case the foreground session stays open, so awaitResult returns null
+            // after FOREGROUND_SESSION_SETTLE_MS and we bring Termux to the front.
+            val immediateResult = waitForResult(
+                executionId = dispatch.executionId,
+                startTime = startTime,
+                nonce = dispatch.nonce,
+                expectedCommand = dispatch.displayCommand,
+                timeoutMillis = FOREGROUND_SESSION_SETTLE_MS,
+            )
+            if (immediateResult != null) {
+                val ok = immediateResult.isStructurallyValid &&
+                    !immediateResult.hasInternalError &&
+                    immediateResult.exitCode == 0
+                val output = rawResultOutput(immediateResult).ifBlank {
+                    TermuxOutputDisplayFormatter.format(immediateResult)
+                }
+                val message = when {
+                    ok -> "启动命令已返回。"
+                    TermuxPermissionSignals.externalAppsBlocked(output) ->
+                        "Termux 外部调用未开启。请复制权限命令到 Termux 执行。"
+                    else -> "启动酒馆失败。"
+                }
+                update(message, output, ok)
+                return@launch
+            }
+            val woke = runner.wakeTermux()
+            val message = if (woke) {
+                "启动命令已发送。"
+            } else {
+                "启动命令已发送，但系统没有自动打开 Termux。请手动打开 Termux 查看启动日志，先不要重复点启动。"
+            }
+            update(message, "", true)
         }
     }
 

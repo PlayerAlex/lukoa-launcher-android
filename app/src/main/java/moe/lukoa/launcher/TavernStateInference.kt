@@ -5,7 +5,10 @@ private val TavernStatusFieldRegex = Regex(""""status"\s*:\s*"([^"]+)"""")
 private val TavernRunningFalseRegex = Regex(""""running"\s*:\s*false""")
 private val TavernStoppedStatusRegex = Regex(""""status"\s*:\s*"stopped"""")
 private val TavernErrorStatusRegex = Regex(""""status"\s*:\s*"error"""")
-private val TavernPortConflictRegex = Regex("""Address 127\.0\.0\.1:\d+ is already in use""")
+private val TavernPortConflictRegex = Regex(
+    """(?:Address\s+[^\s]+:\d+\s+is already in use|listen\s+EADDRINUSE(?::\s*address already in use)?|EADDRINUSE:\s*address already in use)""",
+    RegexOption.IGNORE_CASE,
+)
 private val TavernPortConflictFieldRegex = Regex("""doctor\.process\.portConflict=(1|true|ok)""", RegexOption.IGNORE_CASE)
 private val tavernStartingMarkers = listOf(
     "SillyTavern is starting",

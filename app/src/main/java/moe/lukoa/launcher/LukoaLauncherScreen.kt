@@ -61,9 +61,6 @@ import kotlin.math.absoluteValue
 import kotlin.math.abs
 import kotlin.math.hypot
 
-private const val START_FAST_PATH_WINDOW_MS = 60_000L
-private const val START_PREFLIGHT_CACHE_WINDOW_MS = 120_000L
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LukoaLauncherScreen(
@@ -267,6 +264,7 @@ fun LukoaLauncherScreen(
     var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
+    var lastStartEnvironmentMutationAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by rememberSaveable { mutableStateOf(LauncherTab.Launch) }
     var repairToolsOpenSignal by rememberSaveable { mutableIntStateOf(0) }
     var secondaryPage by rememberSaveable { mutableStateOf<LauncherSecondaryPage?>(null) }
@@ -672,8 +670,13 @@ fun LukoaLauncherScreen(
         }
     }
 
+    fun markStartEnvironmentMutated() {
+        lastStartEnvironmentMutationAtMillis = System.currentTimeMillis()
+    }
+
     fun applyTavernRunningSignal(source: String, allowHeuristic: Boolean = true) {
         if (source.isBlank()) return
+        val previousRunning = tavernRunning
         val portConflictDetected = inferTavernPortConflict(source)
         val inferredRunning = if (allowHeuristic) {
             inferTavernRunning(source)
@@ -697,6 +700,9 @@ fun LukoaLauncherScreen(
             if (running) {
                 tavernInstallDetected = true
             }
+        }
+        if (tavernRunning != previousRunning) {
+            markStartEnvironmentMutated()
         }
     }
 
@@ -732,6 +738,7 @@ fun LukoaLauncherScreen(
             message = "酒馆配置已更新，请重新读取当前目录的扩展。",
         )
         healthCheckReport = null
+        markStartEnvironmentMutated()
         showStopConfirmDialog = false
         pendingStartPreflight = null
         pendingTavernForceCleanupConfirmation = null
@@ -845,13 +852,27 @@ fun LukoaLauncherScreen(
                 requireMetadata = false,
             )
         ) return
-        val displayTermuxOutput = extractTermuxDisplayContent(display.output).commandText
-        if (displayTermuxOutput.isBlank()) return
+        val extracted = extractTermuxDisplayContent(display.output)
+        if (!TermuxResultSyncPolicy.shouldSync(display, extracted, termuxLog)) return
+        val displayTermuxOutput = extracted.commandText
+        val runtimeLogOutput = extracted.tavernRuntimeLogText
         val newStatus = "已同步 Termux：${display.command}"
         val newSummary = StatusSummarizer.summarize(newStatus, display.output, display.ok)
         RuntimeLogArchive.appendApp(context, newStatus)
-        RuntimeLogArchive.appendTermuxCommand(context, displayTermuxOutput)
-        val newTermuxLog = appendRawLog(termuxLog, displayTermuxOutput)
+        if (displayTermuxOutput.isNotBlank()) {
+            RuntimeLogArchive.appendTermuxCommand(context, displayTermuxOutput)
+        }
+        val newTermuxLog = if (displayTermuxOutput.isNotBlank()) {
+            appendRawLog(termuxLog, displayTermuxOutput)
+        } else {
+            termuxLog
+        }
+        val newTavernRuntimeLog = if (runtimeLogOutput.isNotBlank() && !tavernRuntimeLog.contains(runtimeLogOutput)) {
+            RuntimeLogArchive.appendTavernRuntime(context, runtimeLogOutput)
+            appendRawLog(tavernRuntimeLog, runtimeLogOutput)
+        } else {
+            tavernRuntimeLog
+        }
         val newAppLog = appendLog(appLog, "App", newStatus)
         val nextBackupHistory = BackupHistoryReducer.reduce(backupHistory, display.output, display.ok)
 
@@ -859,6 +880,7 @@ fun LukoaLauncherScreen(
         summary = newSummary
         verified = display.ok
         termuxLog = newTermuxLog
+        tavernRuntimeLog = newTavernRuntimeLog
         appLog = newAppLog
         backupHistory = nextBackupHistory
         rememberLaunchReadinessSnapshot(display.output)
@@ -880,7 +902,7 @@ fun LukoaLauncherScreen(
             status = newStatus,
             summary = newSummary,
             termuxLog = newTermuxLog,
-            tavernRuntimeLog = tavernRuntimeLog,
+            tavernRuntimeLog = newTavernRuntimeLog,
             appLog = newAppLog,
             verified = display.ok,
             backupHistory = nextBackupHistory,
@@ -1127,6 +1149,23 @@ fun LukoaLauncherScreen(
 
     fun updateTermuxLogOnly(termuxOutput: String, ok: Boolean) {
         logRefreshInFlight = false
+        val metadata = TavernTermuxResultMetadataParser.parse(termuxOutput)
+        if (
+            !TavernTermuxResultProfileScope.matches(
+                profileId = tavernPathConfig.activeProfile.id,
+                result = TermuxResultDisplay(
+                    key = "",
+                    command = "log",
+                    output = termuxOutput,
+                    ok = ok,
+                    profileId = metadata.profileId,
+                    runtimeStateDir = metadata.runtimeStateDir,
+                ),
+                requireMetadata = false,
+            )
+        ) {
+            return
+        }
         if (TermuxPermissionSignals.externalAppsBlocked(termuxOutput)) {
             termuxExternalAppsBlocked = true
             update("Termux 外部调用未开启。请复制权限命令到 Termux 执行。", termuxOutput, false, allowRunningInference = false)
@@ -1195,12 +1234,16 @@ fun LukoaLauncherScreen(
             ) {
                 return
             }
+            val runningChanged = newTavernRunning != tavernRunning
             status = newStatus
             summary = newSummary
             verified = newVerified
             tavernRuntimeLog = nextRuntimeLog
             tavernRunning = newTavernRunning
             tavernStarting = newTavernStarting
+            if (runningChanged) {
+                markStartEnvironmentMutated()
+            }
             onPersistState(currentState().copy(
                 status = newStatus,
                 summary = newSummary,
@@ -2441,28 +2484,33 @@ fun LukoaLauncherScreen(
     }
 
     fun cachedStartPreflight(nowMillis: Long = System.currentTimeMillis()): TavernStartPreflightResult? {
-        val report = healthCheckReport ?: return null
-        val doctorReport = report.doctorReport ?: return null
-        if (report.checkedAtMillis <= 0L) return null
-        if (nowMillis - report.checkedAtMillis > START_PREFLIGHT_CACHE_WINDOW_MS) return null
-        if (lastLaunchReadinessSnapshotAtMillis > report.checkedAtMillis) return null
-        return TavernStartPreflight.evaluate(
+        return TavernStartReadinessPolicy.reusableCachedPreflight(
+            healthCheckReport = healthCheckReport,
             termuxInstalled = termuxInstalled,
             runCommandPermissionGranted = runCommandPermissionGranted,
             termuxExternalAppsBlocked = termuxExternalAppsBlocked,
-            doctorReport = doctorReport,
+            tavernRunning = tavernRunning,
             activeProfile = tavernPathConfig.activeProfile,
+            lastLaunchReadinessSnapshotAtMillis = lastLaunchReadinessSnapshotAtMillis,
+            lastEnvironmentMutationAtMillis = lastStartEnvironmentMutationAtMillis,
+            nowMillis = nowMillis,
         )
     }
 
     fun canFastPathStart(nowMillis: Long = System.currentTimeMillis()): Boolean {
-        if (tavernRunning || tavernStarting) return false
-        if (termuxKnownMissing() || termuxPermissionBlocked()) return false
-        if (termuxSetupRecommended()) return false
-        if (tavernInstallDetected != true) return false
-        if (!tavernVersionInfo.hasData || tavernVersionInfo.notInstalled) return false
-        if (lastLaunchReadinessSnapshotAtMillis <= 0L) return false
-        return nowMillis - lastLaunchReadinessSnapshotAtMillis <= START_FAST_PATH_WINDOW_MS
+        return TavernStartReadinessPolicy.canFastPathStart(
+            tavernRunning = tavernRunning,
+            tavernStarting = tavernStarting,
+            termuxKnownMissing = termuxKnownMissing(),
+            termuxPermissionBlocked = termuxPermissionBlocked(),
+            termuxSetupRecommended = termuxSetupRecommended(),
+            tavernInstallDetected = tavernInstallDetected,
+            tavernVersionInfo = tavernVersionInfo,
+            activeProfile = tavernPathConfig.activeProfile,
+            lastLaunchReadinessSnapshotAtMillis = lastLaunchReadinessSnapshotAtMillis,
+            lastEnvironmentMutationAtMillis = lastStartEnvironmentMutationAtMillis,
+            nowMillis = nowMillis,
+        )
     }
 
     fun prepareTermuxEnvironment() {
@@ -2506,6 +2554,7 @@ fun LukoaLauncherScreen(
                 if (ok) {
                     termuxBootstrapCompleted = true
                 }
+                markStartEnvironmentMutated()
                 releaseBusy(operationToken)
             }
         }
@@ -2533,6 +2582,11 @@ fun LukoaLauncherScreen(
 
         fun finishHealthCheck(doctorReport: TavernDoctorReport?, mirrorStatus: TavernMirrorProbeStatus) {
             if (healthCheckToken != requestToken || !isBusyOperationActive(operationToken)) return
+            if (doctorReport?.httpOk == true) {
+                tavernRunning = true
+                tavernStarting = false
+                tavernInstallDetected = true
+            }
             val report = buildHealthCheckReport(
                 doctorReport = doctorReport,
                 mirrorStatus = mirrorStatus,
@@ -2816,17 +2870,33 @@ fun LukoaLauncherScreen(
                 return@startCallback
             }
             releaseBusy(operationToken)
+            if (ok && tavernRunning) {
+                tavernStarting = false
+                return@startCallback
+            }
             if (ok) {
                 tavernStarting = true
                 tavernRunning = false
                 launchAttemptToken += 1
                 val token = launchAttemptToken
                 scope.launch {
-                    delay(60_000L)
+                    delay(TavernStartReadinessPolicy.FOREGROUND_START_HINT_MS)
+                    if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
+                        update(
+                            "酒馆仍在启动中（首次启动或更新后安装依赖会稍慢），可切到 Termux 查看进度。",
+                            "",
+                            true,
+                            allowRunningInference = false,
+                        )
+                    }
+                    delay(
+                        TavernStartReadinessPolicy.FOREGROUND_START_TIMEOUT_MS -
+                            TavernStartReadinessPolicy.FOREGROUND_START_HINT_MS,
+                    )
                     if (launchAttemptToken == token && tavernStarting && !tavernRunning) {
                         tavernStarting = false
                         update(
-                            "启动太久了，请看下方 Termux 返回。",
+                            "启动等待已超时，请切到 Termux 或查看下方运行日志确认原因。",
                             "",
                             false,
                             allowRunningInference = false,
@@ -2892,6 +2962,11 @@ fun LukoaLauncherScreen(
             }
             update(newStatus, termuxOutput, ok, allowRunningInference = false)
             val doctorReport = TavernDoctorParser.parse(termuxOutput)
+            if (doctorReport?.httpOk == true) {
+                tavernRunning = true
+                tavernStarting = false
+                tavernInstallDetected = true
+            }
             healthCheckReport = buildHealthCheckReport(doctorReport)
             val preflight = TavernStartPreflight.evaluate(
                 termuxInstalled = termuxInstalled,
@@ -3006,6 +3081,11 @@ fun LukoaLauncherScreen(
             }
 
             TavernStartPreflightActionType.ReturnToTavern -> {
+                if (result.doctorReport?.httpOk == true) {
+                    tavernRunning = true
+                    tavernStarting = false
+                    tavernInstallDetected = true
+                }
                 returnToTavern()
             }
 
@@ -3051,6 +3131,7 @@ fun LukoaLauncherScreen(
                 tavernStarting = false
             }
             if (!isTransientStatus(newStatus)) {
+                markStartEnvironmentMutated()
                 releaseBusy(operationToken)
             }
         }
@@ -3074,6 +3155,7 @@ fun LukoaLauncherScreen(
                 tavernStarting = false
             }
             if (!isTransientStatus(newStatus)) {
+                markStartEnvironmentMutated()
                 releaseBusy(operationToken)
             }
         }
@@ -3375,15 +3457,11 @@ fun LukoaLauncherScreen(
                     if (latest.command == "log") {
                         lastSyncedTermuxResultKey = latest.key
                     } else if (busyLabel == null && !logRefreshInFlight) {
-                        val signature = extractTermuxDisplayContent(latest.output).commandText.take(360)
-                        if (signature.isBlank()) {
-                            lastSyncedTermuxResultKey = latest.key
-                        } else if (!termuxLog.contains(signature)) {
+                        val extracted = extractTermuxDisplayContent(latest.output)
+                        if (TermuxResultSyncPolicy.shouldSync(latest, extracted, termuxLog)) {
                             syncTermuxResult(latest)
-                            lastSyncedTermuxResultKey = latest.key
-                        } else {
-                            lastSyncedTermuxResultKey = latest.key
                         }
+                        lastSyncedTermuxResultKey = latest.key
                     }
                 }
                 delay(800)

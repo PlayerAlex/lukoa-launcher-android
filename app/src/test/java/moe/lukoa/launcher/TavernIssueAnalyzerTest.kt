@@ -65,4 +65,31 @@ class TavernIssueAnalyzerTest {
         assertEquals(4, issues.size)
         assertEquals(issues.size, issues.map { it.title }.distinct().size)
     }
+
+    @Test
+    fun `diagnoses startup port conflict oom missing module and outdated node`() {
+        val portIssues = TavernIssueAnalyzer.analyze(
+            termuxLog = "Error: listen EADDRINUSE: address already in use 0.0.0.0:8000",
+            status = "",
+        )
+        assertTrue(portIssues.any { it.title == "酒馆端口被占用" })
+
+        val oomIssues = TavernIssueAnalyzer.analyze(
+            termuxLog = "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory",
+            status = "",
+        )
+        assertTrue(oomIssues.any { it.title == "Node.js 内存不足" })
+
+        val moduleIssues = TavernIssueAnalyzer.analyze(
+            termuxLog = "Error: Cannot find module 'express'",
+            status = "",
+        )
+        assertTrue(moduleIssues.any { it.title == "酒馆依赖缺失或损坏" })
+
+        val nodeIssues = TavernIssueAnalyzer.analyze(
+            termuxLog = "Unsupported Node.js version v16.20.0. SillyTavern requires Node.js v18 or higher.",
+            status = "",
+        )
+        assertTrue(nodeIssues.any { it.title == "Node.js 版本过旧" })
+    }
 }

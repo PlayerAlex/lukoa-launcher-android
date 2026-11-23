@@ -92,6 +92,13 @@ class TavernPathConfigTest {
     }
 
     @Test
+    fun `path normalization trims redundant trailing slashes`() {
+        assertEquals("\$HOME/SillyTavern", TavernPathNormalizer.normalize("~/SillyTavern/"))
+        assertEquals("/data/data/com.termux/files/home/ST", TavernPathNormalizer.normalize("/data/data/com.termux/files/home/ST///"))
+        assertEquals("/", TavernPathNormalizer.normalize("/"))
+    }
+
+    @Test
     fun `updating active profile path only keeps saved port`() {
         val config = TavernPathConfig()
             .addSuggestedProfile()

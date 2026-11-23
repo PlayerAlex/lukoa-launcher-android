@@ -90,14 +90,23 @@ object TermuxScriptCommandBuilder {
     }
 
     private fun gzipBase64(value: String): String {
+        val cached = cachedCompressedScript
+        if (cached != null && cached.first == value) {
+            return cached.second
+        }
         val output = ByteArrayOutputStream()
         GZIPOutputStream(output).bufferedWriter(Charsets.UTF_8).use { it.write(value) }
-        return Base64.getEncoder().encodeToString(output.toByteArray())
+        val encoded = Base64.getEncoder().encodeToString(output.toByteArray())
+        cachedCompressedScript = value to encoded
+        return encoded
     }
 
     private fun shellSingleQuoted(value: String): String {
         return "'" + value.replace("'", "'\"'\"'") + "'"
     }
+
+    @Volatile
+    private var cachedCompressedScript: Pair<String, String>? = null
 
     private const val MAX_COMPRESSED_COMMAND_BYTES = 65_536
 }

@@ -294,4 +294,42 @@ class BundledShellScriptRegressionTest {
         assertTrue(mainBlock.contains("run_version_operation_with_hint \"回退\" cmd_rollback"))
         assertTrue(script.contains("现在可以返回露科亚启动器继续下一步。"))
     }
+
+    @Test
+    fun `launch args pass profile port and http probe bypasses proxies and accepts auth codes`() {
+        val launchArgsBlock = script.substringAfter("tavern_launch_args() {")
+            .substringBefore("follow_tavern_log_in_terminal() {")
+        val httpOkBlock = script.substringAfter("http_probe_code() {")
+            .substringBefore("is_within_startup_grace() {")
+
+        assertTrue(launchArgsBlock.contains("--port=\$TAVERN_PORT"))
+        assertTrue(launchArgsBlock.contains("--browserLaunchEnabled=false"))
+        assertTrue(httpOkBlock.contains("--noproxy '*'"))
+        assertTrue(httpOkBlock.contains("200|204|301|302|303|307|308|401"))
+        assertTrue(httpOkBlock.contains("http://[::1]:\$TAVERN_PORT/"))
+        assertTrue(runnerSource.contains("--noproxy '*'"))
+        assertTrue(script.contains("# LUKOA_SCRIPT_REV=${TermuxCommandRunner.BUNDLED_SCRIPT_REVISION}"))
+        assertTrue(runnerSource.contains("BUNDLED_SCRIPT_REVISION"))
+    }
+
+    @Test
+    fun `console start captures real tavern exit code cleans up helpers and stop terminates process tree`() {
+        val consoleBlock = script.substringAfter("cmd_console() {")
+            .substringBefore("cmd_start() {")
+        val stopBlock = script.substringAfter("cmd_stop() {")
+            .substringBefore("cmd_force_cleanup() {")
+        val cwdBlock = script.substringAfter("process_cwd_matches() {")
+            .substringBefore("process_matches_tavern() {")
+
+        assertTrue(consoleBlock.contains("if port_listening; then"))
+        assertTrue(consoleBlock.contains("console_rc_file="))
+        assertTrue(consoleBlock.contains("console_cleanup()"))
+        assertTrue(consoleBlock.contains("trap 'console_cleanup 143' TERM"))
+        assertTrue(consoleBlock.contains("open_browser_when_ready \"\$\$\""))
+        assertTrue(consoleBlock.indexOf("no start.sh or server.js found") < consoleBlock.indexOf("start_chat_guard"))
+        assertTrue(stopBlock.contains("descendant_pids"))
+        assertTrue(stopBlock.contains("wait_for_pids_exit"))
+        assertTrue(cwdBlock.contains("TAVERN_DIR_REAL"))
+        assertTrue(script.contains("strip_trailing_slashes()"))
+    }
 }

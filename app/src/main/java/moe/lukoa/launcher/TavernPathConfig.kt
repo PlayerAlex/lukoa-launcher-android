@@ -306,13 +306,14 @@ object TavernPathNormalizer {
     fun normalize(value: String): String {
         val trimmed = value.trim()
         if (trimmed.isBlank()) return TavernPathDefaults.DEFAULT_TAVERN_DIR_NORMALIZED
-        return when {
+        val expanded = when {
             trimmed.startsWith("~/") -> "\$HOME/${trimmed.removePrefix("~/")}"
             trimmed == "~" -> "\$HOME"
             trimmed.startsWith("\$HOME/") || trimmed == "\$HOME" -> trimmed
             trimmed.startsWith("/data/") || trimmed.startsWith("/storage/") || trimmed.startsWith("/") -> trimmed
             else -> "\$HOME/$trimmed"
         }
+        return if (expanded.length > 1) expanded.trimEnd('/').ifBlank { "/" } else expanded
     }
 
     fun toDisplayPath(value: String): String {

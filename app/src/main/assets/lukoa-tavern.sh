@@ -1,4 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
+# LUKOA_SCRIPT_REV=2026-11-23-launch-fix-1
 
 set -u
 
@@ -118,7 +119,10 @@ if [ -f "$NODE_MEMORY_FILE" ]; then
   LUKOA_NODE_MEMORY_MB="$(sed -n "s/^LUKOA_NODE_MEMORY_MB='\([0-9][0-9]*\)'$/\1/p" "$NODE_MEMORY_FILE" | head -n 1)"
 fi
 if is_valid_node_memory_mb "${LUKOA_NODE_MEMORY_MB:-}"; then
-  export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB"
+  case " ${NODE_OPTIONS:-} " in
+    *" --max-old-space-size="*) ;;
+    *) export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$LUKOA_NODE_MEMORY_MB" ;;
+  esac
 else
   LUKOA_NODE_MEMORY_MB=""
 fi
@@ -140,6 +144,14 @@ if [ "$TAVERN_PORT" -lt 1 ] || [ "$TAVERN_PORT" -gt 65535 ]; then
   TAVERN_PORT=8000
 fi
 
+strip_trailing_slashes() {
+  trimmed_path="$1"
+  while [ "${#trimmed_path}" -gt 1 ] && [ "${trimmed_path%/}" != "$trimmed_path" ]; do
+    trimmed_path="${trimmed_path%/}"
+  done
+  printf "%s" "$trimmed_path"
+}
+
 expand_launcher_path() {
   path="$1"
   if [ -z "$path" ]; then
@@ -147,24 +159,28 @@ expand_launcher_path() {
     return 0
   fi
   if [ "$path" = "~" ] || [ "$path" = "\$HOME" ]; then
-    printf "%s" "$HOME_DIR"
+    strip_trailing_slashes "$HOME_DIR"
     return 0
   fi
   if [ "${path#~/}" != "$path" ]; then
-    printf "%s/%s" "$HOME_DIR" "${path#~/}"
+    strip_trailing_slashes "$HOME_DIR/${path#~/}"
     return 0
   fi
   if [ "${path#\$HOME/}" != "$path" ]; then
-    printf "%s/%s" "$HOME_DIR" "${path#\$HOME/}"
+    strip_trailing_slashes "$HOME_DIR/${path#\$HOME/}"
     return 0
   fi
-  printf "%s" "$path"
+  strip_trailing_slashes "$path"
 }
 
 if [ -z "${TAVERN_DIR:-}" ]; then
   TAVERN_DIR="$DEFAULT_TAVERN_DIR"
 fi
 TAVERN_DIR="$(expand_launcher_path "$TAVERN_DIR")"
+TAVERN_DIR_REAL=""
+if [ -d "$TAVERN_DIR" ]; then
+  TAVERN_DIR_REAL="$(cd "$TAVERN_DIR" 2>/dev/null && pwd -P || true)"
+fi
 
 looks_like_tavern_dir() {
   dir="$1"
@@ -329,19 +345,24 @@ EOF
   mv -f "$STATUS_FILE.$$" "$STATUS_FILE"
 }
 
+write_pid_file() {
+  printf "%s\n" "$1" > "$PID_FILE.$$" && mv -f "$PID_FILE.$$" "$PID_FILE"
+}
+
 write_command() {
   command="$1"
   nonce="${2:-}"
   now="$(timestamp)"
   safe_command="$(json_escape "$command")"
   safe_nonce="$(json_escape "$nonce")"
-  cat > "$COMMAND_FILE" <<EOF
+  cat > "$COMMAND_FILE.$$" <<EOF
 {
   "time": "$now",
   "command": "$safe_command",
   "nonce": "$safe_nonce"
 }
 EOF
+  mv -f "$COMMAND_FILE.$$" "$COMMAND_FILE"
 }
 
 emit_status() {
@@ -481,7 +502,14 @@ chat_guard_running() {
 
 stop_chat_guard() {
   if chat_guard_running; then
-    kill "$(cat "$CHAT_GUARD_PID_FILE")" 2>/dev/null || true
+    old_guard_pid="$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null || true)"
+    kill "$old_guard_pid" 2>/dev/null || true
+    # Wait briefly so the old guard finishes any termux-wake-unlock before a new guard acquires it.
+    guard_wait=0
+    while [ "$guard_wait" -lt 10 ] && kill -0 "$old_guard_pid" 2>/dev/null; do
+      sleep 0.2 2>/dev/null || sleep 1
+      guard_wait=$((guard_wait + 1))
+    done
   fi
   rm -f "$CHAT_GUARD_PID_FILE"
 }
@@ -497,14 +525,15 @@ start_chat_guard() {
   [ -f "$self_script" ] || return 0
   mkdir -p "$CHAT_GUARD_DIR" 2>/dev/null || return 0
   LUKOA_TAVERN_DIR="$TAVERN_DIR" LUKOA_TAVERN_PORT="$TAVERN_PORT" LUKOA_TAVERN_PROFILE_ID="${TAVERN_PROFILE_ID:-main}" \
-    nohup sh "$self_script" __chat-guard "$watch_pid" "$guard_tty" > "$CHAT_GUARD_DIR/guard.log" 2>&1 &
+    nohup sh "$self_script" __chat-guard "$watch_pid" "$guard_tty" </dev/null > "$CHAT_GUARD_DIR/guard.log" 2>&1 &
 }
 
 chat_guard_scan() {
   # $1 = 1 on the first pass: link everything without judging, since nothing was seen yet.
   first_pass="$1"
   links_dir="$CHAT_GUARD_DIR/links"
-  find "$guard_data_root" -type f -name '*.jsonl' \( -path '*/chats/*' -o -path '*/group chats/*' \) \
+  find "$guard_data_root" -type f -name '*.jsonl' ! -name "*[$CHAT_GUARD_RESCUE_TAG *].jsonl" \
+    \( -path '*/chats/*' -o -path '*/group chats/*' \) \
     -printf '%i\t%s\t%p\n' 2>/dev/null > "$CHAT_GUARD_DIR/scan.new" || return 0
   [ -f "$CHAT_GUARD_DIR/scan.prev" ] || : > "$CHAT_GUARD_DIR/scan.prev"
 
@@ -554,14 +583,29 @@ chat_guard_rescue() {
   printf "%s\t%s\t%s\n" "$(timestamp)" "$chat_path" "$rescue_path" >> "$CHAT_GUARD_DIR/rescued.tsv"
 }
 
+other_chat_guard_running() {
+  for other_pid_file in "$STATE_DIR"/profiles/*/chat-guard/pid; do
+    [ -f "$other_pid_file" ] || continue
+    [ "$other_pid_file" = "$CHAT_GUARD_PID_FILE" ] && continue
+    other_pid="$(cat "$other_pid_file" 2>/dev/null || true)"
+    case "$other_pid" in ''|*[!0-9]*) continue ;; esac
+    if [ "$other_pid" != "$$" ] && kill -0 "$other_pid" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 cmd_chat_guard_loop() {
   watch_pid="${1:-}"
   case "$watch_pid" in ''|*[!0-9]*) return 64 ;; esac
   guard_tty="${2:-}"
   mkdir -p "$CHAT_GUARD_DIR/links"
-  printf "%s\n" "$$" > "$CHAT_GUARD_PID_FILE"
+  printf "%s\n" "$$" > "$CHAT_GUARD_PID_FILE.$$" && mv -f "$CHAT_GUARD_PID_FILE.$$" "$CHAT_GUARD_PID_FILE"
   guard_data_root="$(resolve_tavern_data_root)"
-  guard_min_bytes="$(( ${LUKOA_CHAT_GUARD_MIN_KB:-256} * 1024 ))"
+  guard_min_kb="${LUKOA_CHAT_GUARD_MIN_KB:-256}"
+  case "$guard_min_kb" in ''|*[!0-9]*) guard_min_kb=256 ;; esac
+  guard_min_bytes="$(( guard_min_kb * 1024 ))"
   guard_interval="${LUKOA_CHAT_GUARD_INTERVAL:-10}"
   case "$guard_interval" in ''|*[!0-9]*|0) guard_interval=10 ;; esac
   wake_locked=0
@@ -583,7 +627,7 @@ cmd_chat_guard_loop() {
 }
 
 chat_guard_exit() {
-  if [ "${wake_locked:-0}" = "1" ] && command -v termux-wake-unlock >/dev/null 2>&1; then
+  if [ "${wake_locked:-0}" = "1" ] && ! other_chat_guard_running && command -v termux-wake-unlock >/dev/null 2>&1; then
     termux-wake-unlock >/dev/null 2>&1 || true
   fi
   [ "$(cat "$CHAT_GUARD_PID_FILE" 2>/dev/null)" = "$$" ] && rm -f "$CHAT_GUARD_PID_FILE"
@@ -614,10 +658,20 @@ is_running() {
 process_cwd_matches() {
   pid="$1"
   cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null || true)"
+  [ -n "$cwd" ] || return 1
+  if [ -z "${TAVERN_DIR_REAL:-}" ] && [ -d "$TAVERN_DIR" ]; then
+    TAVERN_DIR_REAL="$(cd "$TAVERN_DIR" 2>/dev/null && pwd -P || true)"
+  fi
   [ "$cwd" = "$TAVERN_DIR" ] && return 0
   case "$cwd" in
     "$TAVERN_DIR"/*) return 0 ;;
   esac
+  if [ -n "${TAVERN_DIR_REAL:-}" ] && [ "$TAVERN_DIR_REAL" != "$TAVERN_DIR" ]; then
+    [ "$cwd" = "$TAVERN_DIR_REAL" ] && return 0
+    case "$cwd" in
+      "$TAVERN_DIR_REAL"/*) return 0 ;;
+    esac
+  fi
   return 1
 }
 
@@ -634,10 +688,16 @@ process_matches_tavern() {
   }
   has_script_arg() {
     script_name="$1"
-    printf "%s\n" "$args_lines" | grep -Fx \
+    if printf "%s\n" "$args_lines" | grep -Fx \
       -e "$script_name" \
       -e "./$script_name" \
-      -e "$TAVERN_DIR/$script_name" >/dev/null 2>&1
+      -e "$TAVERN_DIR/$script_name" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [ -n "${TAVERN_DIR_REAL:-}" ] && [ "$TAVERN_DIR_REAL" != "$TAVERN_DIR" ]; then
+      printf "%s\n" "$args_lines" | grep -Fx -e "$TAVERN_DIR_REAL/$script_name" >/dev/null 2>&1 && return 0
+    fi
+    return 1
   }
   case "$exe" in
     node|nodejs)
@@ -657,12 +717,62 @@ process_matches_tavern() {
   return 1
 }
 
+descendant_pids() {
+  dp_root="$1"
+  case "$dp_root" in ''|*[!0-9]*) return 0 ;; esac
+  [ -d /proc ] || return 0
+  grep -H '^PPid:' /proc/[0-9]*/status 2>/dev/null | awk -v root="$dp_root" '
+    {
+      split($0, parts, ":")
+      pid = parts[1]
+      sub(/^\/proc\//, "", pid)
+      sub(/\/status$/, "", pid)
+      p_parent = parts[3]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", p_parent)
+      if (pid ~ /^[0-9]+$/ && p_parent ~ /^[0-9]+$/) {
+        ppid[pid] = p_parent
+      }
+    }
+    END {
+      queue[1] = root
+      head = 1
+      tail = 1
+      while (head <= tail) {
+        cur = queue[head++]
+        for (p in ppid) {
+          if (ppid[p] == cur && !(p in seen)) {
+            seen[p] = 1
+            tail++
+            queue[tail] = p
+            order[++n] = p
+          }
+        }
+      }
+      for (i = n; i >= 1; i--) {
+        print order[i]
+      }
+    }
+  ' 2>/dev/null || true
+}
+
+terminate_pid_tree_children() {
+  tree_root="$1"
+  tree_children="$(descendant_pids "$tree_root" | tr '\n' ' ')"
+  for tree_child in $tree_children; do
+    [ "$tree_child" = "$$" ] && continue
+    kill "$tree_child" 2>/dev/null || true
+  done
+}
+
 candidate_pids() {
   current_pid="$$"
   parent_pid="${PPID:-}"
   if command -v pgrep >/dev/null 2>&1; then
     {
       pgrep -f "$TAVERN_DIR" 2>/dev/null || true
+      if [ -n "${TAVERN_DIR_REAL:-}" ] && [ "$TAVERN_DIR_REAL" != "$TAVERN_DIR" ]; then
+        pgrep -f "$TAVERN_DIR_REAL" 2>/dev/null || true
+      fi
       pgrep -f "server\\.js" 2>/dev/null || true
       pgrep -f "start\\.sh" 2>/dev/null || true
     } | sort -u | while IFS= read -r pid; do
@@ -699,14 +809,42 @@ wait_for_pid_exit() {
   ! kill -0 "$pid" 2>/dev/null
 }
 
+wait_for_pids_exit() {
+  pids_to_wait="$1"
+  attempts="${2:-5}"
+  while [ "$attempts" -gt 0 ]; do
+    any_alive=0
+    for wait_pid in $pids_to_wait; do
+      if kill -0 "$wait_pid" 2>/dev/null; then
+        any_alive=1
+        break
+      fi
+    done
+    [ "$any_alive" -eq 0 ] && return 0
+    sleep 1
+    attempts=$((attempts - 1))
+  done
+  for wait_pid in $pids_to_wait; do
+    if kill -0 "$wait_pid" 2>/dev/null; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 force_cleanup_pid() {
   pid="$1"
-  kill "$pid" 2>/dev/null || true
-  if wait_for_pid_exit "$pid" 2; then
+  cleanup_tree="$(descendant_pids "$pid" | tr '\n' ' ') $pid"
+  for cleanup_target in $cleanup_tree; do
+    kill "$cleanup_target" 2>/dev/null || true
+  done
+  if wait_for_pids_exit "$cleanup_tree" 2; then
     return 0
   fi
-  kill -9 "$pid" 2>/dev/null || true
-  wait_for_pid_exit "$pid" 2
+  for cleanup_target in $cleanup_tree; do
+    kill -9 "$cleanup_target" 2>/dev/null || true
+  done
+  wait_for_pids_exit "$cleanup_tree" 2
 }
 
 kill_candidate_pids() {
@@ -725,11 +863,54 @@ http_probe_available() {
   command -v curl >/dev/null 2>&1
 }
 
+http_probe_code() {
+  probe_url="$1"
+  curl --noproxy '*' -sS --connect-timeout 2 --max-time 3 -o /dev/null -w '%{http_code}' "$probe_url" 2>/dev/null || printf '000'
+}
+
 http_ok() {
   if ! http_probe_available; then
     return 2
   fi
-  curl -fsS --max-time 3 "http://127.0.0.1:$TAVERN_PORT/" >/dev/null 2>&1
+  probe_code="$(http_probe_code "http://127.0.0.1:$TAVERN_PORT/")"
+  if [ "$probe_code" = "000" ]; then
+    probe_code="$(http_probe_code "http://[::1]:$TAVERN_PORT/")"
+  fi
+  case "$probe_code" in
+    200|204|301|302|303|307|308|401)
+      return 0
+      ;;
+    403)
+      if is_running || [ -n "$(candidate_pids | head -n 1)" ]; then
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+tavern_http_ready() {
+  if http_probe_available; then
+    http_ok
+    return "$?"
+  fi
+  port_listening && { is_running || [ -n "$(candidate_pids | head -n 1)" ]; }
+}
+
+is_within_startup_grace() {
+  [ -f "$STATUS_FILE" ] || return 1
+  grep -q '"status"[[:space:]]*:[[:space:]]*"starting"' "$STATUS_FILE" 2>/dev/null || return 1
+  grace_sec="${LUKOA_STARTUP_GRACE_SEC:-120}"
+  case "$grace_sec" in ''|*[!0-9]*) grace_sec=120 ;; esac
+  [ "$grace_sec" -gt 0 ] || return 1
+  file_mtime="$(stat -c %Y "$STATUS_FILE" 2>/dev/null || printf 0)"
+  now_epoch="$(date +%s 2>/dev/null || printf 0)"
+  case "$file_mtime" in ''|*[!0-9]*) return 1 ;; esac
+  case "$now_epoch" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$file_mtime" -gt 0 ] && [ "$now_epoch" -ge "$file_mtime" ] && [ "$((now_epoch - file_mtime))" -le "$grace_sec" ]
 }
 
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
@@ -1151,10 +1332,14 @@ emit_git_version_info() {
 
 wait_for_http() {
   tries="${1:-10}"
+  watch_pid="${2:-}"
   i=0
   while [ "$i" -lt "$tries" ]; do
-    if http_ok; then
+    if tavern_http_ready; then
       return 0
+    fi
+    if [ -n "$watch_pid" ] && ! kill -0 "$watch_pid" 2>/dev/null; then
+      return 2
     fi
     i=$((i + 1))
     sleep 1
@@ -1163,23 +1348,32 @@ wait_for_http() {
 }
 
 open_browser_when_ready() {
+  browser_opener_pid=""
   if ! command -v am >/dev/null 2>&1; then
     return 0
   fi
+  opener_watch_pid="${1:-}"
+  opener_max_wait="${LUKOA_BROWSER_WAIT_SEC:-180}"
+  case "$opener_max_wait" in ''|*[!0-9]*) opener_max_wait=180 ;; esac
 
   (
     i=0
-    while [ "$i" -lt 60 ]; do
-      if http_ok; then
+    while [ "$i" -lt "$opener_max_wait" ]; do
+      if tavern_http_ready; then
         # Tag the request with the launcher's id: Chrome-based browsers then reuse the tab they
         # opened for it instead of adding a new one each time (same id as TermuxCommandRunner.openTavern).
-        am start -a android.intent.action.VIEW -d "http://127.0.0.1:$TAVERN_PORT"           --es com.android.browser.application_id moe.lukoa.launcher >/dev/null 2>&1 || true
+        am start -a android.intent.action.VIEW -d "http://127.0.0.1:$TAVERN_PORT" \
+          --es com.android.browser.application_id moe.lukoa.launcher >/dev/null 2>&1 || true
+        exit 0
+      fi
+      if [ -n "$opener_watch_pid" ] && ! kill -0 "$opener_watch_pid" 2>/dev/null; then
         exit 0
       fi
       i=$((i + 1))
       sleep 1
     done
-  ) &
+  ) </dev/null >/dev/null 2>&1 &
+  browser_opener_pid="$!"
 }
 
 cmd_selftest() {
@@ -1214,13 +1408,25 @@ cmd_status() {
     write_status "running" "SillyTavern HTTP endpoint is responding" true 0
   elif is_running; then
     if http_probe_available; then
-      write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+      if is_within_startup_grace; then
+        write_status "starting" "SillyTavern is starting; HTTP endpoint is not ready yet" true 0
+      else
+        write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+      fi
+    elif port_listening; then
+      write_status "running" "SillyTavern process is listening on port $TAVERN_PORT" true 0
     else
       write_status "running-unknown" "SillyTavern process exists; install curl for HTTP verification" true 0
     fi
   elif [ -n "$(candidate_pids | head -n 1)" ]; then
     if http_probe_available; then
-      write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+      if is_within_startup_grace; then
+        write_status "starting" "SillyTavern is starting; HTTP endpoint is not ready yet" true 0
+      else
+        write_status "unreachable" "SillyTavern process exists, but HTTP endpoint is not responding" true 75
+      fi
+    elif port_listening; then
+      write_status "running" "SillyTavern process is listening on port $TAVERN_PORT" true 0
     else
       write_status "running-unknown" "SillyTavern process exists; install curl for HTTP verification" true 0
     fi
@@ -1380,7 +1586,7 @@ cmd_log_live() {
 cmd_log_live_poll() {
   STATUS_FILE="$RUNTIME_STATE_DIR/status.live.$$"
   trap 'rm -f "$STATUS_FILE"' EXIT
-  if http_ok; then
+  if tavern_http_ready; then
     write_status "log" "SillyTavern live log synced" true 0
   elif is_running; then
     write_status "log" "SillyTavern live log synced; HTTP endpoint is not responding" true 75
@@ -1398,12 +1604,19 @@ cmd_log_live_poll() {
   emit_live_log_delta
 }
 
-# The launcher opens the browser itself (tagged so the tab is reused). SillyTavern's own
-# browserLaunch would open a second, untagged tab, so turn it off for launcher-started sessions.
+# The launcher opens the browser itself (tagged so the tab is reused) and controls the target port
+# per profile. SillyTavern's own browserLaunch would open a second, untagged tab, and leaving --port
+# unset would make clone profiles / custom ports bind 8000 instead of TAVERN_PORT.
 # SillyTavern's yargs parser ignores options it does not know, so older versions are unaffected.
 tavern_launch_args() {
-  [ "${LUKOA_KEEP_TAVERN_BROWSER_LAUNCH:-0}" = "1" ] && return 0
-  printf "%s" "--browserLaunchEnabled=false"
+  args=""
+  if [ "${LUKOA_KEEP_TAVERN_PORT:-0}" != "1" ]; then
+    args="--port=$TAVERN_PORT"
+  fi
+  if [ "${LUKOA_KEEP_TAVERN_BROWSER_LAUNCH:-0}" != "1" ]; then
+    args="${args:+$args }--browserLaunchEnabled=false"
+  fi
+  printf "%s" "$args"
 }
 
 # When the tavern was already started in the background, keep the Termux window useful by
@@ -1422,7 +1635,7 @@ follow_tavern_log_in_terminal() {
 
 cmd_console() {
   write_command "console"
-  if http_ok; then
+  if tavern_http_ready; then
     write_status "running" "SillyTavern is already running and HTTP endpoint is responding" true 0
     open_browser_when_ready
     emit_status
@@ -1452,6 +1665,12 @@ cmd_console() {
     return 0
   fi
 
+  if port_listening; then
+    write_status "error" "Address 127.0.0.1:$TAVERN_PORT is already in use" false 76
+    emit_status
+    return 76
+  fi
+
   adopt_detected_tavern_dir >/dev/null 2>&1 || true
   if [ ! -d "$TAVERN_DIR" ]; then
     collect_tavern_dir_candidates
@@ -1473,33 +1692,72 @@ cmd_console() {
     return 74
   }
 
+  if [ ! -f "./start.sh" ] && [ ! -f "server.js" ]; then
+    write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
+    emit_status
+    return 65
+  fi
+
   rotate_tavern_log_if_large
   # Output goes through tee, so Node no longer sees a terminal and would drop colors.
   export FORCE_COLOR="${FORCE_COLOR:-1}"
   printf "\n[%s] ===== Lukoa launcher foreground session =====\n" "$(timestamp)" | tee -a "$LOG_FILE"
   printf "[%s] Termux foreground logging is enabled. Log file: %s\n" "$(timestamp)" "$LOG_FILE" | tee -a "$LOG_FILE"
   write_status "starting" "SillyTavern is starting in Termux foreground log mode" true 0
-  printf "%s\n" "$$" > "$PID_FILE"
+  write_pid_file "$$"
   start_chat_guard "$$" "$(tty 2>/dev/null || true)"
-  open_browser_when_ready
+  browser_opener_pid=""
+  open_browser_when_ready "$$"
+  console_rc_file="$RUNTIME_STATE_DIR/console-exit.$$"
+  rm -f "$console_rc_file" 2>/dev/null || true
 
+  console_cleanup() {
+    cleanup_code="${1:-130}"
+    trap - INT TERM HUP
+    if [ -n "${browser_opener_pid:-}" ]; then
+      kill "$browser_opener_pid" 2>/dev/null || true
+    fi
+    terminate_pid_tree_children "$$"
+    stop_chat_guard
+    if [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ]; then
+      rm -f "$PID_FILE"
+    fi
+    rm -f "$console_rc_file" 2>/dev/null || true
+    write_status "stopped" "SillyTavern foreground session exited" false "$cleanup_code"
+    emit_status
+    exit "$cleanup_code"
+  }
+  trap 'console_cleanup 130' INT
+  trap 'console_cleanup 143' TERM
+  trap 'console_cleanup 129' HUP
+
+  launch_args="$(tavern_launch_args)"
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
-    printf "[%s] starting with %s ./start.sh in %s\n" "$(timestamp)" "$runner" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    "$runner" ./start.sh $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
-    code="$?"
-  elif [ -f "server.js" ]; then
-    printf "[%s] starting with node server.js in %s\n" "$(timestamp)" "$TAVERN_DIR" | tee -a "$LOG_FILE"
-    node server.js $(tavern_launch_args) 2>&1 | tee -a "$LOG_FILE"
-    code="$?"
+    printf "[%s] starting with %s ./start.sh %s in %s\n" "$(timestamp)" "$runner" "$launch_args" "$TAVERN_DIR" | tee -a "$LOG_FILE"
+    {
+      "$runner" ./start.sh $launch_args
+      printf "%s" "$?" > "$console_rc_file"
+    } 2>&1 | tee -a "$LOG_FILE"
   else
-    write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
-    emit_status
-    rm -f "$PID_FILE"
-    return 65
+    printf "[%s] starting with node server.js %s in %s\n" "$(timestamp)" "$launch_args" "$TAVERN_DIR" | tee -a "$LOG_FILE"
+    {
+      node server.js $launch_args
+      printf "%s" "$?" > "$console_rc_file"
+    } 2>&1 | tee -a "$LOG_FILE"
   fi
+  code="$(cat "$console_rc_file" 2>/dev/null || printf 1)"
+  rm -f "$console_rc_file" 2>/dev/null || true
+  case "$code" in ''|*[!0-9]*) code=1 ;; esac
 
-  rm -f "$PID_FILE"
+  trap - INT TERM HUP
+  if [ -n "${browser_opener_pid:-}" ]; then
+    kill "$browser_opener_pid" 2>/dev/null || true
+  fi
+  stop_chat_guard
+  if [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ]; then
+    rm -f "$PID_FILE"
+  fi
   write_status "stopped" "SillyTavern foreground session exited" false "$code"
   emit_status
   return "$code"
@@ -1508,7 +1766,7 @@ cmd_console() {
 cmd_start() {
   if is_running; then
     write_command "start"
-    if http_ok; then
+    if tavern_http_ready; then
       write_status "running" "SillyTavern is already running and HTTP endpoint is responding" true 0
     elif ! http_probe_available; then
       write_status "running-unknown" "SillyTavern is already running; install curl for HTTP verification" true 0
@@ -1523,7 +1781,7 @@ cmd_start() {
 
   if [ -n "$(candidate_pids | head -n 1)" ]; then
     write_command "start"
-    if http_ok; then
+    if tavern_http_ready; then
       write_status "running" "SillyTavern is already running and HTTP endpoint is responding" true 0
     elif ! http_probe_available; then
       write_status "running-unknown" "SillyTavern is already running; install curl for HTTP verification" true 0
@@ -1534,6 +1792,13 @@ cmd_start() {
     fi
     emit_status
     return 0
+  fi
+
+  if port_listening; then
+    write_command "start"
+    write_status "error" "Address 127.0.0.1:$TAVERN_PORT is already in use" false 76
+    emit_status
+    return 76
   fi
 
   adopt_detected_tavern_dir >/dev/null 2>&1 || true
@@ -1561,14 +1826,15 @@ cmd_start() {
 
   write_command "start"
   rotate_tavern_log_if_large
+  launch_args="$(tavern_launch_args)"
   printf "\n[%s] ===== Lukoa launcher start session =====\n" "$(timestamp)" >> "$LOG_FILE"
   if [ -f "./start.sh" ]; then
     runner="$(start_script_runner)"
-    printf "[%s] starting with %s ./start.sh in %s\n" "$(timestamp)" "$runner" "$TAVERN_DIR" >> "$LOG_FILE"
-    nohup "$runner" ./start.sh $(tavern_launch_args) >> "$LOG_FILE" 2>&1 &
+    printf "[%s] starting with %s ./start.sh %s in %s\n" "$(timestamp)" "$runner" "$launch_args" "$TAVERN_DIR" >> "$LOG_FILE"
+    nohup "$runner" ./start.sh $launch_args </dev/null >> "$LOG_FILE" 2>&1 &
   elif [ -f "server.js" ]; then
-    printf "[%s] starting with node server.js in %s\n" "$(timestamp)" "$TAVERN_DIR" >> "$LOG_FILE"
-    nohup node server.js $(tavern_launch_args) >> "$LOG_FILE" 2>&1 &
+    printf "[%s] starting with node server.js %s in %s\n" "$(timestamp)" "$launch_args" "$TAVERN_DIR" >> "$LOG_FILE"
+    nohup node server.js $launch_args </dev/null >> "$LOG_FILE" 2>&1 &
   else
     write_status "error" "no start.sh or server.js found in SillyTavern directory" false 65
     emit_status
@@ -1576,9 +1842,10 @@ cmd_start() {
   fi
 
   pid="$!"
-  printf "%s\n" "$pid" > "$PID_FILE"
+  write_pid_file "$pid"
+  write_status "starting" "SillyTavern is starting" true 0
   start_chat_guard "$pid"
-  if http_probe_available && wait_for_http 45; then
+  if wait_for_http 45 "$pid"; then
     write_status "running" "SillyTavern HTTP endpoint is responding" true 0
     emit_status
     return 0
@@ -1590,6 +1857,8 @@ cmd_start() {
     return 75
   fi
 
+  stop_chat_guard
+  rm -f "$PID_FILE"
   write_status "error" "SillyTavern process exited immediately; check tavern.log" false 70
   emit_status
   return 70
@@ -1621,14 +1890,23 @@ cmd_stop() {
   fi
 
   pid="$(cat "$PID_FILE")"
-  kill "$pid" 2>/dev/null || true
-  if ! wait_for_pid_exit "$pid" 5; then
+  stop_tree="$(descendant_pids "$pid" | tr '\n' ' ') $pid"
+  for stop_target in $stop_tree; do
+    kill "$stop_target" 2>/dev/null || true
+  done
+  if ! wait_for_pids_exit "$stop_tree" 5; then
     write_status "error" "SillyTavern process is still running after stop request. Use force cleanup if you need to clear the current port." true 76
     emit_status
     return 76
   fi
 
   rm -f "$PID_FILE"
+  # Give the kernel a short beat to release the listening socket after node exits.
+  port_wait=0
+  while [ "$port_wait" -lt 2 ] && port_listening; do
+    sleep 1
+    port_wait=$((port_wait + 1))
+  done
   if http_ok; then
     write_status "error" "SillyTavern HTTP endpoint is still responding after stop request. Use force cleanup if you need to clear the current port." true 76
     emit_status

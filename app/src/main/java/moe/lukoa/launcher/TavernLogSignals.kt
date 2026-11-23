@@ -2,6 +2,7 @@ package moe.lukoa.launcher
 
 object TavernLogSignals {
     private const val SESSION_MARKER = "===== Lukoa launcher foreground session ====="
+    private const val START_SESSION_MARKER = "===== Lukoa launcher start session ====="
 
     private val liveMarkers = listOf(
         "SillyTavern is listening",
@@ -116,7 +117,9 @@ object TavernLogSignals {
     private fun latestSessionLines(text: String): List<String> {
         val preparedLines = prepareForAnalysis(text).lines()
         if (preparedLines.isEmpty()) return emptyList()
-        val sessionStart = preparedLines.indexOfLast { it.contains(SESSION_MARKER) }
+        val sessionStart = preparedLines.indexOfLast {
+            it.contains(SESSION_MARKER) || it.contains(START_SESSION_MARKER)
+        }
         return if (sessionStart >= 0) {
             preparedLines.subList(sessionStart, preparedLines.size)
         } else {

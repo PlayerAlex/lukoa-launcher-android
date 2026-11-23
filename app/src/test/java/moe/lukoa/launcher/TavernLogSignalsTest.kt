@@ -71,4 +71,19 @@ class TavernLogSignalsTest {
         assertTrue(session.contains("${esc}[33mInstalling Node Modules...${esc}[0m"))
         assertTrue(session.contains("${esc}[32mSillyTavern is listening"))
     }
+
+    @Test
+    fun `important tail also recognizes background start session boundary`() {
+        val tail = TavernLogSignals.importantTail(
+            """
+                [2026-07-02T03:46:11Z] ===== Lukoa launcher start session =====
+                old error failed
+                [2026-07-03T08:03:07Z] ===== Lukoa launcher start session =====
+                SillyTavern is listening on IPv4: 127.0.0.1:8001
+            """.trimIndent(),
+        )
+
+        assertTrue(tail.contains("2026-07-03T08:03:07Z"))
+        assertFalse(tail.contains("old error failed"))
+    }
 }

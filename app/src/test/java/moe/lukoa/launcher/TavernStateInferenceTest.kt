@@ -99,4 +99,15 @@ class TavernStateInferenceTest {
         assertTrue(inferTavernPortConflict(output))
         assertTrue(inferTavernRunning(output) == false)
     }
+
+    @Test
+    fun `lan bind and node eaddrinuse port conflicts are also detected`() {
+        val lanConflict = "Error: Address 0.0.0.0:8000 is already in use"
+        val nodeConflict = "Error: listen EADDRINUSE: address already in use :::8001"
+
+        assertTrue(inferTavernPortConflict(lanConflict))
+        assertTrue(inferTavernRunning(lanConflict) == false)
+        assertTrue(inferTavernPortConflict(nodeConflict))
+        assertTrue(inferTavernRunning(nodeConflict) == false)
+    }
 }

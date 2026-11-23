@@ -85,8 +85,8 @@ class TermuxResultRepository(
     }
 
     private companion object {
-        const val LIVE_RESULT_REPLAY = 1
-        const val LIVE_RESULT_BUFFER = 1
+        const val LIVE_RESULT_REPLAY = 8
+        const val LIVE_RESULT_BUFFER = 32
     }
 }
 

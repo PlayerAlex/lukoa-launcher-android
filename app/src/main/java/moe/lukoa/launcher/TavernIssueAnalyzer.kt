@@ -49,6 +49,76 @@ object TavernIssueAnalyzer {
         }
 
         if (
+            activeError(
+                broadLower,
+                listOf("eaddrinuse", "address already in use", "is already in use"),
+                listOf("sillytavern is listening", "sillytavern force cleanup completed", "sillytavern stopped"),
+            )
+        ) {
+            issues += TavernIssue(
+                title = "酒馆端口被占用",
+                detail = "当前端口已经被别的进程或残留酒馆占用了，启动会立刻失败。",
+                action = "先在工具箱尝试“强制释放端口”，或在设置里给当前实例换一个空闲端口。",
+                severity = IssueSeverity.Danger,
+            )
+        }
+
+        if (
+            activeError(
+                broadLower,
+                listOf("javascript heap out of memory", "reached heap limit allocation failed"),
+                listOf("sillytavern is listening"),
+            )
+        ) {
+            issues += TavernIssue(
+                title = "Node.js 内存不足",
+                detail = "酒馆启动或运行过程中触发了 Node.js 内存上限崩溃。",
+                action = "打开工具箱 → 检查与修复，调高 Node.js 内存上限后再重新启动酒馆。",
+                severity = IssueSeverity.Danger,
+            )
+        }
+
+        if (
+            activeError(
+                broadLower,
+                listOf("cannot find module", "err_module_not_found"),
+                listOf("sillytavern dependencies were reinstalled", "sillytavern is listening"),
+            )
+        ) {
+            issues += TavernIssue(
+                title = "酒馆依赖缺失或损坏",
+                detail = "启动时找不到所需的 Node.js 模块，常见于依赖没装完或更新中断。",
+                action = "先停止酒馆，再到工具箱 → 检查与修复里点“修复 npm 依赖”。",
+                severity = IssueSeverity.Danger,
+            )
+        }
+
+        if (
+            activeError(
+                broadLower,
+                listOf("unsupported node.js version", "node.js version", "requires node"),
+                listOf("termux-bootstrap-ok", "termux packages are ready", "sillytavern is listening"),
+            ) &&
+            (
+                broadLower.contains("unsupported node") ||
+                    broadLower.contains("upgrade node") ||
+                    broadLower.contains("node.js v") ||
+                    broadLower.contains("requires node")
+                )
+        ) {
+            issues += TavernIssue(
+                title = "Node.js 版本过旧",
+                detail = "当前 Termux 里的 Node.js 版本不满足这个酒馆版本的要求。",
+                action = "点“准备 Termux 环境”升级基础包后再重新启动酒馆。",
+                severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.PrepareTermuxEnvironment,
+                    label = "准备 Termux",
+                ),
+            )
+        }
+
+        if (
             lower.contains("429") ||
             lower.contains("too many requests") ||
             lower.contains("rate limit") ||
