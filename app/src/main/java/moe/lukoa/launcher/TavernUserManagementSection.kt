@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -141,10 +139,31 @@ fun TavernUserManagementSection(
     deleteUser?.let { user ->
         AlertDialog(
             onDismissRequest = { deleteUser = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("删除用户账户") },
-            text = { Text("将删除账户“${user.name}（${user.handle}）”，但保留数据目录，避免聊天和角色丢失。默认用户和最后一个管理员不能删除。") },
-            confirmButton = { Button(onClick = { deleteUser = null; onDelete(user.handle) }) { Text("删除账户") } },
-            dismissButton = { OutlinedButton(onClick = { deleteUser = null }) { Text("取消") } },
+            text = {
+                Text(
+                    text = "将删除账户“${user.name}（${user.handle}）”，但保留数据目录，避免聊天和角色丢失。默认用户和最后一个管理员不能删除。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
+            confirmButton = {
+                DialogActionButton(
+                    text = "删除账户",
+                    tone = ActionTone.Danger,
+                    onClick = { deleteUser = null; onDelete(user.handle) },
+                )
+            },
+            dismissButton = {
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { deleteUser = null },
+                )
+            },
         )
     }
 
@@ -335,6 +354,9 @@ private fun UserInputDialog(
     val nameError = TavernUserCommandCodec.validateName(name.trim())
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
                 title = title,
@@ -343,11 +365,42 @@ private fun UserInputDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = handle, onValueChange = { handle = it.lowercase() }, label = { Text(handleLabel) }, isError = handleError != null, supportingText = { handleError?.let { e -> Text(e) } })
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(nameLabel) }, isError = nameError != null, supportingText = { nameError?.let { e -> Text(e) } })
+                OutlinedTextField(
+                    value = handle,
+                    onValueChange = { handle = it.lowercase() },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(handleLabel) },
+                    isError = handleError != null,
+                    supportingText = { handleError?.let { e -> Text(e) } },
+                    colors = lukoaTextFieldColors(LukoaColors.Primary),
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(nameLabel) },
+                    isError = nameError != null,
+                    supportingText = { nameError?.let { e -> Text(e) } },
+                    colors = lukoaTextFieldColors(LukoaColors.Primary),
+                )
             }
         },
-        confirmButton = { Button(enabled = handleError == null && nameError == null, onClick = { onConfirm(handle.trim(), name.trim()) }) { Text("确认") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = {
+            DialogActionButton(
+                text = "确认",
+                enabled = handleError == null && nameError == null,
+                tone = ActionTone.Safe,
+                onClick = { onConfirm(handle.trim(), name.trim()) },
+            )
+        },
+        dismissButton = {
+            DialogActionButton(
+                text = "取消",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
+        },
     )
 }

@@ -4234,7 +4234,8 @@ fun LukoaLauncherScreen(
                                 NoticeCard(
                                     title = "聊天守护已为你救回 ${opsUiState.chatGuardState.effectiveRescueCount} 条聊天记录",
                                     detail = "曾检测到长聊天被异常覆盖，旧版本已保存到同目录（文件名带「露科亚救回」）。",
-                                    accentColor = LukoaColors.Accent,
+                                    accentColor = LukoaColors.Primary,
+                                    actionTone = ActionTone.Safe,
                                     actionLabel = "查看救回记录",
                                     onAction = {
                                         chatGuardOpenSignal += 1
@@ -4295,6 +4296,7 @@ fun LukoaLauncherScreen(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Primary,
+                                infoText = "显示酒馆和 Termux 实时输出。出错时可点「只看报错」快速定位，或点「复制」发给排错人员。",
                                 // Laying out the whole 120KB buffer on every update janked the page; the
                                 // full log is still in the export.
                                 maxVisibleLines = 600,
@@ -4303,6 +4305,9 @@ fun LukoaLauncherScreen(
                                 title = "启动器运行日志",
                                 content = appLog,
                                 accentColor = LukoaColors.TextSecondary,
+                                infoText = "记录启动器自身的操作与状态变化，平时不需要查看，排查问题时可展开或导出。",
+                                collapsible = true,
+                                initialExpanded = false,
                             )
                         }
                         LauncherTab.Toolbox -> ToolboxSection(

@@ -55,15 +55,13 @@ fun TavernQuickImportSection(
             InfoPopoverButton(
                 contentDescription = "查看快捷导入说明",
                 title = "快捷导入",
-                body = "直接从手机文件里选角色卡、世界书、预设、主题或聊天记录（支持一次多选），启动器会自动放进酒馆对应位置。重名会自动改名，绝不覆盖旧文件。",
+                body = "直接从手机文件里选角色卡（PNG / JSON / CHARX）、世界书、预设、主题（JSON）或聊天记录（JSONL），支持一次多选批量导入。\n启动器会自动放进酒馆对应位置；若已有同名文件会自动改名保留，绝不覆盖旧档。",
             )
         },
     ) {
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
-                detail = "选文件后会自动写入酒馆，存在同名文件不会覆盖旧档。",
-                detailMaxLines = 2,
                 value = instanceLabel,
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
@@ -113,11 +111,6 @@ fun TavernQuickImportSection(
                 }
             }
         }
-        Text(
-            text = "角色卡支持 PNG / JSON / CHARX；世界书、预设、主题支持 JSON。",
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
 
         LukoaCollapsibleCard(
             title = "导入聊天记录（.jsonl）",

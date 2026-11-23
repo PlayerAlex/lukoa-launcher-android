@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -89,25 +87,38 @@ fun TavernExtensionManagementSection(
         val targetDirectory = extensionTargetDirectory(state, extension)
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("删除酒馆扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("扩展：${extension.displayName}")
                     Text("当前实例：$instanceLabel")
                     Text("目标目录：$targetDirectory")
-                    Text("只会删除这个扩展程序目录，不会删除聊天、角色或备份。删除后无法从启动器撤销。")
+                    Text(
+                        text = "只会删除这个扩展程序目录，不会删除聊天、角色或备份。删除后无法从启动器撤销。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "确认删除",
+                    tone = ActionTone.Danger,
                     onClick = {
                         pendingDelete = null
                         onDelete(extension.directoryName)
                     },
-                ) { Text("确认删除") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingDelete = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingDelete = null },
+                )
             },
         )
     }
@@ -122,6 +133,9 @@ fun TavernExtensionManagementSection(
         )
         AlertDialog(
             onDismissRequest = { pendingToggle = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("${actionText}酒馆扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,24 +144,32 @@ fun TavernExtensionManagementSection(
                     Text("当前位置：$currentDirectory")
                     Text("${actionText}后位置：$destinationDirectory")
                     Text(
-                        if (desiredEnabled) {
+                        text = if (desiredEnabled) {
                             "启用会把扩展原样移回酒馆扩展目录，下次启动酒馆时生效。"
                         } else {
                             "停用只会移动扩展目录，不会删除扩展文件；之后可以随时重新启用。"
                         },
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "确认$actionText",
+                    tone = ActionTone.Safe,
                     onClick = {
                         pendingToggle = null
                         onToggleEnabled(extension.directoryName, desiredEnabled)
                     },
-                ) { Text("确认$actionText") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingToggle = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingToggle = null },
+                )
             },
         )
     }
@@ -155,6 +177,9 @@ fun TavernExtensionManagementSection(
     pendingUpdate?.let { extension ->
         AlertDialog(
             onDismissRequest = { pendingUpdate = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("更新酒馆扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -162,24 +187,35 @@ fun TavernExtensionManagementSection(
                     Text("当前实例：$instanceLabel")
                     Text("版本：${extension.currentRevision.take(7)} → ${extension.latestRevision.take(7)}")
                     if (extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges) {
-                        Text("这个扩展里有你改过的文件。更新会用远端版本替换整个目录，你的改动连同旧版本一起保存为回退快照，需要时点「回退」就能找回。")
+                        Text(
+                            text = "这个扩展里有你改过的文件。更新会用远端版本替换整个目录，你的改动连同旧版本一起保存为回退快照，需要时点「回退」就能找回。",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
-                    Text("启动器会重新下载已检查的版本，校验清单后再替换原目录。")
-                    Text("当前扩展会保留为最近一次快照；替换失败时会自动恢复，不会直接在原目录执行 git pull。刷新酒馆网页后生效。")
+                    Text(
+                        text = "启动器会重新下载已检查的版本，校验清单后再替换原目录，并保留最近一次快照；失败时自动恢复。刷新酒馆网页后生效。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = if (extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges) "保存改动并更新" else "确认更新",
+                    tone = ActionTone.Safe,
                     onClick = {
                         pendingUpdate = null
                         onUpdate(extension.directoryName)
                     },
-                ) {
-                    Text(if (extension.updateStatus == TavernExtensionUpdateStatus.LocalChanges) "保存改动并更新" else "确认更新")
-                }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingUpdate = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingUpdate = null },
+                )
             },
         )
     }
@@ -187,25 +223,38 @@ fun TavernExtensionManagementSection(
     pendingRollback?.let { extension ->
         AlertDialog(
             onDismissRequest = { pendingRollback = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("回退酒馆扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("扩展：${extension.displayName}")
                     Text("当前实例：$instanceLabel")
                     Text("回到快照：${extension.rollbackRevision.take(7)}")
-                    Text("启动器会交换当前目录与最近一次更新前快照。回退后仍会保留现在的版本，必要时可以再次切换回来。")
+                    Text(
+                        text = "启动器会交换当前目录与最近一次更新前快照。回退后仍会保留现在的版本，必要时可以再次切换回来。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "确认回退",
+                    tone = ActionTone.Safe,
                     onClick = {
                         pendingRollback = null
                         onRollback(extension.directoryName)
                     },
-                ) { Text("确认回退") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingRollback = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingRollback = null },
+                )
             },
         )
     }
@@ -218,6 +267,9 @@ fun TavernExtensionManagementSection(
             ?.let { extensionTargetDirectory(state.rootDirectory, it) }
         AlertDialog(
             onDismissRequest = { showInstallDialog = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("安装酒馆扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -229,30 +281,39 @@ fun TavernExtensionManagementSection(
                         label = { Text("扩展仓库地址") },
                         placeholder = { Text("https://github.com/作者/扩展名") },
                         supportingText = {
-                            Text(repositoryError ?: "支持 GitHub、Gitee、GitLab 等 Git 仓库地址，也可以加 gh-proxy 一类的加速前缀。")
+                            Text(repositoryError ?: "支持 GitHub、Gitee、GitLab 等 Git 仓库地址，也可以加 gh-proxy 加速前缀。")
                         },
                         isError = repositoryError != null,
                         singleLine = true,
                         colors = lukoaTextFieldColors(LukoaColors.Primary),
                     )
-                    normalizedRepository?.let { Text("来源：$it") }
-                    targetDirectory?.let { Text("目标目录：$it") }
-                    Text("启动器会先下载到暂存区并检查扩展清单，不会覆盖同名的已启用或已停用扩展。")
-                    Text("安装完成后扩展默认启用，刷新酒馆网页就会生效。")
+                    normalizedRepository?.let { Text("来源：$it", style = MaterialTheme.typography.bodySmall) }
+                    targetDirectory?.let { Text("目标目录：$it", style = MaterialTheme.typography.bodySmall) }
+                    Text(
+                        text = "安装完成后扩展默认启用，刷新酒馆网页即可生效，不会覆盖已有同名扩展。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "确认安装",
                     enabled = !actionsLocked && normalizedRepository != null,
+                    tone = ActionTone.Safe,
                     onClick = {
-                        val repositoryUrl = normalizedRepository ?: return@Button
+                        val repositoryUrl = normalizedRepository ?: return@DialogActionButton
                         showInstallDialog = false
                         onInstall(repositoryUrl)
                     },
-                ) { Text("确认安装") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { showInstallDialog = false }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { showInstallDialog = false },
+                )
             },
         )
     }
@@ -260,26 +321,43 @@ fun TavernExtensionManagementSection(
     if (showUpdateAllDialog) {
         AlertDialog(
             onDismissRequest = { showUpdateAllDialog = false },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text("一键更新全部扩展") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("将依次更新 $updatableCount 个已检测到新版本的扩展，并为每个扩展自动保留最近一次回退快照。")
                     if (localChangesCount > 0) {
-                        Text("有 $localChangesCount 个存在本地改动的扩展会自动跳过，不会覆盖你的修改。")
+                        Text(
+                            text = "有 $localChangesCount 个存在本地改动的扩展会自动跳过，不会覆盖你的修改。",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
-                    Text("更新完成后刷新酒馆网页或重启酒馆即可生效。")
+                    Text(
+                        text = "更新完成后刷新酒馆网页或重启酒馆即可生效。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "开始批量更新",
+                    tone = ActionTone.Safe,
                     onClick = {
                         showUpdateAllDialog = false
                         onUpdateAll()
                     },
-                ) { Text("开始批量更新") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { showUpdateAllDialog = false }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { showUpdateAllDialog = false },
+                )
             },
         )
     }
@@ -515,15 +593,14 @@ private fun TavernExtensionRow(
     onRollback: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
@@ -538,11 +615,11 @@ private fun TavernExtensionRow(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
+                StatusPill(
                     text = if (extension.enabled) "已启用" else "已停用",
-                    color = if (extension.enabled) LukoaColors.Primary else LukoaColors.Accent,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    active = extension.enabled,
+                    toneColor = if (extension.enabled) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    activeBackground = LukoaColors.PrimarySoft,
                 )
             }
             Text(
@@ -619,29 +696,13 @@ private fun TavernExtensionRow(
                 )
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SecondaryActionButton(
-                text = "复制路径",
-                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
-                enabled = true,
-                accentColor = LukoaColors.Primary,
-                onClick = {
-                    val copied = onCopyPath(fullPath)
-                    onShowHint(if (copied) "扩展路径已复制。" else "复制扩展路径失败。")
-                },
-            )
-            SettingsFeedbackActionButton(
-                text = if (extension.enabled) "停用" else "启用",
-                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
-                enabled = toggleEnabled,
-                accentColor = if (extension.enabled) LukoaColors.Accent else LukoaColors.Primary,
-                unavailableHint = toggleUnavailableHint,
-                onShowHint = onShowHint,
-                onClick = onToggleEnabled,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             SettingsFeedbackActionButton(
                 text = "更新",
-                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                modifier = Modifier.weight(1f),
                 enabled = updateEnabled,
                 accentColor = LukoaColors.Primary,
                 unavailableHint = updateUnavailableHint,
@@ -649,17 +710,41 @@ private fun TavernExtensionRow(
                 onClick = onUpdate,
             )
             SettingsFeedbackActionButton(
+                text = if (extension.enabled) "停用" else "启用",
+                modifier = Modifier.weight(1f),
+                enabled = toggleEnabled,
+                accentColor = LukoaColors.Primary,
+                unavailableHint = toggleUnavailableHint,
+                onShowHint = onShowHint,
+                onClick = onToggleEnabled,
+            )
+            SecondaryActionButton(
+                text = "复制路径",
+                modifier = Modifier.weight(1f),
+                enabled = true,
+                accentColor = LukoaColors.TextSecondary,
+                onClick = {
+                    val copied = onCopyPath(fullPath)
+                    onShowHint(if (copied) "扩展路径已复制。" else "复制扩展路径失败。")
+                },
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SettingsFeedbackActionButton(
                 text = "回退",
-                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                modifier = Modifier.weight(1f),
                 enabled = rollbackEnabled,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.TextSecondary,
                 unavailableHint = rollbackUnavailableHint,
                 onShowHint = onShowHint,
                 onClick = onRollback,
             )
             SettingsFeedbackActionButton(
                 text = "删除",
-                modifier = Modifier.widthIn(min = 82.dp, max = 96.dp),
+                modifier = Modifier.weight(1f),
                 enabled = deleteEnabled,
                 accentColor = LukoaColors.Danger,
                 unavailableHint = deleteUnavailableHint,

@@ -9,18 +9,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun TerminalText(
     text: String,
     modifier: Modifier = Modifier,
 ) {
-    val annotated = remember(text) { AnsiTerminalText.toAnnotatedString(text) }
+    val style = LukoaColors.currentStyle
+    val annotated = remember(text, style) { AnsiTerminalText.toAnnotatedString(text) }
     Text(
         text = annotated,
         modifier = modifier,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.5.sp,
+            lineHeight = 18.sp,
+        ),
     )
 }
 
@@ -147,23 +154,24 @@ object AnsiTerminalText {
     }
 
     private fun ansiColor(code: Int): Color {
+        val monochrome = LukoaColors.currentStyle == LukoaThemeStyle.Monochrome
         return when (code) {
             30 -> LukoaColors.Dim
             31 -> LukoaColors.Danger
             32 -> LukoaColors.Primary
             33 -> LukoaColors.Accent
             34 -> LukoaColors.Primary
-            35 -> Color(0xFFD38CFF)
-            36 -> Color(0xFF67E8F9)
+            35 -> if (monochrome) Color(0xFFCBBDB8) else Color(0xFFD38CFF)
+            36 -> if (monochrome) Color(0xFFBFC4BE) else Color(0xFF67E8F9)
             37 -> LukoaColors.TextPrimary
             90 -> LukoaColors.TextSecondary
-            91 -> Color(0xFFFF8B8B)
-            92 -> Color(0xFF7AF0B2)
-            93 -> Color(0xFFFFD166)
-            94 -> Color(0xFF8EC5FF)
-            95 -> Color(0xFFE5A3FF)
-            96 -> Color(0xFF88F5FF)
-            97 -> Color.White
+            91 -> if (monochrome) LukoaColors.Stop else Color(0xFFFF8B8B)
+            92 -> if (monochrome) LukoaColors.Primary else Color(0xFF7AF0B2)
+            93 -> if (monochrome) LukoaColors.Accent else Color(0xFFFFD166)
+            94 -> if (monochrome) LukoaColors.TextPrimary else Color(0xFF8EC5FF)
+            95 -> if (monochrome) Color(0xFFD6CAC4) else Color(0xFFE5A3FF)
+            96 -> if (monochrome) Color(0xFFCBCFCA) else Color(0xFF88F5FF)
+            97 -> if (monochrome) LukoaColors.PrimaryHover else Color.White
             else -> LukoaColors.TextPrimary
         }
     }

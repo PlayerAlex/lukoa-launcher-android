@@ -111,6 +111,23 @@ private fun BackupActionsSection(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "备份状态",
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    InfoPopoverButton(
+                        contentDescription = "查看备份方式说明",
+                        title = "完整备份与轻量备份",
+                        body = "「创建手动备份」会打包整个酒馆程序与全部数据，适合更新或迁移前完整兜底。\n「轻量备份数据」只打包聊天记录、角色卡、世界书、预设、配置和第三方扩展，跳过酒馆程序与依赖，体积小、速度快；恢复时会自动锁定为「只恢复用户数据」。",
+                    )
+                }
                 BackupStatusLine(
                     label = "当前状态：",
                     value = if (autoBackupEnabled) "自动备份已开启" else "自动备份未开启",
@@ -706,7 +723,7 @@ fun RenameBackupDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Primary,
+        titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(

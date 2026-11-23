@@ -58,10 +58,6 @@ fun TavernChatGuardContent(
     val hasChanges = snapshot == null || draftConfig != snapshot.config
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
-    ManagementDialogIntroCard(
-        "酒馆运行时自动帮较长的聊天留一份底。如果网页卡死把聊天写空或变短，会自动在原聊天夹救回旧档（带「露科亚救回」字样），几乎不占额外空间。",
-    )
-
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "保护状态（$instanceLabel）",

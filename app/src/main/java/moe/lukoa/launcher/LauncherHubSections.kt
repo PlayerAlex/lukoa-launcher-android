@@ -134,13 +134,13 @@ private fun TavernManagementGrid(
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("扩展管理", "安装与更新网页扩展", onOpenExtensionManagement),
-                right = HubGridEntry("酒馆设置", "电脑访问、流畅度与代理", onOpenTavernConfig),
+                left = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
+                right = HubGridEntry("酒馆设置", "局域网与流畅度", onOpenTavernConfig),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("服务器插件", "少数插件用的后端功能", onOpenServerPlugins),
-                right = HubGridEntry("快捷导入", "导入角色卡、世界书与聊天", onOpenQuickImport),
+                left = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins),
+                right = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
             )
         }
     }
@@ -163,7 +163,7 @@ internal fun HubGridRow(
         Surface(
             modifier = Modifier
                 .width(1.dp)
-                .heightIn(min = 120.dp),
+                .heightIn(min = 104.dp),
             color = LukoaColors.Border,
             content = {},
         )
@@ -181,25 +181,25 @@ private fun HubGridTile(
 
     Box(
         modifier = modifier
-            .heightIn(min = 120.dp)
-            .padding(10.dp),
+            .heightIn(min = 104.dp)
+            .padding(8.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (enabled) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .heightIn(min = 80.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 82.dp)
                     .clickable(role = Role.Button, onClick = feedbackClick),
                 color = LukoaColors.Elevated,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 border = BorderStroke(
                     width = 1.dp,
                     color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.Border,
                 ),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -212,6 +212,8 @@ private fun HubGridTile(
                             text = entry.description,
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     Icon(

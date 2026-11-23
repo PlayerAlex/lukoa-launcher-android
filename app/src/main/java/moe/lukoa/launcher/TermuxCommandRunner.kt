@@ -2444,7 +2444,7 @@ class TermuxCommandRunner(private val context: Context) {
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
         const val TERMUX_TRANSCRIPT_ROWS = 20_000
-        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-ops-c-1"
+        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-ops-c-2"
 
         @Volatile
         private var cachedBundledScript: String? = null

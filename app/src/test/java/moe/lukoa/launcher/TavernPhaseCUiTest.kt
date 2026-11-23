@@ -219,6 +219,58 @@ class TavernPhaseCUiTest {
         composeRule.runOnIdle { assertEquals("profile-2", chosenId) }
     }
 
+    @Test
+    fun issueAnalysisPanel_showsPrimaryIssueFirstAndCollapsesSecondaryIssues() {
+        val issues = listOf(
+            TavernIssue(
+                title = "次要警告一",
+                detail = "网络抖动。",
+                action = "稍后重试。",
+                severity = IssueSeverity.Warning,
+            ),
+            TavernIssue(
+                title = "酒馆端口被占用",
+                detail = "8000 端口被占用。",
+                action = "点下面强制释放。",
+                severity = IssueSeverity.Danger,
+                quickFixAction = LauncherQuickFixAction(
+                    type = LauncherQuickFixActionType.ForceCleanupPort,
+                    label = "强制释放端口",
+                ),
+            ),
+            TavernIssue(
+                title = "次要警告二",
+                detail = "包源提示。",
+                action = "可忽略。",
+                severity = IssueSeverity.Info,
+            ),
+        )
+
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    IssueAnalysisPanel(
+                        issues = issues,
+                        actionsLocked = false,
+                        onQuickFixAction = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("酒馆端口被占用").assertIsDisplayed()
+        composeRule.onNodeWithText("强制释放端口").assertIsDisplayed()
+        composeRule.onNodeWithText("次要警告一").assertDoesNotExist()
+        composeRule.onNodeWithText("还有 2 条次要提醒").performScrollTo().assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("次要警告一").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("次要警告二").performScrollTo().assertIsDisplayed()
+    }
+
     private fun advancePastClickDebounce() {
         ShadowSystemClock.advanceBy(Duration.ofMillis(500))
     }

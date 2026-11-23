@@ -180,15 +180,11 @@ fun TavernServerPluginSection(
                 InfoPopoverButton(
                     contentDescription = "查看服务器插件说明",
                     title = "什么时候需要用到这里？",
-                    body = "普通酒馆网页扩展请去「扩展管理」安装。只有极少数插件（如需要调用本机程序或额外接口的扩展）明确说明要装「后端 / 服务器插件」时，才需要来这里安装，并顺手打开后端插件开关。",
+                    body = "平时一般用不到这里，普通酒馆网页扩展请去「扩展管理」安装。\n只有少数插件（如需要调用本机程序或额外后端接口）明确提醒要装「后端 / 服务器插件」时，才来这里粘贴网址安装，并顺手在酒馆设置里打开后端插件开关。",
                 )
             }
         },
     ) {
-        ManagementDialogIntroCard(
-            "平时一般用不到这里。只有插件作者明确提醒需要安装「后端插件」时，才在这里粘贴网址安装；普通扩展请用「扩展管理」。",
-        )
-
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",

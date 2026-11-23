@@ -46,12 +46,17 @@ class BundledShellScriptRegressionTest {
     @Test
     fun `chat guard links every existing chat on its first pass`() {
         val guardBlock = script.substringAfter("chat_guard_scan() {").substringBefore("chat_guard_rescue() {")
+        val rescueBlock = script.substringAfter("chat_guard_rescue() {").substringBefore("other_chat_guard_running() {")
         // NR == FNR misreads the second file when scan.prev is empty, so the first pass linked nothing
         // and a chat overwritten before its first save could not be rescued.
         assertFalse(guardBlock.contains("NR==FNR"))
         assertFalse(guardBlock.contains("NR == FNR"))
-        assertTrue(guardBlock.contains("FILENAME == ARGV[1] { old[\$3] = \$1; next }"))
+        assertTrue(guardBlock.contains("FILENAME == ARGV[1] { old[\$3] = \$1; old_size[\$3] = \$2; next }"))
+        assertTrue(guardBlock.contains("! -name \"*\\\\[\$CHAT_GUARD_RESCUE_TAG *\\\\].jsonl\""))
+        assertTrue(guardBlock.contains("if [ ! -s \"\$CHAT_GUARD_DIR/scan.new\" ] && [ -s \"\$CHAT_GUARD_DIR/scan.prev\" ]; then"))
+        assertTrue(guardBlock.contains("missing_file=\"\$CHAT_GUARD_DIR/missing.prev\""))
         assertTrue(guardBlock.contains("ln -f \"\$chat_path\" \"\$link_path\""))
+        assertTrue(rescueBlock.contains("if (largest > 0) { keep[largest] = 1; kept = 1 }"))
     }
 
     @Test

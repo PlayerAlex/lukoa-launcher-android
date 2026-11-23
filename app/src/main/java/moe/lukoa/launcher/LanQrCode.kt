@@ -475,7 +475,7 @@ fun LanQrCodeCard(
                         for (c in 0 until matrix.size) {
                             if (matrix.isDark(r, c)) {
                                 drawRect(
-                                    color = Color(0xFF09090B),
+                                    color = Color(0xFF0E0D0C),
                                     topLeft = Offset((c + quietZone) * cell, (r + quietZone) * cell),
                                     size = Size(cell + 0.5f, cell + 0.5f),
                                 )

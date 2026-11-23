@@ -31,10 +31,6 @@ fun TavernGitStashContent(
         else -> null
     }
 
-    ManagementDialogIntroCard(
-        "平时一般不需要打开这里。只有当你更新或回退酒馆版本时，选择了「先把本地改动收起来」，记录才会出现在这里，方便以后找回或清理。",
-    )
-
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "当前实例",

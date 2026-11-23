@@ -142,7 +142,7 @@ fun DocumentationSection(
                         title = selectedPage.pageTitle,
                         onOpenMenu = { menuOpen = true },
                     )
-                    LukoaTextField(
+                    LukoaSearchField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.testTag("documentation-search-input"),
@@ -525,7 +525,7 @@ private val ADVANCED_FEATURE_TOPICS = listOf(
     ),
     DocumentationTopic(
         title = "聊天守护与“露科亚救回”文件",
-        body = "“工具箱 → 聊天守护”会在酒馆运行时通过硬链接守护较长的聊天记录。一旦检测到异常覆盖变短，启动器会在原聊天目录自动保留旧版本（文件名带“露科亚救回”），绝不删除你的原始聊天，也可以在这里开关防休眠锁。",
+        body = "“工具箱 → 聊天守护”会在酒馆运行时为较长的聊天记录保留同盘硬链接（不额外占空间）。当网页卡死重刷导致聊天被空档或残缺档覆盖（体积骤降一半以上）时，会自动在原聊天夹救回覆盖前的旧版本（文件名带“露科亚救回”）。聊天守护绝不删除原始聊天，也对瞬间写入空窗做了宽限保护；每条聊天最多保留 5 份救回，且永远保护体积最大的那份完整旧档不被覆盖清理。",
     ),
     DocumentationTopic(
         title = "轻量用户数据备份 vs 完整备份",
@@ -549,6 +549,6 @@ private val ADVANCED_FEATURE_TOPICS = listOf(
     ),
     DocumentationTopic(
         title = "界面配色切换（极简黑白 / 原版冷青）",
-        body = "启动器默认使用柔和耐看的极简黑白深色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
+        body = "启动器默认使用柔和温润的暖调极简黑白深色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
     ),
 )

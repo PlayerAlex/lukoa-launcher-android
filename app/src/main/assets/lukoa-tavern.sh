@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# LUKOA_SCRIPT_REV=2026-11-23-ops-c-1
+# LUKOA_SCRIPT_REV=2026-11-23-ops-c-2
 
 set -u
 
@@ -563,29 +563,64 @@ chat_guard_scan() {
   # $1 = 1 on the first pass: link everything without judging, since nothing was seen yet.
   first_pass="$1"
   links_dir="$CHAT_GUARD_DIR/links"
-  find "$guard_data_root" -type f -name '*.jsonl' ! -name "*[$CHAT_GUARD_RESCUE_TAG *].jsonl" \
+  missing_file="$CHAT_GUARD_DIR/missing.prev"
+  [ -d "$guard_data_root" ] && [ -r "$guard_data_root" ] || return 0
+  # Escape literal '[' and ']' in -name: unescaped [...] is a character class that excluded normal
+  # chats ending in characters of CHAT_GUARD_RESCUE_TAG and failed to exclude rescue files.
+  if ! find "$guard_data_root" -type f -name '*.jsonl' ! -name "*\\[$CHAT_GUARD_RESCUE_TAG *\\].jsonl" \
     \( -path '*/chats/*' -o -path '*/group chats/*' \) \
-    -printf '%i\t%s\t%p\n' 2>/dev/null > "$CHAT_GUARD_DIR/scan.new" || return 0
+    -printf '%i\t%s\t%p\n' 2>/dev/null > "$CHAT_GUARD_DIR/scan.new"; then
+    rm -f "$CHAT_GUARD_DIR/scan.new"
+    return 0
+  fi
   [ -f "$CHAT_GUARD_DIR/scan.prev" ] || : > "$CHAT_GUARD_DIR/scan.prev"
+  [ -f "$missing_file" ] || : > "$missing_file"
+
+  # If a scan unexpectedly returns empty while we previously saw chats, abort cleanup so a transient
+  # storage hiccup never wipes our safety hard links.
+  if [ ! -s "$CHAT_GUARD_DIR/scan.new" ] && [ -s "$CHAT_GUARD_DIR/scan.prev" ]; then
+    rm -f "$CHAT_GUARD_DIR/scan.new"
+    return 0
+  fi
 
   # Detect the first file by FILENAME, not by comparing record counters: the counter trick treats
   # the second file as the first when the first one is empty, which is the guard's first pass.
-  # Chats that disappeared (deleted or renamed in SillyTavern): drop their links.
-  awk -F'\t' 'FILENAME == ARGV[1] { seen[$3] = 1; next } !($3 in seen) { print $3 }' \
+  # Chats that disappeared: give large chats (>= guard_min_bytes) a 1-round grace period so a
+  # transient non-atomic save gap never drops the backup link; drop internal links only after a
+  # chat stays absent across two consecutive scans (confirmed delete/rename in SillyTavern).
+  : > "$CHAT_GUARD_DIR/missing.new"
+  awk -F'\t' 'FILENAME == ARGV[1] { seen[$3] = 1; next } !($3 in seen) { print $2 "\t" $3 }' \
     "$CHAT_GUARD_DIR/scan.new" "$CHAT_GUARD_DIR/scan.prev" |
-    while IFS= read -r gone_path; do
-      rm -f "$links_dir/${gone_path#"$guard_data_root"/}"
+    while IFS="$(printf '\t')" read -r gone_size gone_path; do
+      [ -n "${gone_path:-}" ] || continue
+      link_path="$links_dir/${gone_path#"$guard_data_root"/}"
+      case "$gone_size" in ''|*[!0-9]*) gone_size=0 ;; esac
+      if [ "$gone_size" -ge "$guard_min_bytes" ] && [ -f "$link_path" ] && ! grep -Fqx "$gone_path" "$missing_file" 2>/dev/null; then
+        printf "%s\n" "$gone_path" >> "$CHAT_GUARD_DIR/missing.new"
+      else
+        rm -f "$link_path"
+      fi
     done
+  awk -F'\t' 'FILENAME == ARGV[1] { seen[$3] = 1; next } !($0 in seen) { print $0 }' \
+    "$CHAT_GUARD_DIR/scan.new" "$missing_file" |
+    while IFS= read -r confirmed_gone; do
+      [ -n "${confirmed_gone:-}" ] || continue
+      if ! grep -Fqx "$confirmed_gone" "$CHAT_GUARD_DIR/missing.new" 2>/dev/null; then
+        rm -f "$links_dir/${confirmed_gone#"$guard_data_root"/}"
+      fi
+    done
+  mv -f "$CHAT_GUARD_DIR/missing.new" "$missing_file"
 
-  # New chats, or chats whose file was replaced since the last pass.
-  awk -F'\t' 'FILENAME == ARGV[1] { old[$3] = $1; next } old[$3] != $1' \
+  # New chats, chats whose file was replaced (inode changed), or chats whose size shrank in place.
+  awk -F'\t' 'FILENAME == ARGV[1] { old[$3] = $1; old_size[$3] = $2; next } old[$3] != $1 || ($3 in old_size && $2 < old_size[$3])' \
     "$CHAT_GUARD_DIR/scan.prev" "$CHAT_GUARD_DIR/scan.new" |
-    while IFS="$(printf '\t')" read -r _inode new_size chat_path; do
+    while IFS="$(printf '\t')" read -r cur_inode new_size chat_path; do
       [ -f "$chat_path" ] || continue
       link_path="$links_dir/${chat_path#"$guard_data_root"/}"
       if [ "$first_pass" != "1" ] && [ -f "$link_path" ]; then
+        link_inode="$(stat -c %i "$link_path" 2>/dev/null || printf '')"
         old_size="$(stat -c %s "$link_path" 2>/dev/null || printf 0)"
-        if [ "$old_size" -ge "$guard_min_bytes" ] && [ "$((new_size * 2))" -lt "$old_size" ]; then
+        if [ "$link_inode" != "$cur_inode" ] && [ "$old_size" -ge "$guard_min_bytes" ] && [ "$((new_size * 2))" -lt "$old_size" ]; then
           chat_guard_rescue "$chat_path" "$link_path" "$old_size" "$new_size"
         fi
       fi
@@ -599,14 +634,62 @@ chat_guard_scan() {
 chat_guard_rescue() {
   chat_path="$1"
   old_link="$2"
+  old_bytes="$3"
+  new_bytes="$4"
   chat_dir="$(dirname "$chat_path")"
   chat_base="$(basename "$chat_path" .jsonl)"
-  rescue_path="$chat_dir/$chat_base [$CHAT_GUARD_RESCUE_TAG $(date +%m%d-%H%M%S)].jsonl"
+  rescue_prefix="$chat_base [$CHAT_GUARD_RESCUE_TAG "
+  # Avoid creating duplicate same-size rescues within 60s during a rapid reload loop.
+  dup_ts="$(find "$chat_dir" -maxdepth 1 -type f -name '*.jsonl' -printf '%T@\t%s\t%p\n' 2>/dev/null |
+    awk -F'\t' -v pfx="$chat_dir/$rescue_prefix" -v sz="$old_bytes" '
+      substr($3, 1, length(pfx)) == pfx && substr($3, length($3)-6) == "].jsonl" && ($2 + 0) == (sz + 0) {
+        mt = int($1 + 0)
+        if (mt > max_mt) max_mt = mt
+      }
+      END { if (max_mt > 0) print max_mt }
+    ')"
+  if [ -n "$dup_ts" ]; then
+    now_ts="$(date +%s 2>/dev/null || printf 0)"
+    if [ "$now_ts" -gt 0 ] && [ "$((now_ts - dup_ts))" -le 60 ]; then
+      return 0
+    fi
+  fi
+  rescue_path="$chat_dir/${rescue_prefix}$(date +%m%d-%H%M%S)].jsonl"
+  if [ -e "$rescue_path" ]; then
+    rescue_path="$chat_dir/${rescue_prefix}$(date +%m%d-%H%M%S)-$$].jsonl"
+  fi
   mv -f "$old_link" "$rescue_path" 2>/dev/null || return 0
-  # Keep the three newest rescues of each chat.
-  ls -1t "$chat_dir/$chat_base [$CHAT_GUARD_RESCUE_TAG "*"].jsonl" 2>/dev/null | tail -n +4 |
-    while IFS= read -r stale_rescue; do rm -f "$stale_rescue"; done
-  rescue_note="聊天守护：「$chat_base」被一个小得多的版本覆盖了（$(($3 / 1024))KB -> $(($4 / 1024))KB），覆盖前的版本已救回为「$(basename "$rescue_path" .jsonl)」。在酒馆里打开这个角色，点「管理聊天文件」就能找到。"
+  # Keep up to 5 rescues per chat, and ALWAYS protect the single largest rescue file so a crash
+  # loop of smaller broken saves can never delete the original intact chat.
+  find "$chat_dir" -maxdepth 1 -type f -name '*.jsonl' -printf '%T@\t%s\t%p\n' 2>/dev/null |
+    awk -F'\t' -v pfx="$chat_dir/$rescue_prefix" '
+      substr($3, 1, length(pfx)) == pfx && substr($3, length($3)-6) == "].jsonl" {
+        n++; mt[n] = $1 + 0; sz[n] = $2 + 0; p[n] = $3
+        if (sz[n] > max_sz || (sz[n] == max_sz && mt[n] > max_mt)) {
+          max_sz = sz[n]; max_mt = mt[n]; largest = n
+        }
+      }
+      END {
+        if (n <= 5) exit 0
+        for (i = 1; i <= n; i++) ord[i] = i
+        for (i = 2; i <= n; i++) {
+          k = ord[i]; j = i - 1
+          while (j >= 1 && mt[ord[j]] < mt[k]) { ord[j + 1] = ord[j]; j-- }
+          ord[j + 1] = k
+        }
+        kept = 0
+        if (largest > 0) { keep[largest] = 1; kept = 1 }
+        for (i = 1; i <= n; i++) {
+          idx = ord[i]
+          if (keep[idx]) continue
+          if (kept < 5) { keep[idx] = 1; kept++ }
+          else { print p[idx] }
+        }
+      }
+    ' | while IFS= read -r stale_rescue; do
+      [ -n "${stale_rescue:-}" ] && rm -f "$stale_rescue"
+    done
+  rescue_note="聊天守护：「$chat_base」被一个小得多的版本覆盖了（$((old_bytes / 1024))KB -> $((new_bytes / 1024))KB），覆盖前的版本已救回为「$(basename "$rescue_path" .jsonl)」。在酒馆里打开这个角色，点「管理聊天文件」就能找到。"
   printf "[%s] [lukoa] %s\n" "$(timestamp)" "$rescue_note" >> "$LOG_FILE"
   if [ -n "${guard_tty:-}" ] && [ -w "$guard_tty" ]; then
     printf "\n[lukoa] %s\n\n" "$rescue_note" > "$guard_tty" 2>/dev/null || true
@@ -643,7 +726,7 @@ cmd_chat_guard_loop() {
     termux-wake-lock >/dev/null 2>&1 && wake_locked=1
   fi
   trap 'chat_guard_exit' INT TERM
-  rm -f "$CHAT_GUARD_DIR/scan.prev"
+  rm -f "$CHAT_GUARD_DIR/scan.prev" "$CHAT_GUARD_DIR/missing.prev"
   first=1
   while kill -0 "$watch_pid" 2>/dev/null; do
     rotate_tavern_log_if_large

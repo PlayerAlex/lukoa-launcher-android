@@ -1,6 +1,7 @@
 package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,8 +12,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -23,40 +31,100 @@ fun IssueAnalysisPanel(
     actionsLocked: Boolean,
     onQuickFixAction: (LauncherQuickFixAction) -> Unit,
 ) {
-    SectionPanel(title = "失败后一键修复", accentColor = LukoaColors.Primary) {
-        if (issues.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.Elevated,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "最近一次返回未发现常见报错。",
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "如果你体感上还是不对，先点一键体检，再看下方 Termux 返回。",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+    val sortedIssues = remember(issues) {
+        issues.sortedWith(
+            compareBy<TavernIssue>(
+                {
+                    when (it.severity) {
+                        IssueSeverity.Danger -> 0
+                        IssueSeverity.Warning -> 1
+                        IssueSeverity.Info -> 2
+                    }
+                },
+                { if (it.quickFixAction != null) 0 else 1 },
+            ),
+        )
+    }
+    var showSecondary by rememberSaveable(sortedIssues.size) { mutableStateOf(false) }
+
+    SectionPanel(
+        title = "失败后一键修复",
+        accentColor = if (sortedIssues.firstOrNull()?.severity == IssueSeverity.Danger) {
+            LukoaColors.Danger
+        } else {
+            LukoaColors.Primary
+        },
+        headerAction = {
+            InfoPopoverButton(
+                contentDescription = "查看失败后一键修复说明",
+                title = "失败后一键修复",
+                body = "启动器会根据最近的报错自动匹配最常见的原因，默认只展示最关键的一条，避免满屏干扰；如果有其他次要提醒，可按需展开查看。",
+            )
+        },
+    ) {
+        if (sortedIssues.isEmpty()) {
+            SettingsEntryGroup {
+                SettingsEntryRow(
+                    title = "最近未发现常见报错",
+                    detail = "如果使用仍异常，可去工具箱点「一键体检」。",
+                    detailMaxLines = 2,
+                )
             }
             return@SectionPanel
         }
 
-        issues.forEach { issue ->
-            IssueAnalysisItem(
-                issue = issue,
-                actionsLocked = actionsLocked,
-                onQuickFixAction = onQuickFixAction,
-            )
+        val primaryIssue = sortedIssues.first()
+        val secondaryIssues = sortedIssues.drop(1)
+
+        IssueAnalysisItem(
+            issue = primaryIssue,
+            actionsLocked = actionsLocked,
+            onQuickFixAction = onQuickFixAction,
+        )
+
+        if (secondaryIssues.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button) { showSecondary = !showSecondary },
+                color = LukoaColors.Elevated,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, LukoaColors.Border),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (showSecondary) {
+                            "收起其余 ${secondaryIssues.size} 条次要提醒"
+                        } else {
+                            "还有 ${secondaryIssues.size} 条次要提醒"
+                        },
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (showSecondary) "收起 ▴" else "展开 ▾",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            if (showSecondary) {
+                secondaryIssues.forEach { issue ->
+                    IssueAnalysisItem(
+                        issue = issue,
+                        actionsLocked = actionsLocked,
+                        onQuickFixAction = onQuickFixAction,
+                    )
+                }
+            }
         }
     }
 }
@@ -70,24 +138,25 @@ private fun IssueAnalysisItem(
     val toneColor = issue.severity.toneColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
+        color = LukoaColors.Elevated,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = issue.title,
                     modifier = Modifier.weight(1f),
                     color = LukoaColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -99,27 +168,15 @@ private fun IssueAnalysisItem(
                 )
             }
             Text(
-                text = issue.detail,
+                text = "${issue.detail} ${issue.action}",
                 color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = LukoaColors.Elevated,
-                shape = RoundedCornerShape(10.dp),
-            ) {
-                Text(
-                    text = issue.action,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
             issue.quickFixAction?.let { action ->
                 SecondaryActionButton(
                     text = action.label,
                     enabled = !actionsLocked,
-                    accentColor = toneColor,
+                    accentColor = if (issue.severity == IssueSeverity.Danger) LukoaColors.Danger else LukoaColors.Primary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { onQuickFixAction(action) },
                 )
@@ -132,14 +189,14 @@ private fun IssueSeverity.label(): String {
     return when (this) {
         IssueSeverity.Info -> "提示"
         IssueSeverity.Warning -> "注意"
-        IssueSeverity.Danger -> "危险"
+        IssueSeverity.Danger -> "需处理"
     }
 }
 
 private fun IssueSeverity.toneColor(): Color {
     return when (this) {
         IssueSeverity.Info -> LukoaColors.TextSecondary
-        IssueSeverity.Warning -> LukoaColors.Accent
+        IssueSeverity.Warning -> LukoaColors.Primary
         IssueSeverity.Danger -> LukoaColors.Danger
     }
 }

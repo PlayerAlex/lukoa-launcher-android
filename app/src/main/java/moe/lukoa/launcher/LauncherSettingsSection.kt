@@ -541,7 +541,7 @@ internal fun InstanceManagementPanel(
                 InfoPopoverButton(
                     contentDescription = "查看实例与运行环境说明",
                     title = "实例与运行环境",
-                    body = "“实例”可以理解为一套单独的酒馆：它有自己的文件夹、端口和设置。\n切换实例后，启动、版本、备份和用户管理都会改为操作你刚选中的那一套。\n如果你只有一套酒馆，保持当前实例即可，不需要另外新建。",
+                    body = "“实例”可以理解为一套单独的酒馆：它有自己的文件夹、端口和设置。\n切换实例后，启动、版本、备份和用户管理都会改为操作你刚选中的那一套；只有一套酒馆时保持默认即可。\n下方还可以切换界面配色（极简黑白 / 原版冷青）、开关通知栏快捷控制，或把「启动酒馆」添加到手机桌面。",
                 )
             }
         },
@@ -616,7 +616,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "运行状态通知栏控制",
-                detail = "酒馆运行时在通知栏显示“打开酒馆 / 重启 / 停止”快捷按钮。",
+                detail = "酒馆运行时可从通知栏直接打开、重启或停止。",
                 value = if (runningNotificationEnabled) "已开启" else "已关闭",
                 valueColor = if (runningNotificationEnabled) LukoaColors.Primary else LukoaColors.TextSecondary,
                 valueAsPill = true,
@@ -625,7 +625,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "添加到桌面一键启动",
-                detail = "在手机桌面创建“启动酒馆”快捷方式（也可长按启动器图标直接使用）。",
+                detail = "在手机桌面放一个「启动酒馆」快捷图标。",
                 value = "添加",
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,

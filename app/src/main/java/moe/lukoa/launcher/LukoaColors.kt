@@ -14,7 +14,7 @@ enum class LukoaThemeStyle(
     Monochrome(
         wireValue = "monochrome",
         label = "极简黑白",
-        summary = "纯黑灰层级搭配柔和纯白主色，简洁耐看、无杂色干扰。",
+        summary = "温润炭黑底色搭配柔和暖白主色，舒适耐看、无杂色干扰。",
     ),
     ClassicTeal(
         wireValue = "classic_teal",
@@ -56,27 +56,27 @@ data class LukoaColorPalette(
 
 object LukoaPalettes {
     /**
-     * 极简黑白暗色系：纯正深灰黑层级 + 柔和象牙白主操作色，
-     * 克制高饱和彩色，仅在真正需要警示的删除/停止操作使用低饱和柔红。
+     * 暖调极简黑白暗色系：温润深炭黑层级 + 柔和暖纸白主操作色，
+     * 告别冰冷蓝灰、克制杂色，仅在真正需要警示的删除/停止操作使用低饱和暖珊瑚红。
      */
     val Monochrome = LukoaColorPalette(
-        background = Color(0xFF09090B),
-        surface = Color(0xFF121215),
-        elevated = Color(0xFF1B1B20),
-        border = Color(0xFF2D2D35),
-        textPrimary = Color(0xFFE8E8EC),
-        textSecondary = Color(0xFF9C9CA6),
-        dim = Color(0xFF666670),
-        primary = Color(0xFFE4E4E9),
-        primaryHover = Color(0xFFFFFFFF),
-        onPrimary = Color(0xFF09090B),
-        primarySoft = Color(0xFF24242B),
-        accent = Color(0xFFD2D2DA),
-        accentSoft = Color(0xFF26262E),
-        danger = Color(0xFFE86A73),
-        dangerSoft = Color(0xFF2C1619),
-        stop = Color(0xFFEA7A82),
-        terminal = Color(0xFF050507),
+        background = Color(0xFF0E0D0C),
+        surface = Color(0xFF171614),
+        elevated = Color(0xFF211F1C),
+        border = Color(0xFF34312C),
+        textPrimary = Color(0xFFEEEBE5),
+        textSecondary = Color(0xFFABA69F),
+        dim = Color(0xFF777169),
+        primary = Color(0xFFEBE7DF),
+        primaryHover = Color(0xFFFAF7F2),
+        onPrimary = Color(0xFF12110F),
+        primarySoft = Color(0xFF2B2824),
+        accent = Color(0xFFDBD7D0),
+        accentSoft = Color(0xFF2F2B25),
+        danger = Color(0xFFE67873),
+        dangerSoft = Color(0xFF331B1A),
+        stop = Color(0xFFEB847E),
+        terminal = Color(0xFF0A0908),
     )
 
     /** 原版深冷青黑 + 清透薄荷绿主题。 */

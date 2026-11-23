@@ -411,6 +411,83 @@ class TavernShellSafetyTest(unittest.TestCase):
         )
         self.assertTrue((self.tavern / "src/server-main.js").is_file())
 
+    def test_chat_guard_escaped_brackets_grace_period_and_preserves_largest_rescue(self):
+        chats_dir = self.tavern / "data/default-user/chats/Hero"
+        chats_dir.mkdir(parents=True, exist_ok=True)
+        # Name ending with character from CHAT_GUARD_RESCUE_TAG ('回') must STILL be guarded!
+        special_chat = chats_dir / "长对话回.jsonl"
+        special_chat.write_text("x" * (40 * 1024), encoding="utf-8")
+        # Existing rescue file must NOT be guarded/linked.
+        existing_rescue = chats_dir / "长对话回 [露科亚救回 0101-000000].jsonl"
+        existing_rescue.write_text("L" * (90 * 1024), encoding="utf-8")
+
+        # Run a small harness that sources functions from lukoa-tavern.sh and exercises chat_guard_scan & rescue.
+        harness = f"""
+set -eu
+export HOME="{self.posix(self.home)}"
+export LUKOA_HOME="{self.posix(self.home)}"
+export LUKOA_STATE_DIR="{self.posix(self.root / "state")}"
+export LUKOA_TAVERN_DIR="{self.posix(self.tavern)}"
+export LUKOA_CONFIG_FILE="{self.posix(self.root / "absent-config.env")}"
+export LUKOA_TAVERN_PORT="8000"
+export LUKOA_TAVERN_PROFILE_ID="main"
+# Source script definitions without running main "$@"
+sed 's/^main "\\$@"$/:/' "{self.posix(SCRIPT)}" > "{self.posix(self.home)}/guard-lib.sh"
+. "{self.posix(self.home)}/guard-lib.sh"
+guard_data_root="{self.posix(self.tavern)}/data"
+guard_min_bytes=$((32 * 1024))
+mkdir -p "$CHAT_GUARD_DIR/links"
+rm -f "$CHAT_GUARD_DIR/scan.prev" "$CHAT_GUARD_DIR/missing.prev" "$CHAT_GUARD_DIR/rescued.tsv"
+
+# Pass 1: initial link pass
+chat_guard_scan 1
+test -f "$CHAT_GUARD_DIR/links/default-user/chats/Hero/长对话回.jsonl"
+test ! -f "$CHAT_GUARD_DIR/links/default-user/chats/Hero/长对话回 [露科亚救回 0101-000000].jsonl"
+
+# Transient disappearance (1 round grace): link must survive!
+mv "{self.posix(special_chat)}" "{self.posix(chats_dir)}/tmp-hidden"
+chat_guard_scan 0
+test -f "$CHAT_GUARD_DIR/links/default-user/chats/Hero/长对话回.jsonl"
+
+# File returns truncated (1 KB): rescue must fire!
+printf 'tiny\\n' > "{self.posix(special_chat)}"
+chat_guard_scan 0
+test -s "$CHAT_GUARD_DIR/rescued.tsv"
+
+# Create 5 extra smaller rescues so total rescues > 5; the oldest largest (90KB) must NEVER be deleted!
+for n in 1 2 3 4 5; do
+  f="{self.posix(chats_dir)}/长对话回 [露科亚救回 020$n-10000$n].jsonl"
+  head -c $((35 * 1024 + n * 100)) /dev/zero | tr '\\0' 'a' > "$f"
+done
+# Trigger another rescue with a different size (45KB -> 1KB)
+rm -f "{self.posix(special_chat)}"
+head -c $((45 * 1024)) /dev/zero | tr '\\0' 'b' > "{self.posix(special_chat)}"
+chat_guard_scan 0
+rm -f "{self.posix(special_chat)}"
+printf 'tiny2\\n' > "{self.posix(special_chat)}"
+chat_guard_scan 0
+
+# Largest original 90KB rescue must still exist, and total rescues <= 5!
+test -f "{self.posix(existing_rescue)}"
+count="$(find "{self.posix(chats_dir)}" -maxdepth 1 -type f -name '*露科亚救回*' | wc -l | tr -d '[:space:]')"
+echo "RESCUE_COUNT=$count"
+test "$count" -le 5
+"""
+        env = os.environ.copy()
+        shell_path = self.posix(Path(self.shell).parent)
+        env["PATH"] = ":".join(part for part in (shell_path, "/usr/bin", "/bin") if part)
+        res = subprocess.run(
+            [self.shell, "-c", harness],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+        self.assertEqual(0, res.returncode, res.stdout + res.stderr)
+        self.assertIn("RESCUE_COUNT=5", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

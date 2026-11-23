@@ -131,6 +131,7 @@ fun ToolboxSection(
 
         ToolboxDialogDestination.RepairTools -> ToolboxContentDialog(
             title = "修复工具",
+            infoText = "安装中断或启动缺依赖时可用「修复 npm 依赖」；网页主题损坏打不开时再点「重置主题」。\n内存上限和聊天文件大小一般保持默认或常用值即可，所有修改前都会先备份并确认。",
             onDismiss = { activeDialog = null },
         ) {
             RepairToolsSection(
@@ -153,6 +154,7 @@ fun ToolboxSection(
 
         ToolboxDialogDestination.Debug -> ToolboxContentDialog(
             title = "Debug 区",
+            infoText = "集中放置故障自动诊断、日志导出与最后手段。\n遇到启动失败先看诊断建议或导出诊断日志；只有普通停止无效或确认端口被占时，才使用强制处理。",
             onDismiss = { activeDialog = null },
         ) {
             ToolboxDebugContent(
@@ -172,6 +174,7 @@ fun ToolboxSection(
 
         ToolboxDialogDestination.ChatGuard -> ToolboxContentDialog(
             title = "聊天守护",
+            infoText = "为什么需要守护：手机浏览器卡死重刷时，酒馆有时会把没加载完的空白聊天存回去，覆盖原本很长的对话。\n守护如何工作：酒馆运行时会给长聊天建立不额外占空间的硬链接保底；一旦发现聊天体积骤降一半以上，会自动把旧档救回为同目录的「原名 [露科亚救回 时间]」文件。\n安全保障：绝不删除你的原始聊天；每条聊天最多保留 5 份救回，且永远保护体积最大的那份完整旧档不被清理。",
             onDismiss = { activeDialog = null },
         ) {
             TavernChatGuardContent(
@@ -189,6 +192,7 @@ fun ToolboxSection(
 
         ToolboxDialogDestination.StorageCleanup -> ToolboxContentDialog(
             title = "空间清理",
+            infoText = "只清理可安全重建的缓存、旧日志和升级残留临时文件，绝不会碰聊天记录、角色卡、世界书、预设或备份库。",
             onDismiss = { activeDialog = null },
         ) {
             TavernStorageContent(
@@ -203,6 +207,7 @@ fun ToolboxSection(
 
         ToolboxDialogDestination.GitStash -> ToolboxContentDialog(
             title = "暂存管理",
+            infoText = "平时一般不需要打开这里。\n只有当你更新或回退酒馆版本时选择了「先把本地改动收起来」，记录才会出现在这里，方便之后放回或清理。",
             onDismiss = { activeDialog = null },
         ) {
             TavernGitStashContent(
@@ -388,17 +393,17 @@ private fun ToolboxGrid(
     onOpenGitStash: () -> Unit,
 ) {
     val chatGuardDescription = when {
-        chatGuardState.effectiveRescueCount > 0 -> "已救回 ${chatGuardState.effectiveRescueCount} 条聊天"
+        chatGuardState.effectiveRescueCount > 0 -> "已救回 ${chatGuardState.effectiveRescueCount} 条"
         chatGuardState.snapshot?.running == true -> "后台守护中"
-        else -> "防长聊天丢失与防休眠"
+        else -> "防丢档与防休眠"
     }
     val storageDescription = storageState.snapshot?.let {
         "可清约 ${formatStorageKilobytes(it.totalCleanableKb)}"
-    } ?: "清理缓存释放手机空间"
+    } ?: "安全清理缓存"
     val gitStashDescription = when {
         gitStashState.entries.isNotEmpty() -> "${gitStashState.entries.size} 条暂存改动"
         gitStashState.gitAvailable == true -> "暂无暂存改动"
-        else -> "找回更新前收起的改动"
+        else -> "找回收起的改动"
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -408,8 +413,8 @@ private fun ToolboxGrid(
     ) {
         Column {
             HubGridRow(
-                left = HubGridEntry("修复工具", "修依赖、调内存与大小", onOpenRepairTools),
-                right = HubGridEntry("Debug 区", "看报错、导日志与强停", onOpenDebug),
+                left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
+                right = HubGridEntry("Debug 区", "日志与强制停止", onOpenDebug),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
@@ -438,6 +443,7 @@ private fun ToolboxGrid(
 @Composable
 private fun ToolboxContentDialog(
     title: String,
+    infoText: String? = null,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -446,7 +452,13 @@ private fun ToolboxContentDialog(
         containerColor = LukoaColors.Elevated,
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
-        title = { Text(title) },
+        title = {
+            if (!infoText.isNullOrBlank()) {
+                SettingsDialogTitle(title = title, infoText = infoText)
+            } else {
+                Text(title)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -482,9 +494,6 @@ private fun ToolboxDebugContent(
     onShowHint: (String) -> Unit,
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
-    ManagementDialogIntroCard(
-        "这里集中放故障诊断、日志导出和最后手段。遇到启动或报错问题时先看下方诊断建议或导出诊断日志；只有普通停止无效或确认存在端口冲突时，才使用强制处理。",
-    )
     if (issues.isNotEmpty()) {
         IssueAnalysisPanel(
             issues = issues,

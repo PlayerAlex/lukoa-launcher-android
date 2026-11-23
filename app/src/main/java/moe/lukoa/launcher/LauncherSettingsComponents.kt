@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,12 +27,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
@@ -465,6 +469,75 @@ internal fun SettingsSubsection(
 }
 
 @Composable
+internal fun LukoaSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 42.dp),
+        color = LukoaColors.Elevated,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (focused) LukoaColors.Primary else LukoaColors.Border,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        color = LukoaColors.Dim,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused },
+                    enabled = enabled,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
+                    ),
+                    cursorBrush = SolidColor(LukoaColors.Primary),
+                )
+            }
+            if (value.isNotEmpty() && enabled) {
+                Text(
+                    text = "×",
+                    modifier = Modifier
+                        .clickable(role = Role.Button) { onValueChange("") }
+                        .padding(horizontal = 4.dp),
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 internal fun LukoaTextField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -485,8 +558,9 @@ internal fun LukoaTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
+        textStyle = MaterialTheme.typography.bodyMedium,
         visualTransformation = visualTransformation,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         label = label?.let { text -> { Text(text) } },
         placeholder = placeholder?.let { text ->
             {

@@ -44,10 +44,6 @@ fun TavernStorageContent(
         selectedCategories.sumOf { snap.kilobytesFor(it) }
     } ?: 0L
 
-    ManagementDialogIntroCard(
-        "只清理缓存、旧日志和升级残留临时文件，绝不会删除聊天记录、角色卡、世界书、预设或备份。",
-    )
-
     SettingsFeedbackActionButton(
         text = if (state.loading) "扫描中..." else "扫描当前空间占用",
         enabled = !actionsLocked && !state.loading,
