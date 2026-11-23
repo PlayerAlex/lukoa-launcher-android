@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -305,6 +309,9 @@ fun LauncherSecondaryPageHeader(
     infoText: String? = null,
     onBack: () -> Unit,
 ) {
+    val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val headerTopPadding = maxOf(cutoutTop, statusTop, 36.dp) + 4.dp
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Background,
@@ -313,7 +320,7 @@ fun LauncherSecondaryPageHeader(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, top = 32.dp, end = 8.dp, bottom = 10.dp),
+                    .padding(start = 8.dp, top = headerTopPadding, end = 8.dp, bottom = 10.dp),
             ) {
                 val feedbackBack = rememberFeedbackClick(onBack)
                 Surface(
