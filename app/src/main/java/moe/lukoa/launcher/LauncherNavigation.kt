@@ -97,6 +97,10 @@ enum class LauncherSecondaryPage(
         title = "任务中心",
         infoText = "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
     ),
+    UserManagement(
+        title = "用户管理",
+        infoText = "这里管理当前酒馆实例中的登录账户。酒馆运行中可直接读取用户列表，新增或删除账户前需要先停止酒馆；删除账户时会保留数据目录。",
+    ),
 }
 
 @Composable

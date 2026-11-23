@@ -1,18 +1,28 @@
 package moe.lukoa.launcher
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -103,9 +113,22 @@ fun TavernControlSection(
         shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
         else -> LukoaColors.Primary
     }
+    val isActiveState = tavernRunning || tavernStarting || actionInProgress
+    val statusPulse = rememberInfiniteTransition(label = "control-status-pulse")
+    val dotAlpha by statusPulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (tavernStarting || actionInProgress) 650 else 1_300),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "control-dot-alpha",
+    )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
             color = LukoaColors.Surface,
             shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, LukoaColors.Border),
@@ -114,22 +137,40 @@ fun TavernControlSection(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "当前状态",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Text(
-                        text = statusText,
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(
+                                    color = if (isActiveState) {
+                                        LukoaColors.Primary.copy(alpha = dotAlpha)
+                                    } else {
+                                        LukoaColors.Dim
+                                    },
+                                    shape = RoundedCornerShape(5.dp),
+                                ),
+                        )
+                        Text(
+                            text = statusText,
+                            color = LukoaColors.TextPrimary,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+                HorizontalDivider(color = LukoaColors.Border)
                 if (activeProfileLabel.isNotBlank() && profileCount > 1) {
                     val switchEnabled = !actionInProgress && onOpenQuickSwitchProfile != null
                     Row(

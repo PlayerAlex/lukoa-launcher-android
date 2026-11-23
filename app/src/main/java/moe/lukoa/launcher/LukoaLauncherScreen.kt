@@ -2845,6 +2845,25 @@ fun LukoaLauncherScreen(
         secondaryPage = LauncherSecondaryPage.TaskCenter
     }
 
+    fun refreshTavernUsers() {
+        runGuarded(
+            "读取酒馆用户",
+            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-users-list"),
+            allowRunningInference = false,
+        ) { guardedUpdate ->
+            tavernUserState = tavernUserState.copy(loading = true, message = "正在读取用户…")
+            onCommand("tavern-users-list") { newStatus, output, ok ->
+                guardedUpdate(newStatus, output, ok)
+                if (!isTransientStatus(newStatus) && TavernUserOutputParser.parse(output) == null) {
+                    tavernUserState = tavernUserState.copy(
+                        loading = false,
+                        message = "读取失败，请确认酒馆目录有效且当前版本支持用户管理。",
+                    )
+                }
+            }
+        }
+    }
+
     fun checkUploadLimit() {
         runGuarded(
             "检查上传限制",
@@ -3717,6 +3736,11 @@ fun LukoaLauncherScreen(
             LauncherSecondaryPageRefreshTarget.GitStash -> {
                 if (opsUiState.gitStashState.gitAvailable == null && !opsUiState.gitStashState.loading) {
                     opsCoordinator.refreshGitStash()
+                }
+            }
+            LauncherSecondaryPageRefreshTarget.UserManagement -> {
+                if (!tavernUserState.loading) {
+                    refreshTavernUsers()
                 }
             }
 
@@ -4763,17 +4787,7 @@ fun LukoaLauncherScreen(
                                 }
                                 update(result.message, "", result.ok, allowRunningInference = false)
                             },
-                            onRefreshTavernUsers = {
-                                runGuarded("读取酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-users-list"), allowRunningInference = false) { guardedUpdate ->
-                                    tavernUserState = tavernUserState.copy(loading = true, message = "正在读取用户…")
-                                    onCommand("tavern-users-list") { newStatus, output, ok ->
-                                        guardedUpdate(newStatus, output, ok)
-                                        if (!isTransientStatus(newStatus) && TavernUserOutputParser.parse(output) == null) {
-                                            tavernUserState = tavernUserState.copy(loading = false, message = "读取失败，请确认酒馆目录有效且当前版本支持用户管理。")
-                                        }
-                                    }
-                                }
-                            },
+                            onRefreshTavernUsers = ::refreshTavernUsers,
                             onCreateTavernUser = { handle, name ->
                                 val payload = TavernUserCommandCodec.encode(handle, name)
                                 runGuarded("新增酒馆用户", TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-create"), allowRunningInference = false) { guardedUpdate ->
@@ -4863,6 +4877,9 @@ fun LukoaLauncherScreen(
                                 }
                                 topBannerController.show(title = msg, tone = LukoaTopBannerTone.Success)
                                 update(msg, "", true, allowRunningInference = false)
+                            },
+                            onOpenUserManagementPage = {
+                                secondaryPage = LauncherSecondaryPage.UserManagement
                             },
                         )
                     }
@@ -5165,6 +5182,36 @@ fun LukoaLauncherScreen(
                                 },
                                 showIntroCard = false,
                             )
+
+                            LauncherSecondaryPage.UserManagement -> TavernUserManagementSection(
+                                state = tavernUserState,
+                                instanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                onRefresh = ::refreshTavernUsers,
+                                onCreate = { handle, name ->
+                                    val payload = TavernUserCommandCodec.encode(handle, name)
+                                    runGuarded(
+                                        "新增酒馆用户",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-create"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate ->
+                                        onCommand(LauncherCommandCodec.encode("tavern-user-create", payload), guardedUpdate)
+                                    }
+                                },
+                                onDelete = { handle ->
+                                    val payload = TavernUserCommandCodec.encode(handle)
+                                    runGuarded(
+                                        "删除酒馆用户账户",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-user-delete"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate ->
+                                        onCommand(LauncherCommandCodec.encode("tavern-user-delete", payload), guardedUpdate)
+                                    }
+                                },
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                                showSectionContainer = false,
+                            )
                             }
                         }
                     }
@@ -5179,6 +5226,7 @@ fun LukoaLauncherScreen(
                 pendingTask = pendingLauncherTask?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog },
                 onContinuePendingTask = ::continuePendingLauncherTask,
                 onOpenPendingTaskDialog = { showPendingTaskDialog = true },
+                inSecondaryPage = secondaryPage != null,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }

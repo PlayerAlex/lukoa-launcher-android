@@ -58,6 +58,10 @@ fun TavernChatGuardContent(
     val hasChanges = snapshot == null || draftConfig != snapshot.config
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
+    if (state.loading && snapshot == null) {
+        LukoaInlineLoadingCard("正在自动读取当前实例的聊天守护状态…")
+    }
+
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "保护状态（$instanceLabel）",

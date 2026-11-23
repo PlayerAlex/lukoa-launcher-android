@@ -54,5 +54,9 @@ class LauncherSecondaryPageRefreshTrackerTest {
             LauncherSecondaryPageRefreshTarget.HealthCheck,
             tracker.next(LauncherSecondaryPage.HealthCheck, actionInProgress = false),
         )
+        assertEquals(
+            LauncherSecondaryPageRefreshTarget.UserManagement,
+            tracker.next(LauncherSecondaryPage.UserManagement, actionInProgress = false),
+        )
     }
 }

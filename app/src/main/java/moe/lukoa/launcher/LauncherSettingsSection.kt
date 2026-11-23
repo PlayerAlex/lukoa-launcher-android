@@ -124,6 +124,7 @@ fun SettingsSection(
     onSelectPreferredBrowser: (String) -> Unit = {},
     onToggleKeepScreenOn: () -> Unit = {},
     onToggleAutoStartTavern: () -> Unit = {},
+    onOpenUserManagementPage: (() -> Unit)? = null,
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -338,6 +339,7 @@ fun SettingsSection(
             onCreate = onCreateTavernUser,
             onDelete = onDeleteTavernUser,
             onShowHint = showHint,
+            onOpenPage = onOpenUserManagementPage,
         )
         LauncherUpdateSettingsPanel(
             currentLauncherVersion = currentLauncherVersion,

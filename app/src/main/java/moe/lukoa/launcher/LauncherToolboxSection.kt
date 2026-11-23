@@ -461,22 +461,24 @@ private fun ToolboxGrid(
                     label = "聊天守护",
                     description = chatGuardDescription,
                     onClick = onOpenChatGuard,
+                    icon = LukoaIcons.ShieldCheck,
                 ),
-                right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
+                right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup, icon = LukoaIcons.Clean),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
+                left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools, icon = LukoaIcons.Wrench),
                 right = HubGridEntry(
                     label = "任务中心",
                     description = backgroundTaskStatus,
                     onClick = onOpenTaskCenter,
+                    icon = LukoaIcons.Clock,
                 ),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("Debug 区", "报错修复与强停", onOpenDebug),
-                right = HubGridEntry("暂存管理", gitStashDescription, onOpenGitStash),
+                left = HubGridEntry("Debug 区", "报错修复与强停", onOpenDebug, icon = LukoaIcons.Terminal),
+                right = HubGridEntry("暂存管理", gitStashDescription, onOpenGitStash, icon = LukoaIcons.Layers),
             )
         }
     }

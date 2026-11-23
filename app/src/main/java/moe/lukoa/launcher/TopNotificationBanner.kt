@@ -143,6 +143,7 @@ fun LukoaTopBannerHost(
     pendingTask: PendingLauncherTask? = null,
     onContinuePendingTask: (() -> Unit)? = null,
     onOpenPendingTaskDialog: (() -> Unit)? = null,
+    inSecondaryPage: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val message = controller.currentMessage
@@ -157,7 +158,7 @@ fun LukoaTopBannerHost(
 
     val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val safeTopPadding = maxOf(cutoutTop, statusTop, 36.dp) + 8.dp
+    val safeTopPadding = maxOf(cutoutTop, statusTop, 36.dp) + if (inSecondaryPage) 62.dp else 8.dp
 
     Column(
         modifier = modifier

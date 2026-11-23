@@ -35,6 +35,7 @@ fun TavernUserManagementSettingsPanel(
     onCreate: (String, String) -> Unit,
     onDelete: (String) -> Unit,
     onShowHint: (String) -> Unit = {},
+    onOpenPage: (() -> Unit)? = null,
 ) {
     var showDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
     val dialogStateHolder = rememberSaveableStateHolder()
@@ -104,7 +105,13 @@ fun TavernUserManagementSettingsPanel(
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 highlightColor = LukoaColors.Primary,
-                onClick = { showDialog = true },
+                onClick = {
+                    if (onOpenPage != null) {
+                        onOpenPage()
+                    } else {
+                        showDialog = true
+                    }
+                },
             )
         }
     }
@@ -230,6 +237,8 @@ fun TavernUserManagementSection(
                     }
                 }
             }
+        } else if (state.loading) {
+            LukoaInlineLoadingCard("正在自动读取当前实例的酒馆用户…")
         } else {
             SettingsEntryGroup {
                 SettingsEntryRow(

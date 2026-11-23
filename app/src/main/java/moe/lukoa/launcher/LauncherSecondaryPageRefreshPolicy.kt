@@ -12,6 +12,7 @@ enum class LauncherSecondaryPageRefreshTarget {
     StorageCleanup,
     RepairTools,
     GitStash,
+    UserManagement,
 }
 
 class LauncherSecondaryPageRefreshTracker {
@@ -40,6 +41,7 @@ class LauncherSecondaryPageRefreshTracker {
                 LauncherSecondaryPage.StorageCleanup -> LauncherSecondaryPageRefreshTarget.StorageCleanup
                 LauncherSecondaryPage.RepairTools -> LauncherSecondaryPageRefreshTarget.RepairTools
                 LauncherSecondaryPage.GitStash -> LauncherSecondaryPageRefreshTarget.GitStash
+                LauncherSecondaryPage.UserManagement -> LauncherSecondaryPageRefreshTarget.UserManagement
                 LauncherSecondaryPage.Debug,
                 LauncherSecondaryPage.TaskCenter,
                 null -> null
