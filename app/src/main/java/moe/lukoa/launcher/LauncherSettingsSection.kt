@@ -127,6 +127,7 @@ fun SettingsSection(
     onToggleKeepScreenOn: () -> Unit = {},
     onToggleAutoStartTavern: () -> Unit = {},
     onOpenUserManagementPage: (() -> Unit)? = null,
+    onOpenMirrorSettingsPage: (() -> Unit)? = null,
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -333,7 +334,13 @@ fun SettingsSection(
             onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
             onOpenDirectorySettings = { activeDialog = SettingsDialogDestination.Directory },
             onOpenPortSettings = { activeDialog = SettingsDialogDestination.Port },
-            onOpenMirrorSettings = { activeDialog = SettingsDialogDestination.Mirror },
+            onOpenMirrorSettings = {
+                if (onOpenMirrorSettingsPage != null) {
+                    onOpenMirrorSettingsPage()
+                } else {
+                    activeDialog = SettingsDialogDestination.Mirror
+                }
+            },
             onOpenWakeDelaySettings = { activeDialog = SettingsDialogDestination.WakeDelay },
             onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
             onOpenBrowserPreference = { activeDialog = SettingsDialogDestination.BrowserPreference },
@@ -693,6 +700,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryGroup {
                 LukoaSwitchRow(
                     title = "打开启动器自动启动酒馆",
+                    detail = "酒馆已在运行时会自动跳过",
                     checked = autoStartTavernOnLaunch,
                     enabled = true,
                     onCheckedChange = { onToggleAutoStartTavern() },

@@ -385,6 +385,13 @@ class MainActivity : ComponentActivity() {
                             callback = callback,
                         )
                     },
+                    onAutoSelectBestMirror = { mirrorConfig, callback ->
+                        tavernMirrorProbeManager.autoSelectBest(
+                            scope = lifecycleScope,
+                            currentConfig = mirrorConfig,
+                            callback = callback,
+                        )
+                    },
                     onInstallGithubUpdate = { updateInfo, callback ->
                         githubUpdateManager.downloadAndInstall(
                             scope = lifecycleScope,

@@ -151,6 +151,7 @@ fun LukoaLauncherScreen(
     onCheckGithubUpdate: (String, GithubReleaseChannel, (GithubUpdateCheckResult) -> Unit) -> Unit,
     onFetchOfficialTavernVersions: (TavernMirrorConfig, (TavernOfficialVersionFetchResult) -> Unit) -> Unit,
     onCheckTavernMirror: (TavernMirrorConfig, (TavernMirrorProbeStatus) -> Unit) -> Unit,
+    onAutoSelectBestMirror: ((TavernMirrorConfig, (TavernMirrorAutoSelectResult) -> Unit) -> Unit)? = null,
     onInstallGithubUpdate: (GithubUpdateInfo, (GithubUpdateInstallResult) -> Unit) -> Unit,
     onOpenGithubRelease: (GithubUpdateInfo) -> GithubUpdateInstallResult,
     onOpenGithubRepositoryReleases: (String) -> GithubUpdateInstallResult,
@@ -264,6 +265,8 @@ fun LukoaLauncherScreen(
     var lastNotifiedStorageFreed by remember { mutableStateOf<Long?>(null) }
     var repairToolsUploadAutoCheckedProfileId by rememberSaveable { mutableStateOf("") }
     var autoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    val autoStartEnabledAtLaunch by rememberSaveable { mutableStateOf(basicPrefs.autoStartTavernOnLaunch) }
+    var localHttpResponding by remember { mutableStateOf(false) }
     var lastBackPressAtMillis by remember { mutableLongStateOf(0L) }
     var tavernLaunchMode by remember { mutableStateOf(initialTavernLaunchMode) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
@@ -295,6 +298,7 @@ fun LukoaLauncherScreen(
     var observedOperationLockToken by remember { mutableIntStateOf(0) }
     var launchAttemptToken by remember { mutableIntStateOf(0) }
     var startupRefreshInFlight by remember { mutableStateOf(false) }
+    var startupRefreshCompleted by remember { mutableStateOf(false) }
     var startupRefreshToken by remember { mutableIntStateOf(0) }
     var startupGithubCheckPending by remember { mutableStateOf(false) }
     var foregroundResumeRefreshSignal by remember { mutableIntStateOf(0) }
@@ -1127,6 +1131,7 @@ fun LukoaLauncherScreen(
             if (startupRefreshInFlight && startupRefreshToken == refreshToken) {
                 startupRefreshToken += 1
                 startupRefreshInFlight = false
+                startupRefreshCompleted = true
                 tavernVersionCheckInFlight = false
                 if (includeVersion) {
                     startupGithubCheckPending = true
@@ -1138,6 +1143,7 @@ fun LukoaLauncherScreen(
         fun finishStartupRefresh(token: Int) {
             if (startupRefreshToken != token) return
             startupRefreshInFlight = false
+            startupRefreshCompleted = true
             tavernVersionCheckInFlight = false
             if (includeVersion) {
                 startupGithubCheckPending = true
@@ -1902,6 +1908,7 @@ fun LukoaLauncherScreen(
             onSaveTavernMirrorConfig = onSaveTavernMirrorConfig,
             onSaveTavernPathConfig = onSaveTavernPathConfig,
             onCheckTavernMirror = onCheckTavernMirror,
+            onAutoSelectBestMirror = onAutoSelectBestMirror,
             onTavernRepoChanged = { repoUrl ->
                 officialVersions = TavernOfficialVersions()
                 selectedTavernVersion = selectedTavernVersion
@@ -3714,8 +3721,33 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(quickStartRequestSignal, startupRefreshInFlight) {
-        if (quickStartRequestSignal <= 0 || startupRefreshInFlight) return@LaunchedEffect
+    LaunchedEffect(tavernPathConfig.normalizedPort, foregroundResumeRefreshSignal) {
+        val responding = TavernLocalHttpProbe.isTavernHttpResponding(tavernPathConfig.normalizedPort)
+        localHttpResponding = responding
+        if (responding) {
+            tavernRunning = true
+            tavernStarting = false
+            tavernInstallDetected = true
+        }
+    }
+
+    LaunchedEffect(quickStartRequestSignal, startupRefreshInFlight, startupRefreshCompleted) {
+        if (quickStartRequestSignal <= 0) return@LaunchedEffect
+        val alreadyResponding = tavernRunning || TavernLocalHttpProbe.isTavernHttpResponding(tavernPathConfig.normalizedPort)
+        if (alreadyResponding) {
+            localHttpResponding = true
+            tavernRunning = true
+            tavernStarting = false
+            tavernInstallDetected = true
+            onConsumeQuickStartRequest()
+            secondaryPage = null
+            selectedTab = LauncherTab.Launch
+            returnToTavern()
+            return@LaunchedEffect
+        }
+        if (startupRefreshInFlight || (startupRefreshSignal > 0 && !startupRefreshCompleted)) {
+            return@LaunchedEffect
+        }
         onConsumeQuickStartRequest()
         secondaryPage = null
         selectedTab = LauncherTab.Launch
@@ -3890,7 +3922,10 @@ fun LukoaLauncherScreen(
     LaunchedEffect(startupRefreshSignal) {
         if (startupRefreshSignal > 0) {
             delay(300)
-            runStartupRefresh()
+            val started = runStartupRefresh()
+            if (!started) {
+                startupRefreshCompleted = true
+            }
         }
     }
 
@@ -4169,7 +4204,11 @@ fun LukoaLauncherScreen(
     }
 
     LaunchedEffect(
+        autoStartEnabledAtLaunch,
         basicPrefs.autoStartTavernOnLaunch,
+        autoStartAttempted,
+        startupRefreshSignal,
+        startupRefreshCompleted,
         startupRefreshInFlight,
         termuxInstalled,
         runCommandPermissionGranted,
@@ -4177,27 +4216,70 @@ fun LukoaLauncherScreen(
         tavernInstallDetected,
         tavernRunning,
         tavernStarting,
+        localHttpResponding,
         actionInProgress,
     ) {
-        if (
-            basicPrefs.autoStartTavernOnLaunch &&
-            !autoStartAttempted &&
-            !startupRefreshInFlight &&
-            termuxInstalled &&
-            runCommandPermissionGranted &&
-            !termuxExternalAppsBlocked &&
-            tavernInstallDetected == true &&
-            !tavernRunning &&
-            !tavernStarting &&
-            !actionInProgress
-        ) {
-            autoStartAttempted = true
-            topBannerController.show(
-                title = "已按设置自动启动酒馆",
-                tone = LukoaTopBannerTone.Neutral,
-                autoDismissMs = 3_200L,
-            )
-            requestStartTavern()
+        val decision = TavernAutoStartPolicy.decide(
+            enabledAtLaunch = autoStartEnabledAtLaunch,
+            enabledNow = basicPrefs.autoStartTavernOnLaunch,
+            alreadyHandled = autoStartAttempted,
+            startupRefreshScheduled = startupRefreshSignal > 0,
+            startupRefreshCompleted = startupRefreshCompleted,
+            startupRefreshInFlight = startupRefreshInFlight,
+            termuxReady = termuxInstalled && runCommandPermissionGranted && !termuxExternalAppsBlocked,
+            tavernInstallDetected = tavernInstallDetected,
+            tavernRunning = tavernRunning,
+            tavernStarting = tavernStarting,
+            localHttpResponding = localHttpResponding,
+            actionInProgress = actionInProgress,
+        )
+        when (decision) {
+            AutoStartDecision.SkipAlreadyRunning -> {
+                autoStartAttempted = true
+                if (localHttpResponding && !tavernRunning) {
+                    tavernRunning = true
+                    tavernStarting = false
+                    tavernInstallDetected = true
+                }
+                topBannerController.show(
+                    title = "酒馆已在运行，无需重复启动",
+                    tone = LukoaTopBannerTone.Success,
+                    actionLabel = "返回酒馆",
+                    onAction = { returnToTavern() },
+                    autoDismissMs = 3_600L,
+                    dedupeKey = "auto-start-already-running",
+                )
+            }
+
+            AutoStartDecision.StartTavern -> {
+                val respondingNow = TavernLocalHttpProbe.isTavernHttpResponding(tavernPathConfig.normalizedPort)
+                if (respondingNow) {
+                    localHttpResponding = true
+                    tavernRunning = true
+                    tavernStarting = false
+                    tavernInstallDetected = true
+                    autoStartAttempted = true
+                    topBannerController.show(
+                        title = "酒馆已在运行，无需重复启动",
+                        tone = LukoaTopBannerTone.Success,
+                        actionLabel = "返回酒馆",
+                        onAction = { returnToTavern() },
+                        autoDismissMs = 3_600L,
+                        dedupeKey = "auto-start-already-running",
+                    )
+                } else {
+                    autoStartAttempted = true
+                    topBannerController.show(
+                        title = "已按设置自动启动酒馆",
+                        tone = LukoaTopBannerTone.Neutral,
+                        autoDismissMs = 3_200L,
+                    )
+                    requestStartTavern()
+                }
+            }
+
+            AutoStartDecision.Wait,
+            AutoStartDecision.SkipDisabledOrBlocked -> Unit
         }
     }
 
@@ -4888,7 +4970,7 @@ fun LukoaLauncherScreen(
                             onToggleAutoStartTavern = {
                                 val saved = onToggleAutoStartTavern()
                                 val msg = if (saved.autoStartTavernOnLaunch) {
-                                    "已开启打开启动器自动启动酒馆"
+                                    "已开启：下次打开启动器时，若酒馆未运行将自动启动"
                                 } else {
                                     "已关闭自动启动酒馆"
                                 }
@@ -4897,6 +4979,9 @@ fun LukoaLauncherScreen(
                             },
                             onOpenUserManagementPage = {
                                 secondaryPage = LauncherSecondaryPage.UserManagement
+                            },
+                            onOpenMirrorSettingsPage = {
+                                secondaryPage = LauncherSecondaryPage.MirrorSettings
                             },
                         )
                     }
@@ -5245,6 +5330,39 @@ fun LukoaLauncherScreen(
                                 onShowHint = { hint -> topBannerController.show(title = hint) },
                                 showSectionContainer = false,
                                 compactPageLayout = true,
+                            )
+
+                            LauncherSecondaryPage.MirrorSettings -> MirrorSettingsContent(
+                                tavernMirrorConfig = tavernMirrorConfig,
+                                tavernRepoInput = tavernRepoInput,
+                                npmRegistryInput = npmRegistryInput,
+                                mirrorProbeStatus = currentMirrorProbeStatus(),
+                                termuxRepoStatus = termuxRepoStatus,
+                                customTermuxRepoInput = customTermuxRepoInput,
+                                actionsLocked = actionInProgress,
+                                autoSelecting = mirrorSettingsState.autoSelecting,
+                                onTavernRepoInputChange = { tavernRepoInput = it },
+                                onNpmRegistryInputChange = { npmRegistryInput = it },
+                                onCustomTermuxRepoInputChange = { customTermuxRepoInput = it },
+                                onSaveTavernMirror = { profileCoordinator.saveTavernMirrorConfig() },
+                                onUseOfficialMirror = profileCoordinator::useOfficialTavernMirror,
+                                onUseGithubProxyMirror = profileCoordinator::useGithubProxyTavernMirror,
+                                onUseGithubProxyAltMirror = profileCoordinator::useGithubProxyAltMirror,
+                                onUseNpmMirror = profileCoordinator::useNpmMirrorOnly,
+                                onCheckTavernMirror = { profileCoordinator.checkTavernMirror() },
+                                onAutoSelectBestMirror = {
+                                    profileCoordinator.autoSelectBestMirror { message, ok ->
+                                        topBannerController.show(
+                                            title = message,
+                                            tone = if (ok) LukoaTopBannerTone.Success else LukoaTopBannerTone.Warning,
+                                            autoDismissMs = 4_500L,
+                                        )
+                                    }
+                                },
+                                onReadTermuxRepoStatus = profileCoordinator::readTermuxPackageMirrorStatus,
+                                onApplyTermuxMirrorUrl = profileCoordinator::applyTermuxPackageMirrorUrl,
+                                onApplyCustomTermuxMirror = profileCoordinator::applyCustomTermuxPackageMirror,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
                             )
                             }
                         }

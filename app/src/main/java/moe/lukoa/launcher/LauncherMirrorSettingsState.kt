@@ -9,6 +9,7 @@ class LauncherMirrorSettingsState(initialConfig: TavernMirrorConfig) {
     var tavernRepoInput by mutableStateOf(initialConfig.normalizedRepoUrl)
     var npmRegistryInput by mutableStateOf(initialConfig.normalizedNpmRegistry)
     var probeStatus by mutableStateOf(TavernMirrorProbeStatus.unknown(initialConfig))
+    var autoSelecting by mutableStateOf(false)
     var termuxRepoStatus by mutableStateOf(TermuxRepoStatus())
     var customTermuxRepoInput by mutableStateOf("")
 

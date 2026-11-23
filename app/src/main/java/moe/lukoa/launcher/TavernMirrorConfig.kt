@@ -27,6 +27,7 @@ fun repoLabelFor(repoUrl: String): String {
     return when (repoUrl.trim()) {
         TavernMirrorDefaults.OFFICIAL_REPO -> "官方 GitHub"
         TavernMirrorDefaults.GITHUB_PROXY_REPO -> "GitHub 加速"
+        TavernMirrorDefaults.GITHUB_PROXY_ALT_REPO -> "GitHub 加速 2"
         else -> "自定义"
     }
 }
@@ -47,8 +48,12 @@ data class TavernMirrorSaveResult(
 object TavernMirrorDefaults {
     const val OFFICIAL_REPO = "https://github.com/SillyTavern/SillyTavern.git"
     const val GITHUB_PROXY_REPO = "https://gh-proxy.com/https://github.com/SillyTavern/SillyTavern.git"
+    const val GITHUB_PROXY_ALT_REPO = "https://ghfast.top/https://github.com/SillyTavern/SillyTavern.git"
     const val OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/"
     const val NPMMIRROR_REGISTRY = "https://registry.npmmirror.com/"
+    const val TERMUX_TUNA_REPO = "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main"
+    const val TERMUX_USTC_REPO = "https://mirrors.ustc.edu.cn/termux/apt/termux-main"
+    const val TERMUX_OFFICIAL_REPO = "https://packages.termux.dev/apt/termux-main"
 }
 
 /**

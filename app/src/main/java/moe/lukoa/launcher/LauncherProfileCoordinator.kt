@@ -20,11 +20,13 @@ class LauncherProfileCoordinator(
     private val onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     private val onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
     private val onCheckTavernMirror: (TavernMirrorConfig, (TavernMirrorProbeStatus) -> Unit) -> Unit,
+    private val onAutoSelectBestMirror: ((TavernMirrorConfig, (TavernMirrorAutoSelectResult) -> Unit) -> Unit)? = null,
     private val onTavernRepoChanged: (String) -> Unit,
 ) {
     fun saveTavernMirrorConfig(
         repoUrl: String = mirrorState.tavernRepoInput,
         npmRegistry: String = mirrorState.npmRegistryInput,
+        autoProbe: Boolean = true,
     ) {
         val previousRepoUrl = mirrorState.config.normalizedRepoUrl
         val nextConfig = TavernMirrorConfig(
@@ -52,6 +54,9 @@ class LauncherProfileCoordinator(
             "",
             result.saved,
         )
+        if (result.saved && autoProbe) {
+            checkTavernMirror(silent = true)
+        }
     }
 
     fun saveTavernDirectory(): Boolean {
@@ -347,29 +352,70 @@ class LauncherProfileCoordinator(
         )
     }
 
-    fun useNpmMirrorOnly() {
+    fun useGithubProxyAltMirror() {
         saveTavernMirrorConfig(
-            repoUrl = mirrorState.tavernRepoInput,
+            repoUrl = TavernMirrorDefaults.GITHUB_PROXY_ALT_REPO,
             npmRegistry = TavernMirrorDefaults.NPMMIRROR_REGISTRY,
         )
     }
 
-    fun checkTavernMirror() {
-        if (isActionInProgress()) {
-            statusUpdate("正在处理，完成后再检测镜像源。", "", false)
+    fun useNpmMirrorOnly() {
+        saveTavernMirrorConfig(
+            repoUrl = mirrorState.config.normalizedRepoUrl,
+            npmRegistry = TavernMirrorDefaults.NPMMIRROR_REGISTRY,
+        )
+    }
+
+    fun checkTavernMirror(silent: Boolean = false) {
+        if (mirrorState.probeStatus.checking || mirrorState.autoSelecting) {
+            if (!silent) statusUpdate("镜像源正在检测中，请稍等。", "", false)
             return
         }
-        mirrorState.probeStatus = TavernMirrorProbeStatus.checking(mirrorState.config)
-        onCheckTavernMirror(mirrorState.config) { result ->
+        val targetConfig = mirrorState.config
+        mirrorState.probeStatus = TavernMirrorProbeStatus.checking(targetConfig)
+        onCheckTavernMirror(targetConfig) { result ->
+            if (!result.matches(mirrorState.config)) return@onCheckTavernMirror
             mirrorState.probeStatus = result
-            val ok = result.overallLevel != MirrorProbeLevel.Failed
-            val message = when (result.overallLevel) {
-                MirrorProbeLevel.Healthy -> "镜像源检测完成，当前源可用。"
-                MirrorProbeLevel.Warning -> "镜像源检测完成，有提醒项，安装前建议看一眼。"
-                MirrorProbeLevel.Failed -> "镜像源检测失败，请先换源或检查网络。"
-                MirrorProbeLevel.Unknown -> "镜像源还没检测完成。"
+            if (!silent) {
+                val ok = result.overallLevel != MirrorProbeLevel.Failed
+                val message = when (result.overallLevel) {
+                    MirrorProbeLevel.Healthy -> "镜像源检测完成，当前源可用。"
+                    MirrorProbeLevel.Warning -> "镜像源检测完成，有提醒项，安装前建议看一眼。"
+                    MirrorProbeLevel.Failed -> "镜像源检测失败，可点「一键测速优选」自动换源。"
+                    MirrorProbeLevel.Unknown -> "镜像源还没检测完成。"
+                }
+                statusUpdate(message, "", ok)
             }
-            statusUpdate(message, "", ok)
+        }
+    }
+
+    fun autoSelectBestMirror(onDone: (String, Boolean) -> Unit = { _, _ -> }) {
+        val autoSelector = onAutoSelectBestMirror ?: run {
+            checkTavernMirror()
+            return
+        }
+        if (mirrorState.probeStatus.checking || mirrorState.autoSelecting) {
+            statusUpdate("正在测速优选下载源，请稍等。", "", false)
+            return
+        }
+        mirrorState.autoSelecting = true
+        mirrorState.probeStatus = TavernMirrorProbeStatus.checking(mirrorState.config)
+        autoSelector(mirrorState.config) { result ->
+            mirrorState.autoSelecting = false
+            if (result.foundAny) {
+                val previousRepoUrl = mirrorState.config.normalizedRepoUrl
+                val saveResult = onSaveTavernMirrorConfig(result.recommendedConfig)
+                val repoChanged = saveResult.saved && !sameRepoUrl(previousRepoUrl, saveResult.config.normalizedRepoUrl)
+                mirrorState.applySavedConfig(saveResult.config)
+                mirrorState.probeStatus = result.probeStatus
+                if (repoChanged) {
+                    onTavernRepoChanged(saveResult.config.normalizedRepoUrl)
+                }
+            } else {
+                mirrorState.probeStatus = result.probeStatus
+            }
+            statusUpdate(result.summaryMessage, "", result.foundAny)
+            onDone(result.summaryMessage, result.foundAny)
         }
     }
 
@@ -387,24 +433,28 @@ class LauncherProfileCoordinator(
         }
     }
 
-    fun applyCustomTermuxPackageMirror() {
-        val url = mirrorState.customTermuxRepoInput.trim().trimEnd('/')
+    fun applyTermuxPackageMirrorUrl(rawUrl: String) {
+        val url = rawUrl.trim().trimEnd('/')
         TavernMirrorValidator.validateTermuxAptUrl(url)?.let { reason ->
             statusUpdate("自定义 Termux 包源无效：$reason", "", false)
             return
         }
         if (!canRunTermuxMirrorAction("切换 Termux 包源")) return
         val operationToken = beginBusy(
-            "切换自定义 Termux 包源",
+            "切换 Termux 包源",
             TermuxCommandTimeoutPolicy.operationLockMillis("termux-repo-custom"),
         ) ?: return
         mirrorState.customTermuxRepoInput = url
-        statusUpdate("正在切换自定义 Termux 包源。", "", false)
+        statusUpdate("正在切换 Termux 包源。", "", false)
         onCommand("termux-repo-custom::$url") commandCallback@{ newStatus, termuxOutput, ok ->
             if (!isOperationActive(operationToken)) return@commandCallback
             statusUpdate(newStatus, termuxOutput, ok)
             if (!isTransientStatus(newStatus)) releaseBusy(operationToken)
         }
+    }
+
+    fun applyCustomTermuxPackageMirror() {
+        applyTermuxPackageMirrorUrl(mirrorState.customTermuxRepoInput)
     }
 
     private fun canRunTermuxMirrorAction(actionName: String): Boolean {
