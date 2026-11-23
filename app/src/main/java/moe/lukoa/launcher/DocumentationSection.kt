@@ -160,7 +160,9 @@ fun DocumentationSection(
                             label = "documentation-page-content",
                         ) { page ->
                             when (page) {
-                                DocumentationPage.Home -> DocumentationHome()
+                                DocumentationPage.Home -> DocumentationHome(
+                                    onOpenPage = { selectedPage = it },
+                                )
                                 DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
                                 DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
                                 DocumentationPage.AdvancedFeatures -> DocumentationTopicList(ADVANCED_FEATURE_TOPICS)
@@ -230,11 +232,34 @@ private fun DocumentationPageHeader(
 }
 
 @Composable
-private fun DocumentationHome() {
+private fun DocumentationHome(
+    onOpenPage: (DocumentationPage) -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(15.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        SettingsGroupLabel("新人快速上手")
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "新手入门必看",
+                detail = "第一次装酒馆、启动与备份全流程",
+                onClick = { onOpenPage(DocumentationPage.LauncherQuestions) },
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "酒馆黑话速查",
+                detail = "API、角色卡、世界书、预设与 429 报错",
+                onClick = { onOpenPage(DocumentationPage.TavernJargon) },
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "进阶功能指南",
+                detail = "电脑联机、聊天守护、空间清理与导入",
+                onClick = { onOpenPage(DocumentationPage.AdvancedFeatures) },
+            )
+        }
+        SettingsGroupLabel("使用须知")
         DOCUMENTATION_HOME_NOTICES.forEachIndexed { index, notice ->
             Text(
                 text = "${index + 1}. $notice",
@@ -517,7 +542,7 @@ private val LAUNCHER_QUESTION_TOPICS = listOf(
 private val ADVANCED_FEATURE_TOPICS = listOf(
     DocumentationTopic(
         title = "前台窗口 vs 后台静默启动与一键重启",
-        body = "启动页可以切换启动方式：前台窗口模式会在 Termux 终端里实时显示酒馆日志，适合排错；后台静默模式不跳转 Termux，启动就绪后自动拉起浏览器。修改 config.yaml 或插件后，可直接点“一键重启酒馆”。",
+        body = "在“设置 → 实例与运行环境 → 启动与外观”里可以切换启动方式：前台窗口模式会在 Termux 终端里实时显示酒馆日志，适合排错；后台静默模式不跳转 Termux，启动就绪后自动拉起浏览器。修改设置或插件后，可在启动页直接点“重启酒馆”。",
     ),
     DocumentationTopic(
         title = "局域网访问、扫码打开与请求代理",
@@ -549,6 +574,6 @@ private val ADVANCED_FEATURE_TOPICS = listOf(
     ),
     DocumentationTopic(
         title = "界面配色切换（极简黑白 / 原版冷青）",
-        body = "启动器默认使用柔和温润的暖调极简黑白深色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
+        body = "启动器默认使用纯正中性炭黑与柔和纯白的极简黑白暗色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
     ),
 )

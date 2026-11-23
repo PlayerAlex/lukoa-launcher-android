@@ -14,21 +14,21 @@ class LukoaColorsTest {
     }
 
     @Test
-    fun defaultMonochromePalette_isWarmNeutralAndHighContrast() {
+    fun defaultMonochromePalette_isPureNeutralAndHighContrast() {
         LukoaColors.applyStyle(LukoaThemeStyle.Monochrome)
 
         assertEquals(LukoaThemeStyle.Monochrome, LukoaColors.currentStyle)
-        assertEquals(Color(0xFF0E0D0C), LukoaColors.Background)
-        assertEquals(Color(0xFF171614), LukoaColors.Surface)
-        assertEquals(Color(0xFF211F1C), LukoaColors.Elevated)
-        assertEquals(Color(0xFF34312C), LukoaColors.Border)
-        assertEquals(Color(0xFFEBE7DF), LukoaColors.Primary)
-        assertEquals(Color(0xFFFAF7F2), LukoaColors.PrimaryHover)
-        assertEquals(Color(0xFF12110F), LukoaColors.OnPrimary)
-        assertEquals(Color(0xFFEEEBE5), LukoaColors.TextPrimary)
-        assertEquals(Color(0xFFABA69F), LukoaColors.TextSecondary)
-        assertEquals(Color(0xFFDBD7D0), LukoaColors.Accent)
-        assertEquals(Color(0xFFEB847E), LukoaColors.Stop)
+        assertEquals(Color(0xFF0D0D0D), LukoaColors.Background)
+        assertEquals(Color(0xFF161616), LukoaColors.Surface)
+        assertEquals(Color(0xFF202020), LukoaColors.Elevated)
+        assertEquals(Color(0xFF323232), LukoaColors.Border)
+        assertEquals(Color(0xFFEDEDED), LukoaColors.Primary)
+        assertEquals(Color(0xFFFFFFFF), LukoaColors.PrimaryHover)
+        assertEquals(Color(0xFF111111), LukoaColors.OnPrimary)
+        assertEquals(Color(0xFFF2F2F2), LukoaColors.TextPrimary)
+        assertEquals(Color(0xFFA6A6A6), LukoaColors.TextSecondary)
+        assertEquals(Color(0xFFDCDCDC), LukoaColors.Accent)
+        assertEquals(Color(0xFFEB7A7E), LukoaColors.Stop)
 
         listOf(
             LukoaColors.Background,
@@ -40,9 +40,8 @@ class LukoaColorsTest {
             LukoaColors.TextPrimary,
             LukoaColors.TextSecondary,
         ).forEach { color ->
-            assertTrue("暖调黑白不应偏冷蓝，实际 R=${color.red} G=${color.green} B=${color.blue}", color.red >= color.green && color.green >= color.blue)
-            val spread = color.red - color.blue
-            assertTrue("暖调黑白应保持中性克制，实际通道差为 $spread", spread <= 0.055f)
+            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.red, color.green, 0.0001f)
+            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.green, color.blue, 0.0001f)
         }
         assertReadableContrastForCurrentPalette()
     }

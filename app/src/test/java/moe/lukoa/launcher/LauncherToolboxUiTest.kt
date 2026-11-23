@@ -38,11 +38,11 @@ class LauncherToolboxUiTest {
         composeRule.onNodeWithText("未体检").assertIsDisplayed()
         composeRule.onNodeWithTag("toolbox-health-status-plain").assertExists()
         composeRule.onNodeWithText("上次体检时间：暂无").assertIsDisplayed()
-        composeRule.onNodeWithText("修复工具").assertIsDisplayed()
-        composeRule.onNodeWithText("Debug 区").assertIsDisplayed()
-        composeRule.onNodeWithText("任务中心").assertIsDisplayed()
-        composeRule.onNodeWithText("聊天守护").assertIsDisplayed()
+        composeRule.onNodeWithText("聊天守护").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("空间清理").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("修复工具").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("任务中心").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Debug 区").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("暂存管理").performScrollTo().assertIsDisplayed()
         composeRule.onAllNodesWithText("敬请期待").assertCountEquals(0)
     }
@@ -73,21 +73,21 @@ class LauncherToolboxUiTest {
         composeRule.onNodeWithText("关闭").performClick()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("修复工具").performClick()
+        composeRule.onNodeWithText("修复工具").performScrollTo().performClick()
         composeRule.onNodeWithText("常用修复").assertIsDisplayed()
         composeRule.onNodeWithText("关闭").performClick()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("Debug 区").performClick()
+        composeRule.onNodeWithText("Debug 区").performScrollTo().performClick()
         composeRule.onNodeWithText("导出诊断日志").assertIsDisplayed()
         composeRule.onNodeWithText("关闭").performClick()
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("任务中心").performClick()
+        composeRule.onNodeWithText("任务中心").performScrollTo().performClick()
         composeRule.runOnIdle { assertEquals(1, taskCenterCount) }
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("聊天守护").performClick()
+        composeRule.onNodeWithText("聊天守护").performScrollTo().performClick()
         composeRule.onNodeWithText("刷新守护状态").performScrollTo().assertIsDisplayed()
         composeRule.runOnIdle { assertEquals(1, chatGuardRefreshCount) }
         composeRule.onNodeWithText("关闭").performClick()
@@ -140,7 +140,7 @@ class LauncherToolboxUiTest {
         setToolboxContent(onForceCleanup = { forceCleanupCount += 1 })
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("Debug 区").performClick()
+        composeRule.onNodeWithText("Debug 区").performScrollTo().performClick()
         composeRule.onNodeWithText("诊断与日志").assertIsDisplayed()
         composeRule.onNodeWithText("强制处理").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(

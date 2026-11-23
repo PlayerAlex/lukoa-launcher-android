@@ -121,26 +121,37 @@ private fun TavernManagementGrid(
     onOpenServerPlugins: () -> Unit,
     onOpenQuickImport: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingsGroupLabel("日常常用 · 新人先看这里")
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Column {
+                HubGridRow(
+                    left = HubGridEntry("备份", "保存与恢复数据", onOpenBackup),
+                    right = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
+                )
+                HorizontalDivider(color = LukoaColors.Border)
+                HubGridRow(
+                    left = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
+                    right = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
+                )
+            }
+        }
+
+        SettingsGroupLabel("进阶与联机 · 按需使用")
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
             HubGridRow(
-                left = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
-                right = HubGridEntry("备份", "保存与找回数据", onOpenBackup),
-            )
-            HorizontalDivider(color = LukoaColors.Border)
-            HubGridRow(
-                left = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
-                right = HubGridEntry("酒馆设置", "局域网与流畅度", onOpenTavernConfig),
-            )
-            HorizontalDivider(color = LukoaColors.Border)
-            HubGridRow(
-                left = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins),
-                right = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
+                left = HubGridEntry("酒馆设置", "电脑访问与流畅度", onOpenTavernConfig),
+                right = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins),
             )
         }
     }

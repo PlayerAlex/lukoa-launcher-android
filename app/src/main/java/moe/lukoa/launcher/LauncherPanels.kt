@@ -211,6 +211,8 @@ fun LogPanel(
     followLatestByDefault: Boolean = true,
     showFollowControls: Boolean = true,
     showFilterControls: Boolean = true,
+    filterExpandedByDefault: Boolean = true,
+    headerExtraAction: (@Composable () -> Unit)? = null,
     collapsible: Boolean = false,
     initialExpanded: Boolean = true,
     maxVisibleLines: Int? = 900,
@@ -219,6 +221,7 @@ fun LogPanel(
     // the whole buffer on every update.
     val context = LocalContext.current
     var expanded by remember(title, collapsible, initialExpanded) { mutableStateOf(!collapsible || initialExpanded) }
+    var filterBarOpen by remember(title, filterExpandedByDefault) { mutableStateOf(filterExpandedByDefault) }
     var earlierPages by remember { mutableStateOf(0) }
     var errorsOnly by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
@@ -322,6 +325,17 @@ fun LogPanel(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                headerExtraAction?.invoke()
+                if (showFilterControls && expanded && !filterExpandedByDefault) {
+                    val hasFilterActive = errorsOnly || searchQuery.isNotBlank() || filterBarOpen
+                    LogFilterChip(
+                        text = if (filterBarOpen) "收起" else if (filterResult.errorLines > 0) "筛选(${filterResult.errorLines})" else "筛选",
+                        active = hasFilterActive,
+                        activeTone = if (!filterBarOpen && filterResult.errorLines > 0) LukoaColors.Danger else LukoaColors.Primary,
+                        highlightBadge = !filterBarOpen && filterResult.errorLines > 0,
+                        onClick = { filterBarOpen = !filterBarOpen },
+                    )
+                }
                 if (showFollowControls && expanded) {
                     StatusPill(
                         text = if (followLatest) "追踪最新" else "已暂停",
@@ -356,7 +370,7 @@ fun LogPanel(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            if (showFilterControls) {
+            if (showFilterControls && filterBarOpen) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = LukoaColors.Elevated,
@@ -415,7 +429,7 @@ fun LogPanel(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 190.dp, max = 360.dp)
+                    .heightIn(min = 240.dp, max = 460.dp)
                     .background(LukoaColors.Terminal, RoundedCornerShape(12.dp))
                     .border(1.dp, LukoaColors.Border, RoundedCornerShape(12.dp)),
             ) {

@@ -106,6 +106,8 @@ fun SettingsSection(
     runningNotificationEnabled: Boolean = true,
     onToggleRunningNotification: () -> Unit = {},
     onPinQuickStartShortcut: () -> Unit = {},
+    launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
+    onToggleLaunchMode: () -> Unit = {},
     themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
     onToggleThemeStyle: () -> Unit = {},
 ) {
@@ -279,6 +281,7 @@ fun SettingsSection(
             mirrorProbeStatus = mirrorProbeStatus,
             permissionNotice = permissionNotice,
             runningNotificationEnabled = runningNotificationEnabled,
+            launchMode = launchMode,
             themeStyle = themeStyle,
             onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
             onOpenDirectorySettings = { activeDialog = SettingsDialogDestination.Directory },
@@ -288,6 +291,7 @@ fun SettingsSection(
             onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
             onToggleRunningNotification = onToggleRunningNotification,
             onPinQuickStartShortcut = onPinQuickStartShortcut,
+            onToggleLaunchMode = onToggleLaunchMode,
             onToggleThemeStyle = onToggleThemeStyle,
         )
         TavernUserManagementSettingsPanel(
@@ -510,6 +514,7 @@ internal fun InstanceManagementPanel(
     mirrorProbeStatus: TavernMirrorProbeStatus,
     permissionNotice: PermissionStatusNotice,
     runningNotificationEnabled: Boolean = true,
+    launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
     themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
     onOpenProfileManagement: () -> Unit,
     onOpenDirectorySettings: () -> Unit,
@@ -519,6 +524,7 @@ internal fun InstanceManagementPanel(
     onOpenPermissionCenter: () -> Unit,
     onToggleRunningNotification: () -> Unit = {},
     onPinQuickStartShortcut: () -> Unit = {},
+    onToggleLaunchMode: () -> Unit = {},
     onToggleThemeStyle: () -> Unit = {},
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
@@ -541,12 +547,12 @@ internal fun InstanceManagementPanel(
                 InfoPopoverButton(
                     contentDescription = "查看实例与运行环境说明",
                     title = "实例与运行环境",
-                    body = "“实例”可以理解为一套单独的酒馆：它有自己的文件夹、端口和设置。\n切换实例后，启动、版本、备份和用户管理都会改为操作你刚选中的那一套；只有一套酒馆时保持默认即可。\n下方还可以切换界面配色（极简黑白 / 原版冷青）、开关通知栏快捷控制，或把「启动酒馆」添加到手机桌面。",
+                    body = "“实例”是一套独立的酒馆（单独目录和端口），普通用户只有一套主实例，保持默认即可。\n“启动与外观”可切换前台/后台启动方式、极简黑白/原版冷青配色、通知栏快捷控制和桌面快捷图标。\n“网络与权限”用于换国内加速镜像、检查 Termux 权限和调整唤醒延迟。",
                 )
             }
         },
     ) {
-        SettingsGroupLabel("当前实例")
+        SettingsGroupLabel("当前酒馆实例")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "实例名称",
@@ -572,37 +578,15 @@ internal fun InstanceManagementPanel(
                 onClick = onOpenPortSettings,
             )
         }
-        SettingsGroupLabel("运行环境")
+        SettingsGroupLabel("启动与外观")
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "网络与镜像源",
-                value = mirrorProbeStatus.overallLevel.label(),
-                valueColor = mirrorTone,
-                valueAsPill = true,
-                onClick = onOpenMirrorSettings,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "唤醒延迟",
-                value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
+                title = "启动方式",
+                detail = launchMode.summary,
+                value = "${launchMode.shortLabel} · 切换",
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
-                onClick = onOpenWakeDelaySettings,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "权限中心",
-                value = if (permissionNotice.pendingItems.isEmpty()) {
-                    "已就绪"
-                } else {
-                    "${permissionNotice.pendingItems.size} 项待处理"
-                },
-                valueColor = when (permissionNotice.tone) {
-                    PermissionNoticeTone.Info -> LukoaColors.Primary
-                    PermissionNoticeTone.Warning -> LukoaColors.Accent
-                },
-                valueAsPill = true,
-                onClick = onOpenPermissionCenter,
+                onClick = onToggleLaunchMode,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -630,6 +614,39 @@ internal fun InstanceManagementPanel(
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onPinQuickStartShortcut,
+            )
+        }
+        SettingsGroupLabel("网络与权限")
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "网络与镜像源",
+                value = mirrorProbeStatus.overallLevel.label(),
+                valueColor = mirrorTone,
+                valueAsPill = true,
+                onClick = onOpenMirrorSettings,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "权限中心",
+                value = if (permissionNotice.pendingItems.isEmpty()) {
+                    "已就绪"
+                } else {
+                    "${permissionNotice.pendingItems.size} 项待处理"
+                },
+                valueColor = when (permissionNotice.tone) {
+                    PermissionNoticeTone.Info -> LukoaColors.Primary
+                    PermissionNoticeTone.Warning -> LukoaColors.Accent
+                },
+                valueAsPill = true,
+                onClick = onOpenPermissionCenter,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "唤醒延迟",
+                value = "${"%.1f".format(termuxReturnDelayMs / 1000f)} 秒",
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                onClick = onOpenWakeDelaySettings,
             )
         }
     }

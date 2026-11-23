@@ -502,8 +502,9 @@ class LauncherSettingsUiTest {
         composeRule.onNodeWithText("唤醒 Termux 后，自动返回启动器前等待多久。")
             .assertDoesNotExist()
         composeRule.onNodeWithText("实例与运行环境").assertExists()
-        composeRule.onNodeWithText("当前实例").assertExists()
-        composeRule.onNodeWithText("运行环境").assertExists()
+        composeRule.onNodeWithText("当前酒馆实例").assertExists()
+        composeRule.onNodeWithText("启动与外观").assertExists()
+        composeRule.onNodeWithText("网络与权限").assertExists()
 
         composeRule.onNode(hasText("实例名称") and hasClickAction()).performScrollTo().performClick()
         composeRule.onNode(hasText("酒馆路径") and hasClickAction()).performScrollTo().performClick()

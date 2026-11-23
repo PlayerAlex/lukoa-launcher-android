@@ -104,64 +104,70 @@ class LauncherComposeUiTest {
 
         composeRule.setContent {
             LukoaTheme {
-                TavernHubSection(
-                    tavernRunning = false,
-                    tavernStarting = false,
-                    actionInProgress = false,
-                    onOpenVersionManagement = {
-                        openedPage = LauncherSecondaryPage.VersionManagement
-                    },
-                    onOpenBackup = {
-                        openedPage = LauncherSecondaryPage.Backup
-                    },
-                    onOpenExtensionManagement = {
-                        openedPage = LauncherSecondaryPage.ExtensionManagement
-                    },
-                    onOpenTavernConfig = {
-                        openedPage = LauncherSecondaryPage.TavernConfig
-                    },
-                    onOpenServerPlugins = {
-                        openedPage = LauncherSecondaryPage.ServerPlugins
-                    },
-                    onOpenQuickImport = {
-                        openedPage = LauncherSecondaryPage.QuickImport
-                    },
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TavernHubSection(
+                        tavernRunning = false,
+                        tavernStarting = false,
+                        actionInProgress = false,
+                        onOpenVersionManagement = {
+                            openedPage = LauncherSecondaryPage.VersionManagement
+                        },
+                        onOpenBackup = {
+                            openedPage = LauncherSecondaryPage.Backup
+                        },
+                        onOpenExtensionManagement = {
+                            openedPage = LauncherSecondaryPage.ExtensionManagement
+                        },
+                        onOpenTavernConfig = {
+                            openedPage = LauncherSecondaryPage.TavernConfig
+                        },
+                        onOpenServerPlugins = {
+                            openedPage = LauncherSecondaryPage.ServerPlugins
+                        },
+                        onOpenQuickImport = {
+                            openedPage = LauncherSecondaryPage.QuickImport
+                        },
+                    )
+                }
             }
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("版本管理") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("版本管理") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.VersionManagement, openedPage)
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("备份") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("备份") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.Backup, openedPage)
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("扩展管理") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("扩展管理") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.ExtensionManagement, openedPage)
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("酒馆设置") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("酒馆设置") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.TavernConfig, openedPage)
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("服务器插件") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("服务器插件") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.ServerPlugins, openedPage)
         }
 
         advancePastClickDebounce()
-        composeRule.onNode(hasText("快捷导入") and hasClickAction()).performClick()
+        composeRule.onNode(hasText("快捷导入") and hasClickAction()).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(LauncherSecondaryPage.QuickImport, openedPage)
         }

@@ -10,7 +10,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -21,8 +23,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -235,6 +240,9 @@ fun LukoaLauncherScreen(
     var showStopConfirmDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showQuickSwitchProfileDialog by remember { mutableStateOf(false) }
+    var showIssueAnalysisDialog by remember { mutableStateOf(false) }
+    var acknowledgedRescueCount by rememberSaveable { mutableIntStateOf(0) }
+    var showChatGuardRescueDialog by remember { mutableStateOf(false) }
     var tavernLaunchMode by remember { mutableStateOf(initialTavernLaunchMode) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
     var showFirstTavernStartGuideDialog by remember { mutableStateOf(false) }
@@ -3912,6 +3920,13 @@ fun LukoaLauncherScreen(
         )
     }
 
+    LaunchedEffect(opsUiState.chatGuardState.effectiveRescueCount) {
+        val count = opsUiState.chatGuardState.effectiveRescueCount
+        if (count > acknowledgedRescueCount && count > 0) {
+            showChatGuardRescueDialog = true
+        }
+    }
+
     if (showQuickSwitchProfileDialog) {
         QuickSwitchProfileDialog(
             tavernPathConfig = tavernPathConfig,
@@ -3919,6 +3934,58 @@ fun LukoaLauncherScreen(
             onSelectProfile = profileCoordinator::selectTavernProfile,
             onOpenSettings = { selectedTab = LauncherTab.Settings },
             onDismiss = { showQuickSwitchProfileDialog = false },
+        )
+    }
+
+    if (showChatGuardRescueDialog && opsUiState.chatGuardState.effectiveRescueCount > 0) {
+        val rescueCount = opsUiState.chatGuardState.effectiveRescueCount
+        AlertDialog(
+            onDismissRequest = {
+                acknowledgedRescueCount = rescueCount
+                showChatGuardRescueDialog = false
+            },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("聊天守护已救回 $rescueCount 条聊天") },
+            text = {
+                Text(
+                    text = "检测到长聊天曾被异常覆盖，覆盖前的旧版本已安全保存到同目录（文件名带「露科亚救回」），在酒馆里打开对应角色的「管理聊天文件」就能找到。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
+            confirmButton = {
+                DialogActionButton(
+                    text = "查看救回记录",
+                    tone = ActionTone.Safe,
+                    onClick = {
+                        acknowledgedRescueCount = rescueCount
+                        showChatGuardRescueDialog = false
+                        chatGuardOpenSignal += 1
+                        selectedTab = LauncherTab.Toolbox
+                    },
+                )
+            },
+            dismissButton = {
+                DialogActionButton(
+                    text = "知道了",
+                    tone = ActionTone.Neutral,
+                    onClick = {
+                        acknowledgedRescueCount = rescueCount
+                        showChatGuardRescueDialog = false
+                    },
+                )
+            },
+        )
+    }
+
+    if (showIssueAnalysisDialog) {
+        IssueAnalysisDialog(
+            issues = issueAnalysis,
+            actionsLocked = actionInProgress,
+            onQuickFixAction = ::runLauncherQuickFixAction,
+            onDismiss = { showIssueAnalysisDialog = false },
         )
     }
 
@@ -4230,19 +4297,6 @@ fun LukoaLauncherScreen(
                                     onInstallTavern = ::installSelectedTavern,
                                 )
                             }
-                            if (opsUiState.chatGuardState.effectiveRescueCount > 0) {
-                                NoticeCard(
-                                    title = "聊天守护已为你救回 ${opsUiState.chatGuardState.effectiveRescueCount} 条聊天记录",
-                                    detail = "曾检测到长聊天被异常覆盖，旧版本已保存到同目录（文件名带「露科亚救回」）。",
-                                    accentColor = LukoaColors.Primary,
-                                    actionTone = ActionTone.Safe,
-                                    actionLabel = "查看救回记录",
-                                    onAction = {
-                                        chatGuardOpenSignal += 1
-                                        selectedTab = LauncherTab.Toolbox
-                                    },
-                                )
-                            }
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
@@ -4285,18 +4339,33 @@ fun LukoaLauncherScreen(
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
                             )
-                            if (issueAnalysis.isNotEmpty()) {
-                                IssueAnalysisPanel(
-                                    issues = issueAnalysis,
-                                    actionsLocked = actionInProgress,
-                                    onQuickFixAction = ::runLauncherQuickFixAction,
-                                )
-                            }
                             LogPanel(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Primary,
-                                infoText = "显示酒馆和 Termux 实时输出。出错时可点「只看报错」快速定位，或点「复制」发给排错人员。",
+                                infoText = "显示酒馆和 Termux 实时输出。点标题栏「筛选」可只看报错、搜关键词或一键复制。",
+                                filterExpandedByDefault = false,
+                                headerExtraAction = if (issueAnalysis.isNotEmpty()) {
+                                    {
+                                        Surface(
+                                            modifier = Modifier.clickable { showIssueAnalysisDialog = true },
+                                            color = LukoaColors.DangerSoft,
+                                            shape = LukoaCapsuleShape,
+                                            border = BorderStroke(1.dp, LukoaColors.Danger.copy(alpha = 0.45f)),
+                                        ) {
+                                            Text(
+                                                text = "报错修复(${issueAnalysis.size})",
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                                color = LukoaColors.Danger,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
                                 // Laying out the whole 120KB buffer on every update janked the page; the
                                 // full log is still in the export.
                                 maxVisibleLines = 600,
@@ -4305,9 +4374,8 @@ fun LukoaLauncherScreen(
                                 title = "启动器运行日志",
                                 content = appLog,
                                 accentColor = LukoaColors.TextSecondary,
-                                infoText = "记录启动器自身的操作与状态变化，平时不需要查看，排查问题时可展开或导出。",
-                                collapsible = true,
-                                initialExpanded = false,
+                                infoText = "记录启动器自身的操作与状态变化，排查问题时可筛选、复制或导出。",
+                                filterExpandedByDefault = false,
                             )
                         }
                         LauncherTab.Toolbox -> ToolboxSection(
@@ -4557,6 +4625,8 @@ fun LukoaLauncherScreen(
                                 val (ok, msg) = onPinQuickStartShortcut()
                                 update(msg, "", ok, allowRunningInference = false)
                             },
+                            launchMode = tavernLaunchMode,
+                            onToggleLaunchMode = ::toggleTavernLaunchMode,
                             themeStyle = LukoaColors.currentStyle,
                             onToggleThemeStyle = {
                                 val nextStyle = onToggleThemeStyle()

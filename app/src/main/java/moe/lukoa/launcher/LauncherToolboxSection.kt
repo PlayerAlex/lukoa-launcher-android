@@ -405,35 +405,46 @@ private fun ToolboxGrid(
         gitStashState.gitAvailable == true -> "暂无暂存改动"
         else -> "找回收起的改动"
     }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Column {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingsGroupLabel("日常维护与防丢")
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
+            Column {
+                HubGridRow(
+                    left = HubGridEntry(
+                        label = "聊天守护",
+                        description = chatGuardDescription,
+                        onClick = onOpenChatGuard,
+                        emphasized = chatGuardState.effectiveRescueCount > 0,
+                    ),
+                    right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
+                )
+                HorizontalDivider(color = LukoaColors.Border)
+                HubGridRow(
+                    left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
+                    right = HubGridEntry(
+                        label = "任务中心",
+                        description = backgroundTaskStatus,
+                        onClick = onOpenTaskCenter,
+                        emphasized = backgroundTaskNeedsAttention,
+                    ),
+                )
+            }
+        }
+
+        SettingsGroupLabel("排错与高阶 · 出问题再用")
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LukoaColors.Surface,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
+        ) {
             HubGridRow(
-                left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
-                right = HubGridEntry("Debug 区", "日志与强制停止", onOpenDebug),
-            )
-            HorizontalDivider(color = LukoaColors.Border)
-            HubGridRow(
-                left = HubGridEntry(
-                    label = "任务中心",
-                    description = backgroundTaskStatus,
-                    onClick = onOpenTaskCenter,
-                    emphasized = backgroundTaskNeedsAttention,
-                ),
-                right = HubGridEntry(
-                    label = "聊天守护",
-                    description = chatGuardDescription,
-                    onClick = onOpenChatGuard,
-                    emphasized = chatGuardState.effectiveRescueCount > 0,
-                ),
-            )
-            HorizontalDivider(color = LukoaColors.Border)
-            HubGridRow(
-                left = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
+                left = HubGridEntry("Debug 区", "报错修复与强停", onOpenDebug),
                 right = HubGridEntry("暂存管理", gitStashDescription, onOpenGitStash),
             )
         }

@@ -161,16 +161,16 @@ object AnsiTerminalText {
             32 -> LukoaColors.Primary
             33 -> LukoaColors.Accent
             34 -> LukoaColors.Primary
-            35 -> if (monochrome) Color(0xFFCBBDB8) else Color(0xFFD38CFF)
-            36 -> if (monochrome) Color(0xFFBFC4BE) else Color(0xFF67E8F9)
+            35 -> if (monochrome) Color(0xFFC4C4C4) else Color(0xFFD38CFF)
+            36 -> if (monochrome) Color(0xFFB8B8B8) else Color(0xFF67E8F9)
             37 -> LukoaColors.TextPrimary
             90 -> LukoaColors.TextSecondary
             91 -> if (monochrome) LukoaColors.Stop else Color(0xFFFF8B8B)
             92 -> if (monochrome) LukoaColors.Primary else Color(0xFF7AF0B2)
             93 -> if (monochrome) LukoaColors.Accent else Color(0xFFFFD166)
             94 -> if (monochrome) LukoaColors.TextPrimary else Color(0xFF8EC5FF)
-            95 -> if (monochrome) Color(0xFFD6CAC4) else Color(0xFFE5A3FF)
-            96 -> if (monochrome) Color(0xFFCBCFCA) else Color(0xFF88F5FF)
+            95 -> if (monochrome) Color(0xFFD2D2D2) else Color(0xFFE5A3FF)
+            96 -> if (monochrome) Color(0xFFC8C8C8) else Color(0xFF88F5FF)
             97 -> if (monochrome) LukoaColors.PrimaryHover else Color.White
             else -> LukoaColors.TextPrimary
         }

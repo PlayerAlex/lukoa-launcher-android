@@ -129,7 +129,7 @@ fun TavernControlSection(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (activeProfileLabel.isNotBlank()) {
+                if (activeProfileLabel.isNotBlank() && profileCount > 1) {
                     val switchEnabled = !actionInProgress && onOpenQuickSwitchProfile != null
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -152,12 +152,7 @@ fun TavernControlSection(
                             border = BorderStroke(1.dp, LukoaColors.Border),
                         ) {
                             Text(
-                                text = buildString {
-                                    append(activeProfileLabel)
-                                    append(" · ")
-                                    append(activePort)
-                                    if (profileCount > 1) append(" · 切换")
-                                },
+                                text = "$activeProfileLabel · $activePort · 切换",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 color = LukoaColors.TextPrimary,
                                 style = MaterialTheme.typography.labelMedium,
@@ -186,36 +181,6 @@ fun TavernControlSection(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "启动方式",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Surface(
-                        modifier = Modifier.clickable(
-                            enabled = !actionInProgress,
-                            role = Role.Button,
-                            onClick = launchModeClick,
-                        ),
-                        color = LukoaColors.PrimarySoft,
-                        shape = LukoaCapsuleShape,
-                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.28f)),
-                    ) {
-                        Text(
-                            text = "${launchMode.shortLabel} · 点此切换",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            color = LukoaColors.Primary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                        )
-                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -275,7 +240,7 @@ fun TavernControlSection(
         }
         if (tavernRunning && !tavernStarting) {
             SecondaryActionButton(
-                text = "一键重启酒馆（${launchMode.shortLabel}）",
+                text = "重启酒馆",
                 enabled = !actionInProgress,
                 accentColor = LukoaColors.Primary,
                 modifier = Modifier
