@@ -1,5 +1,7 @@
 package moe.lukoa.launcher
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -36,12 +38,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -205,16 +209,30 @@ fun LogPanel(
     subtitle: String? = null,
     followLatestByDefault: Boolean = true,
     showFollowControls: Boolean = true,
+    showFilterControls: Boolean = true,
     maxVisibleLines: Int? = 900,
 ) {
     // "Load earlier" adds a page of older lines on top of the newest window instead of laying out
     // the whole buffer on every update.
+    val context = LocalContext.current
     var earlierPages by remember { mutableStateOf(0) }
+    var errorsOnly by remember { mutableStateOf(false) }
+    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var copiedNotice by remember { mutableStateOf(false) }
     val visibleLineLimit = maxVisibleLines?.let { it * (earlierPages + 1) }
     val window = remember(content, visibleLineLimit) {
         visibleLineLimit?.let(content::latestLinesWindow) ?: LogLinesWindow(content, hasEarlier = false)
     }
-    val displayContent = window.text
+    val filterResult = remember(window.text, errorsOnly, searchQuery) {
+        LogPanelFilter.filter(window.text, errorsOnly = errorsOnly, query = searchQuery)
+    }
+    val isFilterActive = errorsOnly || searchQuery.isNotBlank()
+    val displayContent = if (isFilterActive && filterResult.matchedLines == 0) {
+        "当前筛选条件下没有匹配的日志行。"
+    } else {
+        filterResult.text
+    }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var followLatest by remember(followLatestByDefault) { mutableStateOf(followLatestByDefault) }
@@ -222,6 +240,13 @@ fun LogPanel(
     var suppressUserPause by remember { mutableStateOf(false) }
     val isNearBottom by remember {
         derivedStateOf { scrollState.maxValue - scrollState.value <= 24 }
+    }
+
+    LaunchedEffect(copiedNotice) {
+        if (copiedNotice) {
+            delay(1_800L)
+            copiedNotice = false
+        }
     }
 
     LaunchedEffect(displayContent, scrollState.maxValue, followLatest) {
@@ -301,6 +326,53 @@ fun LogPanel(
                     color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
+            if (showFilterControls) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LogFilterChip(
+                        text = if (filterResult.errorLines > 0) "只看报错 (${filterResult.errorLines})" else "只看报错",
+                        active = errorsOnly,
+                        activeTone = LukoaColors.Danger,
+                        highlightBadge = !errorsOnly && filterResult.errorLines > 0,
+                        onClick = { errorsOnly = !errorsOnly },
+                    )
+                    LogFilterChip(
+                        text = if (searchExpanded || searchQuery.isNotBlank()) "收起搜索" else "搜索",
+                        active = searchExpanded || searchQuery.isNotBlank(),
+                        activeTone = LukoaColors.Primary,
+                        onClick = {
+                            if (searchExpanded && searchQuery.isNotBlank()) {
+                                searchQuery = ""
+                            }
+                            searchExpanded = !searchExpanded
+                        },
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    LogFilterChip(
+                        text = if (copiedNotice) "已复制" else "复制",
+                        active = copiedNotice,
+                        activeTone = LukoaColors.Primary,
+                        onClick = {
+                            val copied = runCatching {
+                                val clipboard = context.getSystemService(ClipboardManager::class.java)
+                                clipboard?.setPrimaryClip(ClipData.newPlainText(title, displayContent))
+                                clipboard != null
+                            }.getOrDefault(false)
+                            if (copied) copiedNotice = true
+                        },
+                    )
+                }
+                if (searchExpanded) {
+                    LukoaTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = "输入关键词筛选当前日志（如 429、port、error）",
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -424,6 +496,44 @@ private fun ReturnToLatestChip(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+@Composable
+private fun LogFilterChip(
+    text: String,
+    active: Boolean,
+    activeTone: Color,
+    highlightBadge: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val borderColor = when {
+        active -> activeTone.copy(alpha = 0.55f)
+        highlightBadge -> activeTone.copy(alpha = 0.35f)
+        else -> LukoaColors.Border
+    }
+    val bgColor = when {
+        active -> activeTone.copy(alpha = 0.14f)
+        else -> LukoaColors.Elevated
+    }
+    val textColor = when {
+        active || highlightBadge -> activeTone
+        else -> LukoaColors.TextSecondary
+    }
+    Surface(
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
+        color = bgColor,
+        shape = LukoaCapsuleShape,
+        border = BorderStroke(1.dp, borderColor),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            color = textColor,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
     }
 }
 

@@ -12,9 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,9 +46,12 @@ fun RepairToolsSettingsPanel(
     actionsLocked: Boolean,
     tavernRunning: Boolean,
     uploadLimitStatus: TavernUploadLimitStatus,
+    nodeMemoryStatus: TavernNodeMemoryStatus = TavernNodeMemoryStatus(),
     onRepairDependencies: () -> Unit,
     onResetTheme: () -> Unit,
+    onCheckNodeMemory: () -> Unit = {},
     onSetNodeMemory: (Int) -> Unit,
+    onResetNodeMemory: () -> Unit = {},
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
     onResetUploadLimit: () -> Unit,
@@ -86,9 +87,12 @@ fun RepairToolsSettingsPanel(
                         actionsLocked = actionsLocked,
                         tavernRunning = tavernRunning,
                         uploadLimitStatus = uploadLimitStatus,
+                        nodeMemoryStatus = nodeMemoryStatus,
                         onRepairDependencies = onRepairDependencies,
                         onResetTheme = onResetTheme,
+                        onCheckNodeMemory = onCheckNodeMemory,
                         onSetNodeMemory = onSetNodeMemory,
+                        onResetNodeMemory = onResetNodeMemory,
                         onCheckUploadLimit = onCheckUploadLimit,
                         onSetUploadLimit = onSetUploadLimit,
                         onResetUploadLimit = onResetUploadLimit,
@@ -136,9 +140,12 @@ fun RepairToolsSection(
     actionsLocked: Boolean,
     tavernRunning: Boolean,
     uploadLimitStatus: TavernUploadLimitStatus,
+    nodeMemoryStatus: TavernNodeMemoryStatus = TavernNodeMemoryStatus(),
     onRepairDependencies: () -> Unit,
     onResetTheme: () -> Unit,
+    onCheckNodeMemory: () -> Unit = {},
     onSetNodeMemory: (Int) -> Unit,
+    onResetNodeMemory: () -> Unit = {},
     onCheckUploadLimit: () -> Unit,
     onSetUploadLimit: (Int) -> Unit,
     onResetUploadLimit: () -> Unit = {},
@@ -164,13 +171,30 @@ fun RepairToolsSection(
     confirmation?.let { request ->
         AlertDialog(
             onDismissRequest = { confirmation = null },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
             title = { Text(request.title) },
-            text = { Text(request.detail) },
+            text = {
+                Text(
+                    text = request.detail,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
             confirmButton = {
-                Button(onClick = { confirmation = null; request.action() }) { Text("确认执行") }
+                DialogActionButton(
+                    text = "确认执行",
+                    tone = ActionTone.Safe,
+                    onClick = { confirmation = null; request.action() },
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { confirmation = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { confirmation = null },
+                )
             },
         )
     }
@@ -238,6 +262,21 @@ fun RepairToolsSection(
                 title = "酒馆运行内存",
                 detail = "这里设置酒馆最多可以使用多少运行内存，并不会增加手机本身的内存。一般选 4GB，内存较小的手机选 2GB；手机内存充足且酒馆提示内存不足时可以再调高。设置过高可能让系统关闭 Termux。改完下次启动酒馆时生效，不需要先停止。",
             ) {
+                SettingsEntryRow(
+                    title = "当前内存上限",
+                    detail = nodeMemoryStatus.message,
+                    value = nodeMemoryStatus.displayLabel,
+                    valueColor = if (nodeMemoryStatus.configured == true || nodeMemoryStatus.checking) {
+                        LukoaColors.Primary
+                    } else {
+                        LukoaColors.TextSecondary
+                    },
+                    valueAsPill = true,
+                    enabled = !actionsLocked && !nodeMemoryStatus.checking,
+                    onClick = onCheckNodeMemory,
+                    unavailableHint = if (nodeMemoryStatus.checking) "正在读取当前实例的内存设置，请稍等。" else lockedOnlyHint,
+                    onShowHint = onShowHint,
+                )
                 val confirmMemory: (Int) -> Unit = { memory ->
                     confirmation = RepairConfirmation(
                         "设置 ${TavernNodeMemoryPolicy.label(memory)} 内存上限",
@@ -246,13 +285,14 @@ fun RepairToolsSection(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TavernNodeMemoryPolicy.presetMegabytes.forEach { memory ->
+                        val selected = nodeMemoryStatus.configured == true && nodeMemoryStatus.megabytes == memory
                         SettingsCompactChoiceButton(
                             text = TavernNodeMemoryPolicy.label(memory),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("repair-memory-choice-$memory"),
                             enabled = !actionsLocked,
-                            accentColor = LukoaColors.Primary,
+                            accentColor = if (selected) LukoaColors.Accent else LukoaColors.Primary,
                             unavailableHint = lockedOnlyHint,
                             onShowHint = onShowHint,
                             onClick = { confirmMemory(memory) },
@@ -277,6 +317,21 @@ fun RepairToolsSection(
                         },
                     )
                 }
+                SettingsFeedbackActionButton(
+                    text = "恢复默认（不限制）",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !actionsLocked && !nodeMemoryStatus.checking,
+                    accentColor = LukoaColors.TextSecondary,
+                    unavailableHint = if (nodeMemoryStatus.checking) "正在读取内存设置，请稍等。" else lockedOnlyHint,
+                    onShowHint = onShowHint,
+                    onClick = {
+                        confirmation = RepairConfirmation(
+                            "恢复默认运行内存",
+                            "会删除当前实例自定义的 Node.js 内存上限设置，下次启动酒馆时恢复由 Termux 默认分配内存。",
+                            onResetNodeMemory,
+                        )
+                    },
+                )
             }
         }
         RepairToolsGroup(grouped = !showSectionContainer) {
@@ -389,10 +444,17 @@ private fun RepairCustomValueDialog(
     val canSubmit = input.isNotEmpty() && error == null
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
         title = { Text(request.title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(request.hint)
+                Text(
+                    text = request.hint,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it.filter(Char::isDigit).take(6) },
@@ -409,13 +471,19 @@ private fun RepairCustomValueDialog(
             }
         },
         confirmButton = {
-            Button(
+            DialogActionButton(
+                text = "下一步",
                 enabled = canSubmit,
+                tone = ActionTone.Safe,
                 onClick = { input.toIntOrNull()?.let(onSubmit) },
-            ) { Text("下一步") }
+            )
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) { Text("取消") }
+            DialogActionButton(
+                text = "取消",
+                tone = ActionTone.Neutral,
+                onClick = onDismiss,
+            )
         },
     )
 }

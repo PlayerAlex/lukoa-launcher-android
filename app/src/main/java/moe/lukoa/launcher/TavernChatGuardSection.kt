@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +38,7 @@ fun TavernChatGuardContent(
     var wakeLockEnabled by remember(baseConfig) { mutableStateOf(baseConfig.wakeLockEnabled) }
     var minKilobytes by remember(baseConfig) { mutableIntStateOf(baseConfig.minKilobytes) }
     var intervalSeconds by remember(baseConfig) { mutableIntStateOf(baseConfig.intervalSeconds) }
+    var showAdvanced by rememberSaveable(instanceLabel) { mutableStateOf(false) }
 
     LaunchedEffect(snapshot) {
         if (snapshot != null) {
@@ -59,53 +59,39 @@ fun TavernChatGuardContent(
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
     ManagementDialogIntroCard(
-        "聊天守护会用硬链接在后台盯住大体积聊天记录（几乎不占额外空间）。当网页卡死把长聊天写空或截断成不到一半大小时，会自动救回旧版本到同目录。",
+        "酒馆运行时自动帮较长的聊天留一份底。如果网页卡死把聊天写空或变短，会自动在原聊天夹救回旧档（带「露科亚救回」字样），几乎不占额外空间。",
     )
 
-    ManagementDialogSectionTitle("当前状态")
     SettingsEntryGroup {
         SettingsEntryRow(
-            title = "当前实例",
-            detail = state.message,
-            detailMaxLines = Int.MAX_VALUE,
-            value = instanceLabel,
-            valueColor = LukoaColors.Primary,
-            valueAsPill = true,
-        )
-        SettingsEntryDivider()
-        SettingsEntryRow(
-            title = "守护进程",
+            title = "保护状态（$instanceLabel）",
             detail = when {
-                snapshot == null -> "点击下方“刷新状态”查看实时守护状态。"
-                snapshot.running -> "后台守护运行中（PID ${snapshot.pid ?: "-"}），已关联 ${snapshot.linkedChatCount} 个聊天文件。"
-                tavernRunning -> "酒馆正在运行，但未检测到守护进程；重启酒馆后会自动拉起。"
-                else -> "酒馆未运行时守护会自动退出，下次启动酒馆时一起拉起。"
+                snapshot == null -> "点下方按钮查看当前保护状态。"
+                snapshot.running -> "正在后台保护 ${snapshot.linkedChatCount} 个聊天文件。"
+                tavernRunning -> "酒馆已运行，重启酒馆后会自动开启保护。"
+                else -> "待机中，下次启动酒馆时会自动一起开启。"
             },
-            detailMaxLines = 3,
+            detailMaxLines = 2,
             value = when {
                 snapshot == null -> "未读取"
-                snapshot.running -> "守护中"
-                else -> "未运行"
+                snapshot.running -> "保护中"
+                else -> "待机中"
             },
-            valueColor = when {
-                snapshot?.running == true -> LukoaColors.Primary
-                else -> LukoaColors.TextSecondary
-            },
+            valueColor = if (snapshot?.running == true) LukoaColors.Primary else LukoaColors.TextSecondary,
             valueAsPill = true,
         )
         SettingsEntryDivider()
         SettingsEntryRow(
-            title = "已救回记录",
+            title = "已救回聊天",
             detail = if (state.effectiveRescueCount > 0) {
-                "检测到 ${state.effectiveRescueCount} 条救回记录。在酒馆打开对应角色 → “管理聊天文件”就能看到带「露科亚救回」的聊天。"
+                "打开酒馆对应角色的“管理聊天文件”就能看到救回的旧档。"
             } else {
-                "目前没有触发过异常覆盖救回。"
+                "目前没有出现过聊天异常丢失。"
             },
-            detailMaxLines = 3,
+            detailMaxLines = 2,
             value = "${state.effectiveRescueCount} 条",
-            valueColor = if (state.effectiveRescueCount > 0) LukoaColors.Accent else LukoaColors.TextSecondary,
+            valueColor = if (state.effectiveRescueCount > 0) LukoaColors.Primary else LukoaColors.TextSecondary,
             valueAsPill = true,
-            highlightColor = if (state.effectiveRescueCount > 0) LukoaColors.Accent else null,
         )
     }
 
@@ -114,35 +100,41 @@ fun TavernChatGuardContent(
         enabled = !actionsLocked && !state.loading,
         accentColor = LukoaColors.Primary,
         modifier = Modifier.fillMaxWidth(),
-        unavailableHint = if (state.loading) "正在读取守护状态，请稍等。" else lockedHint,
+        unavailableHint = if (state.loading) "正在读取状态，请稍等。" else lockedHint,
         onShowHint = onShowHint,
         onClick = onRefresh,
     )
 
-    ManagementDialogSectionTitle("守护策略")
+    ManagementDialogSectionTitle("保护开关")
     SettingsEntryGroup {
-        ChatGuardSwitchRow(
-            title = "开启聊天防写坏守护",
-            detail = "推荐保持开启。修改后在酒馆运行中会自动生效。",
+        LukoaSwitchRow(
+            title = "自动保护长聊天防丢失",
+            detail = "建议保持开启，改完后自动生效。",
             checked = enabled,
             enabled = !actionsLocked,
             onCheckedChange = { enabled = it },
         )
         SettingsEntryDivider()
-        ChatGuardSwitchRow(
-            title = "启动时开启防休眠锁（Wake Lock）",
-            detail = "减少熄屏后系统杀掉 Termux 导致回复中断的概率；下次启动或重启酒馆时生效。",
+        LukoaSwitchRow(
+            title = "熄屏防断连（防系统杀后台）",
+            detail = "减少锁屏或切到别的软件时回复中断的概率，下次启动生效。",
             checked = wakeLockEnabled,
             enabled = !actionsLocked,
             onCheckedChange = { wakeLockEnabled = it },
         )
     }
 
-    ManagementDialogActionCard(title = "触发救回的最小聊天体积（当前：$minKilobytes KB）") {
+    LukoaCollapsibleCard(
+        title = "高级参数（一般保持默认即可）",
+        subtitle = "触发体积 ${if (minKilobytes >= 1024) "${minKilobytes / 1024}MB" else "${minKilobytes}KB"} · 每 ${intervalSeconds} 秒检查",
+        expanded = showAdvanced,
+        onToggle = { showAdvanced = !showAdvanced },
+    ) {
         Text(
-            text = "只有原聊天大于该体积，且被新文件覆盖到不到一半大小时才会救回，避免误伤短测试聊天。",
-            color = LukoaColors.TextSecondary,
+            text = "多大以上的聊天才需要保护",
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -153,7 +145,7 @@ fun TavernChatGuardContent(
                 SettingsCompactChoiceButton(
                     text = if (kb >= 1024) "${kb / 1024}MB" else "${kb}KB",
                     enabled = !actionsLocked,
-                    accentColor = if (selected) LukoaColors.Accent else LukoaColors.Primary,
+                    accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                     modifier = Modifier.weight(1f),
                     unavailableHint = lockedHint,
                     onShowHint = onShowHint,
@@ -161,13 +153,11 @@ fun TavernChatGuardContent(
                 )
             }
         }
-    }
-
-    ManagementDialogActionCard(title = "后台扫描间隔（当前：$intervalSeconds 秒）") {
         Text(
-            text = "默认 10 秒，几乎不耗电；聊天频繁时可设 5 秒，追求更低唤醒频率可设 20–30 秒。",
-            color = LukoaColors.TextSecondary,
+            text = "后台检查频率（默认 10 秒）",
+            color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -178,7 +168,7 @@ fun TavernChatGuardContent(
                 SettingsCompactChoiceButton(
                     text = "${seconds}秒",
                     enabled = !actionsLocked,
-                    accentColor = if (selected) LukoaColors.Accent else LukoaColors.Primary,
+                    accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                     modifier = Modifier.weight(1f),
                     unavailableHint = lockedHint,
                     onShowHint = onShowHint,
@@ -189,7 +179,7 @@ fun TavernChatGuardContent(
     }
 
     SettingsFeedbackActionButton(
-        text = "保存守护设置",
+        text = "保存保护设置",
         enabled = !actionsLocked && hasChanges,
         accentColor = LukoaColors.Primary,
         modifier = Modifier.fillMaxWidth(),
@@ -198,9 +188,9 @@ fun TavernChatGuardContent(
         onClick = { onSaveConfig(draftConfig) },
     )
 
-    ManagementDialogSectionTitle("救回历史")
     val rescues = snapshot?.rescues.orEmpty()
     if (rescues.isNotEmpty()) {
+        ManagementDialogSectionTitle("已救回的聊天记录")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             rescues.forEach { record ->
                 SettingsEntryGroup {
@@ -223,37 +213,32 @@ fun TavernChatGuardContent(
                             StatusPill(
                                 text = if (record.exists) "${record.sizeKilobytes} KB" else "已移走",
                                 active = record.exists,
-                                toneColor = if (record.exists) LukoaColors.Accent else LukoaColors.TextSecondary,
-                                activeBackground = LukoaColors.AccentSoft,
+                                toneColor = if (record.exists) LukoaColors.Primary else LukoaColors.TextSecondary,
+                                activeBackground = LukoaColors.PrimarySoft,
                             )
                         }
                         Text(
-                            text = "救回时间：${record.timestamp}",
+                            text = "救回文件：${record.rescuedFileName}",
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Text(
-                            text = "救回文件：${record.rescuedFileName}",
-                            color = LukoaColors.TextPrimary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
                         SettingsFeedbackActionButton(
-                            text = "复制救回文件路径",
+                            text = "复制文件路径",
                             enabled = true,
-                            accentColor = LukoaColors.Primary,
+                            accentColor = LukoaColors.TextSecondary,
                             modifier = Modifier.fillMaxWidth(),
                             unavailableHint = null,
                             onShowHint = onShowHint,
                             onClick = {
                                 val copied = onCopyPath(record.rescuedChatPath)
-                                onShowHint(if (copied) "已复制救回文件路径。" else "复制路径失败。")
+                                onShowHint(if (copied) "已复制文件路径。" else "复制路径失败。")
                             },
                         )
                     }
                 }
             }
             TimedDangerFeedbackActionButton(
-                text = "清空救回记录列表（不删除聊天文件）",
+                text = "清空提示列表（不会删除聊天文件）",
                 enabled = !actionsLocked,
                 modifier = Modifier.fillMaxWidth(),
                 unavailableHint = lockedHint,
@@ -261,62 +246,5 @@ fun TavernChatGuardContent(
                 onConfirmed = onClearHistory,
             )
         }
-    } else {
-        SettingsEntryGroup {
-            SettingsEntryRow(
-                title = "暂无救回记录",
-                detail = if (snapshot == null) {
-                    "点击“刷新守护状态”读取最近救回记录。"
-                } else {
-                    "聊天文件正常，还没有发生过被截断覆盖的情况。"
-                },
-                detailMaxLines = 3,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChatGuardSwitchRow(
-    title: String,
-    detail: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = detail,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = LukoaColors.Background,
-                checkedTrackColor = LukoaColors.Primary,
-                uncheckedThumbColor = LukoaColors.TextSecondary,
-                uncheckedTrackColor = LukoaColors.Elevated,
-            ),
-        )
     }
 }

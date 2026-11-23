@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ManualBackupConfirmDialog(
     backupName: String,
+    dataOnly: Boolean = false,
     onBackupNameChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
@@ -49,8 +50,12 @@ fun ManualBackupConfirmDialog(
         textContentColor = LukoaColors.TextPrimary,
         title = {
             SettingsDialogTitle(
-                title = "生成备份",
-                infoText = "生成后会在手机的手动备份文件夹中新增一份备份，不会删除或替换当前酒馆数据。\n备份包含聊天、角色、世界书、插件、设置和密钥。名称可以留空，启动器会按当前时间自动命名。",
+                title = if (dataOnly) "轻量备份用户数据" else "生成备份",
+                infoText = if (dataOnly) {
+                    "轻量备份只打包聊天、角色卡、世界书、预设、config.yaml 与第三方扩展，跳过酒馆程序源码与 node_modules，体积更小、速度更快。\n恢复时会自动使用“只恢复用户数据”，保留当前酒馆程序版本。名称留空会按时间自动命名为 sd-data-时间。"
+                } else {
+                    "生成后会在手机的手动备份文件夹中新增一份备份，不会删除或替换当前酒馆数据。\n备份包含聊天、角色、世界书、插件、设置和密钥。名称可以留空，启动器会按当前时间自动命名。"
+                },
             )
         },
         text = {
@@ -447,21 +452,32 @@ fun ApplyBackupPreviewDialog(
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
         )
+        val isDataOnlyArchive = content?.isUserDataOnlyArchive == true
         RestoreModeChoice(
             title = "完整恢复",
-            detail = "恢复程序、配置、扩展和用户数据；这是原来的默认行为。",
+            detail = if (isDataOnlyArchive) {
+                "这是轻量用户数据备份，不含酒馆程序源码，不能用于完整恢复。"
+            } else {
+                "恢复程序、配置、扩展和用户数据；这是原来的默认行为。"
+            },
             selected = restoreMode == BackupRestoreMode.Full,
-            enabled = true,
+            enabled = !isDataOnlyArchive,
             onClick = { onRestoreModeChange(BackupRestoreMode.Full) },
         )
         RestoreModeChoice(
             title = "只恢复用户数据",
             detail = "保留当前程序版本和扩展，只恢复聊天、角色、世界书和用户设置。",
             selected = restoreMode == BackupRestoreMode.UserDataOnly,
-            enabled = content?.hasUserData == true,
+            enabled = content?.hasUserData == true || isDataOnlyArchive,
             onClick = { onRestoreModeChange(BackupRestoreMode.UserDataOnly) },
         )
-        if (content?.hasUserData != true) {
+        if (isDataOnlyArchive) {
+            Text(
+                text = "已自动选择“只恢复用户数据”：会保留当前酒馆程序，只安全替换数据目录。",
+                color = LukoaColors.Primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else if (content?.hasUserData != true) {
             Text(
                 text = "没有在内容清单里确认到用户数据，因此不能选择“只恢复用户数据”。",
                 color = LukoaColors.Accent,

@@ -57,12 +57,36 @@ private enum class DocumentationPage(
     Home("首页", "文档", "使用范围与重要提醒"),
     TavernJargon("第一章：酒馆黑话篇", "酒馆黑话篇", "API、角色卡、世界书与预设"),
     LauncherQuestions("第二章：启动器疑问篇", "启动器疑问篇", "安装、启动、版本与备份"),
+    AdvancedFeatures("第三章：进阶与维护篇", "进阶与维护篇", "局域网扫码、聊天守护、空间清理与导入"),
 }
 
-private data class DocumentationTopic(
+internal data class DocumentationTopic(
     val title: String,
     val body: String,
 )
+
+internal data class DocumentationSearchHit(
+    val chapterTitle: String,
+    val topic: DocumentationTopic,
+)
+
+internal fun searchDocumentationTopics(query: String): List<DocumentationSearchHit> {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return emptyList()
+    val terms = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
+    val all = buildList {
+        DOCUMENTATION_HOME_NOTICES.forEachIndexed { idx, notice ->
+            add(DocumentationSearchHit("首页提醒", DocumentationTopic("使用须知 ${idx + 1}", notice)))
+        }
+        TAVERN_JARGON_TOPICS.forEach { add(DocumentationSearchHit("第一章：酒馆黑话篇", it)) }
+        LAUNCHER_QUESTION_TOPICS.forEach { add(DocumentationSearchHit("第二章：启动器疑问篇", it)) }
+        ADVANCED_FEATURE_TOPICS.forEach { add(DocumentationSearchHit("第三章：进阶与维护篇", it)) }
+    }
+    return all.filter { hit ->
+        val haystack = "${hit.chapterTitle}\n${hit.topic.title}\n${hit.topic.body}"
+        terms.all { term -> haystack.contains(term, ignoreCase = true) }
+    }
+}
 
 @Composable
 fun DocumentationSection(
@@ -72,13 +96,15 @@ fun DocumentationSection(
 ) {
     var selectedPage by rememberSaveable { mutableStateOf(DocumentationPage.Home) }
     var menuOpen by rememberSaveable { mutableStateOf(initialMenuOpen) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val contentScrollState = rememberScrollState()
+    val searchHits = remember(searchQuery) { searchDocumentationTopics(searchQuery) }
 
-    BackHandler(enabled = menuOpen || selectedPage != DocumentationPage.Home) {
-        if (menuOpen) {
-            menuOpen = false
-        } else {
-            selectedPage = DocumentationPage.Home
+    BackHandler(enabled = menuOpen || searchQuery.isNotBlank() || selectedPage != DocumentationPage.Home) {
+        when {
+            menuOpen -> menuOpen = false
+            searchQuery.isNotBlank() -> searchQuery = ""
+            else -> selectedPage = DocumentationPage.Home
         }
     }
     LaunchedEffect(selectedPage) {
@@ -116,14 +142,29 @@ fun DocumentationSection(
                         title = selectedPage.pageTitle,
                         onOpenMenu = { menuOpen = true },
                     )
-                    Crossfade(
-                        targetState = selectedPage,
-                        label = "documentation-page-content",
-                    ) { page ->
-                        when (page) {
-                            DocumentationPage.Home -> DocumentationHome()
-                            DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
-                            DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
+                    LukoaTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.testTag("documentation-search-input"),
+                        placeholder = "搜索关键词（如 429、备份、局域网）",
+                    )
+                    if (searchQuery.isNotBlank()) {
+                        DocumentationSearchResults(
+                            query = searchQuery,
+                            hits = searchHits,
+                            onClear = { searchQuery = "" },
+                        )
+                    } else {
+                        Crossfade(
+                            targetState = selectedPage,
+                            label = "documentation-page-content",
+                        ) { page ->
+                            when (page) {
+                                DocumentationPage.Home -> DocumentationHome()
+                                DocumentationPage.TavernJargon -> DocumentationTopicList(TAVERN_JARGON_TOPICS)
+                                DocumentationPage.LauncherQuestions -> DocumentationTopicList(LAUNCHER_QUESTION_TOPICS)
+                                DocumentationPage.AdvancedFeatures -> DocumentationTopicList(ADVANCED_FEATURE_TOPICS)
+                            }
                         }
                     }
                 }
@@ -337,6 +378,75 @@ private fun DocumentationMenuDrawer(
     }
 }
 
+@Composable
+private fun DocumentationSearchResults(
+    query: String,
+    hits: List<DocumentationSearchHit>,
+    onClear: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "“${query.trim()}” 找到 ${hits.size} 条结果",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = "清空搜索",
+                modifier = Modifier.clickable(role = Role.Button, onClick = onClear),
+                color = LukoaColors.Primary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (hits.isEmpty()) {
+            Text(
+                text = "没有找到相关条目，可以换个更简短的关键词试试（比如“代理”“备份”“内存”）。",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            return
+        }
+        hits.forEachIndexed { index, hit ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    text = hit.chapterTitle,
+                    color = LukoaColors.Primary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = hit.topic.title,
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = hit.topic.body,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 22.sp,
+                )
+            }
+            if (index != hits.lastIndex) {
+                HorizontalDivider(color = LukoaColors.Border)
+            }
+        }
+    }
+}
+
 private val DOCUMENTATION_HOME_NOTICES = listOf(
     "文档主要记录了一些酒馆常见的黑话和配置。如果仍有疑问，建议询问熟悉酒馆的答疑人员。",
     "本软件当前仅适配原生酒馆，不支持云酒馆、电脑酒馆以及各类二创酒馆。",
@@ -401,5 +511,44 @@ private val LAUNCHER_QUESTION_TOPICS = listOf(
     DocumentationTopic(
         title = "遇到问题先看哪里",
         body = "先查看启动页状态和 Termux 运行日志，再到工具箱执行一键体检。需要求助时建议导出诊断日志，并注意遮住 API Key、账号、密码和私人聊天内容。",
+    ),
+)
+
+private val ADVANCED_FEATURE_TOPICS = listOf(
+    DocumentationTopic(
+        title = "前台窗口 vs 后台静默启动与一键重启",
+        body = "启动页可以切换启动方式：前台窗口模式会在 Termux 终端里实时显示酒馆日志，适合排错；后台静默模式不跳转 Termux，启动就绪后自动拉起浏览器。修改 config.yaml 或插件后，可直接点“一键重启酒馆”。",
+    ),
+    DocumentationTopic(
+        title = "局域网访问、扫码打开与请求代理",
+        body = "在“酒馆 → 酒馆设置”中开启“允许局域网访问（listen）”后，手机会显示本机 Wi-Fi 地址并生成扫码二维码，电脑或平板连同一 Wi-Fi 即可扫码打开。建议同步添加局域网白名单或开启访问账号密码保护。如果需要让酒馆后端走本地代理，可填写代理地址并先点“测试代理连通性”。",
+    ),
+    DocumentationTopic(
+        title = "聊天守护与“露科亚救回”文件",
+        body = "“工具箱 → 聊天守护”会在酒馆运行时通过硬链接守护较长的聊天记录。一旦检测到异常覆盖变短，启动器会在原聊天目录自动保留旧版本（文件名带“露科亚救回”），绝不删除你的原始聊天，也可以在这里开关防休眠锁。",
+    ),
+    DocumentationTopic(
+        title = "轻量用户数据备份 vs 完整备份",
+        body = "在“酒馆 → 备份”中，完整手动备份会保存酒馆源码与全部数据；“轻量备份数据”只打包聊天、角色卡、世界书、预设、config.yaml 和第三方扩展，跳过源码与依赖，体积小且速度快。恢复轻量备份时会自动锁定为“只恢复用户数据”，保留当前酒馆程序版本。",
+    ),
+    DocumentationTopic(
+        title = "常用数据快捷导入（支持批量与聊天记录）",
+        body = "在“酒馆 → 快捷导入”中，可直接从手机文件管理器单选或多选导入角色卡（PNG/JSON/CHARX）、世界书、对话预设、网页主题，以及指定角色目录下的聊天记录（.jsonl）。存在同名文件时会自动添加时间戳后缀，绝不覆盖旧文件。",
+    ),
+    DocumentationTopic(
+        title = "空间体检与安全清理",
+        body = "“工具箱 → 空间清理”会统计聊天记录、角色卡、缩略图、node_modules、旧日志与 npm 缓存等占用情况。只允许勾选清理缓存、旧日志、回滚副本和残留临时目录，聊天、角色卡、世界书、预设与配置永远在保护区内不会被清理。",
+    ),
+    DocumentationTopic(
+        title = "扩展批量更新、服务器插件与暂存管理",
+        body = "扩展管理支持一键批量更新所有没有本地改动的第三方扩展，并在更新失败时回滚；服务端插件可在“酒馆 → 服务器插件”安装或更新（记得在“酒馆设置”打开服务器插件总开关）。更新酒馆时自动暂存的本地改动，可以在“工具箱 → 暂存管理”中查看、恢复或清理。",
+    ),
+    DocumentationTopic(
+        title = "通知栏快捷控制与桌面一键启动",
+        body = "在“设置 → 实例与运行环境”中可以开关“运行状态通知栏控制”，酒馆运行时下拉通知栏即可快速打开酒馆、重启或停止；也可以点“添加桌面一键启动图标”把快捷方式放到手机桌面，或长按启动器图标直接一键启动。",
+    ),
+    DocumentationTopic(
+        title = "界面配色切换（极简黑白 / 原版冷青）",
+        body = "启动器默认使用柔和耐看的极简黑白深色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
     ),
 )

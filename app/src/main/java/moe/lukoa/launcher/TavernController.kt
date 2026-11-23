@@ -96,6 +96,8 @@ class TavernController(
             "tavern-git-stash-drop" -> runner.runTavernGitStashDrop(parsed.argument)
             "tavern-quick-import-paths" -> runner.runTavernQuickImportPaths(parsed.argument)
             "tavern-quick-import" -> runner.runTavernQuickImport(parsed.argument)
+            "tavern-quick-import-batch" -> runner.runTavernQuickImportBatch(parsed.argument)
+            "tavern-proxy-test" -> runner.runTavernProxyTest(parsed.argument)
             "tavern-force-cleanup" -> runner.runForceCleanupTavern()
             "tavern-version" -> runner.runTavernVersion()
             "tavern-version-startup" -> runner.runTavernVersion()
@@ -103,6 +105,8 @@ class TavernController(
             "tavern-repair-dependencies" -> runner.runTavernRepairDependencies()
             "tavern-reset-theme" -> runner.runTavernResetTheme()
             "tavern-node-memory" -> runner.runTavernNodeMemory(parsed.argument)
+            "tavern-node-memory-status" -> runner.runTavernNodeMemoryStatus()
+            "tavern-node-memory-reset" -> runner.runTavernNodeMemoryReset()
             "tavern-upload-limit-status" -> runner.runTavernUploadLimitStatus()
             "tavern-upload-limit-set" -> runner.runTavernUploadLimitSet(parsed.argument)
             "tavern-upload-limit-reset" -> runner.runTavernUploadLimitReset()
@@ -130,6 +134,7 @@ class TavernController(
             "tavern-rollback" -> runner.runTavernRollback(parsed.argument)
             "tavern-backup",
             "tavern-backup-manual" -> runner.runTavernBackup("manual", null, parsed.argument)
+            "tavern-backup-manual-data" -> runner.runTavernBackup("manual-data", null, parsed.argument)
             "tavern-backup-auto" -> runner.runTavernBackup("auto", parsed.argument?.toIntOrNull())
             "tavern-backup-list" -> runner.runTavernBackupList()
             "tavern-backup-delete" -> runner.runTavernBackupDelete(parsed.argument)
@@ -453,6 +458,8 @@ class TavernController(
             "tavern-git-stash-drop" -> "正在删除选中的暂存记录。"
             "tavern-quick-import-paths" -> "正在解析酒馆常用数据目录。"
             "tavern-quick-import" -> "正在把文件导入到酒馆目录。"
+            "tavern-quick-import-batch" -> "正在批量把文件导入到酒馆目录。"
+            "tavern-proxy-test" -> "正在测试代理连通性。"
             "tavern-extensions-update-all" -> "正在批量更新可安全更新的酒馆扩展（自动跳过本地改动）。"
             "tavern-force-cleanup" -> "强制清理命令已发送到 Termux。"
             "start" -> "正在后台静默启动酒馆，就绪后会自动打开浏览器。"
@@ -462,6 +469,8 @@ class TavernController(
             "tavern-repair-dependencies" -> "正在后台安全重装酒馆依赖。"
             "tavern-reset-theme" -> "正在后台查找并重置当前用户的网页主题。"
             "tavern-node-memory" -> "正在后台设置 Node.js 内存上限。"
+            "tavern-node-memory-status" -> "正在读取当前实例的 Node.js 内存上限。"
+            "tavern-node-memory-reset" -> "正在恢复 Node.js 默认内存设置。"
             "tavern-upload-limit-status" -> "正在后台识别当前聊天记录上传限制。"
             "tavern-upload-limit-set" -> "正在后台修改聊天记录上传限制。"
             "tavern-upload-limit-reset" -> "正在后台恢复当前酒馆版本的默认聊天文件大小。"
@@ -485,6 +494,7 @@ class TavernController(
             "tavern-rollback" -> "正在回退酒馆版本，Termux 前台会显示进度。"
             "tavern-backup",
             "tavern-backup-manual" -> "正在生成备份到备份库，Termux 前台会显示进度。"
+            "tavern-backup-manual-data" -> "正在后台生成轻量用户数据备份到手动备份库。"
             "tavern-backup-auto" -> "正在创建自动备份。"
             "tavern-backup-list" -> "正在读取酒馆备份目录。"
             "tavern-backup-delete" -> "正在删除酒馆备份。"
@@ -524,6 +534,8 @@ class TavernController(
             "tavern-git-stash-drop" -> if (ok) "选中的暂存记录已删除。" else "删除暂存记录失败。"
             "tavern-quick-import-paths" -> if (ok) "酒馆数据目录已解析。" else "解析酒馆数据目录失败。"
             "tavern-quick-import" -> if (ok) "文件已成功导入酒馆目录，刷新网页后可见。" else "导入文件到酒馆目录失败。"
+            "tavern-quick-import-batch" -> if (ok) "批量文件已成功导入酒馆目录，刷新网页后可见。" else "批量导入文件到酒馆目录失败。"
+            "tavern-proxy-test" -> if (ok) "代理连通性测试已完成，请查看检测结果。" else "代理连通性测试失败。"
             "tavern-extensions-update-all" -> if (ok) "批量更新扩展已完成（已自动跳过有本地改动的扩展）。" else "批量更新扩展失败。"
             "tavern-force-cleanup" -> if (ok) "强制清理已返回。" else "强制清理残留进程失败。"
             "start" -> if (ok) "酒馆已在后台启动并就绪。" else "启动酒馆失败。"
@@ -533,6 +545,8 @@ class TavernController(
             "tavern-repair-dependencies" -> if (ok) "酒馆依赖已修复。" else "修复酒馆依赖失败，旧依赖已尽量恢复。"
             "tavern-reset-theme" -> if (ok) "网页主题已重置。" else "没有找到可安全修改的主题设置。"
             "tavern-node-memory" -> if (ok) "Node.js 内存上限已保存。" else "设置 Node.js 内存上限失败。"
+            "tavern-node-memory-status" -> if (ok) "Node.js 内存上限已读取。" else "读取 Node.js 内存上限失败。"
+            "tavern-node-memory-reset" -> if (ok) "已恢复 Node.js 默认内存设置（下次启动生效）。" else "恢复 Node.js 默认内存设置失败。"
             "tavern-upload-limit-status" -> if (ok) "上传限制已检查，请查看操作反馈中的当前值。" else "无法识别当前版本的上传限制。"
             "tavern-upload-limit-set" -> if (ok) "上传限制已修改，重启酒馆后生效。" else "修改上传限制失败，源文件未被强行改动。"
             "tavern-upload-limit-reset" -> if (ok) "聊天文件大小已恢复为当前酒馆版本的默认值。" else "恢复默认聊天文件大小失败，原文件已尽量保留。"
@@ -556,6 +570,7 @@ class TavernController(
             "tavern-rollback" -> if (ok) "酒馆版本已回退。" else "回退酒馆版本失败。"
             "tavern-backup",
             "tavern-backup-manual" -> if (ok) "备份已生成到备份库。" else "生成备份失败。"
+            "tavern-backup-manual-data" -> if (ok) "轻量用户数据备份已生成到手动备份库。" else "生成轻量数据备份失败。"
             "tavern-backup-auto" -> if (ok) "自动备份已创建。" else "创建自动备份失败。"
             "tavern-backup-list" -> if (ok) "酒馆备份目录已读取。" else "读取酒馆备份目录失败。"
             "tavern-backup-delete" -> if (ok) "酒馆备份已删除。" else "删除酒馆备份失败。"

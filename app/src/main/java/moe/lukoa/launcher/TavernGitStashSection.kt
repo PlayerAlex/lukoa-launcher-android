@@ -27,12 +27,12 @@ fun TavernGitStashContent(
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     val applyUnavailableHint = when {
         actionsLocked -> lockedHint
-        tavernRunning -> "恢复源码暂存前请先停止酒馆。"
+        tavernRunning -> "把改动放回酒馆前，请先停止酒馆。"
         else -> null
     }
 
     ManagementDialogIntroCard(
-        "更新或回退酒馆版本时，如果你曾选择“暂存本地改动”，启动器会把改动保存在 Git 暂存区里（带 lukoa-before-* 标记）。在这里可以查看、尝试恢复或清理旧暂存。",
+        "平时一般不需要打开这里。只有当你更新或回退酒馆版本时，选择了「先把本地改动收起来」，记录才会出现在这里，方便以后找回或清理。",
     )
 
     SettingsEntryGroup {
@@ -51,7 +51,7 @@ fun TavernGitStashContent(
         enabled = !actionsLocked && !state.loading,
         accentColor = LukoaColors.Primary,
         modifier = Modifier.fillMaxWidth(),
-        unavailableHint = if (state.loading) "正在读取 Git 暂存列表，请稍等。" else lockedHint,
+        unavailableHint = if (state.loading) "正在查看暂存记录，请稍等。" else lockedHint,
         onShowHint = onShowHint,
         onClick = onRefresh,
     )
@@ -59,15 +59,15 @@ fun TavernGitStashContent(
     if (state.gitAvailable == false) {
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "当前目录不是 Git 仓库",
-                detail = "只有通过 Git 管理的酒馆目录才支持暂存管理。",
+                title = "当前酒馆不支持暂存记录",
+                detail = "只有通过启动器正常安装的酒馆目录才会有这项记录。",
             )
         }
         return
     }
 
     if (state.entries.isNotEmpty()) {
-        ManagementDialogSectionTitle("已暂存的本地改动（${state.entries.size} 条）")
+        ManagementDialogSectionTitle("收起来的改动（${state.entries.size} 条）")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.entries.forEach { entry ->
                 SettingsEntryGroup {
@@ -81,34 +81,34 @@ fun TavernGitStashContent(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = entry.ref,
-                                color = LukoaColors.Primary,
+                                text = "暂存记录 #${entry.index + 1}",
+                                color = LukoaColors.TextPrimary,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                             )
                             if (entry.isLukoaManaged) {
                                 StatusPill(
-                                    text = "更新前自动暂存",
+                                    text = "更新前自动收起",
                                     active = true,
-                                    toneColor = LukoaColors.Accent,
-                                    activeBackground = LukoaColors.AccentSoft,
+                                    toneColor = LukoaColors.Primary,
+                                    activeBackground = LukoaColors.PrimarySoft,
                                 )
                             }
                         }
                         Text(
                             text = entry.message,
-                            color = LukoaColors.TextPrimary,
+                            color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
                         if (entry.createdAt.isNotBlank()) {
                             Text(
-                                text = "暂存时间：${entry.createdAt}",
+                                text = "保存时间：${entry.createdAt}",
                                 color = LukoaColors.TextSecondary,
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         }
                         SettingsFeedbackActionButton(
-                            text = "恢复到当前目录（保留暂存备份）",
+                            text = "把改动放回当前酒馆",
                             enabled = applyUnavailableHint == null,
                             accentColor = LukoaColors.Primary,
                             modifier = Modifier.fillMaxWidth(),
@@ -117,7 +117,7 @@ fun TavernGitStashContent(
                             onClick = { onApply(entry.index) },
                         )
                         TimedDangerFeedbackActionButton(
-                            text = "删除这条暂存记录",
+                            text = "清理这条记录",
                             enabled = !actionsLocked,
                             modifier = Modifier.fillMaxWidth(),
                             unavailableHint = lockedHint,
@@ -131,8 +131,8 @@ fun TavernGitStashContent(
     } else if (state.gitAvailable == true && !state.loading) {
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "当前没有暂存记录",
-                detail = "Git 暂存区是空的，没有待处理的本地源码改动。",
+                title = "很干净，没有暂存记录",
+                detail = "你没有待找回或待清理的临时改动。",
             )
         }
     }

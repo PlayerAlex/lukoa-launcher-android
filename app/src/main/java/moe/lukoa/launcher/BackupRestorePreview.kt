@@ -68,6 +68,7 @@ data class BackupArchiveContentSummary(
     val hasLukoaManifest: Boolean,
     val truncated: Boolean,
     val groups: List<BackupArchiveContentGroup> = emptyList(),
+    val isUserDataOnlyArchive: Boolean = false,
 ) {
     fun group(kind: BackupArchiveContentKind): BackupArchiveContentGroup? {
         return groups.firstOrNull { it.kind == kind }
@@ -93,6 +94,7 @@ object BackupArchiveContentScanner {
         var hasExtensions = false
         var hasConfiguration = false
         var hasLukoaManifest = false
+        var isUserDataOnlyArchive = false
         var truncated = false
         val categoryCounts = BackupArchiveContentKind.entries.associateWith { 0 }.toMutableMap()
         val categoryNames = BackupArchiveContentKind.entries
@@ -129,7 +131,18 @@ object BackupArchiveContentScanner {
                     }
                     val segments = normalized.lowercase(Locale.ROOT).split('/').filter(String::isNotBlank)
                     val fileName = segments.lastOrNull().orEmpty()
-                    hasLukoaManifest = hasLukoaManifest || normalized == "LUKOA_BACKUP_MANIFEST.txt"
+                    val isManifestEntry = normalized == "LUKOA_BACKUP_MANIFEST.txt"
+                    if (isManifestEntry) {
+                        hasLukoaManifest = true
+                        if (!entry.isDirectory && entry.size in 1..65_536L) {
+                            val manifestText = runCatching {
+                                String(readCurrentEntry(tar, entry.size.toInt()), Charsets.UTF_8)
+                            }.getOrDefault("")
+                            if (manifestText.lineSequence().any { it.trim() == "backupScope=user-data" }) {
+                                isUserDataOnlyArchive = true
+                            }
+                        }
+                    }
                     hasUserData = hasUserData || segments.any { it == "data" || it == "default-user" } ||
                         segments.any { it in setOf("chats", "characters", "groups", "worlds") }
                     hasExtensions = hasExtensions || segments.any { it == "extensions" || it == "plugins" }
@@ -246,6 +259,7 @@ object BackupArchiveContentScanner {
             hasConfiguration = hasConfiguration,
             hasLukoaManifest = hasLukoaManifest,
             truncated = truncated,
+            isUserDataOnlyArchive = isUserDataOnlyArchive,
             groups = BackupArchiveContentKind.displayOrder.mapNotNull { kind ->
                 val count = categoryCounts.getValue(kind)
                 if (count <= 0) return@mapNotNull null

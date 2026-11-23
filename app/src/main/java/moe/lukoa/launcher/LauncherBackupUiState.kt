@@ -28,6 +28,7 @@ class LauncherBackupUiState(initialState: LauncherUiState) {
     var showDeleteBackupDialog by mutableStateOf(false)
 
     var manualBackupName by mutableStateOf("")
+    var manualBackupDataOnly by mutableStateOf(false)
     var applyBackupPath by mutableStateOf("")
     var applyBackupRestoreMode by mutableStateOf(BackupRestoreMode.Full)
     var backupPreviewUiState by mutableStateOf<BackupPreviewUiState>(BackupPreviewUiState.Hidden)

@@ -1,5 +1,6 @@
 package moe.lukoa.launcher
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
@@ -14,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
@@ -42,12 +44,21 @@ class MainActivity : ComponentActivity() {
     private var backupDocumentResult by mutableStateOf<BackupDocumentResult?>(null)
     private var backupDocumentOperationInProgress = false
     private var pendingQuickImportKind: TavernQuickImportKind? = null
-    private var quickImportStagedFile by mutableStateOf<TavernQuickImportStagedFile?>(null)
-    private val quickImportPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    private var quickImportStagedBatch by mutableStateOf<TavernQuickImportStagedBatch?>(null)
+    private var quickStartRequestSignal by mutableIntStateOf(0)
+    private var runningNotificationEnabled by mutableStateOf(true)
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            runningNotificationEnabled = TavernNotificationStore.setEnabled(applicationContext, true)
+        }
+    }
+    private val quickImportPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         val kind = pendingQuickImportKind ?: return@registerForActivityResult
         pendingQuickImportKind = null
-        if (uri == null) {
-            quickImportStagedFile = TavernQuickImportStagedFile(
+        if (uris.isNullOrEmpty()) {
+            quickImportStagedBatch = TavernQuickImportStagedBatch(
                 ok = false,
                 kind = kind,
                 message = "已取消选择要导入的文件。",
@@ -56,9 +67,9 @@ class MainActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             val staged = withContext(Dispatchers.IO) {
-                TavernQuickImportStager.stageUri(applicationContext, kind, uri)
+                TavernQuickImportStager.stageUris(applicationContext, kind, uris)
             }
-            quickImportStagedFile = staged
+            quickImportStagedBatch = staged
         }
     }
     private val backupFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -151,6 +162,12 @@ class MainActivity : ComponentActivity() {
         val startupRefreshSignal = if (shouldRunStartupRefresh) 1 else 0
         val allFilesAccessGranted = hasAllFilesAccessPermission()
         val installUnknownAppsGranted = canInstallUnknownApps()
+        LukoaColors.applyStyle(LukoaThemeStore.load(applicationContext))
+        runningNotificationEnabled = TavernNotificationStore.isEnabled(applicationContext)
+        LauncherShortcutHelper.publishDynamicShortcuts(applicationContext)
+        if (intent?.action == LauncherShortcutHelper.ACTION_QUICK_START_TAVERN) {
+            quickStartRequestSignal += 1
+        }
         AutoBackupScheduler.syncFromState(
             context = applicationContext,
             enabled = initialState.autoBackupEnabled,
@@ -260,20 +277,42 @@ class MainActivity : ComponentActivity() {
                     onPickExternalBackup = ::pickExternalBackup,
                     onPickBackupExportDestination = ::pickBackupExportDestination,
                     onOpenBackupExportLocation = ::openBackupExportLocation,
-                    quickImportStagedFile = quickImportStagedFile,
-                    onConsumeQuickImportStagedFile = { quickImportStagedFile = null },
+                    quickImportStagedBatch = quickImportStagedBatch,
+                    onConsumeQuickImportStagedBatch = { quickImportStagedBatch = null },
                     onPickQuickImportFile = { kind ->
                         pendingQuickImportKind = kind
                         try {
                             quickImportPicker.launch(kind.mimeTypes)
                         } catch (_: Exception) {
                             pendingQuickImportKind = null
-                            quickImportStagedFile = TavernQuickImportStagedFile(
+                            quickImportStagedBatch = TavernQuickImportStagedBatch(
                                 ok = false,
                                 kind = kind,
                                 message = "无法打开系统文件选择器，请检查手机文件管理器。",
                             )
                         }
+                    },
+                    quickStartRequestSignal = quickStartRequestSignal,
+                    onConsumeQuickStartRequest = { quickStartRequestSignal = 0 },
+                    runningNotificationEnabled = runningNotificationEnabled,
+                    onToggleRunningNotification = {
+                        val next = !runningNotificationEnabled
+                        runningNotificationEnabled = TavernNotificationStore.setEnabled(applicationContext, next)
+                        if (next && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        if (!next) {
+                            TavernNotificationController.cancel(applicationContext)
+                        }
+                        runningNotificationEnabled
+                    },
+                    onPinQuickStartShortcut = {
+                        LauncherShortcutHelper.requestPinQuickStartShortcut(applicationContext)
+                    },
+                    onToggleThemeStyle = {
+                        LukoaThemeStore.save(applicationContext, LukoaColors.currentStyle.toggled())
                     },
                     onSaveTavernMirrorConfig = tavernMirrorStore::save,
                     onSaveTavernPathConfig = tavernPathStore::save,
@@ -336,6 +375,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == LauncherShortcutHelper.ACTION_QUICK_START_TAVERN) {
+            quickStartRequestSignal += 1
+        }
         hideStatusBar()
     }
 

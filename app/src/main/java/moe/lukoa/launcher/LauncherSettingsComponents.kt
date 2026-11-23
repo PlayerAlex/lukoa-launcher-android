@@ -16,7 +16,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +38,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -456,5 +461,155 @@ internal fun SettingsSubsection(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+internal fun LukoaTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    placeholder: String? = null,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else 4,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        enabled = enabled,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        visualTransformation = visualTransformation,
+        shape = RoundedCornerShape(12.dp),
+        label = label?.let { text -> { Text(text) } },
+        placeholder = placeholder?.let { text ->
+            {
+                Text(
+                    text = text,
+                    color = LukoaColors.Dim,
+                )
+            }
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = LukoaColors.TextPrimary,
+            unfocusedTextColor = LukoaColors.TextPrimary,
+            disabledTextColor = LukoaColors.Dim,
+            focusedContainerColor = LukoaColors.Elevated,
+            unfocusedContainerColor = LukoaColors.Elevated,
+            disabledContainerColor = LukoaColors.Surface,
+            focusedBorderColor = LukoaColors.Primary,
+            unfocusedBorderColor = LukoaColors.Border,
+            disabledBorderColor = LukoaColors.Border,
+            focusedLabelColor = LukoaColors.Primary,
+            unfocusedLabelColor = LukoaColors.TextSecondary,
+            disabledLabelColor = LukoaColors.Dim,
+            cursorColor = LukoaColors.Primary,
+        ),
+    )
+}
+
+@Composable
+internal fun LukoaSwitchRow(
+    title: String,
+    detail: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, role = Role.Switch) {
+                onCheckedChange(!checked)
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = detail,
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = LukoaColors.Background,
+                checkedTrackColor = LukoaColors.Primary,
+                uncheckedThumbColor = LukoaColors.TextSecondary,
+                uncheckedTrackColor = LukoaColors.Elevated,
+                uncheckedBorderColor = LukoaColors.Border,
+            ),
+        )
+    }
+}
+
+@Composable
+internal fun LukoaCollapsibleCard(
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    SettingsEntryGroup {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onToggle)
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = title,
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = subtitle,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Text(
+                text = if (expanded) "收起 ▴" else "展开 ▾",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (expanded) {
+            SettingsEntryDivider()
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
     }
 }

@@ -118,9 +118,15 @@ fun LukoaLauncherScreen(
     onPickExternalBackup: () -> Unit,
     onPickBackupExportDestination: (String, String) -> Unit,
     onOpenBackupExportLocation: (String) -> Boolean,
-    quickImportStagedFile: TavernQuickImportStagedFile? = null,
-    onConsumeQuickImportStagedFile: () -> Unit = {},
+    quickImportStagedBatch: TavernQuickImportStagedBatch? = null,
+    onConsumeQuickImportStagedBatch: () -> Unit = {},
     onPickQuickImportFile: (TavernQuickImportKind) -> Unit = {},
+    quickStartRequestSignal: Int = 0,
+    onConsumeQuickStartRequest: () -> Unit = {},
+    runningNotificationEnabled: Boolean = true,
+    onToggleRunningNotification: () -> Boolean = { true },
+    onPinQuickStartShortcut: () -> Pair<Boolean, String> = { false to "当前环境不支持桌面快捷方式。" },
+    onToggleThemeStyle: () -> LukoaThemeStyle = { LukoaColors.currentStyle },
     onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
     onSaveGithubRepository: (String) -> GithubRepositorySaveResult,
@@ -228,6 +234,7 @@ fun LukoaLauncherScreen(
     var showClearLogDangerDialog by remember { mutableStateOf(false) }
     var showStopConfirmDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
+    var showQuickSwitchProfileDialog by remember { mutableStateOf(false) }
     var tavernLaunchMode by remember { mutableStateOf(initialTavernLaunchMode) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
     var showFirstTavernStartGuideDialog by remember { mutableStateOf(false) }
@@ -271,12 +278,8 @@ fun LukoaLauncherScreen(
     var uploadLimitStatus by remember { mutableStateOf(TavernUploadLimitStatus()) }
     var tavernUserState by remember { mutableStateOf(TavernUserManagementState()) }
     var tavernExtensionState by remember { mutableStateOf(TavernExtensionManagementState()) }
-    var tavernChatGuardState by remember { mutableStateOf(TavernChatGuardState()) }
-    var tavernConfigState by remember { mutableStateOf(TavernConfigManagementState()) }
-    var tavernStorageState by remember { mutableStateOf(TavernStorageState()) }
-    var tavernServerPluginState by remember { mutableStateOf(TavernServerPluginState()) }
-    var tavernGitStashState by remember { mutableStateOf(TavernGitStashState()) }
-    var tavernQuickImportState by remember { mutableStateOf(TavernQuickImportState()) }
+    val opsUiState = remember { LauncherOpsUiState() }
+    var autoBackupRuntimeStatus by remember { mutableStateOf(AutoBackupScheduler.readRuntimeStatus(context)) }
     var lastLaunchReadinessSnapshotAtMillis by remember { mutableLongStateOf(0L) }
     var lastStartEnvironmentMutationAtMillis by remember { mutableLongStateOf(0L) }
     var selectedTab by rememberSaveable { mutableStateOf(LauncherTab.Launch) }
@@ -318,12 +321,7 @@ fun LukoaLauncherScreen(
         uploadLimitStatus = TavernUploadLimitStatus(message = "已切换酒馆实例，请重新检查当前上传限制。")
         tavernUserState = TavernUserManagementState(message = "已切换酒馆实例，请重新读取用户。")
         tavernExtensionState = TavernExtensionManagementState(message = "已切换酒馆实例，请重新读取扩展。")
-        tavernChatGuardState = TavernChatGuardState(message = "已切换酒馆实例，请重新读取聊天守护状态。")
-        tavernConfigState = TavernConfigManagementState(message = "已切换酒馆实例，请重新读取 config.yaml 配置。")
-        tavernStorageState = TavernStorageState(message = "已切换酒馆实例，请重新扫描磁盘占用。")
-        tavernServerPluginState = TavernServerPluginState(message = "已切换酒馆实例，请重新读取服务器插件。")
-        tavernGitStashState = TavernGitStashState(message = "已切换酒馆实例，请重新读取暂存记录。")
-        tavernQuickImportState = TavernQuickImportState()
+        opsUiState.resetForProfileSwitch("已切换酒馆实例")
         lastTavernVersionOperationSummary = null
     }
     var ignoredUpdateTag by remember { mutableStateOf(initialIgnoredUpdateTag) }
@@ -689,79 +687,7 @@ fun LukoaLauncherScreen(
                 message = "已读取 ${snapshot.extensions.size} 个扩展。",
             )
         }
-        parsed.chatGuardSnapshot?.let { snapshot ->
-            tavernChatGuardState = TavernChatGuardState(
-                snapshot = snapshot,
-                knownRescueCount = snapshot.rescueCount,
-                loading = false,
-                message = if (snapshot.running) {
-                    "聊天守护运行中，已保护 ${snapshot.linkedChatCount} 个聊天文件。"
-                } else {
-                    "聊天守护状态已读取。"
-                },
-            )
-        } ?: parsed.chatGuardRescueCountHint?.let { count ->
-            tavernChatGuardState = tavernChatGuardState.copy(knownRescueCount = count)
-        }
-        parsed.configSnapshot?.let { snapshot ->
-            val savedJustNow = output.contains("\"status\": \"config-set\"")
-            tavernConfigState = TavernConfigManagementState(
-                snapshot = snapshot,
-                loading = false,
-                savedNeedsRestart = if (savedJustNow) true else tavernConfigState.savedNeedsRestart,
-                message = when {
-                    savedJustNow -> "配置已保存并自动备份原文件，重启酒馆后生效。"
-                    snapshot.exists -> "已读取当前实例的 config.yaml 配置。"
-                    else -> "当前实例还没有 config.yaml，显示为默认模板；保存后会自动生成。"
-                },
-            )
-        }
-        parsed.storageSnapshot?.let { snapshot ->
-            tavernStorageState = TavernStorageState(
-                snapshot = snapshot,
-                loading = false,
-                message = if (snapshot.lastFreedKb != null) {
-                    "安全清理已完成，本次释放约 ${formatStorageKilobytes(snapshot.lastFreedKb)}。"
-                } else {
-                    "已扫描：酒馆目录共 ${formatStorageKilobytes(snapshot.tavernTotalKb)}，可安全清理约 ${formatStorageKilobytes(snapshot.totalCleanableKb)}。"
-                },
-            )
-        }
-        parsed.serverPluginsSnapshot?.let { snapshot ->
-            tavernServerPluginState = TavernServerPluginState(
-                snapshot = snapshot,
-                loading = false,
-                message = "已读取 ${snapshot.plugins.size} 个服务器插件。",
-            )
-        }
-        parsed.gitStashSnapshot?.let { (available, entries) ->
-            tavernGitStashState = TavernGitStashState(
-                gitAvailable = available,
-                entries = entries,
-                loading = false,
-                message = if (!available) {
-                    "当前酒馆目录不是 Git 仓库。"
-                } else if (entries.isEmpty()) {
-                    "当前没有暂存记录。"
-                } else {
-                    "共读取到 ${entries.size} 条暂存记录。"
-                },
-            )
-        }
-        parsed.quickImportPaths?.let { paths ->
-            tavernQuickImportState = tavernQuickImportState.copy(
-                paths = paths,
-                loading = false,
-                message = "已解析当前实例的数据目录。",
-            )
-        }
-        parsed.quickImportedFile?.let { importedFile ->
-            tavernQuickImportState = tavernQuickImportState.copy(
-                loading = false,
-                lastImportedFile = importedFile,
-                message = "导入成功：${importedFile.substringAfterLast('/')}",
-            )
-        }
+        opsUiState.applyStructuredOutput(parsed, output)
     }
 
     fun markStartEnvironmentMutated() {
@@ -831,22 +757,7 @@ fun LukoaLauncherScreen(
         tavernExtensionState = TavernExtensionManagementState(
             message = "酒馆配置已更新，请重新读取当前目录的扩展。",
         )
-        tavernChatGuardState = TavernChatGuardState(
-            message = "酒馆配置已更新，请重新读取聊天守护状态。",
-        )
-        tavernConfigState = TavernConfigManagementState(
-            message = "酒馆配置已更新，请重新读取 config.yaml 配置。",
-        )
-        tavernStorageState = TavernStorageState(
-            message = "酒馆配置已更新，请重新扫描磁盘占用。",
-        )
-        tavernServerPluginState = TavernServerPluginState(
-            message = "酒馆配置已更新，请重新读取服务器插件。",
-        )
-        tavernGitStashState = TavernGitStashState(
-            message = "酒馆配置已更新，请重新读取暂存记录。",
-        )
-        tavernQuickImportState = TavernQuickImportState()
+        opsUiState.resetForProfileSwitch("酒馆配置已更新")
         healthCheckReport = null
         markStartEnvironmentMutated()
         showStopConfirmDialog = false
@@ -1729,6 +1640,20 @@ fun LukoaLauncherScreen(
             onCopyText = onCopyText,
             onPickExternalBackup = onPickExternalBackup,
             onPickBackupExportDestination = onPickBackupExportDestination,
+        )
+    }
+
+    val opsCoordinator = remember(opsUiState) {
+        LauncherOpsCoordinator(
+            state = opsUiState,
+            runGuarded = { label, timeoutMs, allowRunningInference, block ->
+                runGuarded(label, timeoutMs, allowRunningInference, block)
+            },
+            onCommand = onCommand,
+            onStatusUpdate = { msg, out, ok ->
+                update(msg, out, ok, allowRunningInference = false)
+            },
+            isTransientStatus = ::isTransientStatus,
         )
     }
 
@@ -3079,7 +3004,7 @@ fun LukoaLauncherScreen(
                 tavernRunning = true
                 tavernStarting = false
                 tavernInstallDetected = true
-                tavernConfigState = tavernConfigState.copy(savedNeedsRestart = false)
+                opsUiState.clearConfigSavedNeedsRestart()
             } else if (stillStarting) {
                 tavernStarting = true
             } else {
@@ -3090,7 +3015,7 @@ fun LukoaLauncherScreen(
     }
 
     fun performSelectedModeStart() {
-        tavernConfigState = tavernConfigState.copy(savedNeedsRestart = false)
+        opsUiState.clearConfigSavedNeedsRestart()
         when (tavernLaunchMode) {
             TavernLaunchMode.ForegroundConsole -> performForegroundStart()
             TavernLaunchMode.BackgroundSilent -> performBackgroundStart()
@@ -3132,7 +3057,7 @@ fun LukoaLauncherScreen(
                     tavernRunning = true
                     tavernStarting = false
                     tavernInstallDetected = true
-                    tavernConfigState = tavernConfigState.copy(savedNeedsRestart = false)
+                    opsUiState.clearConfigSavedNeedsRestart()
                 } else if (stillStarting) {
                     tavernStarting = true
                 } else {
@@ -3157,7 +3082,7 @@ fun LukoaLauncherScreen(
             releaseBusy(operationToken)
             markStartEnvironmentMutated()
             if (ok) {
-                tavernConfigState = tavernConfigState.copy(savedNeedsRestart = false)
+                opsUiState.clearConfigSavedNeedsRestart()
                 if (tavernRunning) {
                     tavernStarting = false
                     return@restartCallback
@@ -3650,87 +3575,6 @@ fun LukoaLauncherScreen(
         )
     }
 
-    fun refreshChatGuardStatus() {
-        runGuarded(
-            "读取聊天守护状态",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-chat-guard-status"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernChatGuardState = tavernChatGuardState.copy(loading = true, message = "正在读取聊天守护状态…")
-            onCommand("tavern-chat-guard-status") { newStatus, output, ok ->
-                guardedUpdate(newStatus, output, ok)
-                if (!isTransientStatus(newStatus) && TavernChatGuardOutputParser.parse(output) == null) {
-                    tavernChatGuardState = tavernChatGuardState.copy(
-                        loading = false,
-                        message = if (ok) "命令已完成，但没有读到守护状态。" else "读取聊天守护状态失败。",
-                    )
-                }
-            }
-        }
-    }
-
-    fun saveChatGuardConfig(config: TavernChatGuardConfig) {
-        TavernChatGuardPolicy.validate(config)?.let { reason ->
-            update(reason, "", false, allowRunningInference = false)
-            return
-        }
-        val payload = TavernChatGuardCommandCodec.encode(config)
-        runGuarded(
-            "保存聊天守护设置",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-chat-guard-set"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-chat-guard-set", payload), guardedUpdate)
-        }
-    }
-
-    fun clearChatGuardHistory() {
-        runGuarded(
-            "清空救回记录列表",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-chat-guard-clear-history"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand("tavern-chat-guard-clear-history", guardedUpdate)
-        }
-    }
-
-    fun refreshTavernConfig() {
-        runGuarded(
-            "读取酒馆核心设置",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-config-read"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernConfigState = tavernConfigState.copy(loading = true, message = "正在读取 config.yaml 配置…")
-            onCommand("tavern-config-read") { newStatus, output, ok ->
-                guardedUpdate(newStatus, output, ok)
-                if (!isTransientStatus(newStatus) && TavernConfigOutputParser.parse(output) == null) {
-                    tavernConfigState = tavernConfigState.copy(
-                        loading = false,
-                        message = if (ok) "命令已完成，但没有读到 config.yaml 数据。" else "读取 config.yaml 失败，请确认酒馆目录有效且已安装依赖。",
-                    )
-                }
-            }
-        }
-    }
-
-    fun saveTavernConfig(patch: TavernConfigPatch) {
-        TavernConfigPolicy.validatePatch(
-            patch = patch,
-            currentlyHasPassword = tavernConfigState.snapshot?.basicAuthHasPassword == true,
-        )?.let { reason ->
-            update(reason, "", false, allowRunningInference = false)
-            return
-        }
-        val payload = TavernConfigCommandCodec.encodePatch(patch)
-        runGuarded(
-            "保存酒馆核心设置",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-config-set"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-config-set", payload), guardedUpdate)
-        }
-    }
-
     fun updateAllTavernExtensions() {
         runGuarded(
             "一键更新全部扩展",
@@ -3742,156 +3586,42 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun scanTavernStorage() {
-        runGuarded(
-            "扫描酒馆空间占用",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-storage-scan"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernStorageState = tavernStorageState.copy(loading = true, message = "正在扫描磁盘占用…")
-            onCommand("tavern-storage-scan") { newStatus, output, ok ->
-                guardedUpdate(newStatus, output, ok)
-                if (!isTransientStatus(newStatus) && TavernStorageOutputParser.parse(output) == null) {
-                    tavernStorageState = tavernStorageState.copy(loading = false, message = "扫描空间占用失败。")
-                }
-            }
-        }
+    LaunchedEffect(quickImportStagedBatch) {
+        val batch = quickImportStagedBatch ?: return@LaunchedEffect
+        onConsumeQuickImportStagedBatch()
+        opsCoordinator.handleQuickImportBatch(batch)
     }
 
-    fun cleanTavernStorage(categories: Set<TavernStorageCleanupCategory>) {
-        if (categories.isEmpty()) return
-        val encoded = TavernStorageCommandCodec.encodeCategories(categories)
-        runGuarded(
-            "安全清理酒馆空间",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-storage-clean"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernStorageState = tavernStorageState.copy(loading = true, message = "正在清理已选安全项…")
-            onCommand(LauncherCommandCodec.encode("tavern-storage-clean", encoded), guardedUpdate)
-        }
-    }
-
-    fun refreshServerPlugins() {
-        runGuarded(
-            "读取服务器插件",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-server-plugins-list"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernServerPluginState = tavernServerPluginState.copy(loading = true, message = "正在读取服务器插件…")
-            onCommand("tavern-server-plugins-list") { newStatus, output, ok ->
-                guardedUpdate(newStatus, output, ok)
-                if (!isTransientStatus(newStatus) && TavernServerPluginOutputParser.parse(output) == null) {
-                    tavernServerPluginState = tavernServerPluginState.copy(loading = false, message = "读取服务器插件失败。")
-                }
-            }
-        }
-    }
-
-    fun installServerPlugin(repoUrl: String) {
-        TavernServerPluginCommandCodec.validateRepositoryUrl(repoUrl)?.let { reason ->
-            update(reason, "", false, allowRunningInference = false)
-            return
-        }
-        val payload = TavernServerPluginCommandCodec.encode(repoUrl)
-        runGuarded(
-            "安装服务器插件",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-server-plugins-install"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-server-plugins-install", payload), guardedUpdate)
-        }
-    }
-
-    fun updateServerPlugin(directoryName: String) {
-        val payload = TavernServerPluginCommandCodec.encode(directoryName)
-        runGuarded(
-            "更新服务器插件",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-server-plugins-update"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-server-plugins-update", payload), guardedUpdate)
-        }
-    }
-
-    fun deleteServerPlugin(directoryName: String) {
-        val payload = TavernServerPluginCommandCodec.encode(directoryName)
-        runGuarded(
-            "删除服务器插件",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-server-plugins-delete"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-server-plugins-delete", payload), guardedUpdate)
-        }
-    }
-
-    fun refreshGitStash() {
-        runGuarded(
-            "读取暂存记录",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-git-stash-list"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernGitStashState = tavernGitStashState.copy(loading = true, message = "正在读取 Git 暂存列表…")
-            onCommand("tavern-git-stash-list") { newStatus, output, ok ->
-                guardedUpdate(newStatus, output, ok)
-                if (!isTransientStatus(newStatus) && TavernGitStashOutputParser.parse(output) == null) {
-                    tavernGitStashState = tavernGitStashState.copy(loading = false, message = "读取暂存记录失败。")
-                }
-            }
-        }
-    }
-
-    fun applyGitStash(index: Int) {
-        runGuarded(
-            "恢复暂存改动",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-git-stash-apply"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-git-stash-apply", index.toString()), guardedUpdate)
-        }
-    }
-
-    fun dropGitStash(index: Int) {
-        runGuarded(
-            "删除暂存记录",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-git-stash-drop"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            onCommand(LauncherCommandCodec.encode("tavern-git-stash-drop", index.toString()), guardedUpdate)
-        }
-    }
-
-    fun refreshQuickImportPaths() {
-        val handle = TavernQuickImportCommandCodec.normalizeUserHandle(tavernQuickImportState.userHandle)
-        runGuarded(
-            "解析数据目录",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-quick-import-paths"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernQuickImportState = tavernQuickImportState.copy(loading = true, message = "正在解析常用数据目录…")
-            onCommand(LauncherCommandCodec.encode("tavern-quick-import-paths", handle), guardedUpdate)
-        }
-    }
-
-    LaunchedEffect(quickImportStagedFile) {
-        val staged = quickImportStagedFile ?: return@LaunchedEffect
-        onConsumeQuickImportStagedFile()
-        if (!staged.ok) {
-            tavernQuickImportState = tavernQuickImportState.copy(message = staged.message)
-            update(staged.message, "", false, allowRunningInference = false)
-            return@LaunchedEffect
-        }
-        val encoded = TavernQuickImportCommandCodec.encode(
-            kind = staged.kind,
-            stagedPath = staged.termuxReadablePath,
-            userHandle = tavernQuickImportState.userHandle,
+    LaunchedEffect(
+        tavernRunning,
+        tavernPathConfig.activeProfileLabel,
+        tavernPathConfig.normalizedPort,
+        runningNotificationEnabled,
+    ) {
+        TavernNotificationController.syncRunningNotification(
+            context = context,
+            running = tavernRunning,
+            instanceLabel = tavernPathConfig.activeProfileLabel,
+            port = tavernPathConfig.normalizedPort,
+            enabled = runningNotificationEnabled,
         )
-        runGuarded(
-            staged.kind.label,
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-quick-import"),
-            allowRunningInference = false,
-        ) { guardedUpdate ->
-            tavernQuickImportState = tavernQuickImportState.copy(loading = true, message = staged.message)
-            onCommand(LauncherCommandCodec.encode("tavern-quick-import", encoded), guardedUpdate)
+    }
+
+    LaunchedEffect(autoBackupEnabled, autoBackupIntervalMinutes, backupHistory, secondaryPage) {
+        if (secondaryPage == LauncherSecondaryPage.Backup || autoBackupEnabled) {
+            autoBackupRuntimeStatus = AutoBackupScheduler.readRuntimeStatus(context)
+        }
+    }
+
+    LaunchedEffect(quickStartRequestSignal, startupRefreshInFlight) {
+        if (quickStartRequestSignal <= 0 || startupRefreshInFlight) return@LaunchedEffect
+        onConsumeQuickStartRequest()
+        secondaryPage = null
+        selectedTab = LauncherTab.Launch
+        when {
+            tavernRunning -> returnToTavern()
+            tavernStarting || actionInProgress -> Unit
+            else -> requestStartTavern()
         }
     }
 
@@ -3910,9 +3640,9 @@ fun LukoaLauncherScreen(
             LauncherSecondaryPageRefreshTarget.Backup -> {
                 backupCoordinator.refreshBackupList(minimumDisplayMillis = 0L, reportBusy = false)
             }
-            LauncherSecondaryPageRefreshTarget.TavernConfig -> refreshTavernConfig()
-            LauncherSecondaryPageRefreshTarget.ServerPlugins -> refreshServerPlugins()
-            LauncherSecondaryPageRefreshTarget.QuickImport -> refreshQuickImportPaths()
+            LauncherSecondaryPageRefreshTarget.TavernConfig -> opsCoordinator.refreshTavernConfig()
+            LauncherSecondaryPageRefreshTarget.ServerPlugins -> opsCoordinator.refreshServerPlugins()
+            LauncherSecondaryPageRefreshTarget.QuickImport -> opsCoordinator.refreshQuickImportPaths()
 
             null -> Unit
         }
@@ -3924,12 +3654,7 @@ fun LukoaLauncherScreen(
             uploadLimitStatus = LauncherTransientOperationState.finishUploadLimit(uploadLimitStatus)
             tavernUserState = LauncherTransientOperationState.finishUsers(tavernUserState)
             tavernExtensionState = LauncherTransientOperationState.finishExtensions(tavernExtensionState)
-            tavernChatGuardState = LauncherTransientOperationState.finishChatGuard(tavernChatGuardState)
-            tavernConfigState = LauncherTransientOperationState.finishConfig(tavernConfigState)
-            tavernStorageState = LauncherTransientOperationState.finishStorage(tavernStorageState)
-            tavernServerPluginState = LauncherTransientOperationState.finishServerPlugins(tavernServerPluginState)
-            tavernGitStashState = LauncherTransientOperationState.finishGitStash(tavernGitStashState)
-            tavernQuickImportState = LauncherTransientOperationState.finishQuickImport(tavernQuickImportState)
+            opsUiState.finishTransientOperations()
         }
     }
 
@@ -4184,6 +3909,16 @@ fun LukoaLauncherScreen(
             actionsLocked = actionInProgress,
             onConfirm = ::confirmRestartTavern,
             onDismiss = { showRestartConfirmDialog = false },
+        )
+    }
+
+    if (showQuickSwitchProfileDialog) {
+        QuickSwitchProfileDialog(
+            tavernPathConfig = tavernPathConfig,
+            actionsLocked = actionInProgress,
+            onSelectProfile = profileCoordinator::selectTavernProfile,
+            onOpenSettings = { selectedTab = LauncherTab.Settings },
+            onDismiss = { showQuickSwitchProfileDialog = false },
         )
     }
 
@@ -4495,9 +4230,9 @@ fun LukoaLauncherScreen(
                                     onInstallTavern = ::installSelectedTavern,
                                 )
                             }
-                            if (tavernChatGuardState.effectiveRescueCount > 0) {
+                            if (opsUiState.chatGuardState.effectiveRescueCount > 0) {
                                 NoticeCard(
-                                    title = "聊天守护已为你救回 ${tavernChatGuardState.effectiveRescueCount} 条聊天记录",
+                                    title = "聊天守护已为你救回 ${opsUiState.chatGuardState.effectiveRescueCount} 条聊天记录",
                                     detail = "曾检测到长聊天被异常覆盖，旧版本已保存到同目录（文件名带「露科亚救回」）。",
                                     accentColor = LukoaColors.Accent,
                                     actionLabel = "查看救回记录",
@@ -4524,6 +4259,10 @@ fun LukoaLauncherScreen(
                                     !tavernRunning && tavernInstallDetected == false -> "没检测到酒馆，请先安装。"
                                     else -> null
                                 },
+                                activeProfileLabel = tavernPathConfig.activeProfileLabel,
+                                activePort = tavernPathConfig.normalizedPort,
+                                profileCount = tavernPathConfig.availableProfiles.size,
+                                onOpenQuickSwitchProfile = { showQuickSwitchProfileDialog = true },
                                 launchMode = tavernLaunchMode,
                                 onToggleLaunchMode = ::toggleTavernLaunchMode,
                                 onRestartTavern = ::requestRestartTavern,
@@ -4545,6 +4284,13 @@ fun LukoaLauncherScreen(
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
                             )
+                            if (issueAnalysis.isNotEmpty()) {
+                                IssueAnalysisPanel(
+                                    issues = issueAnalysis,
+                                    actionsLocked = actionInProgress,
+                                    onQuickFixAction = ::runLauncherQuickFixAction,
+                                )
+                            }
                             LogPanel(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
@@ -4566,9 +4312,11 @@ fun LukoaLauncherScreen(
                             tavernRunning = tavernRunning,
                             instanceLabel = tavernPathConfig.activeProfileLabel,
                             uploadLimitStatus = uploadLimitStatus,
-                            chatGuardState = tavernChatGuardState,
-                            storageState = tavernStorageState,
-                            gitStashState = tavernGitStashState,
+                            nodeMemoryStatus = opsUiState.nodeMemoryStatus,
+                            issues = issueAnalysis,
+                            chatGuardState = opsUiState.chatGuardState,
+                            storageState = opsUiState.storageState,
+                            gitStashState = opsUiState.gitStashState,
                             forceCleanupSuggestion = currentForceCleanupSuggestion(),
                             backgroundTaskStatus = PendingLauncherTaskSupport.taskCenterStatus(
                                 pendingLauncherTask,
@@ -4585,6 +4333,7 @@ fun LukoaLauncherScreen(
                             },
                             onRunHealthCheck = ::runHealthCheck,
                             onRunHealthCheckPrimaryAction = ::runHealthCheckPrimaryAction,
+                            onQuickFixAction = ::runLauncherQuickFixAction,
                             onRepairDependencies = {
                                 runGuarded(
                                     "修复 npm 依赖",
@@ -4599,15 +4348,9 @@ fun LukoaLauncherScreen(
                                     allowRunningInference = false,
                                 ) { guardedUpdate -> onCommand("tavern-reset-theme", guardedUpdate) }
                             },
-                            onSetNodeMemory = { memory ->
-                                runGuarded(
-                                    "设置 Node.js 内存",
-                                    TermuxCommandTimeoutPolicy.operationLockMillis("tavern-node-memory"),
-                                    allowRunningInference = false,
-                                ) { guardedUpdate ->
-                                    onCommand(LauncherCommandCodec.encode("tavern-node-memory", memory.toString()), guardedUpdate)
-                                }
-                            },
+                            onCheckNodeMemory = opsCoordinator::checkNodeMemoryStatus,
+                            onSetNodeMemory = opsCoordinator::setNodeMemory,
+                            onResetNodeMemory = opsCoordinator::resetNodeMemory,
                             onCheckUploadLimit = {
                                 runGuarded(
                                     "检查上传限制",
@@ -4636,14 +4379,14 @@ fun LukoaLauncherScreen(
                                 }
                             },
                             onResetUploadLimit = ::resetUploadLimitToVersionDefault,
-                            onRefreshChatGuard = ::refreshChatGuardStatus,
-                            onSaveChatGuardConfig = ::saveChatGuardConfig,
-                            onClearChatGuardHistory = ::clearChatGuardHistory,
-                            onScanStorage = ::scanTavernStorage,
-                            onCleanStorage = ::cleanTavernStorage,
-                            onRefreshGitStash = ::refreshGitStash,
-                            onApplyGitStash = ::applyGitStash,
-                            onDropGitStash = ::dropGitStash,
+                            onRefreshChatGuard = opsCoordinator::refreshChatGuardStatus,
+                            onSaveChatGuardConfig = opsCoordinator::saveChatGuardConfig,
+                            onClearChatGuardHistory = opsCoordinator::clearChatGuardHistory,
+                            onScanStorage = opsCoordinator::scanTavernStorage,
+                            onCleanStorage = opsCoordinator::cleanTavernStorage,
+                            onRefreshGitStash = opsCoordinator::refreshGitStash,
+                            onApplyGitStash = opsCoordinator::applyGitStash,
+                            onDropGitStash = opsCoordinator::dropGitStash,
                             onCopyText = onCopyText,
                             onForceCleanup = ::requestForceCleanup,
                             onClearLogs = ::requestClearLogs,
@@ -4791,6 +4534,29 @@ fun LukoaLauncherScreen(
                             onIncreaseTermuxReturnDelay = {
                                 updateTermuxReturnDelay(termuxReturnDelayMs + 100L)
                             },
+                            runningNotificationEnabled = runningNotificationEnabled,
+                            onToggleRunningNotification = {
+                                val nextEnabled = onToggleRunningNotification()
+                                update(
+                                    if (nextEnabled) {
+                                        "运行状态通知栏控制已开启，酒馆运行时可在通知栏快捷打开、重启或停止。"
+                                    } else {
+                                        "运行状态通知栏控制已关闭。"
+                                    },
+                                    "",
+                                    true,
+                                    allowRunningInference = false,
+                                )
+                            },
+                            onPinQuickStartShortcut = {
+                                val (ok, msg) = onPinQuickStartShortcut()
+                                update(msg, "", ok, allowRunningInference = false)
+                            },
+                            themeStyle = LukoaColors.currentStyle,
+                            onToggleThemeStyle = {
+                                val nextStyle = onToggleThemeStyle()
+                                update("已切换界面配色为：${nextStyle.label}。", "", true, allowRunningInference = false)
+                            },
                         )
                     }
                 }
@@ -4888,9 +4654,14 @@ fun LukoaLauncherScreen(
                                 backupHistory = backupHistory,
                                 backupArchiveDetails = backupUiState.backupArchiveDetails,
                                 backupContentStates = backupUiState.backupContentStates,
+                                autoBackupRuntimeStatus = autoBackupRuntimeStatus,
                                 onCreateManualBackup = backupCoordinator::openManualBackupDialog,
+                                onCreateLightweightBackup = backupCoordinator::openLightweightBackupDialog,
                                 onToggleAutoBackup = backupCoordinator::toggleAutoBackup,
-                                onRefreshBackups = { backupCoordinator.refreshBackupList() },
+                                onRefreshBackups = {
+                                    autoBackupRuntimeStatus = AutoBackupScheduler.readRuntimeStatus(context)
+                                    backupCoordinator.refreshBackupList()
+                                },
                                 onOpenAutoBackupSettings = backupCoordinator::openAutoBackupSettings,
                                 onApplyBackup = backupCoordinator::requestApplyBackup,
                                 onCopyBackup = backupCoordinator::requestCopyBackup,
@@ -4921,13 +4692,15 @@ fun LukoaLauncherScreen(
                             )
 
                             LauncherSecondaryPage.TavernConfig -> TavernConfigManagementSection(
-                                state = tavernConfigState,
+                                state = opsUiState.configState,
+                                proxyTestState = opsUiState.proxyTestState,
                                 instanceLabel = tavernPathConfig.activeProfileLabel,
                                 activePort = tavernPathConfig.normalizedPort,
                                 actionsLocked = actionInProgress,
                                 tavernRunning = tavernRunning,
-                                onRefresh = ::refreshTavernConfig,
-                                onSave = ::saveTavernConfig,
+                                onRefresh = opsCoordinator::refreshTavernConfig,
+                                onSave = opsCoordinator::saveTavernConfig,
+                                onTestProxy = opsCoordinator::testProxyConnectivity,
                                 onRestartTavern = ::requestRestartTavern,
                                 onCopyText = onCopyText,
                                 onShowHint = { hint ->
@@ -4936,13 +4709,13 @@ fun LukoaLauncherScreen(
                             )
 
                             LauncherSecondaryPage.ServerPlugins -> TavernServerPluginSection(
-                                state = tavernServerPluginState,
+                                state = opsUiState.serverPluginState,
                                 instanceLabel = tavernPathConfig.activeProfileLabel,
                                 actionsLocked = actionInProgress,
-                                onRefresh = ::refreshServerPlugins,
-                                onInstall = ::installServerPlugin,
-                                onUpdate = ::updateServerPlugin,
-                                onDelete = ::deleteServerPlugin,
+                                onRefresh = opsCoordinator::refreshServerPlugins,
+                                onInstall = opsCoordinator::installServerPlugin,
+                                onUpdate = opsCoordinator::updateServerPlugin,
+                                onDelete = opsCoordinator::deleteServerPlugin,
                                 onOpenTavernConfig = {
                                     secondaryPage = LauncherSecondaryPage.TavernConfig
                                 },
@@ -4952,14 +4725,14 @@ fun LukoaLauncherScreen(
                             )
 
                             LauncherSecondaryPage.QuickImport -> TavernQuickImportSection(
-                                state = tavernQuickImportState,
+                                state = opsUiState.quickImportState,
                                 instanceLabel = tavernPathConfig.activeProfileLabel,
                                 actionsLocked = actionInProgress,
-                                onUserHandleChange = { handle ->
-                                    tavernQuickImportState = tavernQuickImportState.copy(userHandle = handle.take(64))
-                                },
+                                availableUsers = tavernUserState.users,
+                                onUserHandleChange = opsUiState::updateQuickImportUserHandle,
+                                onChatCharacterChange = opsUiState::updateQuickImportChatCharacter,
                                 onPickAndImport = onPickQuickImportFile,
-                                onRefreshPaths = ::refreshQuickImportPaths,
+                                onRefreshPaths = opsCoordinator::refreshQuickImportPaths,
                                 onCopyPath = onCopyText,
                                 onShowHint = { hint ->
                                     update(hint, "", false, allowRunningInference = false)

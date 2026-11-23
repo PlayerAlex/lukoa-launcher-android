@@ -47,16 +47,25 @@ class LauncherBackupCoordinator(
 
     fun openManualBackupDialog() {
         state.manualBackupName = ""
+        state.manualBackupDataOnly = false
+        state.showManualBackupDialog = true
+    }
+
+    fun openLightweightBackupDialog() {
+        state.manualBackupName = ""
+        state.manualBackupDataOnly = true
         state.showManualBackupDialog = true
     }
 
     fun dismissManualBackupDialog() {
         state.showManualBackupDialog = false
         state.manualBackupName = ""
+        state.manualBackupDataOnly = false
     }
 
     fun confirmManualBackup() {
         val backupName = state.manualBackupName.trim()
+        val dataOnly = state.manualBackupDataOnly
         LauncherInputGuards.validateManualBackupName(backupName)?.let { reason ->
             statusUpdate("备份名称无效：$reason", "", false)
             return
@@ -67,22 +76,29 @@ class LauncherBackupCoordinator(
         }
         state.showManualBackupDialog = false
         state.manualBackupName = ""
+        state.manualBackupDataOnly = false
+        val commandName = if (dataOnly) "tavern-backup-manual-data" else "tavern-backup-manual"
+        val taskLabel = if (dataOnly) "创建轻量数据备份" else "创建酒馆备份"
         runPendingCommand(
             PendingLauncherTask(
                 kind = PendingLauncherTaskKind.ManualBackup,
                 commandName = "tavern-backup",
-                detail = if (backupName.isBlank()) "正在创建酒馆备份" else "备份名：$backupName",
+                detail = if (backupName.isBlank()) {
+                    if (dataOnly) "正在创建轻量用户数据备份" else "正在创建酒馆备份"
+                } else {
+                    "备份名：$backupName"
+                },
                 startedAtMillis = System.currentTimeMillis(),
                 targetLabel = backupName,
                 profileId = activeProfileId(),
             ),
-            "创建酒馆备份",
-            TermuxCommandTimeoutPolicy.operationLockMillis("tavern-backup-manual"),
+            taskLabel,
+            TermuxCommandTimeoutPolicy.operationLockMillis(commandName),
         ) { guardedUpdate ->
             if (backupName.isBlank()) {
-                onCommand("tavern-backup-manual", guardedUpdate)
+                onCommand(commandName, guardedUpdate)
             } else {
-                onCommand(LauncherCommandCodec.encode("tavern-backup-manual", backupName), guardedUpdate)
+                onCommand(LauncherCommandCodec.encode(commandName, backupName), guardedUpdate)
             }
         }
     }
@@ -228,6 +244,9 @@ class LauncherBackupCoordinator(
                 if (!previewRequestCoordinator.accepts(request, activePath)) return@launch
                 previewRequestCoordinator.finish(request)
                 previewJob = null
+                if (preview.contentSummary?.isUserDataOnlyArchive == true) {
+                    state.applyBackupRestoreMode = BackupRestoreMode.UserDataOnly
+                }
                 state.backupPreviewUiState = BackupPreviewUiState.Ready(preview)
             } catch (error: CancellationException) {
                 throw error

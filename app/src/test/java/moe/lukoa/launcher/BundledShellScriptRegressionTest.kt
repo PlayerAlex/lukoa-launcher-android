@@ -370,5 +370,13 @@ class BundledShellScriptRegressionTest {
         assertFalse(opsScript.contains("git stash pop"))
         assertTrue(opsScript.contains("cmd_quick_import()"))
         assertTrue(opsScript.contains("Staged import file is outside LukoaLauncher/imports"))
+        assertTrue(opsScript.contains("cmd_quick_import_batch()"))
+        assertTrue(opsScript.contains("cmd_node_memory_status()"))
+        assertTrue(opsScript.contains("cmd_node_memory_reset()"))
+        assertTrue(opsScript.contains("cmd_proxy_test()"))
+        assertFalse(opsScript.contains(". \"\$NODE_MEMORY_FILE\""))
+        assertTrue(script.contains("manual-data) BACKUP_SCOPE=\"user-data\""))
+        assertTrue(script.contains("This backup only contains user data; use user-data restore mode instead of full restore"))
+        assertTrue(script.contains("==== Lukoa node memory ===="))
     }
 }

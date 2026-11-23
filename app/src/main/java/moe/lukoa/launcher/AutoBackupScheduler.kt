@@ -5,13 +5,39 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+
+data class AutoBackupRuntimeStatus(
+    val nextTriggerAtMillis: Long = 0L,
+    val lastRunAtMillis: Long = 0L,
+    val lastRunOk: Boolean? = null,
+    val lastRunMessage: String = "",
+)
+
+fun formatAutoBackupScheduleTime(
+    timeMillis: Long,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String {
+    if (timeMillis <= 0L) return "暂无"
+    return runCatching {
+        Instant.ofEpochMilli(timeMillis)
+            .atZone(zoneId)
+            .format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+    }.getOrElse { "暂无" }
+}
 
 object AutoBackupScheduler {
     private const val PREFS = "lukoa_auto_backup_scheduler"
     private const val KEY_NEXT_TRIGGER_AT = "next_trigger_at"
     private const val KEY_LAST_DISPATCH_AT = "last_dispatch_at"
+    private const val KEY_LAST_RUN_AT = "last_run_at"
+    private const val KEY_LAST_RUN_OK = "last_run_ok"
+    private const val KEY_LAST_RUN_HAS_RESULT = "last_run_has_result"
+    private const val KEY_LAST_RUN_MESSAGE = "last_run_message"
     private const val KEY_WORK_NAME = "work_name"
     private const val WORK_NAME_PREFIX = "lukoa_auto_backup_"
     private const val WORK_TAG = "lukoa_auto_backup"
@@ -65,6 +91,31 @@ object AutoBackupScheduler {
 
     fun nextTriggerAt(context: Context): Long {
         return prefs(context.applicationContext).getLong(KEY_NEXT_TRIGGER_AT, 0L)
+    }
+
+    fun readRuntimeStatus(context: Context): AutoBackupRuntimeStatus {
+        val p = prefs(context.applicationContext)
+        val hasResult = p.getBoolean(KEY_LAST_RUN_HAS_RESULT, false)
+        return AutoBackupRuntimeStatus(
+            nextTriggerAtMillis = p.getLong(KEY_NEXT_TRIGGER_AT, 0L),
+            lastRunAtMillis = p.getLong(KEY_LAST_RUN_AT, 0L),
+            lastRunOk = if (hasResult) p.getBoolean(KEY_LAST_RUN_OK, false) else null,
+            lastRunMessage = p.getString(KEY_LAST_RUN_MESSAGE, "").orEmpty(),
+        )
+    }
+
+    fun recordLastRunResult(
+        context: Context,
+        ok: Boolean,
+        message: String,
+        atMillis: Long = System.currentTimeMillis(),
+    ) {
+        prefs(context.applicationContext).edit()
+            .putLong(KEY_LAST_RUN_AT, atMillis)
+            .putBoolean(KEY_LAST_RUN_HAS_RESULT, true)
+            .putBoolean(KEY_LAST_RUN_OK, ok)
+            .putString(KEY_LAST_RUN_MESSAGE, message.take(80))
+            .apply()
     }
 
     private fun runScheduledBackup(
@@ -145,6 +196,9 @@ object AutoBackupScheduler {
         )
         if (!dispatch.sent) {
             OperationLockStore.releaseOwned(appContext, lockToken)
+            recordLastRunResult(appContext, ok = false, message = "后台发送失败", atMillis = now)
+        } else {
+            recordLastRunResult(appContext, ok = true, message = "已触发，等待完成", atMillis = now)
         }
         val message = if (dispatch.sent) {
             "自动备份到点了，已在后台发送命令。来源=$source"
@@ -197,6 +251,19 @@ object AutoBackupScheduler {
 
     fun releaseOperationLockAfterResult(context: Context, result: TermuxCommandResult): Boolean {
         val ownerToken = result.nonce?.trim().orEmpty()
-        return OperationLockStore.releaseOwned(context.applicationContext, ownerToken)
+        val released = OperationLockStore.releaseOwned(context.applicationContext, ownerToken)
+        val isAutoBackupResult = released ||
+            result.command == "tavern-backup-auto" ||
+            (result.command == "tavern-backup" && result.stdout.contains("kind=auto"))
+        if (isAutoBackupResult) {
+            val ok = result.isStructurallyValid && !result.hasInternalError && result.exitCode == 0
+            recordLastRunResult(
+                context = context.applicationContext,
+                ok = ok,
+                message = if (ok) "成功" else "失败",
+                atMillis = result.timeMillis.takeIf { it > 0L } ?: System.currentTimeMillis(),
+            )
+        }
+        return released
     }
 }

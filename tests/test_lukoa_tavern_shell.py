@@ -315,6 +315,102 @@ class TavernShellSafetyTest(unittest.TestCase):
         bad = self.run_ops_script("quick-import", "character", self.posix(outside), "default-user")
         self.assertEqual(64, bad.returncode, bad.stdout + bad.stderr)
 
+    def test_ops_node_memory_status_and_reset(self):
+        status0 = self.run_ops_script("node-memory-status")
+        self.assertEqual(0, status0.returncode, status0.stdout + status0.stderr)
+        self.assertIn("nodeMemory.configured=false", status0.stdout)
+
+        set_res = self.run_script("node-memory-set", "4096")
+        self.assertEqual(0, set_res.returncode, set_res.stdout + set_res.stderr)
+        self.assertIn("nodeMemory.configured=true", set_res.stdout)
+        self.assertIn("nodeMemory.megabytes=4096", set_res.stdout)
+
+        status1 = self.run_ops_script("node-memory-status")
+        self.assertEqual(0, status1.returncode, status1.stdout + status1.stderr)
+        self.assertIn("nodeMemory.configured=true", status1.stdout)
+        self.assertIn("nodeMemory.megabytes=4096", status1.stdout)
+
+        reset_res = self.run_ops_script("node-memory-reset")
+        self.assertEqual(0, reset_res.returncode, reset_res.stdout + reset_res.stderr)
+        self.assertIn("nodeMemory.configured=false", reset_res.stdout)
+
+    def test_ops_quick_import_batch_and_chat_dirs(self):
+        if shutil.which("node") is None:
+            self.skipTest("node is required for quick-import-batch")
+        import base64
+        b64 = lambda s: base64.urlsafe_b64encode(s.encode("utf-8")).decode("ascii").rstrip("=")
+
+        (self.tavern / "data/default-user/chats/Seraphina").mkdir(parents=True, exist_ok=True)
+        paths_res = self.run_ops_script("quick-import-paths", "default-user")
+        self.assertEqual(0, paths_res.returncode, paths_res.stdout + paths_res.stderr)
+        self.assertIn("import.chatChars=" + b64("Seraphina"), paths_res.stdout)
+
+        imports_dir = self.home / "storage/downloads/LukoaLauncher/imports"
+        imports_dir.mkdir(parents=True, exist_ok=True)
+        f1 = imports_dir / "c1.jsonl"
+        f2 = imports_dir / "c2.jsonl"
+        f1.write_text('{"mes":"one"}\n', encoding="utf-8")
+        f2.write_text('{"mes":"two"}\n', encoding="utf-8")
+        batch_res = self.run_ops_script(
+            "quick-import-batch",
+            "chat",
+            b64("/storage/emulated/0/Download/LukoaLauncher/imports/c1.jsonl\n/storage/emulated/0/Download/LukoaLauncher/imports/c2.jsonl"),
+            "default-user",
+            b64("Seraphina"),
+        )
+        self.assertEqual(0, batch_res.returncode, batch_res.stdout + batch_res.stderr)
+        self.assertIn("import.count=2", batch_res.stdout)
+        self.assertTrue((self.tavern / "data/default-user/chats/Seraphina/c1.jsonl").is_file())
+        self.assertTrue((self.tavern / "data/default-user/chats/Seraphina/c2.jsonl").is_file())
+        self.assertFalse(f1.exists())
+        self.assertFalse(f2.exists())
+
+        bad_batch = self.run_ops_script(
+            "quick-import-batch",
+            "chat",
+            b64("/tmp/outside-attack.jsonl"),
+            "default-user",
+            b64("Seraphina"),
+        )
+        self.assertEqual(64, bad_batch.returncode, bad_batch.stdout + bad_batch.stderr)
+
+    def test_lightweight_data_backup_blocks_full_restore_and_allows_user_data_restore(self):
+        import tarfile
+
+        downloads = self.home / "storage/downloads"
+        downloads.mkdir(parents=True, exist_ok=True)
+        (self.tavern / "src").mkdir(parents=True, exist_ok=True)
+        (self.tavern / "src/server-main.js").write_text("console.log('program');\n", encoding="utf-8")
+        (self.tavern / "data/default-user/characters").mkdir(parents=True, exist_ok=True)
+        (self.tavern / "data/default-user/characters/hero.png").write_text("hero-v1", encoding="utf-8")
+        (self.tavern / "config.yaml").write_text("listen: false\n", encoding="utf-8")
+
+        backup_res = self.run_script("backup", "manual-data", "5", "light-test")
+        self.assertEqual(0, backup_res.returncode, backup_res.stdout + backup_res.stderr)
+        self.assertIn("scope=user-data", backup_res.stdout)
+        archive = downloads / "LukoaLauncher/backups/sd/light-test.tar.gz"
+        self.assertTrue(archive.is_file())
+        with tarfile.open(archive, "r:gz") as tf:
+            names = tf.getnames()
+            self.assertIn("LUKOA_BACKUP_MANIFEST.txt", names)
+            self.assertTrue(any("hero.png" in n for n in names))
+            self.assertFalse(any("server-main.js" in n for n in names))
+
+        # Refuses full restore to protect program files
+        full_restore = self.run_script("restore", self.posix(archive), "full")
+        self.assertEqual(64, full_restore.returncode, full_restore.stdout + full_restore.stderr)
+        self.assertIn("only contains user data", full_restore.stdout)
+
+        # User-data restore works and keeps program files untouched
+        (self.tavern / "data/default-user/characters/hero.png").write_text("hero-v2", encoding="utf-8")
+        ud_restore = self.run_script("restore", self.posix(archive), "user-data")
+        self.assertEqual(0, ud_restore.returncode, ud_restore.stdout + ud_restore.stderr)
+        self.assertEqual(
+            "hero-v1",
+            (self.tavern / "data/default-user/characters/hero.png").read_text(encoding="utf-8"),
+        )
+        self.assertTrue((self.tavern / "src/server-main.js").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

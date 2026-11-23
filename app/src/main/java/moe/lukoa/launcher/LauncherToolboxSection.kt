@@ -57,6 +57,8 @@ fun ToolboxSection(
     tavernRunning: Boolean = false,
     instanceLabel: String = "主实例",
     uploadLimitStatus: TavernUploadLimitStatus = TavernUploadLimitStatus(),
+    nodeMemoryStatus: TavernNodeMemoryStatus = TavernNodeMemoryStatus(),
+    issues: List<TavernIssue> = emptyList(),
     chatGuardState: TavernChatGuardState = TavernChatGuardState(),
     storageState: TavernStorageState = TavernStorageState(),
     gitStashState: TavernGitStashState = TavernGitStashState(),
@@ -69,9 +71,12 @@ fun ToolboxSection(
     onChatGuardOpenSignalConsumed: () -> Unit = {},
     onRunHealthCheck: () -> Unit = {},
     onRunHealthCheckPrimaryAction: () -> Unit = {},
+    onQuickFixAction: (LauncherQuickFixAction) -> Unit = {},
     onRepairDependencies: () -> Unit = {},
     onResetTavernTheme: () -> Unit = {},
+    onCheckNodeMemory: () -> Unit = {},
     onSetNodeMemory: (Int) -> Unit = {},
+    onResetNodeMemory: () -> Unit = {},
     onCheckUploadLimit: () -> Unit = {},
     onSetUploadLimit: (Int) -> Unit = {},
     onResetUploadLimit: () -> Unit = {},
@@ -132,9 +137,12 @@ fun ToolboxSection(
                 actionsLocked = actionsLocked,
                 tavernRunning = tavernRunning,
                 uploadLimitStatus = uploadLimitStatus,
+                nodeMemoryStatus = nodeMemoryStatus,
                 onRepairDependencies = onRepairDependencies,
                 onResetTheme = onResetTavernTheme,
+                onCheckNodeMemory = onCheckNodeMemory,
                 onSetNodeMemory = onSetNodeMemory,
+                onResetNodeMemory = onResetNodeMemory,
                 onCheckUploadLimit = onCheckUploadLimit,
                 onSetUploadLimit = onSetUploadLimit,
                 onResetUploadLimit = onResetUploadLimit,
@@ -149,7 +157,12 @@ fun ToolboxSection(
         ) {
             ToolboxDebugContent(
                 actionsLocked = actionsLocked,
+                issues = issues,
                 forceCleanupSuggestion = forceCleanupSuggestion,
+                onQuickFixAction = { action ->
+                    activeDialog = null
+                    onQuickFixAction(action)
+                },
                 onForceCleanup = onForceCleanup,
                 onClearLogs = onClearLogs,
                 onExportDiagnostic = onExportDiagnostic,
@@ -377,15 +390,15 @@ private fun ToolboxGrid(
     val chatGuardDescription = when {
         chatGuardState.effectiveRescueCount > 0 -> "已救回 ${chatGuardState.effectiveRescueCount} 条聊天"
         chatGuardState.snapshot?.running == true -> "后台守护中"
-        else -> "防写坏救回与防休眠"
+        else -> "防长聊天丢失与防休眠"
     }
     val storageDescription = storageState.snapshot?.let {
         "可清约 ${formatStorageKilobytes(it.totalCleanableKb)}"
-    } ?: "空间体检与安全清理"
+    } ?: "清理缓存释放手机空间"
     val gitStashDescription = when {
         gitStashState.entries.isNotEmpty() -> "${gitStashState.entries.size} 条暂存改动"
         gitStashState.gitAvailable == true -> "暂无暂存改动"
-        else -> "恢复更新暂存改动"
+        else -> "找回更新前收起的改动"
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -395,8 +408,8 @@ private fun ToolboxGrid(
     ) {
         Column {
             HubGridRow(
-                left = HubGridEntry("修复工具", "处理常见环境问题", onOpenRepairTools),
-                right = HubGridEntry("Debug 区", "诊断、日志与强制清理", onOpenDebug),
+                left = HubGridEntry("修复工具", "修依赖、调内存与大小", onOpenRepairTools),
+                right = HubGridEntry("Debug 区", "看报错、导日志与强停", onOpenDebug),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
@@ -431,7 +444,7 @@ private fun ToolboxContentDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Primary,
+        titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text(title) },
         text = {
@@ -460,7 +473,9 @@ private fun ToolboxContentDialog(
 @Composable
 private fun ToolboxDebugContent(
     actionsLocked: Boolean,
+    issues: List<TavernIssue>,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,
+    onQuickFixAction: (LauncherQuickFixAction) -> Unit,
     onForceCleanup: () -> Unit,
     onClearLogs: () -> Unit,
     onExportDiagnostic: () -> Unit,
@@ -468,8 +483,15 @@ private fun ToolboxDebugContent(
 ) {
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     ManagementDialogIntroCard(
-        "这里集中放诊断记录和最后手段。遇到问题时先导出诊断日志；只有普通停止无效或确认存在端口冲突时，才使用强制处理。",
+        "这里集中放故障诊断、日志导出和最后手段。遇到启动或报错问题时先看下方诊断建议或导出诊断日志；只有普通停止无效或确认存在端口冲突时，才使用强制处理。",
     )
+    if (issues.isNotEmpty()) {
+        IssueAnalysisPanel(
+            issues = issues,
+            actionsLocked = actionsLocked,
+            onQuickFixAction = onQuickFixAction,
+        )
+    }
     ManagementDialogActionCard(title = "诊断与日志") {
         Text(
             text = "导出内容适合用于排查问题；清除只会整理启动器页面里的日志，不会删除酒馆聊天或备份。",
@@ -493,6 +515,13 @@ private fun ToolboxDebugContent(
             unavailableHint = lockedHint,
             onShowHint = onShowHint,
             onClick = onClearLogs,
+        )
+    }
+    if (issues.isEmpty()) {
+        IssueAnalysisPanel(
+            issues = issues,
+            actionsLocked = actionsLocked,
+            onQuickFixAction = onQuickFixAction,
         )
     }
     ManagementDialogActionCard(title = "强制处理") {

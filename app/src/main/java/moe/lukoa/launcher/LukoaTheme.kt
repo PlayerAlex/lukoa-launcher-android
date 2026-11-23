@@ -1,54 +1,60 @@
 package moe.lukoa.launcher
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-internal val LukoaDarkColorScheme = darkColorScheme(
-    primary = LukoaColors.Primary,
-    onPrimary = LukoaColors.OnPrimary,
-    primaryContainer = LukoaColors.PrimarySoft,
-    onPrimaryContainer = LukoaColors.TextPrimary,
-    inversePrimary = LukoaColors.PrimaryHover,
-    secondary = LukoaColors.PrimaryHover,
-    onSecondary = LukoaColors.OnPrimary,
-    secondaryContainer = LukoaColors.PrimarySoft,
-    onSecondaryContainer = LukoaColors.TextPrimary,
-    tertiary = LukoaColors.Accent,
-    onTertiary = LukoaColors.Background,
-    tertiaryContainer = LukoaColors.AccentSoft,
-    onTertiaryContainer = LukoaColors.TextPrimary,
-    background = LukoaColors.Background,
-    onBackground = LukoaColors.TextPrimary,
-    surface = LukoaColors.Surface,
-    onSurface = LukoaColors.TextPrimary,
-    surfaceVariant = LukoaColors.Elevated,
-    onSurfaceVariant = LukoaColors.TextSecondary,
-    surfaceTint = LukoaColors.Primary,
-    inverseSurface = LukoaColors.TextPrimary,
-    inverseOnSurface = LukoaColors.Background,
-    surfaceBright = LukoaColors.Elevated,
-    surfaceDim = LukoaColors.Background,
-    surfaceContainer = LukoaColors.Surface,
-    surfaceContainerHigh = LukoaColors.Elevated,
-    surfaceContainerHighest = LukoaColors.Elevated,
-    surfaceContainerLow = LukoaColors.Surface,
-    surfaceContainerLowest = LukoaColors.Background,
-    outline = LukoaColors.Border,
-    outlineVariant = LukoaColors.Border,
-    error = LukoaColors.Danger,
-    onError = LukoaColors.Background,
-    errorContainer = LukoaColors.DangerSoft,
-    onErrorContainer = LukoaColors.TextPrimary,
+internal fun lukoaDarkColorScheme(
+    palette: LukoaColorPalette = LukoaPalettes.forStyle(LukoaColors.currentStyle),
+): ColorScheme = darkColorScheme(
+    primary = palette.primary,
+    onPrimary = palette.onPrimary,
+    primaryContainer = palette.primarySoft,
+    onPrimaryContainer = palette.textPrimary,
+    inversePrimary = palette.primaryHover,
+    secondary = palette.primaryHover,
+    onSecondary = palette.onPrimary,
+    secondaryContainer = palette.primarySoft,
+    onSecondaryContainer = palette.textPrimary,
+    tertiary = palette.accent,
+    onTertiary = palette.background,
+    tertiaryContainer = palette.accentSoft,
+    onTertiaryContainer = palette.textPrimary,
+    background = palette.background,
+    onBackground = palette.textPrimary,
+    surface = palette.surface,
+    onSurface = palette.textPrimary,
+    surfaceVariant = palette.elevated,
+    onSurfaceVariant = palette.textSecondary,
+    surfaceTint = palette.primary,
+    inverseSurface = palette.textPrimary,
+    inverseOnSurface = palette.background,
+    surfaceBright = palette.elevated,
+    surfaceDim = palette.background,
+    surfaceContainer = palette.surface,
+    surfaceContainerHigh = palette.elevated,
+    surfaceContainerHighest = palette.elevated,
+    surfaceContainerLow = palette.surface,
+    surfaceContainerLowest = palette.background,
+    outline = palette.border,
+    outlineVariant = palette.border,
+    error = palette.danger,
+    onError = palette.background,
+    errorContainer = palette.dangerSoft,
+    onErrorContainer = palette.textPrimary,
     scrim = Color.Black,
 )
+
+internal val LukoaDarkColorScheme: ColorScheme
+    get() = lukoaDarkColorScheme()
 
 @Composable
 fun LukoaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = LukoaDarkColorScheme,
+        colorScheme = lukoaDarkColorScheme(),
         content = {
             Surface(color = LukoaColors.Background) {
                 content()

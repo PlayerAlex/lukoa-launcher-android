@@ -289,6 +289,53 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
+    fun runTavernQuickImportBatch(value: String?): CommandDispatch {
+        val decoded = TavernQuickImportCommandCodec.decodeBatch(value)
+            ?: return CommandDispatch(false, "批量快捷导入参数无效。", displayCommand = "tavern-quick-import-batch")
+        val pathsB64 = TavernQuickImportCommandCodec.encodeBase64Url(decoded.stagedPaths.joinToString("\n"))
+        val scriptArgs = buildList {
+            add(decoded.kind.wireValue)
+            add(pathsB64)
+            add(decoded.userHandle)
+            if (decoded.chatCharacterDir.isNotBlank()) {
+                add(TavernQuickImportCommandCodec.encodeBase64Url(decoded.chatCharacterDir))
+            }
+        }
+        return runOpsScriptCommand(
+            command = "tavern-quick-import-batch-direct",
+            scriptCommand = "quick-import-batch",
+            scriptArgs = scriptArgs,
+            displayCommand = "tavern-quick-import-batch",
+        )
+    }
+
+    fun runTavernNodeMemoryStatus(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-node-memory-status-direct",
+        scriptCommand = "node-memory-status",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-node-memory-status",
+    )
+
+    fun runTavernNodeMemoryReset(): CommandDispatch = runOpsScriptCommand(
+        command = "tavern-node-memory-reset-direct",
+        scriptCommand = "node-memory-reset",
+        scriptArgs = emptyList(),
+        displayCommand = "tavern-node-memory-reset",
+    )
+
+    fun runTavernProxyTest(value: String?): CommandDispatch {
+        val encoded = value.orEmpty().trim()
+        if (TavernProxyTestCommandCodec.decode(encoded) == null) {
+            return CommandDispatch(false, "代理地址格式无效。", displayCommand = "tavern-proxy-test")
+        }
+        return runOpsScriptCommand(
+            command = "tavern-proxy-test-direct",
+            scriptCommand = "proxy-test",
+            scriptArgs = listOf(encoded),
+            displayCommand = "tavern-proxy-test",
+        )
+    }
+
     fun requestTermuxStoragePermission(): CommandDispatch {
         val returnCommand = "am start --activity-clear-top --activity-single-top --activity-reorder-to-front -n ${context.packageName}/.MainActivity >/dev/null 2>&1 || true"
         val storageCommand = """
@@ -701,7 +748,11 @@ class TermuxCommandRunner(private val context: Context) {
         label: String? = null,
         nonce: String? = null,
     ): CommandDispatch {
-        val safeKind = if (kind == "auto") "auto" else "manual"
+        val safeKind = when (kind) {
+            "auto" -> "auto"
+            "manual-data" -> "manual-data"
+            else -> "manual"
+        }
         val scriptArgs = if (safeKind == "auto") {
             listOf("auto", (keepCount ?: 5).coerceIn(1, 50).toString())
         } else {
@@ -714,9 +765,9 @@ class TermuxCommandRunner(private val context: Context) {
                 )
             }
             if (safeLabel.isBlank()) {
-                listOf("manual")
+                listOf(safeKind)
             } else {
-                listOf("manual", "5", safeLabel)
+                listOf(safeKind, "5", safeLabel)
             }
         }
         return runBundledScriptCommand(
@@ -2393,7 +2444,7 @@ class TermuxCommandRunner(private val context: Context) {
         @SuppressLint("SdCardPath")
         const val TERMUX_HOME = "/data/data/com.termux/files/home"
         const val TERMUX_TRANSCRIPT_ROWS = 20_000
-        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-ops-b-1"
+        const val BUNDLED_SCRIPT_REVISION = "2026-11-23-ops-c-1"
 
         @Volatile
         private var cachedBundledScript: String? = null

@@ -40,7 +40,9 @@ fun BackupSection(
     backupHistory: List<String>,
     backupArchiveDetails: Map<String, BackupLibraryArchiveDetails> = emptyMap(),
     backupContentStates: Map<String, BackupContentCatalogState> = emptyMap(),
+    autoBackupRuntimeStatus: AutoBackupRuntimeStatus = AutoBackupRuntimeStatus(),
     onCreateManualBackup: () -> Unit,
+    onCreateLightweightBackup: () -> Unit = {},
     onToggleAutoBackup: () -> Unit,
     onRefreshBackups: () -> Unit,
     onOpenAutoBackupSettings: () -> Unit,
@@ -61,7 +63,9 @@ fun BackupSection(
             autoBackupCount = autoBackups.size,
             actionsLocked = actionsLocked,
             autoBackupEnabled = autoBackupEnabled,
+            autoBackupRuntimeStatus = autoBackupRuntimeStatus,
             onCreateManualBackup = onCreateManualBackup,
+            onCreateLightweightBackup = onCreateLightweightBackup,
             onToggleAutoBackup = onToggleAutoBackup,
             onOpenAutoBackupSettings = onOpenAutoBackupSettings,
         )
@@ -90,7 +94,9 @@ private fun BackupActionsSection(
     autoBackupCount: Int,
     actionsLocked: Boolean,
     autoBackupEnabled: Boolean,
+    autoBackupRuntimeStatus: AutoBackupRuntimeStatus,
     onCreateManualBackup: () -> Unit,
+    onCreateLightweightBackup: () -> Unit,
     onToggleAutoBackup: () -> Unit,
     onOpenAutoBackupSettings: () -> Unit,
 ) {
@@ -112,6 +118,27 @@ private fun BackupActionsSection(
                 )
                 BackupStatusLine("手动备份库：", "$manualBackupCount 份", accent = true)
                 BackupStatusLine("自动备份库：", "$autoBackupCount 份", accent = true)
+                if (autoBackupEnabled && autoBackupRuntimeStatus.nextTriggerAtMillis > 0L) {
+                    BackupStatusLine(
+                        label = "下次自动备份：",
+                        value = formatAutoBackupScheduleTime(autoBackupRuntimeStatus.nextTriggerAtMillis),
+                        accent = true,
+                    )
+                }
+                if (autoBackupRuntimeStatus.lastRunAtMillis > 0L) {
+                    val resultText = autoBackupRuntimeStatus.lastRunMessage.ifBlank {
+                        when (autoBackupRuntimeStatus.lastRunOk) {
+                            true -> "成功"
+                            false -> "失败"
+                            null -> "已记录"
+                        }
+                    }
+                    BackupStatusLine(
+                        label = "最近自动备份：",
+                        value = "${formatAutoBackupScheduleTime(autoBackupRuntimeStatus.lastRunAtMillis)} · $resultText",
+                        accent = autoBackupRuntimeStatus.lastRunOk == true,
+                    )
+                }
             }
         }
         Row(
@@ -126,11 +153,11 @@ private fun BackupActionsSection(
                 onClick = onCreateManualBackup,
             )
             SecondaryActionButton(
-                text = "敬请期待",
-                enabled = false,
+                text = "轻量备份数据",
+                enabled = !actionsLocked,
                 accentColor = LukoaColors.Primary,
                 modifier = Modifier.weight(1f),
-                onClick = {},
+                onClick = onCreateLightweightBackup,
             )
         }
         Row(

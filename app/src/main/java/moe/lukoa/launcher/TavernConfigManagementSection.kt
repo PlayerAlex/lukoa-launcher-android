@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,12 +24,14 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TavernConfigManagementSection(
     state: TavernConfigManagementState,
+    proxyTestState: TavernProxyTestState = TavernProxyTestState(),
     instanceLabel: String,
     activePort: Int,
     actionsLocked: Boolean,
     tavernRunning: Boolean,
     onRefresh: () -> Unit,
     onSave: (TavernConfigPatch) -> Unit,
+    onTestProxy: (String) -> Unit = {},
     onRestartTavern: () -> Unit,
     onCopyText: (String, String) -> Boolean,
     onShowHint: (String) -> Unit,
@@ -56,6 +56,8 @@ fun TavernConfigManagementSection(
     var requestProxyBypassInput by remember(instanceLabel) {
         mutableStateOf((snapshot?.requestProxyBypass ?: listOf("localhost", "127.0.0.1")).joinToString("\n"))
     }
+    var showQrCode by rememberSaveable(instanceLabel) { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable(instanceLabel) { mutableStateOf(false) }
 
     fun syncFromSnapshot(source: TavernConfigSnapshot) {
         listen = source.listen
@@ -108,7 +110,7 @@ fun TavernConfigManagementSection(
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
     SectionPanel(
-        title = "酒馆核心设置",
+        title = "酒馆设置",
         accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
@@ -120,16 +122,16 @@ fun TavernConfigManagementSection(
                         state.loading -> "读取中"
                         snapshot == null -> "未读取"
                         snapshot.exists -> "已读取"
-                        else -> "默认模板"
+                        else -> "默认配置"
                     },
                     active = state.loading || snapshot != null,
                     toneColor = LukoaColors.Primary,
                     activeBackground = LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
-                    contentDescription = "查看酒馆核心设置说明",
-                    title = "酒馆核心设置",
-                    body = "这里可视化修改当前实例的 config.yaml 常用项。每次保存前都会自动备份原 config.yaml，只修改目标字段，保留原有注释和其他配置。修改后需重启酒馆生效。",
+                    contentDescription = "查看酒馆设置说明",
+                    title = "酒馆设置",
+                    body = "这里可以直接开关常用的酒馆功能，不用手动打开配置文件修改。每次保存前都会自动备份原配置；改完后重启酒馆即可生效。",
                 )
             }
         },
@@ -138,57 +140,42 @@ fun TavernConfigManagementSection(
             SettingsEntryRow(
                 title = "当前实例",
                 detail = state.message,
-                detailMaxLines = Int.MAX_VALUE,
+                detailMaxLines = 3,
                 value = instanceLabel,
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
             )
-            if (snapshot?.lastBackupPath?.isNotBlank() == true) {
-                SettingsEntryDivider()
-                SettingsEntryRow(
-                    title = "最近自动备份",
-                    detail = snapshot.lastBackupPath.substringAfterLast('/'),
-                    detailMaxLines = 2,
-                )
-            }
         }
 
         if (state.savedNeedsRestart && tavernRunning) {
             NoticeCard(
-                title = "配置已保存，重启酒馆后生效",
-                detail = "酒馆只在启动时读取 config.yaml，点下方按钮可直接重启当前实例。",
-                accentColor = LukoaColors.Accent,
+                title = "设置已保存，重启酒馆后生效",
+                detail = "酒馆启动时才会重新读取设置，点击下方可直接重启。",
+                accentColor = LukoaColors.Primary,
+                actionTone = ActionTone.Safe,
                 actionLabel = "立即重启酒馆",
                 onAction = onRestartTavern,
             )
         }
 
-        SettingsFeedbackActionButton(
-            text = if (state.loading) "读取中..." else "读取当前配置",
-            enabled = !actionsLocked && !state.loading,
-            accentColor = LukoaColors.Primary,
-            modifier = Modifier.fillMaxWidth(),
-            unavailableHint = if (state.loading) "正在读取 config.yaml，请稍等。" else lockedHint,
-            onShowHint = onShowHint,
-            onClick = onRefresh,
-        )
-
         if (snapshot == null) {
-            SettingsEntryGroup {
-                SettingsEntryRow(
-                    title = "尚未读取 config.yaml",
-                    detail = "点击上方“读取当前配置”后，可可视化修改局域网访问、角色卡懒加载、代理地址和核心功能开关。",
-                    detailMaxLines = 3,
-                )
-            }
+            SettingsFeedbackActionButton(
+                text = if (state.loading) "读取中..." else "读取当前设置",
+                enabled = !actionsLocked && !state.loading,
+                accentColor = LukoaColors.Primary,
+                modifier = Modifier.fillMaxWidth(),
+                unavailableHint = if (state.loading) "正在读取设置，请稍等。" else lockedHint,
+                onShowHint = onShowHint,
+                onClick = onRefresh,
+            )
             return@SectionPanel
         }
 
-        ManagementDialogSectionTitle("局域网访问与安全")
+        ManagementDialogSectionTitle("用电脑 / 平板一起玩")
         SettingsEntryGroup {
-            ConfigSwitchRow(
-                title = "允许局域网访问（listen）",
-                detail = "开启后，同一 Wi-Fi 下的电脑或平板可以直接在浏览器打开手机上的酒馆。",
+            LukoaSwitchRow(
+                title = "允许同一 Wi-Fi 下的设备访问",
+                detail = "开启后，电脑或平板连同一个 Wi-Fi 就能在浏览器打开手机上的酒馆。",
                 checked = listen,
                 enabled = !actionsLocked,
                 onCheckedChange = { listen = it },
@@ -197,15 +184,13 @@ fun TavernConfigManagementSection(
                 SettingsEntryDivider()
                 val primaryLanUrl = lanAddresses.firstOrNull()?.let { "http://$it:$activePort" }
                 SettingsEntryRow(
-                    title = "本机局域网地址",
+                    title = "本机访问地址（点按复制）",
                     detail = if (primaryLanUrl != null) {
-                        val extras = lanAddresses.drop(1).joinToString("、") { "http://$it:$activePort" }
-                        if (extras.isBlank()) "在电脑或平板浏览器输入此地址访问（需与手机连同一 Wi-Fi）。"
-                        else "其他候选地址：$extras"
+                        "在电脑或平板浏览器输入这个地址即可打开。"
                     } else {
-                        "暂未检测到 Wi-Fi 局域网 IP，请确认手机已连接 Wi-Fi。"
+                        "暂未检测到 Wi-Fi，请确认手机已连接 Wi-Fi。"
                     },
-                    detailMaxLines = 3,
+                    detailMaxLines = 2,
                     value = primaryLanUrl ?: "未连 Wi-Fi",
                     valueLayout = SettingsValueLayout.Supporting,
                     valueColor = if (primaryLanUrl != null) LukoaColors.Primary else LukoaColors.TextSecondary,
@@ -213,126 +198,143 @@ fun TavernConfigManagementSection(
                     onClick = primaryLanUrl?.let { url ->
                         {
                             val copied = onCopyText("局域网酒馆地址", url)
-                            onShowHint(if (copied) "已复制局域网访问地址：$url" else "复制地址失败。")
+                            onShowHint(if (copied) "已复制访问地址：$url" else "复制地址失败。")
                         }
                     },
                 )
-            }
-            SettingsEntryDivider()
-            ConfigSwitchRow(
-                title = "仅允许白名单 IP 访问（whitelistMode）",
-                detail = "关闭后任意同局域网设备都能访问；若关闭，强烈建议开启下方密码保护。",
-                checked = whitelistMode,
-                enabled = !actionsLocked,
-                onCheckedChange = { whitelistMode = it },
-            )
-            if (whitelistMode) {
-                Column(
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    OutlinedTextField(
-                        value = whitelistInput,
-                        onValueChange = { whitelistInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("允许访问的 IP / 网段（每行一个）") },
-                        placeholder = { Text("127.0.0.1\n::1\n192.168.1.*") },
-                        minLines = 2,
-                        maxLines = 4,
-                        enabled = !actionsLocked,
-                    )
-                    lanAddresses.firstOrNull()?.let { lanIp ->
-                        val subnet = lanIp.substringBeforeLast('.') + ".*"
-                        if (subnet !in draftPatch.whitelist) {
-                            SettingsFeedbackActionButton(
-                                text = "一键加入当前网段（$subnet）",
-                                enabled = !actionsLocked,
-                                accentColor = LukoaColors.Primary,
-                                modifier = Modifier.fillMaxWidth(),
-                                unavailableHint = lockedHint,
-                                onShowHint = onShowHint,
-                                onClick = {
-                                    whitelistInput = (draftPatch.whitelist + subnet).distinct().joinToString("\n")
-                                },
-                            )
+                if (primaryLanUrl != null) {
+                    Column(
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        SettingsFeedbackActionButton(
+                            text = if (showQrCode) "收起扫码二维码" else "显示扫码二维码",
+                            enabled = true,
+                            accentColor = LukoaColors.Primary,
+                            modifier = Modifier.fillMaxWidth(),
+                            unavailableHint = null,
+                            onShowHint = onShowHint,
+                            onClick = { showQrCode = !showQrCode },
+                        )
+                        if (showQrCode) {
+                            LanQrCodeCard(url = primaryLanUrl)
                         }
                     }
                 }
-            }
-            SettingsEntryDivider()
-            ConfigSwitchRow(
-                title = "开启访问账号密码保护（basicAuthMode）",
-                detail = if (snapshot.basicAuthHasPassword) {
-                    "已配置密码；留空新密码框可保持原密码不变。"
-                } else {
-                    "当前未设置密码，开启前请在下方填写新密码。"
-                },
-                checked = basicAuthMode,
-                enabled = !actionsLocked,
-                onCheckedChange = { basicAuthMode = it },
-            )
-            if (basicAuthMode) {
-                Column(
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = basicAuthUsername,
-                        onValueChange = { basicAuthUsername = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("访问用户名") },
-                        enabled = !actionsLocked,
-                    )
-                    OutlinedTextField(
-                        value = newBasicAuthPassword,
-                        onValueChange = { newBasicAuthPassword = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        label = {
-                            Text(if (snapshot.basicAuthHasPassword) "新访问密码（留空不改）" else "设置访问密码")
-                        },
-                        enabled = !actionsLocked,
-                    )
+                SettingsEntryDivider()
+                LukoaSwitchRow(
+                    title = "仅允许白名单里的设备访问",
+                    detail = "保护同 Wi-Fi 下的隐私；关闭后建议开启下方密码保护。",
+                    checked = whitelistMode,
+                    enabled = !actionsLocked,
+                    onCheckedChange = { whitelistMode = it },
+                )
+                if (whitelistMode) {
+                    Column(
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        lanAddresses.firstOrNull()?.let { lanIp ->
+                            val subnet = lanIp.substringBeforeLast('.') + ".*"
+                            if (subnet !in draftPatch.whitelist) {
+                                SettingsFeedbackActionButton(
+                                    text = "一键放行当前 Wi-Fi 设备（$subnet）",
+                                    enabled = !actionsLocked,
+                                    accentColor = LukoaColors.Primary,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    unavailableHint = lockedHint,
+                                    onShowHint = onShowHint,
+                                    onClick = {
+                                        whitelistInput = (draftPatch.whitelist + subnet).distinct().joinToString("\n")
+                                    },
+                                )
+                            }
+                        }
+                        LukoaTextField(
+                            value = whitelistInput,
+                            onValueChange = { whitelistInput = it },
+                            label = "允许访问的 IP / 网段（每行一个）",
+                            placeholder = "127.0.0.1\n192.168.1.*",
+                            singleLine = false,
+                            minLines = 2,
+                            maxLines = 4,
+                            enabled = !actionsLocked,
+                        )
+                    }
+                }
+                SettingsEntryDivider()
+                LukoaSwitchRow(
+                    title = "打开酒馆时要求输入账号密码",
+                    detail = if (snapshot.basicAuthHasPassword) {
+                        "已设置密码；下方新密码留空可保持不变。"
+                    } else {
+                        "开启前请在下方填写用户名和密码。"
+                    },
+                    checked = basicAuthMode,
+                    enabled = !actionsLocked,
+                    onCheckedChange = { basicAuthMode = it },
+                )
+                if (basicAuthMode) {
+                    Column(
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        LukoaTextField(
+                            value = basicAuthUsername,
+                            onValueChange = { basicAuthUsername = it },
+                            label = "访问用户名",
+                            enabled = !actionsLocked,
+                        )
+                        LukoaTextField(
+                            value = newBasicAuthPassword,
+                            onValueChange = { newBasicAuthPassword = it },
+                            label = if (snapshot.basicAuthHasPassword) "新密码（留空不改）" else "设置密码",
+                            visualTransformation = PasswordVisualTransformation(),
+                            enabled = !actionsLocked,
+                        )
+                    }
                 }
             }
         }
 
         securityWarnings.forEach { warning ->
             NoticeCard(
-                title = "局域网访问提醒",
+                title = "访问提醒",
                 detail = warning,
                 accentColor = LukoaColors.Accent,
             )
         }
 
-        ManagementDialogSectionTitle("流畅度与聊天滚动备份")
+        ManagementDialogSectionTitle("流畅度与聊天保护")
         SettingsEntryGroup {
-            ConfigSwitchRow(
-                title = "角色卡懒加载（lazyLoadCharacters）",
-                detail = "角色卡很多时开启可明显加快页面打开速度、降低手机内存占用。",
+            LukoaSwitchRow(
+                title = "角色卡很多时省内存加速",
+                detail = "按需加载角色卡，角色多时能明显加快打开速度、减少卡顿。",
                 checked = lazyLoadCharacters,
                 enabled = !actionsLocked,
                 onCheckedChange = { lazyLoadCharacters = it },
             )
             SettingsEntryDivider()
-            ConfigSwitchRow(
-                title = "酒馆自带聊天滚动备份",
-                detail = "每次保存聊天时由酒馆自动留底一份到 backups 目录。",
+            LukoaSwitchRow(
+                title = "酒馆自带聊天自动留底",
+                detail = "每次保存聊天时额外留一份旧档，防止误删或覆盖。",
                 checked = chatBackupEnabled,
                 enabled = !actionsLocked,
                 onCheckedChange = { chatBackupEnabled = it },
             )
         }
 
-        ManagementDialogActionCard(
-            title = "聊天滚动备份上限（当前：${if (chatMaxTotalBackups == -1) "不限" else "$chatMaxTotalBackups 份"}）",
+        LukoaCollapsibleCard(
+            title = "更多进阶设置",
+            subtitle = "网络代理、旧档保留份数、多用户与插件总开关",
+            expanded = showAdvanced,
+            onToggle = { showAdvanced = !showAdvanced },
         ) {
             Text(
-                text = "限制滚动备份总数可避免手机空间被旧副本慢慢占满（默认 50 份）。",
-                color = LukoaColors.TextSecondary,
+                text = "旧档保留上限（当前：${if (chatMaxTotalBackups == -1) "不限" else "$chatMaxTotalBackups 份"}）",
+                color = LukoaColors.TextPrimary,
                 style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -343,7 +345,7 @@ fun TavernConfigManagementSection(
                     SettingsCompactChoiceButton(
                         text = if (limit == -1) "不限" else "$limit",
                         enabled = !actionsLocked,
-                        accentColor = if (selected) LukoaColors.Accent else LukoaColors.Primary,
+                        accentColor = if (selected) LukoaColors.Primary else LukoaColors.TextSecondary,
                         modifier = Modifier.weight(1f),
                         unavailableHint = lockedHint,
                         onShowHint = onShowHint,
@@ -351,67 +353,90 @@ fun TavernConfigManagementSection(
                     )
                 }
             }
-        }
 
-        ManagementDialogSectionTitle("酒馆网络请求代理（requestProxy）")
-        SettingsEntryGroup {
-            ConfigSwitchRow(
-                title = "启用酒馆请求代理",
-                detail = "让酒馆后端请求 API 或下载内容时走指定 HTTP / SOCKS5 代理。",
+            SettingsEntryDivider()
+            LukoaSwitchRow(
+                title = "让酒馆网络请求走本地代理",
+                detail = "需要使用 HTTP 或 SOCKS5 代理连接模型接口时开启。",
                 checked = requestProxyEnabled,
                 enabled = !actionsLocked,
                 onCheckedChange = { requestProxyEnabled = it },
             )
-            Column(
-                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
+            if (requestProxyEnabled || requestProxyUrl.isNotBlank()) {
+                LukoaTextField(
                     value = requestProxyUrl,
                     onValueChange = { requestProxyUrl = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("代理地址") },
-                    placeholder = { Text("http://127.0.0.1:7890 或 socks5://127.0.0.1:1080") },
+                    label = "代理地址",
+                    placeholder = "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
                     enabled = !actionsLocked,
                 )
-                OutlinedTextField(
+                val proxyValidationError = TavernProxyTestCommandCodec.validateProxyUrl(requestProxyUrl)
+                SettingsFeedbackActionButton(
+                    text = if (proxyTestState.testing) "正在测试连通性..." else "测试代理连通性",
+                    enabled = !actionsLocked && !proxyTestState.testing && proxyValidationError == null,
+                    accentColor = LukoaColors.Primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    unavailableHint = if (proxyTestState.testing) "正在测试代理，请稍等。" else lockedHint ?: proxyValidationError,
+                    onShowHint = onShowHint,
+                    onClick = { onTestProxy(requestProxyUrl.trim()) },
+                )
+                if (proxyTestState.message.isNotBlank()) {
+                    val result = proxyTestState.result
+                    NoticeCard(
+                        title = when {
+                            proxyTestState.testing -> "代理测试中"
+                            result?.ok == true -> "代理可用${result.latencyMs?.let { "（${it}ms）" }.orEmpty()}"
+                            result != null -> "代理暂不可用"
+                            else -> "代理提示"
+                        },
+                        detail = proxyTestState.message,
+                        accentColor = if (result?.ok == false) LukoaColors.Danger else LukoaColors.Primary,
+                    )
+                }
+                LukoaTextField(
                     value = requestProxyBypassInput,
                     onValueChange = { requestProxyBypassInput = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = "不走代理的地址（每行一个）",
+                    placeholder = "localhost\n127.0.0.1",
+                    singleLine = false,
                     minLines = 2,
                     maxLines = 3,
-                    label = { Text("不走代理的地址（每行一个）") },
-                    placeholder = { Text("localhost\n127.0.0.1") },
                     enabled = !actionsLocked,
                 )
             }
-        }
 
-        ManagementDialogSectionTitle("核心功能开关")
-        SettingsEntryGroup {
-            ConfigSwitchRow(
-                title = "多用户账号登录（enableUserAccounts）",
-                detail = "开启后进入酒馆需选择或登录账户，可配合设置里的“用户管理”使用。",
+            SettingsEntryDivider()
+            LukoaSwitchRow(
+                title = "开启多用户账号登录",
+                detail = "需要分多个账号隔离角色卡和聊天时开启。",
                 checked = enableUserAccounts,
                 enabled = !actionsLocked,
                 onCheckedChange = { enableUserAccounts = it },
             )
             SettingsEntryDivider()
-            ConfigSwitchRow(
-                title = "启用网页扩展（enableExtensions）",
-                detail = "保持开启以正常加载酒馆助手、正则等第三方前端扩展。",
+            LukoaSwitchRow(
+                title = "启用网页扩展",
+                detail = "建议保持开启，用于加载酒馆助手、正则等扩展。",
                 checked = enableExtensions,
                 enabled = !actionsLocked,
                 onCheckedChange = { enableExtensions = it },
             )
             SettingsEntryDivider()
-            ConfigSwitchRow(
-                title = "启用服务器插件（enableServerPlugins）",
-                detail = "允许加载 plugins/ 目录中的服务端插件（如部分高级连接插件）。",
+            LukoaSwitchRow(
+                title = "启用后端服务器插件",
+                detail = "仅在安装了「服务器插件」时需要开启。",
                 checked = enableServerPlugins,
                 enabled = !actionsLocked,
                 onCheckedChange = { enableServerPlugins = it },
+            )
+            SettingsFeedbackActionButton(
+                text = if (state.loading) "读取中..." else "重新读取配置文件",
+                enabled = !actionsLocked && !state.loading,
+                accentColor = LukoaColors.TextSecondary,
+                modifier = Modifier.fillMaxWidth(),
+                unavailableHint = lockedHint,
+                onShowHint = onShowHint,
+                onClick = onRefresh,
             )
         }
 
@@ -429,7 +454,7 @@ fun TavernConfigManagementSection(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             SettingsFeedbackActionButton(
-                text = "还原当前读取值",
+                text = "还原改动",
                 enabled = !actionsLocked,
                 accentColor = LukoaColors.TextSecondary,
                 modifier = Modifier.weight(1f),
@@ -437,63 +462,18 @@ fun TavernConfigManagementSection(
                 onShowHint = onShowHint,
                 onClick = {
                     syncFromSnapshot(snapshot)
-                    onShowHint("已还原为刚读取的配置。")
+                    onShowHint("已还原为当前保存的设置。")
                 },
             )
             SettingsFeedbackActionButton(
-                text = "保存配置",
+                text = "保存设置",
                 enabled = !actionsLocked && validationError == null,
                 accentColor = LukoaColors.Primary,
-                modifier = Modifier.weight(1.2f),
+                modifier = Modifier.weight(1.3f),
                 unavailableHint = lockedHint ?: validationError,
                 onShowHint = onShowHint,
                 onClick = { onSave(draftPatch) },
             )
         }
-    }
-}
-
-@Composable
-private fun ConfigSwitchRow(
-    title: String,
-    detail: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                color = if (enabled) LukoaColors.TextPrimary else LukoaColors.Dim,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = detail,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = LukoaColors.Background,
-                checkedTrackColor = LukoaColors.Primary,
-                uncheckedThumbColor = LukoaColors.TextSecondary,
-                uncheckedTrackColor = LukoaColors.Elevated,
-            ),
-        )
     }
 }

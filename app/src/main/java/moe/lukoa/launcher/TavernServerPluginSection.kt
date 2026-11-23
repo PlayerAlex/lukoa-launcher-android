@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,23 +43,21 @@ fun TavernServerPluginSection(
         AlertDialog(
             onDismissRequest = { showInstallDialog = false },
             containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.Primary,
+            titleContentColor = LukoaColors.TextPrimary,
             textContentColor = LukoaColors.TextPrimary,
-            title = { Text("安装服务器插件") },
+            title = { Text("安装后端插件") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "粘贴 SillyTavern 服务器插件（plugins/）的公开 HTTPS Git 地址。安装会自动下载到 plugins 目录并安装依赖，不会覆盖已有同名目录。",
+                        text = "粘贴插件作者提供的公开网址（以 https:// 开头）。启动器会自动下载并装好所需文件，不会覆盖已有同名插件。",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    OutlinedTextField(
+                    LukoaTextField(
                         value = repoInput,
                         onValueChange = { repoInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("插件 Git 仓库地址") },
-                        placeholder = { Text("https://github.com/owner/plugin-repo") },
+                        label = "插件网址",
+                        placeholder = "https://github.com/owner/plugin-repo",
                     )
                     if (repoError != null) {
                         Text(
@@ -74,18 +69,24 @@ fun TavernServerPluginSection(
                 }
             },
             confirmButton = {
-                Button(
+                DialogActionButton(
+                    text = "开始安装",
                     enabled = repoInput.isNotBlank() && repoError == null,
+                    tone = ActionTone.Safe,
                     onClick = {
                         val url = repoInput.trim()
                         showInstallDialog = false
                         repoInput = ""
                         onInstall(url)
                     },
-                ) { Text("开始安装") }
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { showInstallDialog = false }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { showInstallDialog = false },
+                )
             },
         )
     }
@@ -93,18 +94,33 @@ fun TavernServerPluginSection(
     pendingUpdate?.let { plugin ->
         AlertDialog(
             onDismissRequest = { pendingUpdate = null },
-            title = { Text("更新服务器插件") },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("更新后端插件") },
             text = {
-                Text("将通过 git pull --ff-only 更新「${plugin.displayName}」并同步依赖。更新完成后需重启酒馆生效。")
+                Text(
+                    text = "会拉取「${plugin.displayName}」的最新版本并同步所需文件，更新后重启酒馆生效。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             },
             confirmButton = {
-                Button(onClick = {
-                    pendingUpdate = null
-                    onUpdate(plugin.directoryName)
-                }) { Text("确认更新") }
+                DialogActionButton(
+                    text = "确认更新",
+                    tone = ActionTone.Safe,
+                    onClick = {
+                        pendingUpdate = null
+                        onUpdate(plugin.directoryName)
+                    },
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingUpdate = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingUpdate = null },
+                )
             },
         )
     }
@@ -112,24 +128,39 @@ fun TavernServerPluginSection(
     pendingDelete?.let { plugin ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("删除服务器插件") },
+            containerColor = LukoaColors.Elevated,
+            titleContentColor = LukoaColors.TextPrimary,
+            textContentColor = LukoaColors.TextPrimary,
+            title = { Text("删除后端插件") },
             text = {
-                Text("将删除服务器插件目录「${plugin.directoryName}」，不会影响聊天记录、角色卡或备份。删除后重启酒馆生效。")
+                Text(
+                    text = "将移除插件「${plugin.displayName}」，不会影响聊天记录、角色卡或备份。删除后重启酒馆生效。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             },
             confirmButton = {
-                Button(onClick = {
-                    pendingDelete = null
-                    onDelete(plugin.directoryName)
-                }) { Text("确认删除") }
+                DialogActionButton(
+                    text = "确认删除",
+                    tone = ActionTone.Danger,
+                    onClick = {
+                        pendingDelete = null
+                        onDelete(plugin.directoryName)
+                    },
+                )
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingDelete = null }) { Text("取消") }
+                DialogActionButton(
+                    text = "取消",
+                    tone = ActionTone.Neutral,
+                    onClick = { pendingDelete = null },
+                )
             },
         )
     }
 
     SectionPanel(
-        title = "服务器插件管理",
+        title = "服务器插件",
         accentColor = LukoaColors.Primary,
         headerAction = {
             Row(
@@ -140,20 +171,24 @@ fun TavernServerPluginSection(
                     text = when {
                         state.loading -> "读取中"
                         snapshot == null -> "未读取"
-                        else -> "${snapshot.plugins.size} 个插件"
+                        else -> "${snapshot.plugins.size} 个"
                     },
                     active = state.loading || snapshot != null,
                     toneColor = LukoaColors.Primary,
                     activeBackground = LukoaColors.PrimarySoft,
                 )
                 InfoPopoverButton(
-                    contentDescription = "查看服务器插件管理说明",
-                    title = "服务器插件管理",
-                    body = "这里管理 SillyTavern 的后端服务器插件（位于 plugins/ 目录），不同于前端网页扩展。服务器插件需要同时在“酒馆设置”里开启 enableServerPlugins，并在变更后重启酒馆才能生效。",
+                    contentDescription = "查看服务器插件说明",
+                    title = "什么时候需要用到这里？",
+                    body = "普通酒馆网页扩展请去「扩展管理」安装。只有极少数插件（如需要调用本机程序或额外接口的扩展）明确说明要装「后端 / 服务器插件」时，才需要来这里安装，并顺手打开后端插件开关。",
                 )
             }
         },
     ) {
+        ManagementDialogIntroCard(
+            "平时一般用不到这里。只有插件作者明确提醒需要安装「后端插件」时，才在这里粘贴网址安装；普通扩展请用「扩展管理」。",
+        )
+
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",
@@ -166,27 +201,28 @@ fun TavernServerPluginSection(
             if (snapshot != null) {
                 SettingsEntryDivider()
                 SettingsEntryRow(
-                    title = "config.yaml 插件总开关",
+                    title = "后端插件总开关",
                     detail = if (snapshot.enabledInConfig) {
-                        "enableServerPlugins 已开启，重启酒馆时会自动加载下方插件。"
+                        "已开启，重启酒馆后会自动加载下方插件。"
                     } else {
-                        "enableServerPlugins 当前未开启，已安装的服务器插件暂不会生效。"
+                        "当前未开启，点此前往「酒馆设置」开启后插件才会生效。"
                     },
                     detailMaxLines = 3,
                     value = if (snapshot.enabledInConfig) "已开启" else "未开启",
-                    valueColor = if (snapshot.enabledInConfig) LukoaColors.Primary else LukoaColors.Accent,
+                    valueColor = if (snapshot.enabledInConfig) LukoaColors.Primary else LukoaColors.TextSecondary,
                     valueAsPill = true,
                     onClick = onOpenTavernConfig,
                 )
             }
         }
 
-        if (snapshot != null && !snapshot.enabledInConfig) {
+        if (snapshot != null && !snapshot.enabledInConfig && snapshot.plugins.isNotEmpty()) {
             NoticeCard(
-                title = "尚未开启服务器插件总开关",
-                detail = "需在「酒馆设置」中开启“启用服务器插件（enableServerPlugins）”并重启酒馆，插件才会被加载。",
-                accentColor = LukoaColors.Accent,
+                title = "还差一步：打开后端插件开关",
+                detail = "你已经装了后端插件，但酒馆总开关还没开。点下面按钮去「酒馆设置」的更多进阶设置里打开开关，再重启酒馆就能用。",
+                accentColor = LukoaColors.Primary,
                 actionLabel = "去酒馆设置开启",
+                actionTone = ActionTone.Safe,
                 onAction = onOpenTavernConfig,
             )
         }
@@ -196,16 +232,16 @@ fun TavernServerPluginSection(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             SettingsFeedbackActionButton(
-                text = if (state.loading) "读取中..." else "读取插件列表",
+                text = if (state.loading) "读取中..." else "刷新列表",
                 enabled = !actionsLocked && !state.loading,
                 accentColor = LukoaColors.Primary,
                 modifier = Modifier.weight(1f),
-                unavailableHint = if (state.loading) "正在读取服务器插件，请稍等。" else lockedHint,
+                unavailableHint = if (state.loading) "正在读取插件列表，请稍等。" else lockedHint,
                 onShowHint = onShowHint,
                 onClick = onRefresh,
             )
             SettingsFeedbackActionButton(
-                text = "Git 安装插件",
+                text = "安装新插件",
                 enabled = !actionsLocked,
                 accentColor = LukoaColors.Primary,
                 modifier = Modifier.weight(1f),
@@ -244,9 +280,8 @@ fun TavernServerPluginSection(
                             }
                             Text(
                                 text = buildList {
-                                    add("目录：${plugin.directoryName}")
-                                    if (plugin.version.isNotBlank()) add("版本：${plugin.version}")
-                                    if (plugin.revision.isNotBlank()) add("提交：${plugin.revision}")
+                                    add("文件夹：${plugin.directoryName}")
+                                    if (plugin.version.isNotBlank()) add("版本 ${plugin.version}")
                                 }.joinToString(" · "),
                                 color = LukoaColors.TextSecondary,
                                 style = MaterialTheme.typography.bodySmall,
@@ -267,7 +302,7 @@ fun TavernServerPluginSection(
                                     enabled = !actionsLocked && plugin.isGitRepository,
                                     accentColor = LukoaColors.Primary,
                                     modifier = Modifier.weight(1f),
-                                    unavailableHint = lockedHint ?: "该插件不是 Git 仓库，暂不支持自动更新。",
+                                    unavailableHint = lockedHint ?: "这个插件是手动放进去的，暂不支持一键更新。",
                                     onShowHint = onShowHint,
                                     onClick = { pendingUpdate = plugin },
                                 )
@@ -288,8 +323,8 @@ fun TavernServerPluginSection(
         } else if (snapshot != null && !state.loading) {
             SettingsEntryGroup {
                 SettingsEntryRow(
-                    title = "当前没有服务器插件",
-                    detail = "plugins/ 目录下暂无第三方服务器插件；如需安装，可点上方“Git 安装插件”。",
+                    title = "还没有安装后端插件",
+                    detail = "不需要的话保持空着即可；如果某个扩展提示需要后端插件，点上方「安装新插件」。",
                     detailMaxLines = 3,
                 )
             }

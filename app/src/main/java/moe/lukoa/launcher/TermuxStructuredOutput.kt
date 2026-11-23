@@ -15,6 +15,9 @@ data class TermuxStructuredOutput(
     val gitStashSnapshot: Pair<Boolean, List<TavernGitStashEntry>>? = null,
     val quickImportPaths: TavernQuickImportPaths? = null,
     val quickImportedFile: String? = null,
+    val quickImportedFiles: List<String> = emptyList(),
+    val nodeMemoryStatus: TavernNodeMemoryStatus? = null,
+    val proxyTestResult: TavernProxyTestResult? = null,
 )
 
 object TermuxStructuredOutputParser {
@@ -27,6 +30,7 @@ object TermuxStructuredOutputParser {
         val officialVersions = TavernOfficialVersionParser.parse(output)
             .takeIf { it.hasData }
         val chatGuardSnapshot = TavernChatGuardOutputParser.parse(output)
+        val importedFiles = TavernQuickImportOutputParser.parseImportedTargetFiles(output)
         return TermuxStructuredOutput(
             versionInfo = versionInfo,
             officialVersions = officialVersions,
@@ -42,7 +46,11 @@ object TermuxStructuredOutputParser {
             serverPluginsSnapshot = TavernServerPluginOutputParser.parse(output),
             gitStashSnapshot = TavernGitStashOutputParser.parse(output),
             quickImportPaths = TavernQuickImportOutputParser.parsePaths(output),
-            quickImportedFile = TavernQuickImportOutputParser.parseImportedTargetFile(output),
+            quickImportedFile = TavernQuickImportOutputParser.parseImportedTargetFile(output)
+                ?: importedFiles.lastOrNull(),
+            quickImportedFiles = importedFiles,
+            nodeMemoryStatus = TavernNodeMemoryOutputParser.parse(output),
+            proxyTestResult = TavernProxyTestOutputParser.parse(output),
         )
     }
 }

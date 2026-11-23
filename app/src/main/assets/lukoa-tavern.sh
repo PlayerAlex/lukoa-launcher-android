@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# LUKOA_SCRIPT_REV=2026-11-23-ops-b-1
+# LUKOA_SCRIPT_REV=2026-11-23-ops-c-1
 
 set -u
 
@@ -2814,8 +2814,10 @@ cmd_backup() {
   BACKUP_KIND="${1:-manual}"
   AUTO_KEEP="${2:-5}"
   BACKUP_LABEL="${3:-}"
+  BACKUP_SCOPE="full"
   case "$BACKUP_KIND" in
     auto) ;;
+    manual-data) BACKUP_SCOPE="user-data" ;;
     *) BACKUP_KIND="manual" ;;
   esac
   case "$AUTO_KEEP" in
@@ -2871,7 +2873,7 @@ cmd_backup() {
 
   stamp="$(date +"%Y%m%d-%H%M%S")"
   safe_label=""
-  if [ "$BACKUP_KIND" = "manual" ] && [ -n "$BACKUP_LABEL" ]; then
+  if [ "$BACKUP_KIND" != "auto" ] && [ -n "$BACKUP_LABEL" ]; then
     label_base="$(printf "%s" "$BACKUP_LABEL" | sed 's/[.][Tt][Aa][Rr][.][Gg][Zz]$//; s/[.][Tt][Gg][Zz]$//')"
     safe_label="$(safe_backup_label "$label_base")"
     [ -n "$safe_label" ] || safe_label="custom"
@@ -2880,6 +2882,8 @@ cmd_backup() {
     archive_base="zd-$stamp"
   elif [ -n "$safe_label" ]; then
     archive_base="$safe_label"
+  elif [ "$BACKUP_SCOPE" = "user-data" ]; then
+    archive_base="sd-data-$stamp"
   else
     archive_base="sd-$stamp"
   fi
@@ -2977,18 +2981,21 @@ cmd_backup() {
     record_tavern_expected "dataRoot" "$DATA_ROOT_CANON"
   fi
 
-  record_expected "tavern-root" "$TAVERN_CANON" "$base"
-  record_tavern_expected "legacy-data" "$TAVERN_DIR/data"
+  if [ "$BACKUP_SCOPE" = "full" ]; then
+    record_expected "tavern-root" "$TAVERN_CANON" "$base"
+    record_tavern_expected "legacy-data" "$TAVERN_DIR/data"
+    record_tavern_expected "plugins" "$TAVERN_DIR/plugins"
+  fi
   record_tavern_expected "config.yaml" "$TAVERN_DIR/config.yaml"
   record_tavern_expected ".env" "$TAVERN_DIR/.env"
   record_tavern_expected "root-secrets.json" "$TAVERN_DIR/secrets.json"
-  record_tavern_expected "plugins" "$TAVERN_DIR/plugins"
   record_tavern_expected "third-party-extensions" "$TAVERN_DIR/public/scripts/extensions/third-party"
 
   {
     printf "schema=lukoa-sillytavern-backup-v2\n"
     printf "createdAt=%s\n" "$(timestamp)"
     printf "kind=%s\n" "$BACKUP_KIND"
+    printf "backupScope=%s\n" "$BACKUP_SCOPE"
     printf "label=%s\n" "${safe_label:-none}"
     printf "source=%s\n" "$TAVERN_CANON"
     printf "configuredDataRoot=%s\n" "$CONFIG_DATA_ROOT"
@@ -3010,7 +3017,49 @@ cmd_backup() {
     return 74
   }
 
-  if [ -n "$EXTERNAL_DATA_ROOT" ]; then
+  if [ "$BACKUP_SCOPE" = "user-data" ]; then
+    set -- \
+      --exclude="$base/node_modules" \
+      --exclude="$base/.git" \
+      --exclude="$base/.cache" \
+      --exclude="$base/cache"
+    has_internal_entry=0
+    if [ -z "$EXTERNAL_DATA_ROOT" ] && [ -e "$DATA_ROOT_CANON" ]; then
+      data_entry="$(tavern_entry_for "$DATA_ROOT_CANON" || true)"
+      if [ -n "$data_entry" ]; then
+        set -- "$@" "$data_entry"
+        has_internal_entry=1
+      fi
+    fi
+    for rel_item in \
+      "config.yaml" \
+      ".env" \
+      "secrets.json" \
+      "public/scripts/extensions/third-party" \
+      "public/scripts/extensions/.lukoa-disabled-third-party"; do
+      if [ -e "$TAVERN_DIR/$rel_item" ]; then
+        set -- "$@" "$base/$rel_item"
+        has_internal_entry=1
+      fi
+    done
+    if [ "$has_internal_entry" -eq 0 ]; then
+      if [ -z "$EXTERNAL_DATA_ROOT" ]; then
+        safe_remove_backup_temp_dir "$manifest_dir"
+        write_status "error" "No SillyTavern user data directory found for lightweight backup" false 66
+        emit_status
+        return 66
+      fi
+      mkdir -p "$manifest_dir/$base"
+      set -- "$@" -C "$manifest_dir" "$base"
+    fi
+    set -- "$@" -C "$manifest_dir" "$manifest_name"
+    if [ -n "$EXTERNAL_DATA_ROOT" ]; then
+      external_parent="$(dirname "$EXTERNAL_DATA_ROOT")"
+      external_base="$(basename "$EXTERNAL_DATA_ROOT")"
+      set -- "$@" -C "$external_parent" "$external_base"
+    fi
+    tar -czf "$archive" "$@" 2>"$error_file"
+  elif [ -n "$EXTERNAL_DATA_ROOT" ]; then
     external_parent="$(dirname "$EXTERNAL_DATA_ROOT")"
     external_base="$(basename "$EXTERNAL_DATA_ROOT")"
     tar -czf "$archive" \
@@ -3085,6 +3134,7 @@ cmd_backup() {
   cat "$STATUS_FILE"
   printf "\n==== SillyTavern backup ====\n"
   printf "kind=%s\n" "$BACKUP_KIND"
+  printf "scope=%s\n" "$BACKUP_SCOPE"
   printf "label=%s\n" "${safe_label:-none}"
   printf "archive=%s\n" "$archive"
   printf "backupDir=%s\n" "$BACKUP_DIR"
@@ -3866,6 +3916,12 @@ cmd_restore() {
   fi
 
   restore_archive="$archive"
+  restore_backup_scope="$(manifest_value_from_archive "$restore_archive" "backupScope" || true)"
+  if [ "$restore_backup_scope" = "user-data" ] && [ "$restore_mode" = "full" ]; then
+    write_status "error" "This backup only contains user data; use user-data restore mode instead of full restore" false 64
+    emit_status
+    return 64
+  fi
   restore_root_name="$(restore_root_name_from_archive "$restore_archive")"
   restore_stamp="$(date +"%Y%m%d-%H%M%S")"
   restore_list_file="$STATE_DIR/restore-archive-list.txt"
@@ -4570,6 +4626,7 @@ cmd_node_memory_set() {
   write_status "node-memory" "Node.js memory limit was saved; it applies on the next start" "$(tavern_running_value)" 0
   emit_status
   printf "node.memory.mb=%s\nnode.memory.file=%s\n" "$memory" "$NODE_MEMORY_FILE"
+  printf "\n==== Lukoa node memory ====\nnodeMemory.configured=true\nnodeMemory.megabytes=%s\n==== end Lukoa node memory ====\n" "$memory"
 }
 
 emit_upload_limit_status() {

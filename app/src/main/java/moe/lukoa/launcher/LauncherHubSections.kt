@@ -87,7 +87,7 @@ fun TavernHubSection(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "管理当前实例的版本、备份与扩展。",
+                        text = "在这里管理酒馆版本、数据备份与常用设置。",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -129,18 +129,18 @@ private fun TavernManagementGrid(
     ) {
         Column {
             HubGridRow(
-                left = HubGridEntry("版本管理", "查看与切换版本", onOpenVersionManagement),
-                right = HubGridEntry("备份", "保护与恢复数据", onOpenBackup),
+                left = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
+                right = HubGridEntry("备份", "保存与找回数据", onOpenBackup),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("扩展管理", "管理第三方扩展", onOpenExtensionManagement),
-                right = HubGridEntry("酒馆设置", "局域网、代理与开关", onOpenTavernConfig),
+                left = HubGridEntry("扩展管理", "安装与更新网页扩展", onOpenExtensionManagement),
+                right = HubGridEntry("酒馆设置", "电脑访问、流畅度与代理", onOpenTavernConfig),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("服务器插件", "管理 plugins 后端插件", onOpenServerPlugins),
-                right = HubGridEntry("快捷导入", "导入角色卡、世界书与预设", onOpenQuickImport),
+                left = HubGridEntry("服务器插件", "少数插件用的后端功能", onOpenServerPlugins),
+                right = HubGridEntry("快捷导入", "导入角色卡、世界书与聊天", onOpenQuickImport),
             )
         }
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +56,10 @@ fun TavernControlSection(
     wakeEnabled: Boolean,
     primaryEnabled: Boolean,
     primaryDisabledReason: String?,
+    activeProfileLabel: String = "",
+    activePort: Int = 8000,
+    profileCount: Int = 1,
+    onOpenQuickSwitchProfile: (() -> Unit)? = null,
     launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
     onToggleLaunchMode: () -> Unit = {},
     onRestartTavern: () -> Unit = {},
@@ -123,6 +128,45 @@ fun TavernControlSection(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+                if (activeProfileLabel.isNotBlank()) {
+                    val switchEnabled = !actionInProgress && onOpenQuickSwitchProfile != null
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "当前实例",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Surface(
+                            modifier = Modifier.clickable(
+                                enabled = switchEnabled,
+                                role = Role.Button,
+                                onClick = { onOpenQuickSwitchProfile?.invoke() },
+                            ),
+                            color = LukoaColors.Elevated,
+                            shape = LukoaCapsuleShape,
+                            border = BorderStroke(1.dp, LukoaColors.Border),
+                        ) {
+                            Text(
+                                text = buildString {
+                                    append(activeProfileLabel)
+                                    append(" · ")
+                                    append(activePort)
+                                    if (profileCount > 1) append(" · 切换")
+                                },
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                color = LukoaColors.TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -233,7 +277,7 @@ fun TavernControlSection(
             SecondaryActionButton(
                 text = "一键重启酒馆（${launchMode.shortLabel}）",
                 enabled = !actionInProgress,
-                accentColor = LukoaColors.Accent,
+                accentColor = LukoaColors.Primary,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -274,5 +318,102 @@ private fun TavernToolButton(
         tone = ActionTone.Safe,
         modifier = modifier,
         onClick = onClick,
+    )
+}
+
+@Composable
+fun QuickSwitchProfileDialog(
+    tavernPathConfig: TavernPathConfig,
+    actionsLocked: Boolean,
+    onSelectProfile: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = { Text("快速切换酒馆实例") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "切换实例后，启动、停止、版本、备份和设置都会针对选中的实例。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                tavernPathConfig.availableProfiles.forEach { profile ->
+                    val isCurrent = profile.id == tavernPathConfig.activeProfile.id
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                enabled = !actionsLocked && !isCurrent,
+                                role = Role.Button,
+                                onClick = {
+                                    onSelectProfile(profile.id)
+                                    onDismiss()
+                                },
+                            ),
+                        color = if (isCurrent) LukoaColors.PrimarySoft else LukoaColors.Surface,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCurrent) LukoaColors.Primary else LukoaColors.Border,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = profile.normalizedName,
+                                    color = if (isCurrent) LukoaColors.Primary else LukoaColors.TextPrimary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    text = if (isCurrent) "当前 · 端口 ${profile.normalizedPort}" else "端口 ${profile.normalizedPort}",
+                                    color = if (isCurrent) LukoaColors.Primary else LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            Text(
+                                text = TavernPathNormalizer.toDisplayPath(profile.normalizedTavernDir),
+                                color = LukoaColors.TextSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(
+                text = "新建 / 管理分身",
+                enabled = !actionsLocked,
+                accentColor = LukoaColors.Primary,
+                onClick = {
+                    onDismiss()
+                    onOpenSettings()
+                },
+            )
+        },
+        dismissButton = {
+            SecondaryActionButton(
+                text = "关闭",
+                enabled = true,
+                accentColor = LukoaColors.TextSecondary,
+                onClick = onDismiss,
+            )
+        },
     )
 }

@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# LUKOA_OPS_SCRIPT_REV=2026-11-23-ops-b-1
+# LUKOA_OPS_SCRIPT_REV=2026-11-23-ops-c-1
 
 set -u
 
@@ -48,6 +48,7 @@ mkdir -p "$STATE_DIR" "$RUNTIME_STATE_DIR"
 PID_FILE="$RUNTIME_STATE_DIR/pid"
 STATUS_FILE="$RUNTIME_STATE_DIR/status.json"
 LOG_FILE="$RUNTIME_STATE_DIR/tavern.log"
+NODE_MEMORY_FILE="$RUNTIME_STATE_DIR/node-memory.env"
 
 case "$TAVERN_PORT" in ''|*[!0-9]*) TAVERN_PORT=8000 ;; esac
 [ "$TAVERN_PORT" -lt 1 ] || [ "$TAVERN_PORT" -gt 65535 ] && TAVERN_PORT=8000
@@ -678,6 +679,22 @@ cmd_quick_import_paths() {
   case "$qi_user" in ''|*[!A-Za-z0-9._-]*) qi_user="default-user" ;; esac
   qi_base="$qi_data/$qi_user"
   [ -d "$qi_base" ] || qi_base="$qi_data"
+  qi_chat_chars_b64=""
+  if [ -d "$qi_base/chats" ] && command -v node >/dev/null 2>&1; then
+    qi_chat_chars_b64="$(
+      LUKOA_CHATS_DIR="$qi_base/chats" node -e '
+const fs = require("fs");
+try {
+  const names = fs.readdirSync(process.env.LUKOA_CHATS_DIR, { withFileTypes: true })
+    .filter(e => e.isDirectory() && !e.isSymbolicLink() && !e.name.startsWith("."))
+    .map(e => e.name)
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 200);
+  process.stdout.write(Buffer.from(names.join("\n"), "utf8").toString("base64url"));
+} catch (_) {}
+' 2>/dev/null || true
+    )"
+  fi
   write_status "quick-import-paths" "Quick import directories resolved" "$(tavern_running_value)" 0
   cat "$STATUS_FILE"
   printf "\n==== SillyTavern quick import paths ====\n"
@@ -688,7 +705,256 @@ cmd_quick_import_paths() {
   printf "import.dir.preset=%s\n" "$qi_base/OpenAI Settings"
   printf "import.dir.theme=%s\n" "$qi_base/themes"
   printf "import.dir.chats=%s\n" "$qi_base/chats"
+  [ -n "$qi_chat_chars_b64" ] && printf "import.chatChars=%s\n" "$qi_chat_chars_b64"
   printf "==== end SillyTavern quick import paths ====\n"
+}
+
+cmd_quick_import_batch() {
+  qi_kind="${1:-}"
+  qi_paths_b64="${2:-}"
+  qi_user="${3:-default-user}"
+  qi_chat_char_b64="${4:-}"
+  case "$qi_user" in ''|*[!A-Za-z0-9._-]*) qi_user="default-user" ;; esac
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" "$(tavern_running_value)" 69
+    cat "$STATUS_FILE"
+    return 69
+  }
+  qi_data="$(resolve_tavern_data_root)"
+  qi_base="$qi_data/$qi_user"
+  [ -d "$qi_base" ] || qi_base="$qi_data"
+  qi_out="$(
+    LUKOA_QI_KIND="$qi_kind" \
+    LUKOA_QI_PATHS_B64="$qi_paths_b64" \
+    LUKOA_QI_BASE="$qi_base" \
+    LUKOA_QI_CHAT_CHAR_B64="$qi_chat_char_b64" \
+    LUKOA_HOME_DIR="$HOME_DIR" \
+    node -e '
+const fs = require("fs");
+const path = require("path");
+const fail = (m, c = 64) => { console.error(m); process.exit(c); };
+const b64 = (v) => Buffer.from(String(v ?? ""), "utf8").toString("base64url");
+const dec = (v) => v ? Buffer.from(v, "base64url").toString("utf8") : "";
+
+const kind = process.env.LUKOA_QI_KIND || "";
+const base = process.env.LUKOA_QI_BASE || "";
+const homeDir = process.env.LUKOA_HOME_DIR || "";
+const subMap = {
+  character: "characters",
+  world: "worlds",
+  preset: "OpenAI Settings",
+  theme: "themes",
+  chat: "chats",
+};
+if (!subMap[kind]) fail("Unsupported import kind: " + kind, 64);
+
+let destDir = path.join(base, subMap[kind]);
+if (kind === "chat") {
+  const charName = dec(process.env.LUKOA_QI_CHAT_CHAR_B64 || "").trim();
+  if (!charName || charName === "." || charName === ".." || charName.length > 120 || /[\/\\\0\r\n]/.test(charName)) {
+    fail("Invalid chat target character folder", 64);
+  }
+  destDir = path.join(destDir, charName);
+}
+
+let rawPaths;
+try {
+  rawPaths = dec(process.env.LUKOA_QI_PATHS_B64 || "")
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(Boolean);
+} catch (_) {
+  fail("Invalid staged paths payload", 64);
+}
+if (rawPaths.length === 0 || rawPaths.length > 50) fail("Staged file count out of range", 64);
+
+const normHome = homeDir.replace(/\\/g, "/").replace(/\/+$/, "");
+const allowedPrefixes = [
+  "/storage/emulated/0/Download/LukoaLauncher/imports/",
+  `${normHome}/storage/downloads/LukoaLauncher/imports/`,
+];
+
+fs.mkdirSync(destDir, { recursive: true });
+const pad = (n) => String(n).padStart(2, "0");
+const now = new Date();
+const stamp = `${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+const imported = [];
+for (const rawPath of rawPaths) {
+  const normRaw = rawPath.replace(/\\/g, "/");
+  if (normRaw.includes("..") || !allowedPrefixes.some(p => normRaw.startsWith(p))) {
+    fail("Staged import file is outside LukoaLauncher/imports", 64);
+  }
+  let src = rawPath;
+  const isRegular = (p) => {
+    try { const st = fs.lstatSync(p); return st.isFile() && !st.isSymbolicLink(); } catch (_) { return false; }
+  };
+  if (!isRegular(src)) {
+    const alt = path.join(homeDir, "storage", "downloads", "LukoaLauncher", "imports", path.posix.basename(normRaw));
+    if (isRegular(alt)) src = alt;
+    else fail("termux-storage-permission: staged import file cannot be read", 73);
+  }
+  const origName = path.posix.basename(normRaw);
+  let dest = path.join(destDir, origName);
+  if (fs.existsSync(dest)) {
+    const ext = path.extname(origName);
+    const stem = ext ? origName.slice(0, -ext.length) : origName;
+    let attempt = 0;
+    do {
+      const suffix = attempt === 0 ? ` (导入 ${stamp})` : ` (导入 ${stamp}-${attempt})`;
+      dest = path.join(destDir, `${stem}${suffix}${ext}`);
+      attempt++;
+    } while (fs.existsSync(dest) && attempt < 1000);
+  }
+  fs.copyFileSync(src, dest);
+  try { fs.rmSync(src, { force: true }); } catch (_) {}
+  imported.push(dest);
+}
+
+console.log("==== SillyTavern quick import ====");
+console.log("import.kind=" + kind);
+console.log("import.count=" + imported.length);
+console.log("import.targetFile=" + imported[imported.length - 1]);
+console.log("import.targetFiles=" + b64(imported.join("\n")));
+console.log("==== end SillyTavern quick import ====");
+' 2>&1
+  )"
+  qi_code="$?"
+  if [ "$qi_code" -ne 0 ]; then
+    write_status "error" "Quick import batch failed" "$(tavern_running_value)" "$qi_code"
+    cat "$STATUS_FILE"
+    printf "\n%s\n" "$qi_out"
+    return "$qi_code"
+  fi
+  write_status "quick-import" "Files imported into SillyTavern successfully" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  printf "\n%s\n" "$qi_out"
+}
+
+read_node_memory_mb() {
+  [ -f "$NODE_MEMORY_FILE" ] && [ ! -L "$NODE_MEMORY_FILE" ] || return 1
+  nm_val="$(awk -F= '/^LUKOA_NODE_MEMORY_MB=/ { sub(/^[^=]*=/, ""); gsub(/['\''"[:space:]]/, ""); print; exit }' "$NODE_MEMORY_FILE" 2>/dev/null || true)"
+  is_int_in_range "$nm_val" 512 16384 || return 1
+  printf "%s" "$nm_val"
+}
+
+emit_node_memory_status() {
+  nm_cur="$(read_node_memory_mb || true)"
+  printf "\n==== Lukoa node memory ====\n"
+  if [ -n "$nm_cur" ]; then
+    printf "nodeMemory.configured=true\n"
+    printf "nodeMemory.megabytes=%s\n" "$nm_cur"
+  else
+    printf "nodeMemory.configured=false\n"
+    printf "nodeMemory.megabytes=\n"
+  fi
+  printf "==== end Lukoa node memory ====\n"
+}
+
+cmd_node_memory_status() {
+  write_status "node-memory-status" "Node.js memory limit status collected" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  emit_node_memory_status
+}
+
+cmd_node_memory_reset() {
+  if [ -f "$NODE_MEMORY_FILE" ] && [ ! -L "$NODE_MEMORY_FILE" ]; then
+    rm -f "$NODE_MEMORY_FILE" || {
+      write_status "error" "Failed to remove Node.js memory configuration file" "$(tavern_running_value)" 74
+      cat "$STATUS_FILE"
+      return 74
+    }
+  fi
+  write_status "node-memory-reset" "Node.js memory limit reset to default" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  emit_node_memory_status
+}
+
+cmd_proxy_test() {
+  pt_payload="${1:-}"
+  command -v node >/dev/null 2>&1 || {
+    write_status "error" "node command not found in Termux" "$(tavern_running_value)" 69
+    cat "$STATUS_FILE"
+    return 69
+  }
+  pt_out="$(
+    LUKOA_PROXY_B64="$pt_payload" node -e '
+const net = require("net");
+const { spawnSync } = require("child_process");
+const b64 = (v) => Buffer.from(String(v ?? ""), "utf8").toString("base64url");
+let proxyUrl = "";
+try {
+  proxyUrl = Buffer.from(process.env.LUKOA_PROXY_B64 || "", "base64url").toString("utf8").trim();
+} catch (_) {}
+if (!/^(https?|socks4a?|socks5h?):\/\/[^\s]+$/i.test(proxyUrl)) {
+  console.log("==== Lukoa proxy test ====");
+  console.log("proxy.ok=false");
+  console.log("proxy.tcpOk=false");
+  console.log("proxy.detail=" + b64("代理地址格式不正确"));
+  console.log("==== end Lukoa proxy test ====");
+  process.exit(0);
+}
+let parsed;
+try { parsed = new URL(proxyUrl); } catch (_) {
+  console.log("==== Lukoa proxy test ====");
+  console.log("proxy.ok=false");
+  console.log("proxy.tcpOk=false");
+  console.log("proxy.detail=" + b64("无法解析代理主机与端口"));
+  console.log("==== end Lukoa proxy test ====");
+  process.exit(0);
+}
+const host = parsed.hostname;
+const defaultPort = parsed.protocol === "https:" ? 443 : (parsed.protocol.startsWith("socks") ? 1080 : 80);
+const port = parsed.port ? parseInt(parsed.port, 10) : defaultPort;
+const t0 = Date.now();
+
+const emit = (ok, tcpOk, httpCode, latencyMs, detail) => {
+  console.log("==== Lukoa proxy test ====");
+  console.log("proxy.ok=" + (ok ? "true" : "false"));
+  console.log("proxy.tcpOk=" + (tcpOk ? "true" : "false"));
+  if (httpCode) console.log("proxy.httpCode=" + httpCode);
+  if (latencyMs >= 0) console.log("proxy.latencyMs=" + latencyMs);
+  console.log("proxy.detail=" + b64(detail));
+  console.log("==== end Lukoa proxy test ====");
+};
+
+const sock = net.createConnection({ host, port });
+let done = false;
+const finishTcp = (tcpOk, errMsg) => {
+  if (done) return;
+  done = true;
+  try { sock.destroy(); } catch (_) {}
+  const tcpLatency = Date.now() - t0;
+  if (!tcpOk) {
+    emit(false, false, "", tcpLatency, `无法连接到代理端口 ${host}:${port}（${errMsg || "连接被拒绝或超时"}）。请确认代理软件已启动。`);
+    return;
+  }
+  const hasCurl = spawnSync("sh", ["-c", "command -v curl >/dev/null 2>&1"]).status === 0;
+  if (!hasCurl) {
+    emit(true, true, "", tcpLatency, `代理端口 ${host}:${port} TCP 可达（耗时 ${tcpLatency}ms）。`);
+    return;
+  }
+  const targets = ["https://cp.cloudflare.com/generate_204", "http://connectivitycheck.gstatic.com/generate_204"];
+  for (const target of targets) {
+    const cStart = Date.now();
+    const res = spawnSync("curl", ["-sS", "--proxy", proxyUrl, "--connect-timeout", "6", "--max-time", "10", "-o", "/dev/null", "-w", "%{http_code}", target], { encoding: "utf8", timeout: 12000 });
+    const code = String(res.stdout || "").trim();
+    const ms = Date.now() - cStart;
+    if (res.status === 0 && /^[1-5][0-9][0-9]$/.test(code)) {
+      emit(true, true, code, ms, `代理通道连接正常（HTTP ${code}，耗时 ${ms}ms）。`);
+      return;
+    }
+  }
+  emit(false, true, "", tcpLatency, `代理端口 ${host}:${port} 可达，但通过代理访问测试节点失败，请检查代理协议或上游节点是否可用。`);
+};
+sock.setTimeout(3500, () => finishTcp(false, "连接超时"));
+sock.on("connect", () => finishTcp(true, ""));
+sock.on("error", (err) => finishTcp(false, err && err.code ? err.code : "连接失败"));
+' 2>&1
+  )"
+  write_status "proxy-test" "Proxy connectivity test completed" "$(tavern_running_value)" 0
+  cat "$STATUS_FILE"
+  printf "\n%s\n" "$pt_out"
 }
 
 cmd_quick_import() {
@@ -757,6 +1023,10 @@ main() {
     git-stash-drop|tavern-git-stash-drop) shift; cmd_git_stash_drop "${1:-}" ;;
     quick-import-paths|tavern-quick-import-paths) shift; cmd_quick_import_paths "${1:-default-user}" ;;
     quick-import|tavern-quick-import) shift; cmd_quick_import "$@" ;;
+    quick-import-batch|tavern-quick-import-batch) shift; cmd_quick_import_batch "$@" ;;
+    node-memory-status|tavern-node-memory-status) cmd_node_memory_status ;;
+    node-memory-reset|tavern-node-memory-reset) cmd_node_memory_reset ;;
+    proxy-test|tavern-proxy-test) shift; cmd_proxy_test "${1:-}" ;;
     *) write_status "error" "unknown ops command: $cmd" false 64; cat "$STATUS_FILE"; return 64 ;;
   esac
 }

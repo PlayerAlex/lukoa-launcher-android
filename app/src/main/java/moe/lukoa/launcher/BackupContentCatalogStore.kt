@@ -67,6 +67,7 @@ class BackupContentCatalogStore(context: Context) {
         .put("hasConfiguration", hasConfiguration)
         .put("hasLukoaManifest", hasLukoaManifest)
         .put("truncated", truncated)
+        .put("isUserDataOnlyArchive", isUserDataOnlyArchive)
         .put(
             "groups",
             JSONArray().apply {
@@ -115,6 +116,7 @@ class BackupContentCatalogStore(context: Context) {
             hasConfiguration = optBoolean("hasConfiguration", false),
             hasLukoaManifest = optBoolean("hasLukoaManifest", false),
             truncated = optBoolean("truncated", false),
+            isUserDataOnlyArchive = optBoolean("isUserDataOnlyArchive", false),
             groups = groups,
         )
     }.getOrNull()

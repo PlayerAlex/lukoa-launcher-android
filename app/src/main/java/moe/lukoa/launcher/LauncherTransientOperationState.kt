@@ -99,4 +99,26 @@ object LauncherTransientOperationState {
             state
         }
     }
+
+    fun finishNodeMemory(state: TavernNodeMemoryStatus): TavernNodeMemoryStatus {
+        return if (state.checking) {
+            state.copy(
+                checking = false,
+                message = "读取已结束，但没有收到完整内存设置，请重试。",
+            )
+        } else {
+            state
+        }
+    }
+
+    fun finishProxyTest(state: TavernProxyTestState): TavernProxyTestState {
+        return if (state.testing) {
+            state.copy(
+                testing = false,
+                message = "代理连通性测试已结束，未收到完整返回，请重试。",
+            )
+        } else {
+            state
+        }
+    }
 }

@@ -12,6 +12,7 @@ fun LauncherBackupSettingsDialogHost(
     if (state.showManualBackupDialog) {
         ManualBackupConfirmDialog(
             backupName = state.manualBackupName,
+            dataOnly = state.manualBackupDataOnly,
             onBackupNameChange = { state.manualBackupName = it },
             onConfirm = coordinator::confirmManualBackup,
             onDismiss = coordinator::dismissManualBackupDialog,

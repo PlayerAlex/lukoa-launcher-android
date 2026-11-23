@@ -103,6 +103,11 @@ fun SettingsSection(
     onDeleteTavernUser: (String) -> Unit,
     onDecreaseTermuxReturnDelay: () -> Unit,
     onIncreaseTermuxReturnDelay: () -> Unit,
+    runningNotificationEnabled: Boolean = true,
+    onToggleRunningNotification: () -> Unit = {},
+    onPinQuickStartShortcut: () -> Unit = {},
+    themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
+    onToggleThemeStyle: () -> Unit = {},
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -273,12 +278,17 @@ fun SettingsSection(
             tavernPathConfig = tavernPathConfig,
             mirrorProbeStatus = mirrorProbeStatus,
             permissionNotice = permissionNotice,
+            runningNotificationEnabled = runningNotificationEnabled,
+            themeStyle = themeStyle,
             onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
             onOpenDirectorySettings = { activeDialog = SettingsDialogDestination.Directory },
             onOpenPortSettings = { activeDialog = SettingsDialogDestination.Port },
             onOpenMirrorSettings = { activeDialog = SettingsDialogDestination.Mirror },
             onOpenWakeDelaySettings = { activeDialog = SettingsDialogDestination.WakeDelay },
             onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
+            onToggleRunningNotification = onToggleRunningNotification,
+            onPinQuickStartShortcut = onPinQuickStartShortcut,
+            onToggleThemeStyle = onToggleThemeStyle,
         )
         TavernUserManagementSettingsPanel(
             state = tavernUserState,
@@ -499,12 +509,17 @@ internal fun InstanceManagementPanel(
     tavernPathConfig: TavernPathConfig,
     mirrorProbeStatus: TavernMirrorProbeStatus,
     permissionNotice: PermissionStatusNotice,
+    runningNotificationEnabled: Boolean = true,
+    themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
     onOpenProfileManagement: () -> Unit,
     onOpenDirectorySettings: () -> Unit,
     onOpenPortSettings: () -> Unit,
     onOpenMirrorSettings: () -> Unit,
     onOpenWakeDelaySettings: () -> Unit,
     onOpenPermissionCenter: () -> Unit,
+    onToggleRunningNotification: () -> Unit = {},
+    onPinQuickStartShortcut: () -> Unit = {},
+    onToggleThemeStyle: () -> Unit = {},
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
     SectionPanel(
@@ -588,6 +603,33 @@ internal fun InstanceManagementPanel(
                 },
                 valueAsPill = true,
                 onClick = onOpenPermissionCenter,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "界面配色风格",
+                detail = themeStyle.summary,
+                value = "${themeStyle.label} · 切换",
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                onClick = onToggleThemeStyle,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "运行状态通知栏控制",
+                detail = "酒馆运行时在通知栏显示“打开酒馆 / 重启 / 停止”快捷按钮。",
+                value = if (runningNotificationEnabled) "已开启" else "已关闭",
+                valueColor = if (runningNotificationEnabled) LukoaColors.Primary else LukoaColors.TextSecondary,
+                valueAsPill = true,
+                onClick = onToggleRunningNotification,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "添加到桌面一键启动",
+                detail = "在手机桌面创建“启动酒馆”快捷方式（也可长按启动器图标直接使用）。",
+                value = "添加",
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                onClick = onPinQuickStartShortcut,
             )
         }
     }
