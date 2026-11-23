@@ -93,23 +93,37 @@ fun ToolboxSection(
     onClearLogs: () -> Unit = {},
     onExportDiagnostic: () -> Unit = {},
     onOpenBackgroundTaskCenter: () -> Unit = {},
+    onOpenHealthCheckPage: (() -> Unit)? = null,
+    onOpenChatGuardPage: (() -> Unit)? = null,
+    onOpenStorageCleanupPage: (() -> Unit)? = null,
+    onOpenRepairToolsPage: (() -> Unit)? = null,
+    onOpenDebugPage: (() -> Unit)? = null,
+    onOpenGitStashPage: (() -> Unit)? = null,
 ) {
     var activeDialog by rememberSaveable { mutableStateOf<ToolboxDialogDestination?>(null) }
     val showHint = rememberTransientHint()
 
     LaunchedEffect(repairToolsOpenSignal) {
         if (repairToolsOpenSignal > 0) {
-            activeDialog = ToolboxDialogDestination.RepairTools
             onRepairToolsOpenSignalConsumed()
+            if (onOpenRepairToolsPage != null) {
+                onOpenRepairToolsPage()
+            } else {
+                activeDialog = ToolboxDialogDestination.RepairTools
+            }
         }
     }
 
     LaunchedEffect(chatGuardOpenSignal) {
         if (chatGuardOpenSignal > 0) {
-            activeDialog = ToolboxDialogDestination.ChatGuard
             onChatGuardOpenSignalConsumed()
-            if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
-                onRefreshChatGuard()
+            if (onOpenChatGuardPage != null) {
+                onOpenChatGuardPage()
+            } else {
+                activeDialog = ToolboxDialogDestination.ChatGuard
+                if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
+                    onRefreshChatGuard()
+                }
             }
         }
     }
@@ -256,7 +270,13 @@ fun ToolboxSection(
                     checking = healthCheckInFlight,
                     actionsLocked = actionsLocked,
                     onRunHealthCheck = onRunHealthCheck,
-                    onViewDetails = { activeDialog = ToolboxDialogDestination.HealthCheck },
+                    onViewDetails = {
+                        if (onOpenHealthCheckPage != null) {
+                            onOpenHealthCheckPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.HealthCheck
+                        }
+                    },
                 )
                 ToolboxGrid(
                     backgroundTaskStatus = backgroundTaskStatus,
@@ -264,25 +284,49 @@ fun ToolboxSection(
                     chatGuardState = chatGuardState,
                     storageState = storageState,
                     gitStashState = gitStashState,
-                    onOpenRepairTools = { activeDialog = ToolboxDialogDestination.RepairTools },
-                    onOpenDebug = { activeDialog = ToolboxDialogDestination.Debug },
+                    onOpenRepairTools = {
+                        if (onOpenRepairToolsPage != null) {
+                            onOpenRepairToolsPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.RepairTools
+                        }
+                    },
+                    onOpenDebug = {
+                        if (onOpenDebugPage != null) {
+                            onOpenDebugPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.Debug
+                        }
+                    },
                     onOpenTaskCenter = onOpenBackgroundTaskCenter,
                     onOpenChatGuard = {
-                        activeDialog = ToolboxDialogDestination.ChatGuard
-                        if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
-                            onRefreshChatGuard()
+                        if (onOpenChatGuardPage != null) {
+                            onOpenChatGuardPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.ChatGuard
+                            if (chatGuardState.snapshot == null && !actionsLocked && !chatGuardState.loading) {
+                                onRefreshChatGuard()
+                            }
                         }
                     },
                     onOpenStorageCleanup = {
-                        activeDialog = ToolboxDialogDestination.StorageCleanup
-                        if (storageState.snapshot == null && !actionsLocked && !storageState.loading) {
-                            onScanStorage()
+                        if (onOpenStorageCleanupPage != null) {
+                            onOpenStorageCleanupPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.StorageCleanup
+                            if (storageState.snapshot == null && !actionsLocked && !storageState.loading) {
+                                onScanStorage()
+                            }
                         }
                     },
                     onOpenGitStash = {
-                        activeDialog = ToolboxDialogDestination.GitStash
-                        if (gitStashState.gitAvailable == null && !actionsLocked && !gitStashState.loading) {
-                            onRefreshGitStash()
+                        if (onOpenGitStashPage != null) {
+                            onOpenGitStashPage()
+                        } else {
+                            activeDialog = ToolboxDialogDestination.GitStash
+                            if (gitStashState.gitAvailable == null && !actionsLocked && !gitStashState.loading) {
+                                onRefreshGitStash()
+                            }
                         }
                     },
                 )
@@ -405,44 +449,33 @@ private fun ToolboxGrid(
         gitStashState.gitAvailable == true -> "暂无暂存改动"
         else -> "找回收起的改动"
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SettingsGroupLabel("日常维护与防丢")
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
-            Column {
-                HubGridRow(
-                    left = HubGridEntry(
-                        label = "聊天守护",
-                        description = chatGuardDescription,
-                        onClick = onOpenChatGuard,
-                        emphasized = chatGuardState.effectiveRescueCount > 0,
-                    ),
-                    right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
-                )
-                HorizontalDivider(color = LukoaColors.Border)
-                HubGridRow(
-                    left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
-                    right = HubGridEntry(
-                        label = "任务中心",
-                        description = backgroundTaskStatus,
-                        onClick = onOpenTaskCenter,
-                        emphasized = backgroundTaskNeedsAttention,
-                    ),
-                )
-            }
-        }
-
-        SettingsGroupLabel("排错与高阶 · 出问题再用")
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column {
+            HubGridRow(
+                left = HubGridEntry(
+                    label = "聊天守护",
+                    description = chatGuardDescription,
+                    onClick = onOpenChatGuard,
+                    emphasized = chatGuardState.effectiveRescueCount > 0,
+                ),
+                right = HubGridEntry("空间清理", storageDescription, onOpenStorageCleanup),
+            )
+            HorizontalDivider(color = LukoaColors.Border)
+            HubGridRow(
+                left = HubGridEntry("修复工具", "修依赖与调内存", onOpenRepairTools),
+                right = HubGridEntry(
+                    label = "任务中心",
+                    description = backgroundTaskStatus,
+                    onClick = onOpenTaskCenter,
+                    emphasized = backgroundTaskNeedsAttention,
+                ),
+            )
+            HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
                 left = HubGridEntry("Debug 区", "报错修复与强停", onOpenDebug),
                 right = HubGridEntry("暂存管理", gitStashDescription, onOpenGitStash),
@@ -494,7 +527,7 @@ private fun ToolboxContentDialog(
 }
 
 @Composable
-private fun ToolboxDebugContent(
+internal fun ToolboxDebugContent(
     actionsLocked: Boolean,
     issues: List<TavernIssue>,
     forceCleanupSuggestion: TavernForceCleanupSuggestion?,

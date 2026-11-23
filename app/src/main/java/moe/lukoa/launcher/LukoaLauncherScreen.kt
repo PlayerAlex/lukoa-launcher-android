@@ -1,10 +1,15 @@
 package moe.lukoa.launcher
 
+import android.app.Activity
 import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -23,14 +28,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -132,6 +136,11 @@ fun LukoaLauncherScreen(
     onToggleRunningNotification: () -> Boolean = { true },
     onPinQuickStartShortcut: () -> Pair<Boolean, String> = { false to "当前环境不支持桌面快捷方式。" },
     onToggleThemeStyle: () -> LukoaThemeStyle = { LukoaColors.currentStyle },
+    basicPrefs: LauncherBasicPrefs = LauncherBasicPrefs(),
+    installedBrowsers: List<InstalledBrowserOption> = emptyList(),
+    onSelectPreferredBrowser: (String) -> LauncherBasicPrefs = { basicPrefs },
+    onToggleKeepScreenOn: () -> LauncherBasicPrefs = { basicPrefs },
+    onToggleAutoStartTavern: () -> LauncherBasicPrefs = { basicPrefs },
     onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
     onSaveTavernPathConfig: (TavernPathConfig) -> TavernPathSaveResult,
     onSaveGithubRepository: (String) -> GithubRepositorySaveResult,
@@ -242,7 +251,15 @@ fun LukoaLauncherScreen(
     var showQuickSwitchProfileDialog by remember { mutableStateOf(false) }
     var showIssueAnalysisDialog by remember { mutableStateOf(false) }
     var acknowledgedRescueCount by rememberSaveable { mutableIntStateOf(0) }
-    var showChatGuardRescueDialog by remember { mutableStateOf(false) }
+    val topBannerController = remember { LukoaTopBannerController() }
+    var lastNotifiedPermissionTitle by rememberSaveable { mutableStateOf("") }
+    var lastNotifiedDangerIssueTitle by rememberSaveable { mutableStateOf("") }
+    var lastNotifiedUpdateTag by rememberSaveable { mutableStateOf("") }
+    var lastNotifiedConfigSaved by remember { mutableStateOf(false) }
+    var lastNotifiedQuickImportFile by remember { mutableStateOf("") }
+    var lastNotifiedStorageFreed by remember { mutableStateOf<Long?>(null) }
+    var autoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    var lastBackPressAtMillis by remember { mutableLongStateOf(0L) }
     var tavernLaunchMode by remember { mutableStateOf(initialTavernLaunchMode) }
     var showBackgroundRunPermissionDialog by remember { mutableStateOf(false) }
     var showFirstTavernStartGuideDialog by remember { mutableStateOf(false) }
@@ -2824,7 +2841,7 @@ fun LukoaLauncherScreen(
 
     fun openBackgroundTaskCenter() {
         refreshBackgroundTaskCenterResults()
-        showBackgroundTaskCenter = true
+        secondaryPage = LauncherSecondaryPage.TaskCenter
     }
 
     fun resetUploadLimitToVersionDefault() {
@@ -2983,6 +3000,11 @@ fun LukoaLauncherScreen(
     fun toggleTavernLaunchMode() {
         val next = onSaveTavernLaunchMode(tavernLaunchMode.toggled())
         tavernLaunchMode = next
+        topBannerController.show(
+            title = "启动方式已切换：${next.label}",
+            detail = next.summary,
+            tone = LukoaTopBannerTone.Success,
+        )
         update("启动方式已切换为：${next.label}。${next.summary}", "", true, allowRunningInference = false)
     }
 
@@ -3651,6 +3673,21 @@ fun LukoaLauncherScreen(
             LauncherSecondaryPageRefreshTarget.TavernConfig -> opsCoordinator.refreshTavernConfig()
             LauncherSecondaryPageRefreshTarget.ServerPlugins -> opsCoordinator.refreshServerPlugins()
             LauncherSecondaryPageRefreshTarget.QuickImport -> opsCoordinator.refreshQuickImportPaths()
+            LauncherSecondaryPageRefreshTarget.ChatGuard -> {
+                if (opsUiState.chatGuardState.snapshot == null && !opsUiState.chatGuardState.loading) {
+                    opsCoordinator.refreshChatGuardStatus()
+                }
+            }
+            LauncherSecondaryPageRefreshTarget.StorageCleanup -> {
+                if (opsUiState.storageState.snapshot == null && !opsUiState.storageState.loading) {
+                    opsCoordinator.scanTavernStorage()
+                }
+            }
+            LauncherSecondaryPageRefreshTarget.GitStash -> {
+                if (opsUiState.gitStashState.gitAvailable == null && !opsUiState.gitStashState.loading) {
+                    opsCoordinator.refreshGitStash()
+                }
+            }
 
             null -> Unit
         }
@@ -3923,7 +3960,155 @@ fun LukoaLauncherScreen(
     LaunchedEffect(opsUiState.chatGuardState.effectiveRescueCount) {
         val count = opsUiState.chatGuardState.effectiveRescueCount
         if (count > acknowledgedRescueCount && count > 0) {
-            showChatGuardRescueDialog = true
+            acknowledgedRescueCount = count
+            topBannerController.show(
+                title = "聊天守护已为你救回 $count 条聊天",
+                detail = "原档已保存在同目录（文件名带「露科亚救回」），可在酒馆或聊天守护里查看。",
+                tone = LukoaTopBannerTone.Success,
+                actionLabel = "查看",
+                onAction = {
+                    secondaryPage = LauncherSecondaryPage.ChatGuard
+                },
+                autoDismissMs = 9_000L,
+                dedupeKey = "chat-guard-rescue-$count",
+            )
+        }
+    }
+
+    val launchPermissionReminder = PermissionStatusSummary.launchReminder(
+        termuxInstalled = termuxInstalled,
+        launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
+        termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
+        termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
+    )
+    LaunchedEffect(launchPermissionReminder?.title) {
+        val reminder = launchPermissionReminder ?: return@LaunchedEffect
+        if (reminder.title != lastNotifiedPermissionTitle) {
+            lastNotifiedPermissionTitle = reminder.title
+            topBannerController.show(
+                title = reminder.title,
+                detail = reminder.detail,
+                tone = LukoaTopBannerTone.Warning,
+                actionLabel = "去处理",
+                onAction = {
+                    secondaryPage = null
+                    selectedTab = LauncherTab.Settings
+                },
+                autoDismissMs = 7_500L,
+                dedupeKey = "perm-${reminder.title}",
+            )
+        }
+    }
+
+    val topDangerIssue = issueAnalysis.firstOrNull { it.severity == IssueSeverity.Danger }
+    LaunchedEffect(topDangerIssue?.title) {
+        val issue = topDangerIssue
+        if (issue == null) {
+            lastNotifiedDangerIssueTitle = ""
+            return@LaunchedEffect
+        }
+        if (issue.title != lastNotifiedDangerIssueTitle) {
+            lastNotifiedDangerIssueTitle = issue.title
+            topBannerController.show(
+                title = "检测到异常：${issue.title}",
+                detail = issue.detail,
+                tone = LukoaTopBannerTone.Danger,
+                actionLabel = "一键修复",
+                onAction = { showIssueAnalysisDialog = true },
+                autoDismissMs = 8_500L,
+                dedupeKey = "issue-${issue.title}",
+            )
+        }
+    }
+
+    LaunchedEffect(showGithubUpdateBadge, githubUpdateState.latest?.tagName) {
+        val latest = githubUpdateState.latest ?: return@LaunchedEffect
+        if (showGithubUpdateBadge && latest.tagName != lastNotifiedUpdateTag) {
+            lastNotifiedUpdateTag = latest.tagName
+            topBannerController.show(
+                title = "发现启动器新版本 v${latest.versionName}",
+                detail = "点击查看更新说明或直接升级。",
+                tone = LukoaTopBannerTone.Neutral,
+                actionLabel = "查看更新",
+                onAction = { showUpdateDialog = true },
+                autoDismissMs = 7_500L,
+                dedupeKey = "update-${latest.tagName}",
+            )
+        }
+    }
+
+    LaunchedEffect(opsUiState.configState.savedNeedsRestart, tavernRunning) {
+        if (opsUiState.configState.savedNeedsRestart && tavernRunning && !lastNotifiedConfigSaved) {
+            lastNotifiedConfigSaved = true
+            topBannerController.show(
+                title = "酒馆设置已保存",
+                detail = "重启酒馆后新设置才会生效。",
+                tone = LukoaTopBannerTone.Success,
+                actionLabel = "立即重启",
+                onAction = ::requestRestartTavern,
+                autoDismissMs = 7_500L,
+                dedupeKey = "config-saved-restart",
+            )
+        } else if (!opsUiState.configState.savedNeedsRestart) {
+            lastNotifiedConfigSaved = false
+        }
+    }
+
+    LaunchedEffect(opsUiState.quickImportState.lastImportedFile) {
+        val latestFile = opsUiState.quickImportState.lastImportedFile
+        if (latestFile.isNotBlank() && latestFile != lastNotifiedQuickImportFile) {
+            lastNotifiedQuickImportFile = latestFile
+            topBannerController.show(
+                title = opsUiState.quickImportState.message.ifBlank { "快捷导入已完成" },
+                tone = LukoaTopBannerTone.Success,
+                dedupeKey = "quick-import-$latestFile",
+            )
+        }
+    }
+
+    LaunchedEffect(opsUiState.storageState.snapshot?.lastFreedKb) {
+        val freed = opsUiState.storageState.snapshot?.lastFreedKb
+        if (freed != null && freed != lastNotifiedStorageFreed) {
+            lastNotifiedStorageFreed = freed
+            topBannerController.show(
+                title = "空间清理完成",
+                detail = "本次释放约 ${formatStorageKilobytes(freed)}。",
+                tone = LukoaTopBannerTone.Success,
+                dedupeKey = "storage-clean-$freed",
+            )
+        }
+    }
+
+    LaunchedEffect(
+        basicPrefs.autoStartTavernOnLaunch,
+        startupRefreshInFlight,
+        termuxInstalled,
+        runCommandPermissionGranted,
+        termuxExternalAppsBlocked,
+        tavernInstallDetected,
+        tavernRunning,
+        tavernStarting,
+        actionInProgress,
+    ) {
+        if (
+            basicPrefs.autoStartTavernOnLaunch &&
+            !autoStartAttempted &&
+            !startupRefreshInFlight &&
+            termuxInstalled &&
+            runCommandPermissionGranted &&
+            !termuxExternalAppsBlocked &&
+            tavernInstallDetected == true &&
+            !tavernRunning &&
+            !tavernStarting &&
+            !actionInProgress
+        ) {
+            autoStartAttempted = true
+            topBannerController.show(
+                title = "已按设置自动启动酒馆",
+                tone = LukoaTopBannerTone.Neutral,
+                autoDismissMs = 3_200L,
+            )
+            requestStartTavern()
         }
     }
 
@@ -3934,49 +4119,6 @@ fun LukoaLauncherScreen(
             onSelectProfile = profileCoordinator::selectTavernProfile,
             onOpenSettings = { selectedTab = LauncherTab.Settings },
             onDismiss = { showQuickSwitchProfileDialog = false },
-        )
-    }
-
-    if (showChatGuardRescueDialog && opsUiState.chatGuardState.effectiveRescueCount > 0) {
-        val rescueCount = opsUiState.chatGuardState.effectiveRescueCount
-        AlertDialog(
-            onDismissRequest = {
-                acknowledgedRescueCount = rescueCount
-                showChatGuardRescueDialog = false
-            },
-            containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.TextPrimary,
-            textContentColor = LukoaColors.TextPrimary,
-            title = { Text("聊天守护已救回 $rescueCount 条聊天") },
-            text = {
-                Text(
-                    text = "检测到长聊天曾被异常覆盖，覆盖前的旧版本已安全保存到同目录（文件名带「露科亚救回」），在酒馆里打开对应角色的「管理聊天文件」就能找到。",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            },
-            confirmButton = {
-                DialogActionButton(
-                    text = "查看救回记录",
-                    tone = ActionTone.Safe,
-                    onClick = {
-                        acknowledgedRescueCount = rescueCount
-                        showChatGuardRescueDialog = false
-                        chatGuardOpenSignal += 1
-                        selectedTab = LauncherTab.Toolbox
-                    },
-                )
-            },
-            dismissButton = {
-                DialogActionButton(
-                    text = "知道了",
-                    tone = ActionTone.Neutral,
-                    onClick = {
-                        acknowledgedRescueCount = rescueCount
-                        showChatGuardRescueDialog = false
-                    },
-                )
-            },
         )
     }
 
@@ -4109,14 +4251,53 @@ fun LukoaLauncherScreen(
     BackHandler(enabled = secondaryPage != null) {
         secondaryPage = null
     }
+    BackHandler(enabled = secondaryPage == null && selectedTab != LauncherTab.Launch) {
+        selectedTab = LauncherTab.Launch
+    }
+    BackHandler(enabled = secondaryPage == null && selectedTab == LauncherTab.Launch) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBackPressAtMillis < 2_000L) {
+            topBannerController.dismiss()
+            (context as? Activity)?.finish()
+        } else {
+            lastBackPressAtMillis = now
+            topBannerController.show(
+                title = "再按一次返回退出启动器",
+                tone = LukoaTopBannerTone.Neutral,
+                autoDismissMs = 2_000L,
+                dedupeKey = "double-back-exit",
+            )
+        }
+    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LukoaColors.Background),
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            HorizontalPager(
+    val pageTransitionEasing = remember { CubicBezierEasing(0.22f, 1f, 0.36f, 1f) }
+    val mainContentScale by animateFloatAsState(
+        targetValue = if (secondaryPage != null) 0.965f else 1f,
+        animationSpec = tween(durationMillis = 240, easing = pageTransitionEasing),
+        label = "main-content-scale",
+    )
+    val mainContentAlpha by animateFloatAsState(
+        targetValue = if (secondaryPage != null) 0.72f else 1f,
+        animationSpec = tween(durationMillis = 200),
+        label = "main-content-alpha",
+    )
+
+    CompositionLocalProvider(LocalLukoaTopBanner provides topBannerController) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LukoaColors.Background),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = mainContentScale
+                        scaleY = mainContentScale
+                        alpha = mainContentAlpha
+                    },
+            ) {
+                HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .weight(1f)
@@ -4181,22 +4362,6 @@ fun LukoaLauncherScreen(
                         },
                     )
 
-                    if (tab != LauncherTab.Launch) {
-                        if (showBusyOperationPanel) {
-                            BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
-                        }
-                        pendingLauncherTask
-                            ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
-                            ?.let { task ->
-                                PendingTaskNoticePanel(
-                                    task = task,
-                                    activeLockLabel = busyLabel,
-                                    onContinueCheck = ::continuePendingLauncherTask,
-                                    onAbandon = ::abandonPendingLauncherTask,
-                                )
-                            }
-                    }
-
                     when (tab) {
                         LauncherTab.Docs -> DocumentationSection(
                             modifier = Modifier.weight(1f),
@@ -4226,38 +4391,6 @@ fun LukoaLauncherScreen(
                             },
                         )
                         LauncherTab.Launch -> {
-                            val launchPermissionReminder = PermissionStatusSummary.launchReminder(
-                                termuxInstalled = termuxInstalled,
-                                launcherBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
-                                termuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
-                                termuxStoragePermissionBlocked = termuxStoragePermissionBlocked,
-                            )
-                            if (showBusyOperationPanel) {
-                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
-                            } else {
-                                pendingLauncherTask
-                                    ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
-                                    ?.let { task ->
-                                        PendingTaskNoticePanel(
-                                            task = task,
-                                            activeLockLabel = busyLabel,
-                                            onContinueCheck = ::continuePendingLauncherTask,
-                                            onAbandon = ::abandonPendingLauncherTask,
-                                        )
-                                    }
-                            }
-                            launchPermissionReminder?.let { reminder ->
-                                NoticeCard(
-                                    title = reminder.title,
-                                    detail = reminder.detail,
-                                    accentColor = LukoaColors.Accent,
-                                    actionLabel = "去权限页处理",
-                                    onAction = {
-                                        selectedTab = LauncherTab.Settings
-                                        update("请到设置里的权限分区补齐后台常驻或备份相关权限。", "", false, allowRunningInference = false)
-                                    },
-                                )
-                            }
                             val setupRecommended = termuxSetupRecommended()
                             val showQuickStartGuide = !termuxInstalled ||
                                 termuxPermissionBlocked() ||
@@ -4338,12 +4471,21 @@ fun LukoaLauncherScreen(
                                 },
                                 onOpenTavern = ::returnToTavern,
                                 onExportLog = { showExportDialog = true },
+                                onCopyTavernUrl = {
+                                    val url = "http://127.0.0.1:${tavernPathConfig.normalizedPort}"
+                                    val copied = onCopyText("酒馆地址", url)
+                                    topBannerController.show(
+                                        title = if (copied) "已复制酒馆地址" else "复制地址失败",
+                                        detail = if (copied) url else "请手动访问 $url",
+                                        tone = if (copied) LukoaTopBannerTone.Success else LukoaTopBannerTone.Danger,
+                                    )
+                                },
                             )
                             LogPanel(
                                 title = "Termux 运行日志",
                                 content = tavernRuntimeLog,
                                 accentColor = LukoaColors.Primary,
-                                infoText = "显示酒馆和 Termux 实时输出。点标题栏「筛选」可只看报错、搜关键词或一键复制。",
+                                infoText = "显示酒馆和 Termux 实时输出。点底部「筛选」可只看报错或搜关键词，点「复制日志」可一键复制。",
                                 filterExpandedByDefault = false,
                                 headerExtraAction = if (issueAnalysis.isNotEmpty()) {
                                     {
@@ -4465,6 +4607,12 @@ fun LukoaLauncherScreen(
                             onClearLogs = ::requestClearLogs,
                             onExportDiagnostic = ::exportDiagnosticLog,
                             onOpenBackgroundTaskCenter = ::openBackgroundTaskCenter,
+                            onOpenHealthCheckPage = { secondaryPage = LauncherSecondaryPage.HealthCheck },
+                            onOpenChatGuardPage = { secondaryPage = LauncherSecondaryPage.ChatGuard },
+                            onOpenStorageCleanupPage = { secondaryPage = LauncherSecondaryPage.StorageCleanup },
+                            onOpenRepairToolsPage = { secondaryPage = LauncherSecondaryPage.RepairTools },
+                            onOpenDebugPage = { secondaryPage = LauncherSecondaryPage.Debug },
+                            onOpenGitStashPage = { secondaryPage = LauncherSecondaryPage.GitStash },
                         )
                         LauncherTab.Settings -> SettingsSection(
                             termuxReturnDelayMs = termuxReturnDelayMs,
@@ -4610,19 +4758,32 @@ fun LukoaLauncherScreen(
                             runningNotificationEnabled = runningNotificationEnabled,
                             onToggleRunningNotification = {
                                 val nextEnabled = onToggleRunningNotification()
-                                update(
-                                    if (nextEnabled) {
-                                        "运行状态通知栏控制已开启，酒馆运行时可在通知栏快捷打开、重启或停止。"
-                                    } else {
-                                        "运行状态通知栏控制已关闭。"
-                                    },
-                                    "",
-                                    true,
-                                    allowRunningInference = false,
+                                val msg = if (nextEnabled) {
+                                    "运行状态通知栏控制已开启"
+                                } else {
+                                    "运行状态通知栏控制已关闭"
+                                }
+                                topBannerController.show(
+                                    title = msg,
+                                    detail = if (nextEnabled) "酒馆运行时可在通知栏快捷打开、重启或停止。" else "",
+                                    tone = LukoaTopBannerTone.Success,
                                 )
+                                update(msg, "", true, allowRunningInference = false)
                             },
                             onPinQuickStartShortcut = {
                                 val (ok, msg) = onPinQuickStartShortcut()
+                                topBannerController.show(
+                                    title = if (ok) "桌面快捷方式请求已发送" else "添加到桌面未成功",
+                                    detail = msg,
+                                    tone = if (ok) LukoaTopBannerTone.Success else LukoaTopBannerTone.Warning,
+                                    actionLabel = if (ok) null else "去开权限",
+                                    onAction = if (ok) null else {
+                                        {
+                                            openLauncherPermissionSettings()
+                                        }
+                                    },
+                                    autoDismissMs = if (ok) 5_500L else 8_000L,
+                                )
                                 update(msg, "", ok, allowRunningInference = false)
                             },
                             launchMode = tavernLaunchMode,
@@ -4630,7 +4791,41 @@ fun LukoaLauncherScreen(
                             themeStyle = LukoaColors.currentStyle,
                             onToggleThemeStyle = {
                                 val nextStyle = onToggleThemeStyle()
+                                topBannerController.show(
+                                    title = "已切换界面配色：${nextStyle.label}",
+                                    tone = LukoaTopBannerTone.Success,
+                                )
                                 update("已切换界面配色为：${nextStyle.label}。", "", true, allowRunningInference = false)
+                            },
+                            basicPrefs = basicPrefs,
+                            installedBrowsers = installedBrowsers,
+                            onSelectPreferredBrowser = { packageName ->
+                                val saved = onSelectPreferredBrowser(packageName)
+                                val label = LauncherBrowserResolver.displayLabelFor(
+                                    saved.preferredBrowserPackage,
+                                    installedBrowsers,
+                                )
+                                topBannerController.show(
+                                    title = "打开酒馆的浏览器已设为：$label",
+                                    tone = LukoaTopBannerTone.Success,
+                                )
+                                update("已设置打开酒馆的浏览器为：$label。", "", true, allowRunningInference = false)
+                            },
+                            onToggleKeepScreenOn = {
+                                val saved = onToggleKeepScreenOn()
+                                val msg = if (saved.keepScreenOn) "前台保持屏幕常亮已开启" else "前台保持屏幕常亮已关闭"
+                                topBannerController.show(title = msg, tone = LukoaTopBannerTone.Success)
+                                update(msg, "", true, allowRunningInference = false)
+                            },
+                            onToggleAutoStartTavern = {
+                                val saved = onToggleAutoStartTavern()
+                                val msg = if (saved.autoStartTavernOnLaunch) {
+                                    "已开启打开启动器自动启动酒馆"
+                                } else {
+                                    "已关闭自动启动酒馆"
+                                }
+                                topBannerController.show(title = msg, tone = LukoaTopBannerTone.Success)
+                                update(msg, "", true, allowRunningInference = false)
                             },
                         )
                     }
@@ -4652,13 +4847,13 @@ fun LukoaLauncherScreen(
             modifier = Modifier.fillMaxSize(),
             transitionSpec = {
                 if (targetState != null) {
-                    (fadeIn(animationSpec = tween(180)) +
-                        slideInHorizontally(animationSpec = tween(220)) { width -> width / 12 })
-                        .togetherWith(fadeOut(animationSpec = tween(100)))
+                    (fadeIn(animationSpec = tween(220)) +
+                        slideInHorizontally(animationSpec = tween(260, easing = pageTransitionEasing)) { width -> width / 3 })
+                        .togetherWith(fadeOut(animationSpec = tween(140)))
                 } else {
-                    fadeIn(animationSpec = tween(100)).togetherWith(
-                        fadeOut(animationSpec = tween(180)) +
-                            slideOutHorizontally(animationSpec = tween(220)) { width -> width / 12 },
+                    fadeIn(animationSpec = tween(140)).togetherWith(
+                        fadeOut(animationSpec = tween(190)) +
+                            slideOutHorizontally(animationSpec = tween(230, easing = pageTransitionEasing)) { width -> width / 3 },
                     )
                 }
             },
@@ -4672,28 +4867,16 @@ fun LukoaLauncherScreen(
                     Column(modifier = Modifier.fillMaxSize()) {
                         LauncherSecondaryPageHeader(
                             title = activeSecondaryPage.title,
+                            infoText = activeSecondaryPage.infoText,
                             onBack = { secondaryPage = null },
                         )
                         Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            if (showBusyOperationPanel) {
-                                BusyPanel(label = busyLabel.orEmpty(), startedAtMillis = busyStartedAtMillis)
-                            }
-                            pendingLauncherTask
-                                ?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog }
-                                ?.let { task ->
-                                    PendingTaskNoticePanel(
-                                        task = task,
-                                        activeLockLabel = busyLabel,
-                                        onContinueCheck = ::continuePendingLauncherTask,
-                                        onAbandon = ::abandonPendingLauncherTask,
-                                    )
-                                }
                             when (activeSecondaryPage) {
                             LauncherSecondaryPage.VersionManagement -> VersionManagementSection(
                                 actionsLocked = actionInProgress,
@@ -4715,9 +4898,7 @@ fun LukoaLauncherScreen(
                                     secondaryPage = LauncherSecondaryPage.Backup
                                 },
                                 onOpenRepairTools = {
-                                    repairToolsOpenSignal += 1
-                                    secondaryPage = null
-                                    selectedTab = LauncherTab.Toolbox
+                                    secondaryPage = LauncherSecondaryPage.RepairTools
                                 },
                             )
 
@@ -4760,8 +4941,16 @@ fun LukoaLauncherScreen(
                                 onUpdate = ::updateTavernExtension,
                                 onUpdateAll = ::updateAllTavernExtensions,
                                 onRollback = ::rollbackTavernExtension,
-                                onCopyPath = { path -> onCopyText("扩展目录", path) },
+                                onCopyPath = { path ->
+                                    val ok = onCopyText("扩展目录", path)
+                                    topBannerController.show(
+                                        title = if (ok) "已复制扩展目录路径" else "复制路径失败",
+                                        tone = if (ok) LukoaTopBannerTone.Success else LukoaTopBannerTone.Danger,
+                                    )
+                                    ok
+                                },
                                 onShowHint = { hint ->
+                                    topBannerController.show(title = hint)
                                     update(hint, "", false, allowRunningInference = false)
                                 },
                             )
@@ -4779,6 +4968,7 @@ fun LukoaLauncherScreen(
                                 onRestartTavern = ::requestRestartTavern,
                                 onCopyText = onCopyText,
                                 onShowHint = { hint ->
+                                    topBannerController.show(title = hint)
                                     update(hint, "", false, allowRunningInference = false)
                                 },
                             )
@@ -4795,6 +4985,7 @@ fun LukoaLauncherScreen(
                                     secondaryPage = LauncherSecondaryPage.TavernConfig
                                 },
                                 onShowHint = { hint ->
+                                    topBannerController.show(title = hint)
                                     update(hint, "", false, allowRunningInference = false)
                                 },
                             )
@@ -4810,14 +5001,173 @@ fun LukoaLauncherScreen(
                                 onRefreshPaths = opsCoordinator::refreshQuickImportPaths,
                                 onCopyPath = onCopyText,
                                 onShowHint = { hint ->
+                                    topBannerController.show(title = hint)
                                     update(hint, "", false, allowRunningInference = false)
                                 },
+                            )
+
+                            LauncherSecondaryPage.HealthCheck -> HealthCheckContent(
+                                report = healthCheckReport,
+                                checking = healthCheckInFlight,
+                                actionsLocked = actionInProgress,
+                                onRunHealthCheck = ::runHealthCheck,
+                                onPrimaryAction = {
+                                    secondaryPage = null
+                                    runHealthCheckPrimaryAction()
+                                },
+                                showRunHealthCheckAction = true,
+                            )
+
+                            LauncherSecondaryPage.ChatGuard -> TavernChatGuardContent(
+                                state = opsUiState.chatGuardState,
+                                instanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                onRefresh = opsCoordinator::refreshChatGuardStatus,
+                                onSaveConfig = opsCoordinator::saveChatGuardConfig,
+                                onClearHistory = opsCoordinator::clearChatGuardHistory,
+                                onCopyPath = { path ->
+                                    val ok = onCopyText("救回聊天路径", path)
+                                    topBannerController.show(
+                                        title = if (ok) "已复制救回文件路径" else "复制路径失败",
+                                        tone = if (ok) LukoaTopBannerTone.Success else LukoaTopBannerTone.Danger,
+                                    )
+                                    ok
+                                },
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                            )
+
+                            LauncherSecondaryPage.StorageCleanup -> TavernStorageContent(
+                                state = opsUiState.storageState,
+                                instanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress,
+                                onScan = opsCoordinator::scanTavernStorage,
+                                onClean = opsCoordinator::cleanTavernStorage,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                            )
+
+                            LauncherSecondaryPage.RepairTools -> RepairToolsSection(
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                uploadLimitStatus = uploadLimitStatus,
+                                nodeMemoryStatus = opsUiState.nodeMemoryStatus,
+                                onRepairDependencies = {
+                                    runGuarded(
+                                        "修复 npm 依赖",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-repair-dependencies"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate -> onCommand("tavern-repair-dependencies", guardedUpdate) }
+                                },
+                                onResetTheme = {
+                                    runGuarded(
+                                        "重置网页主题",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-reset-theme"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate -> onCommand("tavern-reset-theme", guardedUpdate) }
+                                },
+                                onCheckNodeMemory = opsCoordinator::checkNodeMemoryStatus,
+                                onSetNodeMemory = opsCoordinator::setNodeMemory,
+                                onResetNodeMemory = opsCoordinator::resetNodeMemory,
+                                onCheckUploadLimit = {
+                                    runGuarded(
+                                        "检查上传限制",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-status"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate ->
+                                        uploadLimitStatus = uploadLimitStatus.copy(checking = true, message = "正在读取当前上传限制…")
+                                        onCommand("tavern-upload-limit-status") { newStatus, termuxOutput, ok ->
+                                            guardedUpdate(newStatus, termuxOutput, ok)
+                                            if (!isTransientStatus(newStatus) && TavernUploadLimitStatusParser.parse(termuxOutput) == null) {
+                                                uploadLimitStatus = uploadLimitStatus.copy(
+                                                    checking = false,
+                                                    message = if (ok) "命令已完成，但没有读到兼容的上传限制。" else "检查失败：当前 ST 版本可能不兼容，或 Termux 缺少 Node.js。",
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                onSetUploadLimit = { megabytes ->
+                                    runGuarded(
+                                        "修改上传限制",
+                                        TermuxCommandTimeoutPolicy.operationLockMillis("tavern-upload-limit-set"),
+                                        allowRunningInference = false,
+                                    ) { guardedUpdate ->
+                                        onCommand(LauncherCommandCodec.encode("tavern-upload-limit-set", megabytes.toString()), guardedUpdate)
+                                    }
+                                },
+                                onResetUploadLimit = ::resetUploadLimitToVersionDefault,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                                showSectionContainer = false,
+                            )
+
+                            LauncherSecondaryPage.Debug -> ToolboxDebugContent(
+                                actionsLocked = actionInProgress,
+                                issues = issueAnalysis,
+                                forceCleanupSuggestion = currentForceCleanupSuggestion(),
+                                onQuickFixAction = { action ->
+                                    secondaryPage = null
+                                    runLauncherQuickFixAction(action)
+                                },
+                                onForceCleanup = ::requestForceCleanup,
+                                onClearLogs = ::requestClearLogs,
+                                onExportDiagnostic = ::exportDiagnosticLog,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                            )
+
+                            LauncherSecondaryPage.GitStash -> TavernGitStashContent(
+                                state = opsUiState.gitStashState,
+                                instanceLabel = tavernPathConfig.activeProfileLabel,
+                                actionsLocked = actionInProgress,
+                                tavernRunning = tavernRunning,
+                                onRefresh = opsCoordinator::refreshGitStash,
+                                onApply = opsCoordinator::applyGitStash,
+                                onDrop = opsCoordinator::dropGitStash,
+                                onShowHint = { hint -> topBannerController.show(title = hint) },
+                            )
+
+                            LauncherSecondaryPage.TaskCenter -> BackgroundTaskCenterContent(
+                                pendingTask = pendingLauncherTask,
+                                activeLockLabel = busyLabel,
+                                recentResults = backgroundTaskCenterResults,
+                                onCheckPendingTask = {
+                                    continuePendingLauncherTask()
+                                    refreshBackgroundTaskCenterResults()
+                                },
+                                onOpenPendingTaskPage = {
+                                    pendingLauncherTask?.let {
+                                        selectedTab = PendingLauncherTaskSupport.defaultTab(it)
+                                        secondaryPage = PendingLauncherTaskSupport.defaultSecondaryPage(it)
+                                    }
+                                },
+                                onAbandonPendingTask = {
+                                    abandonPendingLauncherTask()
+                                    secondaryPage = null
+                                },
+                                onRefreshResults = {
+                                    refreshBackgroundTaskCenterResults()
+                                    topBannerController.show(
+                                        title = "已刷新最近任务结果",
+                                        tone = LukoaTopBannerTone.Success,
+                                    )
+                                },
+                                showIntroCard = false,
                             )
                             }
                         }
                     }
                 }
             }
+        }
+
+            LukoaTopBannerHost(
+                controller = topBannerController,
+                busyLabel = if (showBusyOperationPanel) busyLabel else null,
+                busyStartedAtMillis = busyStartedAtMillis,
+                pendingTask = pendingLauncherTask?.takeIf { pendingTaskNeedsRecovery && !showPendingTaskDialog },
+                onContinuePendingTask = ::continuePendingLauncherTask,
+                onOpenPendingTaskDialog = { showPendingTaskDialog = true },
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
         }
     }
 }

@@ -271,6 +271,118 @@ class TavernPhaseCUiTest {
         composeRule.onNodeWithText("次要警告二").performScrollTo().assertIsDisplayed()
     }
 
+    @Test
+    fun topBannerHost_showsActionAndDismissesCleanly() {
+        val controller = LukoaTopBannerController()
+        var actionClicks = 0
+        composeRule.setContent {
+            LukoaTheme {
+                LukoaTopBannerHost(controller = controller)
+            }
+        }
+
+        composeRule.runOnIdle {
+            controller.show(
+                title = "聊天守护已为你救回 2 条聊天",
+                detail = "原档已保存在同目录。",
+                tone = LukoaTopBannerTone.Success,
+                actionLabel = "查看",
+                onAction = { actionClicks += 1 },
+                autoDismissMs = 0L,
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("聊天守护已为你救回 2 条聊天").assertIsDisplayed()
+        composeRule.onNodeWithText("查看").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, actionClicks)
+        composeRule.onNodeWithText("聊天守护已为你救回 2 条聊天").assertDoesNotExist()
+    }
+
+    @Test
+    fun tavernControlSection_showsCopyableLocalUrlWhenRunning() {
+        var copyClicks = 0
+        composeRule.setContent {
+            LukoaTheme {
+                TavernControlSection(
+                    tavernRunning = true,
+                    tavernStarting = false,
+                    tavernVersion = "1.13.4",
+                    actionInProgress = false,
+                    busyLabel = null,
+                    wakeEnabled = true,
+                    primaryEnabled = true,
+                    primaryDisabledReason = null,
+                    activePort = 8000,
+                    onWakeTermux = {},
+                    onPrimaryAction = {},
+                    onOpenTavern = {},
+                    onExportLog = {},
+                    onCopyTavernUrl = { copyClicks += 1 },
+                )
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("本机地址").assertIsDisplayed()
+        composeRule.onNodeWithText("http://127.0.0.1:8000 · 复制").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals(1, copyClicks) }
+    }
+
+    @Test
+    fun logPanel_withCollapsedFilter_revealsFilterAndCopyInFooterWithoutCrowdingHeader() {
+        composeRule.setContent {
+            LukoaTheme {
+                LogPanel(
+                    title = "Termux 运行日志",
+                    content = "info line\nError: EADDRINUSE",
+                    accentColor = LukoaColors.Primary,
+                    infoText = "测试说明",
+                    filterExpandedByDefault = false,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Termux 运行日志").assertIsDisplayed()
+        composeRule.onNodeWithText("筛选 (1)").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("只看报错 (1)").assertIsDisplayed()
+    }
+
+    @Test
+    fun toolboxSection_routesEntriesToFullPagesWhenCallbacksProvided() {
+        var openedChatGuard = 0
+        var openedRepair = 0
+        var openedHealth = 0
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    ToolboxSection(
+                        onOpenHealthCheckPage = { openedHealth += 1 },
+                        onOpenChatGuardPage = { openedChatGuard += 1 },
+                        onOpenRepairToolsPage = { openedRepair += 1 },
+                    )
+                }
+            }
+        }
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("查看详情").performScrollTo().performClick()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("聊天守护").performScrollTo().performClick()
+        advancePastClickDebounce()
+        composeRule.onNodeWithText("修复工具").performScrollTo().performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, openedHealth)
+            assertEquals(1, openedChatGuard)
+            assertEquals(1, openedRepair)
+        }
+    }
+
     private fun advancePastClickDebounce() {
         ShadowSystemClock.advanceBy(Duration.ofMillis(500))
     }

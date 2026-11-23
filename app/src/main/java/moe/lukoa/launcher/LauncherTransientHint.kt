@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 internal fun rememberTransientHint(): (String) -> Unit {
     val appContext = LocalContext.current.applicationContext
+    val topBanner = LocalLukoaTopBanner.current
     val activeToast = remember { arrayOfNulls<Toast>(1) }
 
     DisposableEffect(Unit) {
@@ -18,10 +19,14 @@ internal fun rememberTransientHint(): (String) -> Unit {
         }
     }
 
-    return remember(appContext) {
+    return remember(appContext, topBanner) {
         { message ->
-            activeToast[0]?.cancel()
-            activeToast[0] = Toast.makeText(appContext, message, Toast.LENGTH_SHORT).also(Toast::show)
+            if (topBanner != null) {
+                topBanner.show(title = message)
+            } else {
+                activeToast[0]?.cancel()
+                activeToast[0] = Toast.makeText(appContext, message, Toast.LENGTH_SHORT).also(Toast::show)
+            }
         }
     }
 }

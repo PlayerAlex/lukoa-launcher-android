@@ -1,15 +1,20 @@
 package moe.lukoa.launcher
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +25,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 private enum class SettingsDialogDestination {
@@ -31,6 +39,7 @@ private enum class SettingsDialogDestination {
     UpdateChannel,
     WakeDelay,
     Mirror,
+    BrowserPreference,
 }
 
 @Composable
@@ -110,6 +119,11 @@ fun SettingsSection(
     onToggleLaunchMode: () -> Unit = {},
     themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
     onToggleThemeStyle: () -> Unit = {},
+    basicPrefs: LauncherBasicPrefs = LauncherBasicPrefs(),
+    installedBrowsers: List<InstalledBrowserOption> = emptyList(),
+    onSelectPreferredBrowser: (String) -> Unit = {},
+    onToggleKeepScreenOn: () -> Unit = {},
+    onToggleAutoStartTavern: () -> Unit = {},
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -274,6 +288,18 @@ fun SettingsSection(
         )
     }
 
+    if (activeDialog == SettingsDialogDestination.BrowserPreference) {
+        TavernBrowserPreferenceDialog(
+            selectedPackage = basicPrefs.preferredBrowserPackage,
+            installedBrowsers = installedBrowsers,
+            onSelectPackage = { pkg ->
+                onSelectPreferredBrowser(pkg)
+                activeDialog = null
+            },
+            onDismiss = { activeDialog = null },
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
@@ -283,16 +309,25 @@ fun SettingsSection(
             runningNotificationEnabled = runningNotificationEnabled,
             launchMode = launchMode,
             themeStyle = themeStyle,
+            preferredBrowserLabel = LauncherBrowserResolver.displayLabelFor(
+                basicPrefs.preferredBrowserPackage,
+                installedBrowsers,
+            ),
+            keepScreenOn = basicPrefs.keepScreenOn,
+            autoStartTavernOnLaunch = basicPrefs.autoStartTavernOnLaunch,
             onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
             onOpenDirectorySettings = { activeDialog = SettingsDialogDestination.Directory },
             onOpenPortSettings = { activeDialog = SettingsDialogDestination.Port },
             onOpenMirrorSettings = { activeDialog = SettingsDialogDestination.Mirror },
             onOpenWakeDelaySettings = { activeDialog = SettingsDialogDestination.WakeDelay },
             onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
+            onOpenBrowserPreference = { activeDialog = SettingsDialogDestination.BrowserPreference },
             onToggleRunningNotification = onToggleRunningNotification,
             onPinQuickStartShortcut = onPinQuickStartShortcut,
             onToggleLaunchMode = onToggleLaunchMode,
             onToggleThemeStyle = onToggleThemeStyle,
+            onToggleKeepScreenOn = onToggleKeepScreenOn,
+            onToggleAutoStartTavern = onToggleAutoStartTavern,
         )
         TavernUserManagementSettingsPanel(
             state = tavernUserState,
@@ -516,16 +551,22 @@ internal fun InstanceManagementPanel(
     runningNotificationEnabled: Boolean = true,
     launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
     themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
+    preferredBrowserLabel: String = "系统默认",
+    keepScreenOn: Boolean = true,
+    autoStartTavernOnLaunch: Boolean = false,
     onOpenProfileManagement: () -> Unit,
     onOpenDirectorySettings: () -> Unit,
     onOpenPortSettings: () -> Unit,
     onOpenMirrorSettings: () -> Unit,
     onOpenWakeDelaySettings: () -> Unit,
     onOpenPermissionCenter: () -> Unit,
+    onOpenBrowserPreference: () -> Unit = {},
     onToggleRunningNotification: () -> Unit = {},
     onPinQuickStartShortcut: () -> Unit = {},
     onToggleLaunchMode: () -> Unit = {},
     onToggleThemeStyle: () -> Unit = {},
+    onToggleKeepScreenOn: () -> Unit = {},
+    onToggleAutoStartTavern: () -> Unit = {},
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
     SectionPanel(
@@ -587,6 +628,33 @@ internal fun InstanceManagementPanel(
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onToggleLaunchMode,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "打开酒馆的浏览器",
+                detail = "指定浏览器直接打开酒馆，不再每次弹出系统选择框。",
+                value = preferredBrowserLabel,
+                valueColor = LukoaColors.Primary,
+                valueAsPill = true,
+                onClick = onOpenBrowserPreference,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "打开启动器自动启动酒馆",
+                detail = "进入启动器且环境就绪时自动启动当前实例。",
+                value = if (autoStartTavernOnLaunch) "已开启" else "已关闭",
+                valueColor = if (autoStartTavernOnLaunch) LukoaColors.Primary else LukoaColors.TextSecondary,
+                valueAsPill = true,
+                onClick = onToggleAutoStartTavern,
+            )
+            SettingsEntryDivider()
+            SettingsEntryRow(
+                title = "前台保持屏幕常亮",
+                detail = "安装、备份或查看日志时防止手机自动息屏。",
+                value = if (keepScreenOn) "已开启" else "已关闭",
+                valueColor = if (keepScreenOn) LukoaColors.Primary else LukoaColors.TextSecondary,
+                valueAsPill = true,
+                onClick = onToggleKeepScreenOn,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -660,5 +728,124 @@ internal fun launcherVersionSummary(
         "$currentVersion → ${latest.versionName}"
     } else {
         currentVersion
+    }
+}
+
+@Composable
+private fun TavernBrowserPreferenceDialog(
+    selectedPackage: String,
+    installedBrowsers: List<InstalledBrowserOption>,
+    onSelectPackage: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = {
+            SettingsDialogTitle(
+                title = "选择打开酒馆的浏览器",
+                infoText = "指定浏览器后，点击“返回酒馆”或通知栏“打开酒馆”都会直接用它打开。若之后卸载了该浏览器，启动器会自动回退为系统默认。",
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                BrowserChoiceCard(
+                    title = "系统默认浏览器",
+                    subtitle = "跟随手机系统默认设置",
+                    selected = selectedPackage.isBlank(),
+                    onClick = { onSelectPackage("") },
+                )
+                if (installedBrowsers.isEmpty()) {
+                    Text(
+                        text = "未扫描到其他浏览器，将使用系统默认方式打开网页。",
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    installedBrowsers.forEach { option ->
+                        BrowserChoiceCard(
+                            title = option.label,
+                            subtitle = option.packageName,
+                            selected = selectedPackage == option.packageName,
+                            onClick = { onSelectPackage(option.packageName) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(
+                text = "关闭",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = null,
+    )
+}
+
+@Composable
+private fun BrowserChoiceCard(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick),
+        color = if (selected) LukoaColors.PrimarySoft else LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            1.dp,
+            if (selected) LukoaColors.Primary else LukoaColors.Border,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    color = if (selected) LukoaColors.Primary else LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (selected) {
+                Text(
+                    text = "当前",
+                    color = LukoaColors.Primary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }

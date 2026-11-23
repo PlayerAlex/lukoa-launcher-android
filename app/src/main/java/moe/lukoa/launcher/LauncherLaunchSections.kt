@@ -67,6 +67,7 @@ fun TavernControlSection(
     onPrimaryAction: () -> Unit,
     onOpenTavern: () -> Unit,
     onExportLog: () -> Unit,
+    onCopyTavernUrl: (() -> Unit)? = null,
 ) {
     val wakeClick = rememberFeedbackClick(onWakeTermux)
     val primaryClick = rememberFeedbackClick(
@@ -153,6 +154,39 @@ fun TavernControlSection(
                         ) {
                             Text(
                                 text = "$activeProfileLabel · $activePort · 切换",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                color = LukoaColors.TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                if (tavernRunning && onCopyTavernUrl != null) {
+                    val localUrl = "http://127.0.0.1:$activePort"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "本机地址",
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Surface(
+                            modifier = Modifier.clickable(
+                                role = Role.Button,
+                                onClick = rememberFeedbackClick(onCopyTavernUrl),
+                            ),
+                            color = LukoaColors.Elevated,
+                            shape = LukoaCapsuleShape,
+                            border = BorderStroke(1.dp, LukoaColors.Border),
+                        ) {
+                            Text(
+                                text = "$localUrl · 复制",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 color = LukoaColors.TextPrimary,
                                 style = MaterialTheme.typography.labelMedium,

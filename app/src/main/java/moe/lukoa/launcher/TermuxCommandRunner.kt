@@ -1036,13 +1036,31 @@ class TermuxCommandRunner(private val context: Context) {
         // Chrome-based browsers reuse the tab they opened for the same application id, so returning to
         // the tavern no longer stacks up a new tab every time. The bundled script tags its own opens
         // with the same id, so the tab opened at startup is the one that gets reused.
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$resolvedPort"))
+        val preferredBrowser = LauncherBasicPrefsStore.load(context).preferredBrowserPackage
+        val baseIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$resolvedPort"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(Browser.EXTRA_APPLICATION_ID, context.packageName)
             .putExtra(Browser.EXTRA_CREATE_NEW_TAB, false)
+        if (preferredBrowser.isNotBlank()) {
+            val targeted = Intent(baseIntent).setPackage(preferredBrowser)
+            val launchedPreferred = runCatching {
+                context.startActivity(targeted)
+                true
+            }.getOrDefault(false)
+            if (launchedPreferred) {
+                return CommandDispatch(sent = true, message = "已使用指定浏览器打开酒馆网页。")
+            }
+        }
         return try {
-            context.startActivity(intent)
-            CommandDispatch(sent = true, message = "已请求浏览器打开酒馆网页。")
+            context.startActivity(baseIntent)
+            CommandDispatch(
+                sent = true,
+                message = if (preferredBrowser.isNotBlank()) {
+                    "指定浏览器不可用，已回退使用系统默认浏览器打开酒馆网页。"
+                } else {
+                    "已请求浏览器打开酒馆网页。"
+                },
+            )
         } catch (error: Exception) {
             CommandDispatch(
                 sent = false,

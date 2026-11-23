@@ -1,7 +1,11 @@
 package moe.lukoa.launcher
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,9 +25,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -121,34 +127,23 @@ private fun TavernManagementGrid(
     onOpenServerPlugins: () -> Unit,
     onOpenQuickImport: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SettingsGroupLabel("日常常用 · 新人先看这里")
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
-            Column {
-                HubGridRow(
-                    left = HubGridEntry("备份", "保存与恢复数据", onOpenBackup),
-                    right = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
-                )
-                HorizontalDivider(color = LukoaColors.Border)
-                HubGridRow(
-                    left = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
-                    right = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
-                )
-            }
-        }
-
-        SettingsGroupLabel("进阶与联机 · 按需使用")
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Surface,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, LukoaColors.Border),
-        ) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = LukoaColors.Surface,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column {
+            HubGridRow(
+                left = HubGridEntry("备份", "保存与恢复数据", onOpenBackup),
+                right = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
+            )
+            HorizontalDivider(color = LukoaColors.Border)
+            HubGridRow(
+                left = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
+                right = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
+            )
+            HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
                 left = HubGridEntry("酒馆设置", "电脑访问与流畅度", onOpenTavernConfig),
                 right = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins),
@@ -189,6 +184,13 @@ private fun HubGridTile(
 ) {
     val enabled = entry.onClick != null
     val feedbackClick = rememberFeedbackClick(onClick = { entry.onClick?.invoke() })
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.97f else 1f,
+        animationSpec = tween(durationMillis = 110),
+        label = "hub-tile-scale",
+    )
 
     Box(
         modifier = modifier
@@ -201,7 +203,16 @@ private fun HubGridTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 82.dp)
-                    .clickable(role = Role.Button, onClick = feedbackClick),
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = feedbackClick,
+                    ),
                 color = LukoaColors.Elevated,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 border = BorderStroke(
@@ -291,58 +302,72 @@ private fun HubGridTitle(entry: HubGridEntry) {
 @Composable
 fun LauncherSecondaryPageHeader(
     title: String,
+    infoText: String? = null,
     onBack: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Background,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, top = 32.dp, end = 4.dp, bottom = 8.dp),
-        ) {
-            val feedbackBack = rememberFeedbackClick(onBack)
-            Surface(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .width(88.dp)
-                    .heightIn(min = 48.dp)
-                    .clickable(role = Role.Button, onClick = feedbackBack),
-                color = LukoaColors.Surface,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border),
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, top = 32.dp, end = 8.dp, bottom = 10.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                val feedbackBack = rememberFeedbackClick(onBack)
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .heightIn(min = 42.dp)
+                        .clickable(role = Role.Button, onClick = feedbackBack),
+                    color = LukoaColors.Surface,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = LukoaColors.Primary,
-                    )
-                    Text(
-                        text = "返回",
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = LukoaColors.Primary,
+                        )
+                        Text(
+                            text = "返回",
+                            color = LukoaColors.TextPrimary,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 88.dp)
+                        .semantics { heading() },
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!infoText.isNullOrBlank()) {
+                    Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                        InfoPopoverButton(
+                            contentDescription = "查看${title}说明",
+                            title = title,
+                            body = infoText,
+                        )
+                    }
                 }
             }
-            Text(
-                text = title,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(horizontal = 92.dp)
-                    .semantics { heading() },
-                color = LukoaColors.TextPrimary,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
+            HorizontalDivider(color = LukoaColors.Border)
         }
     }
 }

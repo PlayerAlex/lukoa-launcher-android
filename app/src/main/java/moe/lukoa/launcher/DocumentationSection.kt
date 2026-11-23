@@ -239,27 +239,26 @@ private fun DocumentationHome(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        SettingsGroupLabel("新人快速上手")
         SettingsEntryGroup {
             SettingsEntryRow(
-                title = "新手入门必看",
-                detail = "第一次装酒馆、启动与备份全流程",
+                title = "入门指南",
+                detail = "安装、启动、版本切换与备份说明",
                 onClick = { onOpenPage(DocumentationPage.LauncherQuestions) },
             )
             SettingsEntryDivider()
             SettingsEntryRow(
-                title = "酒馆黑话速查",
-                detail = "API、角色卡、世界书、预设与 429 报错",
+                title = "酒馆黑话",
+                detail = "API、角色卡、世界书、预设与常见报错",
                 onClick = { onOpenPage(DocumentationPage.TavernJargon) },
             )
             SettingsEntryDivider()
             SettingsEntryRow(
-                title = "进阶功能指南",
-                detail = "电脑联机、聊天守护、空间清理与导入",
+                title = "进阶维护",
+                detail = "局域网扫码、聊天守护、空间清理与导入",
                 onClick = { onOpenPage(DocumentationPage.AdvancedFeatures) },
             )
         }
-        SettingsGroupLabel("使用须知")
+        HorizontalDivider(color = LukoaColors.Border)
         DOCUMENTATION_HOME_NOTICES.forEachIndexed { index, notice ->
             Text(
                 text = "${index + 1}. $notice",
@@ -575,5 +574,9 @@ private val ADVANCED_FEATURE_TOPICS = listOf(
     DocumentationTopic(
         title = "界面配色切换（极简黑白 / 原版冷青）",
         body = "启动器默认使用纯正中性炭黑与柔和纯白的极简黑白暗色系；如果你更喜欢原本的深青薄荷配色，可以在“设置 → 实例与运行环境 → 界面配色风格”里一键切换，重启后也会记住你的选择。",
+    ),
+    DocumentationTopic(
+        title = "指定浏览器、屏幕常亮与自动启动",
+        body = "在“设置 → 实例与运行环境 → 启动与外观”里，可指定每次打开酒馆时使用的浏览器（如 Chrome、Edge、Via 等，不再每次弹系统选择框），可开启前台屏幕常亮防止安装或备份中途息屏，也可按需开启打开启动器时自动启动酒馆；运行中还可在启动页一键复制本机地址。",
     ),
 )

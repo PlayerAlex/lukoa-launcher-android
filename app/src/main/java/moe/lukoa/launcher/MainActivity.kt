@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -47,6 +48,8 @@ class MainActivity : ComponentActivity() {
     private var quickImportStagedBatch by mutableStateOf<TavernQuickImportStagedBatch?>(null)
     private var quickStartRequestSignal by mutableIntStateOf(0)
     private var runningNotificationEnabled by mutableStateOf(true)
+    private var basicPrefs by mutableStateOf(LauncherBasicPrefs())
+    private var installedBrowsers by mutableStateOf<List<InstalledBrowserOption>>(emptyList())
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -164,6 +167,9 @@ class MainActivity : ComponentActivity() {
         val installUnknownAppsGranted = canInstallUnknownApps()
         LukoaColors.applyStyle(LukoaThemeStore.load(applicationContext))
         runningNotificationEnabled = TavernNotificationStore.isEnabled(applicationContext)
+        basicPrefs = LauncherBasicPrefsStore.load(applicationContext)
+        installedBrowsers = LauncherBrowserResolver.queryInstalledBrowsers(applicationContext)
+        applyKeepScreenOn(basicPrefs.keepScreenOn)
         LauncherShortcutHelper.publishDynamicShortcuts(applicationContext)
         if (intent?.action == LauncherShortcutHelper.ACTION_QUICK_START_TAVERN) {
             quickStartRequestSignal += 1
@@ -309,10 +315,34 @@ class MainActivity : ComponentActivity() {
                         runningNotificationEnabled
                     },
                     onPinQuickStartShortcut = {
-                        LauncherShortcutHelper.requestPinQuickStartShortcut(applicationContext)
+                        LauncherShortcutHelper.requestPinQuickStartShortcut(this@MainActivity)
                     },
                     onToggleThemeStyle = {
                         LukoaThemeStore.save(applicationContext, LukoaColors.currentStyle.toggled())
+                    },
+                    basicPrefs = basicPrefs,
+                    installedBrowsers = installedBrowsers,
+                    onSelectPreferredBrowser = { packageName ->
+                        basicPrefs = LauncherBasicPrefsStore.save(
+                            applicationContext,
+                            basicPrefs.copy(preferredBrowserPackage = packageName),
+                        )
+                        basicPrefs
+                    },
+                    onToggleKeepScreenOn = {
+                        basicPrefs = LauncherBasicPrefsStore.save(
+                            applicationContext,
+                            basicPrefs.copy(keepScreenOn = !basicPrefs.keepScreenOn),
+                        )
+                        applyKeepScreenOn(basicPrefs.keepScreenOn)
+                        basicPrefs
+                    },
+                    onToggleAutoStartTavern = {
+                        basicPrefs = LauncherBasicPrefsStore.save(
+                            applicationContext,
+                            basicPrefs.copy(autoStartTavernOnLaunch = !basicPrefs.autoStartTavernOnLaunch),
+                        )
+                        basicPrefs
                     },
                     onSaveTavernMirrorConfig = tavernMirrorStore::save,
                     onSaveTavernPathConfig = tavernPathStore::save,
@@ -384,8 +414,18 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideStatusBar()
+        applyKeepScreenOn(basicPrefs.keepScreenOn)
+        installedBrowsers = LauncherBrowserResolver.queryInstalledBrowsers(applicationContext)
         maybeWakeTermuxAfterForegroundResume()
         hasCompletedInitialResume = true
+    }
+
+    private fun applyKeepScreenOn(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     override fun onDestroy() {

@@ -64,6 +64,7 @@ enum class LauncherTab(
 
 enum class LauncherSecondaryPage(
     val title: String,
+    val infoText: String? = null,
 ) {
     VersionManagement("版本管理"),
     Backup("备份"),
@@ -71,6 +72,31 @@ enum class LauncherSecondaryPage(
     TavernConfig("酒馆设置"),
     ServerPlugins("服务器插件"),
     QuickImport("快捷导入"),
+    HealthCheck("一键体检"),
+    ChatGuard(
+        title = "聊天守护",
+        infoText = "为什么需要守护：手机浏览器卡死重刷时，酒馆有时会把没加载完的空白聊天存回去，覆盖原本很长的对话。\n守护如何工作：酒馆运行时会给长聊天建立不额外占空间的硬链接保底；一旦发现聊天体积骤降一半以上，会自动把旧档救回为同目录的「原名 [露科亚救回 时间]」文件。\n安全保障：绝不删除你的原始聊天；每条聊天最多保留 5 份救回，且永远保护体积最大的那份完整旧档不被清理。",
+    ),
+    StorageCleanup(
+        title = "空间清理",
+        infoText = "只清理可安全重建的缓存、旧日志和升级残留临时文件，绝不会碰聊天记录、角色卡、世界书、预设或备份库。",
+    ),
+    RepairTools(
+        title = "修复工具",
+        infoText = "安装中断或启动缺依赖时可用「修复 npm 依赖」；网页主题损坏打不开时再点「重置主题」。\n内存上限和聊天文件大小一般保持默认或常用值即可，所有修改前都会先备份并确认。",
+    ),
+    Debug(
+        title = "Debug 区",
+        infoText = "集中放置故障自动诊断、日志导出与最后手段。\n遇到启动失败先看诊断建议或导出诊断日志；只有普通停止无效或确认端口被占时，才使用强制处理。",
+    ),
+    GitStash(
+        title = "暂存管理",
+        infoText = "平时一般不需要打开这里。\n只有当你更新或回退酒馆版本时选择了「先把本地改动收起来」，记录才会出现在这里，方便之后放回或清理。",
+    ),
+    TaskCenter(
+        title = "任务中心",
+        infoText = "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
+    ),
 }
 
 @Composable

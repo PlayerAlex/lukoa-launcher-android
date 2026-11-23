@@ -6,6 +6,9 @@ enum class LauncherSecondaryPageRefreshTarget {
     TavernConfig,
     ServerPlugins,
     QuickImport,
+    ChatGuard,
+    StorageCleanup,
+    GitStash,
 }
 
 class LauncherSecondaryPageRefreshTracker {
@@ -26,7 +29,14 @@ class LauncherSecondaryPageRefreshTracker {
                 LauncherSecondaryPage.TavernConfig -> LauncherSecondaryPageRefreshTarget.TavernConfig
                 LauncherSecondaryPage.ServerPlugins -> LauncherSecondaryPageRefreshTarget.ServerPlugins
                 LauncherSecondaryPage.QuickImport -> LauncherSecondaryPageRefreshTarget.QuickImport
+                LauncherSecondaryPage.ChatGuard -> LauncherSecondaryPageRefreshTarget.ChatGuard
+                LauncherSecondaryPage.StorageCleanup -> LauncherSecondaryPageRefreshTarget.StorageCleanup
+                LauncherSecondaryPage.GitStash -> LauncherSecondaryPageRefreshTarget.GitStash
                 LauncherSecondaryPage.ExtensionManagement,
+                LauncherSecondaryPage.HealthCheck,
+                LauncherSecondaryPage.RepairTools,
+                LauncherSecondaryPage.Debug,
+                LauncherSecondaryPage.TaskCenter,
                 null -> null
             }
         }

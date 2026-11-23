@@ -427,20 +427,6 @@ fun BackgroundTaskCenterDialog(
     onRefreshResults: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var confirmAbandon by remember(pendingTask?.kind, pendingTask?.startedAtMillis) { mutableStateOf(false) }
-
-    if (confirmAbandon && pendingTask != null) {
-        PendingTaskAbandonDialog(
-            task = pendingTask,
-            onConfirm = {
-                confirmAbandon = false
-                onAbandonPendingTask()
-            },
-            onDismiss = { confirmAbandon = false },
-        )
-        return
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
@@ -455,68 +441,15 @@ fun BackgroundTaskCenterDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ManagementDialogIntroCard(
-                    "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
-                )
-                ManagementDialogActionCard("当前任务与操作") {
-                    when {
-                        pendingTask != null -> {
-                            PendingTaskStateHeader(activeLockLabel = activeLockLabel)
-                            PendingTaskSummaryCard(task = pendingTask)
-                            ToneActionButton(
-                                text = "检查最新结果",
-                                enabled = true,
-                                tone = ActionTone.Safe,
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = onCheckPendingTask,
-                            )
-                            ToneActionButton(
-                                text = "前往对应页面",
-                                enabled = true,
-                                tone = ActionTone.Neutral,
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = onOpenPendingTaskPage,
-                            )
-                            ToneActionButton(
-                                text = "不再跟踪这次操作",
-                                enabled = true,
-                                tone = ActionTone.Warning,
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { confirmAbandon = true },
-                            )
-                        }
-
-                        !activeLockLabel.isNullOrBlank() -> {
-                            PendingTaskStateHeader(activeLockLabel = activeLockLabel)
-                            Text(
-                                text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
-                                color = LukoaColors.TextPrimary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-
-                        else -> BackgroundTaskIdleCard()
-                    }
-                }
-
-                ManagementDialogSectionTitle("最近任务结果")
-                if (recentResults.isEmpty()) {
-                    Text(
-                        text = "还没有可显示的耗时任务结果。",
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                } else {
-                    recentResults.forEach { result ->
-                        BackgroundTaskResultCard(result = result)
-                    }
-                }
-                ToneActionButton(
-                    text = "刷新最近结果",
-                    enabled = true,
-                    tone = ActionTone.Neutral,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onRefreshResults,
+                BackgroundTaskCenterContent(
+                    pendingTask = pendingTask,
+                    activeLockLabel = activeLockLabel,
+                    recentResults = recentResults,
+                    onCheckPendingTask = onCheckPendingTask,
+                    onOpenPendingTaskPage = onOpenPendingTaskPage,
+                    onAbandonPendingTask = onAbandonPendingTask,
+                    onRefreshResults = onRefreshResults,
+                    showIntroCard = true,
                 )
             }
         },
@@ -529,6 +462,102 @@ fun BackgroundTaskCenterDialog(
         },
         dismissButton = {},
     )
+}
+
+@Composable
+internal fun BackgroundTaskCenterContent(
+    pendingTask: PendingLauncherTask?,
+    activeLockLabel: String?,
+    recentResults: List<TermuxResultDisplay>,
+    onCheckPendingTask: () -> Unit,
+    onOpenPendingTaskPage: () -> Unit,
+    onAbandonPendingTask: () -> Unit,
+    onRefreshResults: () -> Unit,
+    showIntroCard: Boolean = false,
+) {
+    var confirmAbandon by remember(pendingTask?.kind, pendingTask?.startedAtMillis) { mutableStateOf(false) }
+
+    if (confirmAbandon && pendingTask != null) {
+        PendingTaskAbandonDialog(
+            task = pendingTask,
+            onConfirm = {
+                confirmAbandon = false
+                onAbandonPendingTask()
+            },
+            onDismiss = { confirmAbandon = false },
+        )
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (showIntroCard) {
+            ManagementDialogIntroCard(
+                "这里读取启动器已经保存的任务记录和 Termux 返回，不会重新执行任务。切到后台期间产生的结果，回来后仍可在这里补查。",
+            )
+        }
+        ManagementDialogActionCard("当前任务与操作") {
+            when {
+                pendingTask != null -> {
+                    PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                    PendingTaskSummaryCard(task = pendingTask)
+                    ToneActionButton(
+                        text = "检查最新结果",
+                        enabled = true,
+                        tone = ActionTone.Safe,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onCheckPendingTask,
+                    )
+                    ToneActionButton(
+                        text = "前往对应页面",
+                        enabled = true,
+                        tone = ActionTone.Neutral,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onOpenPendingTaskPage,
+                    )
+                    ToneActionButton(
+                        text = "不再跟踪这次操作",
+                        enabled = true,
+                        tone = ActionTone.Warning,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { confirmAbandon = true },
+                    )
+                }
+
+                !activeLockLabel.isNullOrBlank() -> {
+                    PendingTaskStateHeader(activeLockLabel = activeLockLabel)
+                    Text(
+                        text = "启动器当前仍在等待这个操作。离开页面不会取消 Termux 中的任务。",
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                else -> BackgroundTaskIdleCard()
+            }
+        }
+
+        ManagementDialogSectionTitle("最近任务结果")
+        if (recentResults.isEmpty()) {
+            Text(
+                text = "还没有可显示的耗时任务结果。",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            recentResults.forEach { result ->
+                BackgroundTaskResultCard(result = result)
+            }
+        }
+        ToneActionButton(
+            text = "刷新最近结果",
+            enabled = true,
+            tone = ActionTone.Neutral,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onRefreshResults,
+        )
+    }
 }
 
 @Composable

@@ -255,6 +255,54 @@ class TavernPhaseCFeaturesTest {
         assertEquals("01-01 00:00", formatAutoBackupScheduleTime(1_704_067_200_000L, ZoneOffset.UTC))
     }
 
+    @Test
+    fun `top banner controller dedupes, infers tones, and dismisses cleanly`() {
+        val controller = LukoaTopBannerController()
+        assertNull(controller.currentMessage)
+
+        val firstId = controller.show(title = "已复制酒馆地址", dedupeKey = "copy-url")
+        assertEquals(LukoaTopBannerTone.Success, controller.currentMessage?.tone)
+        val dedupedId = controller.show(title = "已复制酒馆地址", dedupeKey = "copy-url")
+        assertEquals(firstId, dedupedId)
+
+        val errId = controller.show(title = "操作失败：端口已被占用")
+        assertEquals(LukoaTopBannerTone.Danger, controller.currentMessage?.tone)
+        assertTrue(errId != firstId)
+
+        assertEquals(LukoaTopBannerTone.Warning, inferTopBannerTone("有 1 项权限待处理"))
+        assertEquals(LukoaTopBannerTone.Neutral, inferTopBannerTone("普通提示消息"))
+
+        controller.dismiss(firstId) // stale id must not dismiss newer banner
+        assertNotNull(controller.currentMessage)
+        controller.dismiss(errId)
+        assertNull(controller.currentMessage)
+    }
+
+    @Test
+    fun `browser resolver prioritizes common browsers and resolves labels cleanly`() {
+        val unsorted = listOf(
+            InstalledBrowserOption("com.zebra.browser", "Zebra"),
+            InstalledBrowserOption("mark.via.gp", "Via"),
+            InstalledBrowserOption("com.android.chrome", "Chrome"),
+            InstalledBrowserOption("com.alpha.browser", "Alpha"),
+        )
+        val sorted = LauncherBrowserResolver.sortBrowserOptions(unsorted)
+        assertEquals(
+            listOf("com.android.chrome", "mark.via.gp", "com.alpha.browser", "com.zebra.browser"),
+            sorted.map { it.packageName },
+        )
+        assertEquals("系统默认", LauncherBrowserResolver.displayLabelFor("", sorted))
+        assertEquals("Via", LauncherBrowserResolver.displayLabelFor("mark.via.gp", sorted))
+        assertTrue(LauncherBrowserResolver.displayLabelFor("com.removed.browser", sorted).contains("回退默认"))
+    }
+
+    @Test
+    fun `shortcut icon sample size scales large png safely`() {
+        assertEquals(4, LauncherShortcutHelper.computeInSampleSize(1024, 1024, 192))
+        assertEquals(2, LauncherShortcutHelper.computeInSampleSize(512, 512, 192))
+        assertEquals(1, LauncherShortcutHelper.computeInSampleSize(192, 192, 192))
+    }
+
     private fun buildTarGz(entries: Map<String, String>): ByteArray {
         val out = ByteArrayOutputStream()
         GzipCompressorOutputStream(out).use { gzip ->
