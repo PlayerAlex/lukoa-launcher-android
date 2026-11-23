@@ -300,8 +300,8 @@ class TavernController(
         }
     }
 
-    fun openTavern(update: LauncherUpdate) {
-        val result = runner.openTavern()
+    fun openTavern(update: LauncherUpdate, forceOpenUrl: Boolean = false) {
+        val result = runner.openTavern(forceOpenUrl = forceOpenUrl)
         update(result.message, "", result.sent)
     }
 

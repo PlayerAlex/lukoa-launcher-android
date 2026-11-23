@@ -1027,17 +1027,62 @@ class TermuxCommandRunner(private val context: Context) {
         )
     }
 
-    fun openTavern(port: Int? = null): CommandDispatch {
+    fun openTavern(port: Int? = null, forceOpenUrl: Boolean = false): CommandDispatch {
         val resolvedPort = port?.takeIf { it in 1..65535 } ?: tavernPathConfig().normalizedPort
         if (resolvedPort !in 1..65535) {
             return CommandDispatch(sent = false, message = "打开网页失败：端口号不合法。")
         }
 
-        // Chrome-based browsers reuse the tab they opened for the same application id, so returning to
-        // the tavern no longer stacks up a new tab every time. The bundled script tags its own opens
-        // with the same id, so the tab opened at startup is the one that gets reused.
-        val preferredBrowser = LauncherBasicPrefsStore.load(context).preferredBrowserPackage
-        val baseIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:$resolvedPort"))
+        val basicPrefs = LauncherBasicPrefsStore.load(context)
+        val preferredBrowser = basicPrefs.preferredBrowserPackage
+        val resolvedTargetBrowser = preferredBrowser.ifBlank {
+            LauncherBrowserResolver.resolveDefaultBrowserPackage(context)
+        }
+        val url = "http://127.0.0.1:$resolvedPort"
+
+        if (!forceOpenUrl && basicPrefs.browserOpenMode == TavernBrowserOpenMode.SwitchToBrowser) {
+            val lastOpened = LauncherBasicPrefsStore.readLastOpenedTavern(context)
+            val candidatePkg = when {
+                preferredBrowser.isNotBlank() && lastOpened.port == resolvedPort && lastOpened.browserPackage == preferredBrowser ->
+                    preferredBrowser
+                preferredBrowser.isBlank() && lastOpened.port == resolvedPort && lastOpened.browserPackage.isNotBlank() ->
+                    lastOpened.browserPackage
+                else -> ""
+            }
+            if (candidatePkg.isNotBlank() && bringBrowserToFront(candidatePkg)) {
+                return CommandDispatch(
+                    sent = true,
+                    message = "已切回浏览器窗口（若标签已关闭，长按「返回酒馆」可重新打开网址）。",
+                )
+            }
+        }
+
+        if (basicPrefs.browserOpenMode == TavernBrowserOpenMode.CustomTab && !forceOpenUrl) {
+            val customTabIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtras(
+                    android.os.Bundle().apply {
+                        putBinder("android.support.customtabs.extra.SESSION", null)
+                    },
+                )
+                putExtra(
+                    "android.support.customtabs.extra.TOOLBAR_COLOR",
+                    if (LukoaColors.currentStyle.isLight) 0xFFF2F2F2.toInt() else 0xFF0D0D0D.toInt(),
+                )
+                putExtra("android.support.customtabs.extra.ENABLE_URLBAR_HIDING", true)
+            }
+            if (preferredBrowser.isNotBlank()) {
+                val targeted = Intent(customTabIntent).setPackage(preferredBrowser)
+                if (runCatching { context.startActivity(targeted); true }.getOrDefault(false)) {
+                    return CommandDispatch(sent = true, message = "已在独立窗口打开酒馆。")
+                }
+            }
+            if (runCatching { context.startActivity(customTabIntent); true }.getOrDefault(false)) {
+                return CommandDispatch(sent = true, message = "已在独立窗口打开酒馆。")
+            }
+        }
+
+        val baseIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(Browser.EXTRA_APPLICATION_ID, context.packageName)
             .putExtra(Browser.EXTRA_CREATE_NEW_TAB, false)
@@ -1048,11 +1093,15 @@ class TermuxCommandRunner(private val context: Context) {
                 true
             }.getOrDefault(false)
             if (launchedPreferred) {
+                LauncherBasicPrefsStore.recordOpenedTavern(context, resolvedPort, preferredBrowser)
                 return CommandDispatch(sent = true, message = "已使用指定浏览器打开酒馆网页。")
             }
         }
         return try {
             context.startActivity(baseIntent)
+            if (resolvedTargetBrowser.isNotBlank()) {
+                LauncherBasicPrefsStore.recordOpenedTavern(context, resolvedPort, resolvedTargetBrowser)
+            }
             CommandDispatch(
                 sent = true,
                 message = if (preferredBrowser.isNotBlank()) {
@@ -1067,6 +1116,17 @@ class TermuxCommandRunner(private val context: Context) {
                 message = "打开网页失败：${error.message ?: error.javaClass.simpleName}。请确认手机上有可用浏览器。",
             )
         }
+    }
+
+    private fun bringBrowserToFront(packageName: String): Boolean {
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
+        launchIntent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+        )
+        return runCatching {
+            context.startActivity(launchIntent)
+            true
+        }.getOrDefault(false)
     }
 
     fun wakeTermux(): Boolean {

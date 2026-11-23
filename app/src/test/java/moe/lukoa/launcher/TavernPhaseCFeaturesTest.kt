@@ -303,6 +303,14 @@ class TavernPhaseCFeaturesTest {
         assertEquals(1, LauncherShortcutHelper.computeInSampleSize(192, 192, 192))
     }
 
+    @Test
+    fun `browser open mode defaults to switch-to-browser and parses wire values`() {
+        assertEquals(TavernBrowserOpenMode.SwitchToBrowser, TavernBrowserOpenMode.fromWireValue(null))
+        assertEquals(TavernBrowserOpenMode.SwitchToBrowser, TavernBrowserOpenMode.fromWireValue("unknown"))
+        assertEquals(TavernBrowserOpenMode.CustomTab, TavernBrowserOpenMode.fromWireValue("custom_tab"))
+        assertEquals(TavernBrowserOpenMode.AlwaysOpenUrl, TavernBrowserOpenMode.fromWireValue("always_open_url"))
+    }
+
     private fun buildTarGz(entries: Map<String, String>): ByteArray {
         val out = ByteArrayOutputStream()
         GzipCompressorOutputStream(out).use { gzip ->

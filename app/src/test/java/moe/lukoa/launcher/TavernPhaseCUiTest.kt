@@ -324,8 +324,8 @@ class TavernPhaseCUiTest {
         }
 
         advancePastClickDebounce()
-        composeRule.onNodeWithText("本机地址").assertIsDisplayed()
-        composeRule.onNodeWithText("http://127.0.0.1:8000 · 复制").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("本机地址（点击复制）").assertIsDisplayed()
+        composeRule.onNodeWithText("http://127.0.0.1:8000").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assertEquals(1, copyClicks) }
     }
 

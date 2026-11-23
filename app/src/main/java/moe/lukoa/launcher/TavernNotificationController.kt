@@ -77,8 +77,8 @@ object TavernNotificationController {
 
         val notification = Notification.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_lukoa_launcher)
-            .setContentTitle("酒馆运行中 · ${instanceLabel.ifBlank { "主实例" }}")
-            .setContentText("访问 http://127.0.0.1:$port · 点按钮可快速打开、重启或停止")
+            .setContentTitle("酒馆运行中（${instanceLabel.ifBlank { "主实例" }}）")
+            .setContentText("http://127.0.0.1:$port，点击按钮可快速打开、重启或停止")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentPi)

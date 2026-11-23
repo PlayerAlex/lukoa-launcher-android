@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
         val allFilesAccessGranted = hasAllFilesAccessPermission()
         val installUnknownAppsGranted = canInstallUnknownApps()
         LukoaColors.applyStyle(LukoaThemeStore.load(applicationContext))
+        syncSystemBarsAppearance()
         runningNotificationEnabled = TavernNotificationStore.isEnabled(applicationContext)
         basicPrefs = LauncherBasicPrefsStore.load(applicationContext)
         installedBrowsers = LauncherBrowserResolver.queryInstalledBrowsers(applicationContext)
@@ -223,6 +224,9 @@ class MainActivity : ComponentActivity() {
                     onSaveTavernLaunchMode = tavernLaunchModeStore::save,
                     onOpenTavern = { update ->
                         controller.openTavern(update)
+                    },
+                    onForceOpenTavern = { update ->
+                        controller.openTavern(update, forceOpenUrl = true)
                     },
                     onWakeTermux = { returnDelayMs ->
                         wakeTermuxWithReturn(auto = false, returnDelayMs = returnDelayMs)
@@ -318,7 +322,9 @@ class MainActivity : ComponentActivity() {
                         LauncherShortcutHelper.requestPinQuickStartShortcut(this@MainActivity)
                     },
                     onToggleThemeStyle = {
-                        LukoaThemeStore.save(applicationContext, LukoaColors.currentStyle.toggled())
+                        val saved = LukoaThemeStore.save(applicationContext, LukoaColors.currentStyle.toggled())
+                        syncSystemBarsAppearance()
+                        saved
                     },
                     basicPrefs = basicPrefs,
                     installedBrowsers = installedBrowsers,
@@ -326,6 +332,13 @@ class MainActivity : ComponentActivity() {
                         basicPrefs = LauncherBasicPrefsStore.save(
                             applicationContext,
                             basicPrefs.copy(preferredBrowserPackage = packageName),
+                        )
+                        basicPrefs
+                    },
+                    onSelectBrowserOpenMode = { mode ->
+                        basicPrefs = LauncherBasicPrefsStore.save(
+                            applicationContext,
+                            basicPrefs.copy(browserOpenMode = mode),
                         )
                         basicPrefs
                     },
@@ -440,6 +453,17 @@ class MainActivity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.statusBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            val lightBars = LukoaColors.currentStyle.isLight
+            isAppearanceLightStatusBars = lightBars
+            isAppearanceLightNavigationBars = lightBars
+        }
+    }
+
+    private fun syncSystemBarsAppearance() {
+        val lightBars = LukoaColors.currentStyle.isLight
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = lightBars
+            isAppearanceLightNavigationBars = lightBars
         }
     }
 

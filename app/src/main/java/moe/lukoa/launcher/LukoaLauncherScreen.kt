@@ -99,6 +99,7 @@ fun LukoaLauncherScreen(
     onForegroundRestart: (LauncherUpdate) -> Unit = {},
     onSaveTavernLaunchMode: (TavernLaunchMode) -> TavernLaunchMode = { it },
     onOpenTavern: (LauncherUpdate) -> Unit,
+    onForceOpenTavern: ((LauncherUpdate) -> Unit)? = null,
     onWakeTermux: (Long) -> TermuxWakeResult,
     onOpenTermuxOnly: () -> Boolean,
     onCheckTermuxInstalled: () -> Boolean,
@@ -139,6 +140,7 @@ fun LukoaLauncherScreen(
     basicPrefs: LauncherBasicPrefs = LauncherBasicPrefs(),
     installedBrowsers: List<InstalledBrowserOption> = emptyList(),
     onSelectPreferredBrowser: (String) -> LauncherBasicPrefs = { basicPrefs },
+    onSelectBrowserOpenMode: (TavernBrowserOpenMode) -> LauncherBasicPrefs = { basicPrefs },
     onToggleKeepScreenOn: () -> LauncherBasicPrefs = { basicPrefs },
     onToggleAutoStartTavern: () -> LauncherBasicPrefs = { basicPrefs },
     onSaveTavernMirrorConfig: (TavernMirrorConfig) -> TavernMirrorSaveResult,
@@ -3263,13 +3265,31 @@ fun LukoaLauncherScreen(
         }
     }
 
-    fun returnToTavern() {
+    fun returnToTavern(forceOpenUrl: Boolean = false) {
         when {
-            actionInProgress -> update("正在处理，稍后再打开酒馆。", "", false, allowRunningInference = false)
-            tavernStarting -> update("酒馆还在启动，等状态变成运行中再打开。", "", false, allowRunningInference = false)
-            !tavernRunning -> update("酒馆未运行，请先启动酒馆。", "", false, allowRunningInference = false)
-            else -> onOpenTavern { newStatus, termuxOutput, ok ->
-                update(newStatus, termuxOutput, ok, allowRunningInference = false)
+            actionInProgress -> {
+                val msg = "正在处理，稍后再打开酒馆。"
+                topBannerController.show(title = msg, tone = LukoaTopBannerTone.Warning)
+                update(msg, "", false, allowRunningInference = false)
+            }
+            tavernStarting -> {
+                val msg = "酒馆还在启动，等状态变成运行中再打开。"
+                topBannerController.show(title = msg, tone = LukoaTopBannerTone.Warning)
+                update(msg, "", false, allowRunningInference = false)
+            }
+            !tavernRunning -> {
+                val msg = "酒馆未运行，请先启动酒馆。"
+                topBannerController.show(title = msg, tone = LukoaTopBannerTone.Warning)
+                update(msg, "", false, allowRunningInference = false)
+            }
+            else -> {
+                val opener = if (forceOpenUrl && onForceOpenTavern != null) onForceOpenTavern else onOpenTavern
+                opener { newStatus, termuxOutput, ok ->
+                    if (!ok) {
+                        topBannerController.show(title = newStatus, tone = LukoaTopBannerTone.Danger)
+                    }
+                    update(newStatus, termuxOutput, ok, allowRunningInference = false)
+                }
             }
         }
     }
@@ -4547,7 +4567,8 @@ fun LukoaLauncherScreen(
                                 onPrimaryAction = {
                                     if (shouldOfferStopTavern(tavernRunning, tavernStarting)) requestStopTavern() else requestStartTavern()
                                 },
-                                onOpenTavern = ::returnToTavern,
+                                onOpenTavern = { returnToTavern(forceOpenUrl = false) },
+                                onForceOpenTavern = { returnToTavern(forceOpenUrl = true) },
                                 onExportLog = { showExportDialog = true },
                                 onCopyTavernUrl = {
                                     val url = "http://127.0.0.1:${tavernPathConfig.normalizedPort}"
@@ -4861,6 +4882,14 @@ fun LukoaLauncherScreen(
                                     tone = LukoaTopBannerTone.Success,
                                 )
                                 update("已设置打开酒馆的浏览器为：$label。", "", true, allowRunningInference = false)
+                            },
+                            onSelectBrowserOpenMode = { mode ->
+                                val saved = onSelectBrowserOpenMode(mode)
+                                topBannerController.show(
+                                    title = "返回酒馆方式：${saved.browserOpenMode.shortLabel}",
+                                    tone = LukoaTopBannerTone.Success,
+                                )
+                                update("返回酒馆方式已设为：${saved.browserOpenMode.title}。", "", true, allowRunningInference = false)
                             },
                             onToggleKeepScreenOn = {
                                 val saved = onToggleKeepScreenOn()

@@ -40,6 +40,7 @@ private enum class SettingsDialogDestination {
     WakeDelay,
     Mirror,
     BrowserPreference,
+    BrowserOpenMode,
 }
 
 @Composable
@@ -122,6 +123,7 @@ fun SettingsSection(
     basicPrefs: LauncherBasicPrefs = LauncherBasicPrefs(),
     installedBrowsers: List<InstalledBrowserOption> = emptyList(),
     onSelectPreferredBrowser: (String) -> Unit = {},
+    onSelectBrowserOpenMode: (TavernBrowserOpenMode) -> Unit = {},
     onToggleKeepScreenOn: () -> Unit = {},
     onToggleAutoStartTavern: () -> Unit = {},
     onOpenUserManagementPage: (() -> Unit)? = null,
@@ -301,7 +303,18 @@ fun SettingsSection(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    if (activeDialog == SettingsDialogDestination.BrowserOpenMode) {
+        TavernBrowserOpenModeDialog(
+            selectedMode = basicPrefs.browserOpenMode,
+            onSelectMode = { mode ->
+                onSelectBrowserOpenMode(mode)
+                activeDialog = null
+            },
+            onDismiss = { activeDialog = null },
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         InstanceManagementPanel(
             termuxReturnDelayMs = termuxReturnDelayMs,
             tavernPathConfig = tavernPathConfig,
@@ -314,6 +327,7 @@ fun SettingsSection(
                 basicPrefs.preferredBrowserPackage,
                 installedBrowsers,
             ),
+            browserOpenMode = basicPrefs.browserOpenMode,
             keepScreenOn = basicPrefs.keepScreenOn,
             autoStartTavernOnLaunch = basicPrefs.autoStartTavernOnLaunch,
             onOpenProfileManagement = { activeDialog = SettingsDialogDestination.ProfileManagement },
@@ -323,6 +337,8 @@ fun SettingsSection(
             onOpenWakeDelaySettings = { activeDialog = SettingsDialogDestination.WakeDelay },
             onOpenPermissionCenter = { activeDialog = SettingsDialogDestination.PermissionCenter },
             onOpenBrowserPreference = { activeDialog = SettingsDialogDestination.BrowserPreference },
+            onOpenBrowserOpenMode = { activeDialog = SettingsDialogDestination.BrowserOpenMode },
+            onOpenUserManagement = onOpenUserManagementPage,
             onToggleRunningNotification = onToggleRunningNotification,
             onPinQuickStartShortcut = onPinQuickStartShortcut,
             onToggleLaunchMode = onToggleLaunchMode,
@@ -330,17 +346,19 @@ fun SettingsSection(
             onToggleKeepScreenOn = onToggleKeepScreenOn,
             onToggleAutoStartTavern = onToggleAutoStartTavern,
         )
-        TavernUserManagementSettingsPanel(
-            state = tavernUserState,
-            instanceLabel = tavernPathConfig.activeProfileLabel,
-            actionsLocked = actionsLocked,
-            tavernRunning = tavernRunning,
-            onRefresh = onRefreshTavernUsers,
-            onCreate = onCreateTavernUser,
-            onDelete = onDeleteTavernUser,
-            onShowHint = showHint,
-            onOpenPage = onOpenUserManagementPage,
-        )
+        if (onOpenUserManagementPage == null) {
+            TavernUserManagementSettingsPanel(
+                state = tavernUserState,
+                instanceLabel = tavernPathConfig.activeProfileLabel,
+                actionsLocked = actionsLocked,
+                tavernRunning = tavernRunning,
+                onRefresh = onRefreshTavernUsers,
+                onCreate = onCreateTavernUser,
+                onDelete = onDeleteTavernUser,
+                onShowHint = showHint,
+                onOpenPage = null,
+            )
+        }
         LauncherUpdateSettingsPanel(
             currentLauncherVersion = currentLauncherVersion,
             repositoryInput = repositoryInput,
@@ -554,6 +572,7 @@ internal fun InstanceManagementPanel(
     launchMode: TavernLaunchMode = TavernLaunchMode.ForegroundConsole,
     themeStyle: LukoaThemeStyle = LukoaColors.currentStyle,
     preferredBrowserLabel: String = "系统默认",
+    browserOpenMode: TavernBrowserOpenMode = TavernBrowserOpenMode.SwitchToBrowser,
     keepScreenOn: Boolean = true,
     autoStartTavernOnLaunch: Boolean = false,
     onOpenProfileManagement: () -> Unit,
@@ -563,6 +582,8 @@ internal fun InstanceManagementPanel(
     onOpenWakeDelaySettings: () -> Unit,
     onOpenPermissionCenter: () -> Unit,
     onOpenBrowserPreference: () -> Unit = {},
+    onOpenBrowserOpenMode: () -> Unit = {},
+    onOpenUserManagement: (() -> Unit)? = null,
     onToggleRunningNotification: () -> Unit = {},
     onPinQuickStartShortcut: () -> Unit = {},
     onToggleLaunchMode: () -> Unit = {},
@@ -571,30 +592,35 @@ internal fun InstanceManagementPanel(
     onToggleAutoStartTavern: () -> Unit = {},
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
-    SectionPanel(
-        title = "实例与运行环境",
-        accentColor = LukoaColors.Primary,
-        containerColor = LukoaColors.Elevated,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = tavernPathConfig.activeProfileLabel,
-                    active = true,
-                    modifier = Modifier.widthIn(max = 112.dp),
-                    toneColor = LukoaColors.Primary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看实例与运行环境说明",
-                    title = "实例与运行环境",
-                    body = "“实例”是一套独立的酒馆（单独目录和端口），普通用户只有一套主实例，保持默认即可。\n“启动与外观”可切换前台/后台启动方式、极简黑白/原版冷青配色、通知栏快捷控制和桌面快捷图标。\n“网络与权限”用于换国内加速镜像、检查 Termux 权限和调整唤醒延迟。",
-                )
-            }
-        },
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "实例与运行环境",
+                modifier = Modifier.weight(1f),
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            StatusPill(
+                text = tavernPathConfig.activeProfileLabel,
+                active = true,
+                modifier = Modifier.widthIn(max = 112.dp),
+                toneColor = LukoaColors.Primary,
+                activeBackground = LukoaColors.PrimarySoft,
+            )
+            InfoPopoverButton(
+                contentDescription = "查看实例与运行环境说明",
+                title = "实例与运行环境",
+                body = "“实例”是一套独立的酒馆（单独目录和端口），普通用户只有一套主实例，保持默认即可。\n“启动与外观”可调整启动方式、指定浏览器与防重复开窗口方式、界面配色以及常用开关。\n“网络与权限”用于换国内加速镜像、检查 Termux 权限和调整唤醒延迟。",
+            )
+        }
+
         SettingsGroupLabel("当前酒馆实例")
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -620,13 +646,25 @@ internal fun InstanceManagementPanel(
                 valueAsPill = true,
                 onClick = onOpenPortSettings,
             )
+            if (onOpenUserManagement != null) {
+                SettingsEntryDivider()
+                SettingsEntryRow(
+                    title = "酒馆用户管理",
+                    detail = "读取、新增或删除当前实例的登录账户",
+                    value = "管理",
+                    valueColor = LukoaColors.Primary,
+                    valueAsPill = true,
+                    onClick = onOpenUserManagement,
+                )
+            }
         }
+
         SettingsGroupLabel("启动与外观")
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "启动方式",
                 detail = launchMode.summary,
-                value = "${launchMode.shortLabel} · 切换",
+                value = launchMode.shortLabel,
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onToggleLaunchMode,
@@ -634,7 +672,7 @@ internal fun InstanceManagementPanel(
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "打开酒馆的浏览器",
-                detail = "指定浏览器直接打开酒馆，不再每次弹出系统选择框。",
+                detail = "指定浏览器直接打开酒馆，不再弹出系统选择框。",
                 value = preferredBrowserLabel,
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
@@ -642,39 +680,45 @@ internal fun InstanceManagementPanel(
             )
             SettingsEntryDivider()
             SettingsEntryRow(
-                title = "打开启动器自动启动酒馆",
-                detail = "进入启动器且环境就绪时自动启动当前实例。",
-                value = if (autoStartTavernOnLaunch) "已开启" else "已关闭",
-                valueColor = if (autoStartTavernOnLaunch) LukoaColors.Primary else LukoaColors.TextSecondary,
+                title = "返回酒馆方式",
+                detail = "防止浏览器反复堆积十几个酒馆窗口。",
+                value = browserOpenMode.shortLabel,
+                valueColor = LukoaColors.Primary,
                 valueAsPill = true,
-                onClick = onToggleAutoStartTavern,
-            )
-            SettingsEntryDivider()
-            SettingsEntryRow(
-                title = "前台保持屏幕常亮",
-                detail = "安装、备份或查看日志时防止手机自动息屏。",
-                value = if (keepScreenOn) "已开启" else "已关闭",
-                valueColor = if (keepScreenOn) LukoaColors.Primary else LukoaColors.TextSecondary,
-                valueAsPill = true,
-                onClick = onToggleKeepScreenOn,
+                onClick = onOpenBrowserOpenMode,
             )
             SettingsEntryDivider()
             SettingsEntryRow(
                 title = "界面配色风格",
                 detail = themeStyle.summary,
-                value = "${themeStyle.label} · 切换",
+                value = themeStyle.label,
                 valueColor = LukoaColors.Primary,
                 valueAsPill = true,
                 onClick = onToggleThemeStyle,
             )
             SettingsEntryDivider()
-            SettingsEntryRow(
+            LukoaSwitchRow(
+                title = "打开启动器自动启动酒馆",
+                detail = "进入启动器且环境就绪时自动启动当前实例。",
+                checked = autoStartTavernOnLaunch,
+                enabled = true,
+                onCheckedChange = { onToggleAutoStartTavern() },
+            )
+            SettingsEntryDivider()
+            LukoaSwitchRow(
+                title = "前台保持屏幕常亮",
+                detail = "安装、备份或查看日志时防止手机自动息屏。",
+                checked = keepScreenOn,
+                enabled = true,
+                onCheckedChange = { onToggleKeepScreenOn() },
+            )
+            SettingsEntryDivider()
+            LukoaSwitchRow(
                 title = "运行状态通知栏控制",
-                detail = "酒馆运行时可从通知栏直接打开、重启或停止。",
-                value = if (runningNotificationEnabled) "已开启" else "已关闭",
-                valueColor = if (runningNotificationEnabled) LukoaColors.Primary else LukoaColors.TextSecondary,
-                valueAsPill = true,
-                onClick = onToggleRunningNotification,
+                detail = "酒馆运行时可在通知栏直接打开、重启或停止。",
+                checked = runningNotificationEnabled,
+                enabled = true,
+                onCheckedChange = { onToggleRunningNotification() },
             )
             SettingsEntryDivider()
             SettingsEntryRow(
@@ -686,6 +730,7 @@ internal fun InstanceManagementPanel(
                 onClick = onPinQuickStartShortcut,
             )
         }
+
         SettingsGroupLabel("网络与权限")
         SettingsEntryGroup {
             SettingsEntryRow(
@@ -796,10 +841,53 @@ private fun TavernBrowserPreferenceDialog(
 }
 
 @Composable
+private fun TavernBrowserOpenModeDialog(
+    selectedMode: TavernBrowserOpenMode,
+    onSelectMode: (TavernBrowserOpenMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = { Text("返回酒馆方式") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TavernBrowserOpenMode.entries.forEach { mode ->
+                    BrowserChoiceCard(
+                        title = mode.title,
+                        subtitle = mode.summary,
+                        selected = selectedMode == mode,
+                        subtitleMaxLines = 3,
+                        onClick = { onSelectMode(mode) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(
+                text = "关闭",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = null,
+    )
+}
+
+@Composable
 private fun BrowserChoiceCard(
     title: String,
     subtitle: String,
     selected: Boolean,
+    subtitleMaxLines: Int = 1,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -836,7 +924,7 @@ private fun BrowserChoiceCard(
                     text = subtitle,
                     color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
+                    maxLines = subtitleMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

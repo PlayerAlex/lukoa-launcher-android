@@ -1,28 +1,23 @@
 package moe.lukoa.launcher
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,8 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -76,6 +73,7 @@ fun TavernControlSection(
     onWakeTermux: () -> Unit,
     onPrimaryAction: () -> Unit,
     onOpenTavern: () -> Unit,
+    onForceOpenTavern: (() -> Unit)? = null,
     onExportLog: () -> Unit,
     onCopyTavernUrl: (() -> Unit)? = null,
 ) {
@@ -113,17 +111,6 @@ fun TavernControlSection(
         shouldOfferStopTavern(tavernRunning, tavernStarting) -> LukoaColors.Stop
         else -> LukoaColors.Primary
     }
-    val isActiveState = tavernRunning || tavernStarting || actionInProgress
-    val statusPulse = rememberInfiniteTransition(label = "control-status-pulse")
-    val dotAlpha by statusPulse.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (tavernStarting || actionInProgress) 650 else 1_300),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "control-dot-alpha",
-    )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
             modifier = Modifier
@@ -137,40 +124,22 @@ fun TavernControlSection(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         text = "当前状态",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .background(
-                                    color = if (isActiveState) {
-                                        LukoaColors.Primary.copy(alpha = dotAlpha)
-                                    } else {
-                                        LukoaColors.Dim
-                                    },
-                                    shape = RoundedCornerShape(5.dp),
-                                ),
-                        )
-                        Text(
-                            text = statusText,
-                            color = LukoaColors.TextPrimary,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Text(
+                        text = statusText,
+                        color = LukoaColors.TextPrimary,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                HorizontalDivider(color = LukoaColors.Border)
                 if (activeProfileLabel.isNotBlank() && profileCount > 1) {
                     val switchEnabled = !actionInProgress && onOpenQuickSwitchProfile != null
                     Row(
@@ -213,7 +182,7 @@ fun TavernControlSection(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "本机地址",
+                            text = "本机地址（点击复制）",
                             color = LukoaColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -227,7 +196,7 @@ fun TavernControlSection(
                             border = BorderStroke(1.dp, LukoaColors.Border),
                         ) {
                             Text(
-                                text = "$localUrl · 复制",
+                                text = localUrl,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 color = LukoaColors.TextPrimary,
                                 style = MaterialTheme.typography.labelMedium,
@@ -334,6 +303,7 @@ fun TavernControlSection(
                 enabled = !actionInProgress,
                 modifier = Modifier.weight(1f),
                 onClick = openTavernClick,
+                onLongClick = onForceOpenTavern,
             )
             TavernToolButton(
                 text = "导出日志",
@@ -345,20 +315,60 @@ fun TavernControlSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TavernToolButton(
     text: String,
     enabled: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
-    ToneActionButton(
-        text = text,
+    if (onLongClick == null) {
+        ToneActionButton(
+            text = text,
+            enabled = enabled,
+            tone = ActionTone.Safe,
+            modifier = modifier,
+            onClick = onClick,
+        )
+        return
+    }
+    val style = resolveSecondaryActionStyle(
         enabled = enabled,
-        tone = ActionTone.Safe,
-        modifier = modifier,
-        onClick = onClick,
+        accentColor = LukoaColors.Primary,
     )
+    Surface(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(LukoaCapsuleShape)
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
+        color = style.containerColor,
+        shape = LukoaCapsuleShape,
+        border = BorderStroke(1.dp, style.borderColor),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                color = style.contentColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable

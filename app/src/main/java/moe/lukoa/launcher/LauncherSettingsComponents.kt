@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -89,40 +87,6 @@ internal fun SettingsEntryGroup(
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(content = content)
-    }
-}
-
-@Composable
-internal fun LukoaInlineLoadingCard(
-    message: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = LukoaColors.Surface,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-                color = LukoaColors.Primary,
-                trackColor = LukoaColors.Border,
-            )
-            Text(
-                text = message,
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-            )
-        }
     }
 }
 

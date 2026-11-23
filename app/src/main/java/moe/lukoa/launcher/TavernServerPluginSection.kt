@@ -185,9 +185,6 @@ fun TavernServerPluginSection(
             }
         },
     ) {
-        if (state.loading && snapshot == null) {
-            LukoaInlineLoadingCard("正在自动读取当前实例的服务器插件…")
-        }
         SettingsEntryGroup {
             SettingsEntryRow(
                 title = "当前实例",

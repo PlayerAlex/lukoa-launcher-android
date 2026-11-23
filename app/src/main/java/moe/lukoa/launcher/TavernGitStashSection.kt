@@ -31,10 +31,6 @@ fun TavernGitStashContent(
         else -> null
     }
 
-    if (state.loading && state.gitAvailable == null) {
-        LukoaInlineLoadingCard("正在自动读取当前实例的暂存记录…")
-    }
-
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "当前实例",

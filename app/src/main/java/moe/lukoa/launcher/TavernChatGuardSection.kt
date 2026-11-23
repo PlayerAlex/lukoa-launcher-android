@@ -58,14 +58,11 @@ fun TavernChatGuardContent(
     val hasChanges = snapshot == null || draftConfig != snapshot.config
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
 
-    if (state.loading && snapshot == null) {
-        LukoaInlineLoadingCard("正在自动读取当前实例的聊天守护状态…")
-    }
-
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "保护状态（$instanceLabel）",
             detail = when {
+                state.loading && snapshot == null -> "正在读取当前保护状态…"
                 snapshot == null -> "点下方按钮查看当前保护状态。"
                 snapshot.running -> "正在后台保护 ${snapshot.linkedChatCount} 个聊天文件。"
                 tavernRunning -> "酒馆已运行，重启酒馆后会自动开启保护。"
@@ -73,6 +70,7 @@ fun TavernChatGuardContent(
             },
             detailMaxLines = 2,
             value = when {
+                state.loading && snapshot == null -> "读取中"
                 snapshot == null -> "未读取"
                 snapshot.running -> "保护中"
                 else -> "待机中"
@@ -126,7 +124,7 @@ fun TavernChatGuardContent(
 
     LukoaCollapsibleCard(
         title = "高级参数（一般保持默认即可）",
-        subtitle = "触发体积 ${if (minKilobytes >= 1024) "${minKilobytes / 1024}MB" else "${minKilobytes}KB"} · 每 ${intervalSeconds} 秒检查",
+        subtitle = "超过 ${if (minKilobytes >= 1024) "${minKilobytes / 1024}MB" else "${minKilobytes}KB"} 时每 ${intervalSeconds} 秒检查一次",
         expanded = showAdvanced,
         onToggle = { showAdvanced = !showAdvanced },
     ) {

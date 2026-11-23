@@ -154,24 +154,24 @@ object AnsiTerminalText {
     }
 
     private fun ansiColor(code: Int): Color {
-        val monochrome = LukoaColors.currentStyle == LukoaThemeStyle.Monochrome
+        val isLight = LukoaColors.currentStyle.isLight
         return when (code) {
             30 -> LukoaColors.Dim
             31 -> LukoaColors.Danger
             32 -> LukoaColors.Primary
             33 -> LukoaColors.Accent
             34 -> LukoaColors.Primary
-            35 -> if (monochrome) Color(0xFFC4C4C4) else Color(0xFFD38CFF)
-            36 -> if (monochrome) Color(0xFFB8B8B8) else Color(0xFF67E8F9)
+            35 -> if (isLight) Color(0xFF424242) else Color(0xFFC4C4C4)
+            36 -> if (isLight) Color(0xFF4D4D4D) else Color(0xFFB8B8B8)
             37 -> LukoaColors.TextPrimary
             90 -> LukoaColors.TextSecondary
-            91 -> if (monochrome) LukoaColors.Stop else Color(0xFFFF8B8B)
-            92 -> if (monochrome) LukoaColors.Primary else Color(0xFF7AF0B2)
-            93 -> if (monochrome) LukoaColors.Accent else Color(0xFFFFD166)
-            94 -> if (monochrome) LukoaColors.TextPrimary else Color(0xFF8EC5FF)
-            95 -> if (monochrome) Color(0xFFD2D2D2) else Color(0xFFE5A3FF)
-            96 -> if (monochrome) Color(0xFFC8C8C8) else Color(0xFF88F5FF)
-            97 -> if (monochrome) LukoaColors.PrimaryHover else Color.White
+            91 -> LukoaColors.Stop
+            92 -> LukoaColors.Primary
+            93 -> LukoaColors.Accent
+            94 -> LukoaColors.TextPrimary
+            95 -> if (isLight) Color(0xFF333333) else Color(0xFFD2D2D2)
+            96 -> if (isLight) Color(0xFF3D3D3D) else Color(0xFFC8C8C8)
+            97 -> LukoaColors.PrimaryHover
             else -> LukoaColors.TextPrimary
         }
     }

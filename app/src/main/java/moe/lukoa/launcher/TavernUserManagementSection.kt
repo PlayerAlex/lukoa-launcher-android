@@ -237,13 +237,15 @@ fun TavernUserManagementSection(
                     }
                 }
             }
-        } else if (state.loading) {
-            LukoaInlineLoadingCard("正在自动读取当前实例的酒馆用户…")
         } else {
             SettingsEntryGroup {
                 SettingsEntryRow(
-                    title = "尚未读取用户",
-                    detail = "点击“读取用户”后，这里会按账户分别显示。",
+                    title = if (state.loading) "正在读取用户…" else "尚未读取用户",
+                    detail = if (state.loading) {
+                        "正在获取当前实例的酒馆账户列表。"
+                    } else {
+                        "点击“读取用户”后，这里会按账户分别显示。"
+                    },
                 )
             }
         }

@@ -30,54 +30,36 @@ class LukoaColorsTest {
         assertEquals(Color(0xFFDCDCDC), LukoaColors.Accent)
         assertEquals(Color(0xFFEB7A7E), LukoaColors.Stop)
 
-        listOf(
-            LukoaColors.Background,
-            LukoaColors.Surface,
-            LukoaColors.Elevated,
-            LukoaColors.Border,
-            LukoaColors.Primary,
-            LukoaColors.Accent,
-            LukoaColors.TextPrimary,
-            LukoaColors.TextSecondary,
-        ).forEach { color ->
-            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.red, color.green, 0.0001f)
-            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.green, color.blue, 0.0001f)
-        }
+        assertNeutralGrayscaleRoles()
         assertReadableContrastForCurrentPalette()
     }
 
     @Test
-    fun classicTealPalette_preservesOriginalCoolSemanticColors() {
-        LukoaColors.applyStyle(LukoaThemeStyle.ClassicTeal)
+    fun daylightPalette_isPureNeutralLightAndHighContrast() {
+        LukoaColors.applyStyle(LukoaThemeStyle.Daylight)
 
-        assertEquals(Color(0xFF071311), LukoaColors.Background)
-        assertEquals(Color(0xFF0D1D1A), LukoaColors.Surface)
-        assertEquals(Color(0xFF142824), LukoaColors.Elevated)
-        assertEquals(Color(0xFF4EB89F), LukoaColors.Primary)
-        assertEquals(Color(0xFF66CBB1), LukoaColors.PrimaryHover)
-        assertEquals(Color(0xFF071311), LukoaColors.OnPrimary)
-        assertEquals(Color(0xFFCADAD5), LukoaColors.TextPrimary)
-        assertEquals(Color(0xFF8FA9A2), LukoaColors.TextSecondary)
-        assertEquals(Color(0xFF21423B), LukoaColors.Border)
-        assertEquals(Color(0xFFFFC857), LukoaColors.Accent)
-        assertEquals(Color(0xFFFF7A8B), LukoaColors.Stop)
+        assertEquals(LukoaThemeStyle.Daylight, LukoaColors.currentStyle)
+        assertTrue(LukoaColors.currentStyle.isLight)
+        assertEquals(Color(0xFFF2F2F2), LukoaColors.Background)
+        assertEquals(Color(0xFFFFFFFF), LukoaColors.Surface)
+        assertEquals(Color(0xFFF8F8F8), LukoaColors.Elevated)
+        assertEquals(Color(0xFFDDDDDD), LukoaColors.Border)
+        assertEquals(Color(0xFF1A1A1A), LukoaColors.Primary)
+        assertEquals(Color(0xFFFFFFFF), LukoaColors.OnPrimary)
+        assertEquals(Color(0xFF141414), LukoaColors.TextPrimary)
+        assertEquals(Color(0xFF5C5C5C), LukoaColors.TextSecondary)
+        assertTrue(LukoaColors.Background.luminance() >= 0.85f)
+        assertTrue(LukoaColors.TextPrimary.luminance() <= 0.05f)
 
-        assertTrue(LukoaColors.Primary.luminance() in 0.34f..0.45f)
-        assertTrue(LukoaColors.Primary.green in 0.70f..0.78f)
-        assertTrue(LukoaColors.Primary.blue >= 0.60f)
-        assertTrue(LukoaColors.Primary.red <= 0.34f)
-        assertTrue(LukoaColors.Primary.green - LukoaColors.Primary.red >= 0.40f)
-        assertTrue(LukoaColors.Primary.blue - LukoaColors.Primary.red >= 0.30f)
-        assertTrue(LukoaColors.TextPrimary.luminance() in 0.60f..0.75f)
-        assertTrue(LukoaColors.TextSecondary.luminance() <= 0.42f)
+        assertNeutralGrayscaleRoles()
         assertReadableContrastForCurrentPalette()
     }
 
     @Test
-    fun materialTheme_keepsTheSixtyThirtyTenSurfaceHierarchyForBothStyles() {
+    fun materialTheme_keepsTheSurfaceHierarchyForBothStyles() {
         LukoaThemeStyle.entries.forEach { style ->
             LukoaColors.applyStyle(style)
-            val scheme = lukoaDarkColorScheme()
+            val scheme = lukoaColorScheme()
             assertEquals(LukoaColors.Background, scheme.background)
             assertEquals(LukoaColors.Background, scheme.surfaceContainerLowest)
             assertEquals(LukoaColors.Surface, scheme.surfaceContainerLow)
@@ -91,12 +73,29 @@ class LukoaColorsTest {
 
     @Test
     fun themeStyle_togglesAndParsesWireValues() {
-        assertEquals(LukoaThemeStyle.ClassicTeal, LukoaThemeStyle.Monochrome.toggled())
-        assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.ClassicTeal.toggled())
+        assertEquals(LukoaThemeStyle.Daylight, LukoaThemeStyle.Monochrome.toggled())
+        assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.Daylight.toggled())
         assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.fromWireValue(null))
         assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.fromWireValue("unknown"))
+        assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.fromWireValue("classic_teal"))
         assertEquals(LukoaThemeStyle.Monochrome, LukoaThemeStyle.fromWireValue("monochrome"))
-        assertEquals(LukoaThemeStyle.ClassicTeal, LukoaThemeStyle.fromWireValue("classic_teal"))
+        assertEquals(LukoaThemeStyle.Daylight, LukoaThemeStyle.fromWireValue("daylight"))
+    }
+
+    private fun assertNeutralGrayscaleRoles() {
+        listOf(
+            LukoaColors.Background,
+            LukoaColors.Surface,
+            LukoaColors.Elevated,
+            LukoaColors.Border,
+            LukoaColors.Primary,
+            LukoaColors.Accent,
+            LukoaColors.TextPrimary,
+            LukoaColors.TextSecondary,
+        ).forEach { color ->
+            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.red, color.green, 0.0001f)
+            assertEquals("纯正中性黑白不应偏冷蓝也不应偏黄褐", color.green, color.blue, 0.0001f)
+        }
     }
 
     private fun assertReadableContrastForCurrentPalette() {

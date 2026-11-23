@@ -55,16 +55,16 @@ fun TavernStorageContent(
     )
 
     if (snapshot == null) {
-        if (state.loading) {
-            LukoaInlineLoadingCard("正在自动扫描当前实例的空间占用…")
-        } else {
-            SettingsEntryGroup {
-                SettingsEntryRow(
-                    title = "当前实例：$instanceLabel",
-                    detail = "点击上方“扫描当前空间占用”查看酒馆体积与可清理的缓存大小。",
-                    detailMaxLines = 2,
-                )
-            }
+        SettingsEntryGroup {
+            SettingsEntryRow(
+                title = "当前实例：$instanceLabel",
+                detail = if (state.loading) {
+                    "正在扫描空间占用…"
+                } else {
+                    "点击上方“扫描当前空间占用”查看酒馆体积与可清理的缓存大小。"
+                },
+                detailMaxLines = 2,
+            )
         }
         return
     }
@@ -80,7 +80,7 @@ fun TavernStorageContent(
     SettingsEntryGroup {
         SettingsEntryRow(
             title = "酒馆总占用（$instanceLabel）",
-            detail = "聊天 ${formatStorageKilobytes(snapshot.chatsKb)} · 角色卡 ${formatStorageKilobytes(snapshot.charactersKb)}",
+            detail = "聊天 ${formatStorageKilobytes(snapshot.chatsKb)}，角色卡 ${formatStorageKilobytes(snapshot.charactersKb)}",
             detailMaxLines = 2,
             value = formatStorageKilobytes(snapshot.tavernTotalKb),
             valueColor = LukoaColors.TextPrimary,

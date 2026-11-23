@@ -10,22 +10,25 @@ enum class LukoaThemeStyle(
     val wireValue: String,
     val label: String,
     val summary: String,
+    val isLight: Boolean,
 ) {
     Monochrome(
         wireValue = "monochrome",
-        label = "极简黑白",
-        summary = "纯正中性炭黑搭配柔和纯白，不偏冷也不偏黄，简洁耐看。",
+        label = "夜间深色",
+        summary = "纯正中性炭黑搭配柔和纯白，夜间使用护眼耐看。",
+        isLight = false,
     ),
-    ClassicTeal(
-        wireValue = "classic_teal",
-        label = "原版冷青",
-        summary = "原有的深青黑底色搭配清透薄荷绿主题。",
+    Daylight(
+        wireValue = "daylight",
+        label = "日间浅色",
+        summary = "清爽中性白底搭配深炭黑文字，白天阅读清晰通透。",
+        isLight = true,
     ),
     ;
 
     fun toggled(): LukoaThemeStyle = when (this) {
-        Monochrome -> ClassicTeal
-        ClassicTeal -> Monochrome
+        Monochrome -> Daylight
+        Daylight -> Monochrome
     }
 
     companion object {
@@ -56,8 +59,8 @@ data class LukoaColorPalette(
 
 object LukoaPalettes {
     /**
-     * 纯正中性黑白暗色系：R=G=B 零偏色炭黑层级 + 柔和哑白主色，
-     * 既不泛冰冷蓝灰，也不发黄发褐；仅在删除/停止/报错处保留低饱和柔红。
+     * 纯正中性深色系：R=G=B 零偏色炭黑层级 + 柔和哑白主色，
+     * 仅在删除/停止/报错处保留低饱和柔红。
      */
     val Monochrome = LukoaColorPalette(
         background = Color(0xFF0D0D0D),
@@ -79,30 +82,33 @@ object LukoaPalettes {
         terminal = Color(0xFF080808),
     )
 
-    /** 原版深冷青黑 + 清透薄荷绿主题。 */
-    val ClassicTeal = LukoaColorPalette(
-        background = Color(0xFF071311),
-        surface = Color(0xFF0D1D1A),
-        elevated = Color(0xFF142824),
-        border = Color(0xFF21423B),
-        textPrimary = Color(0xFFCADAD5),
-        textSecondary = Color(0xFF8FA9A2),
-        dim = Color(0xFF596D67),
-        primary = Color(0xFF4EB89F),
-        primaryHover = Color(0xFF66CBB1),
-        onPrimary = Color(0xFF071311),
-        primarySoft = Color(0xFF10382F),
-        accent = Color(0xFFFFC857),
-        accentSoft = Color(0xFF3A2A0B),
-        danger = Color(0xFFFF5D68),
-        dangerSoft = Color(0xFF3B1117),
-        stop = Color(0xFFFF7A8B),
-        terminal = Color(0xFF040B09),
+    /**
+     * 纯正中性日间浅色系：R=G=B 柔白纸感层级 + 深炭黑主色，
+     * 白天通透不刺眼，高对比度清晰易读。
+     */
+    val Daylight = LukoaColorPalette(
+        background = Color(0xFFF2F2F2),
+        surface = Color(0xFFFFFFFF),
+        elevated = Color(0xFFF8F8F8),
+        border = Color(0xFFDDDDDD),
+        textPrimary = Color(0xFF141414),
+        textSecondary = Color(0xFF5C5C5C),
+        dim = Color(0xFF8A8A8A),
+        primary = Color(0xFF1A1A1A),
+        primaryHover = Color(0xFF000000),
+        onPrimary = Color(0xFFFFFFFF),
+        primarySoft = Color(0xFFE6E6E6),
+        accent = Color(0xFF2E2E2E),
+        accentSoft = Color(0xFFE8E8E8),
+        danger = Color(0xFFBC2C34),
+        dangerSoft = Color(0xFFFDECEE),
+        stop = Color(0xFFC2323A),
+        terminal = Color(0xFFFAFAFA),
     )
 
     fun forStyle(style: LukoaThemeStyle): LukoaColorPalette = when (style) {
         LukoaThemeStyle.Monochrome -> Monochrome
-        LukoaThemeStyle.ClassicTeal -> ClassicTeal
+        LukoaThemeStyle.Daylight -> Daylight
     }
 }
 

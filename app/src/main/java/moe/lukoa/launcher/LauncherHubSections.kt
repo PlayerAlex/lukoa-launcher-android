@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -140,18 +139,18 @@ private fun TavernManagementGrid(
     ) {
         Column {
             HubGridRow(
-                left = HubGridEntry("备份", "保存与恢复数据", onOpenBackup, icon = LukoaIcons.Archive),
-                right = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement, icon = LukoaIcons.Branch),
+                left = HubGridEntry("备份", "保存与恢复数据", onOpenBackup),
+                right = HubGridEntry("版本管理", "更新与回退酒馆", onOpenVersionManagement),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport, icon = LukoaIcons.Import),
-                right = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement, icon = LukoaIcons.Blocks),
+                left = HubGridEntry("快捷导入", "导入角色与世界书", onOpenQuickImport),
+                right = HubGridEntry("扩展管理", "管理与更新扩展", onOpenExtensionManagement),
             )
             HorizontalDivider(color = LukoaColors.Border)
             HubGridRow(
-                left = HubGridEntry("酒馆设置", "电脑访问与流畅度", onOpenTavernConfig, icon = LukoaIcons.Sliders),
-                right = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins, icon = LukoaIcons.Server),
+                left = HubGridEntry("酒馆设置", "电脑访问与流畅度", onOpenTavernConfig),
+                right = HubGridEntry("服务器插件", "安装后端插件", onOpenServerPlugins),
             )
         }
     }
@@ -162,7 +161,6 @@ internal data class HubGridEntry(
     val description: String,
     val onClick: (() -> Unit)?,
     val emphasized: Boolean = false,
-    val icon: ImageVector? = null,
 )
 
 @Composable
@@ -226,77 +224,30 @@ private fun HubGridTile(
                     color = if (entry.emphasized) LukoaColors.Accent else LukoaColors.Border,
                 ),
             ) {
-                if (entry.icon != null) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(32.dp),
-                                color = LukoaColors.Surface,
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, LukoaColors.Border),
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = entry.icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(17.dp),
-                                        tint = LukoaColors.Primary,
-                                    )
-                                }
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = LukoaColors.TextSecondary,
-                            )
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            HubGridTitle(entry)
-                            Text(
-                                text = entry.description,
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            HubGridTitle(entry)
-                            Text(
-                                text = entry.description,
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = LukoaColors.Primary,
+                        HubGridTitle(entry)
+                        Text(
+                            text = entry.description,
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = LukoaColors.TextSecondary,
+                    )
                 }
             }
         } else {

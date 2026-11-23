@@ -3,11 +3,6 @@ package moe.lukoa.launcher
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,22 +67,6 @@ fun Header(
     } catch (_: Exception) {
         "..."
     }
-    val isLive = tavernRunning || tavernStarting
-    val pulseTransition = rememberInfiniteTransition(label = "header-status-pulse")
-    val pulseAlpha by pulseTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (tavernStarting) 650 else 1_300),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "header-dot-alpha",
-    )
-    val liveStatusLabel = when {
-        tavernStarting -> "酒馆启动中…"
-        tavernRunning -> "酒馆运行中"
-        else -> "Termux 控制台"
-    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = LukoaColors.Background,
@@ -108,9 +87,9 @@ fun Header(
                         .size(46.dp)
                         .clip(RoundedCornerShape(12.dp)),
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = "露科亚启动器",
@@ -123,63 +102,55 @@ fun Header(
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        Text(
+                            text = "Termux 控制台",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = LukoaColors.TextSecondary,
+                        )
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(9.dp)
                                 .background(
-                                    color = if (isLive) {
-                                        LukoaColors.Primary.copy(alpha = pulseAlpha)
-                                    } else {
-                                        LukoaColors.Dim
+                                    color = when {
+                                        tavernRunning || tavernStarting -> LukoaColors.Primary
+                                        else -> LukoaColors.Dim
                                     },
-                                    shape = RoundedCornerShape(4.dp),
+                                    shape = RoundedCornerShape(5.dp),
                                 ),
-                        )
-                        Text(
-                            text = liveStatusLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isLive) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
-                            fontWeight = if (isLive) FontWeight.Medium else FontWeight.Normal,
                         )
                     }
                 }
             }
-            Surface(
+            Box(
                 modifier = Modifier
                     .widthIn(max = 112.dp)
-                    .clickable(onClick = feedbackVersionClick),
-                color = LukoaColors.Surface,
-                shape = LukoaCapsuleShape,
-                border = BorderStroke(1.dp, LukoaColors.Border),
+                    .clickable(onClick = feedbackVersionClick)
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
             ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        text = "v$versionName",
+                Text(
+                    text = "v$versionName",
+                    modifier = Modifier
+                        .padding(end = if (showVersionUpdateBadge) 8.dp else 0.dp)
+                        .testTag("launcher-version"),
+                    color = if (showVersionUpdateBadge) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (showVersionUpdateBadge) {
+                    Box(
                         modifier = Modifier
-                            .padding(end = if (showVersionUpdateBadge) 9.dp else 0.dp)
-                            .testTag("launcher-version"),
-                        color = if (showVersionUpdateBadge) LukoaColors.Primary else LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                            .align(Alignment.TopEnd)
+                            .size(7.dp)
+                            .testTag("launcher-update-dot")
+                            .background(
+                                color = LukoaColors.Danger,
+                                shape = RoundedCornerShape(4.dp),
+                            ),
                     )
-                    if (showVersionUpdateBadge) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(6.dp)
-                                .testTag("launcher-update-dot")
-                                .background(
-                                    color = LukoaColors.Danger,
-                                    shape = RoundedCornerShape(3.dp),
-                                ),
-                        )
-                    }
                 }
             }
         }
