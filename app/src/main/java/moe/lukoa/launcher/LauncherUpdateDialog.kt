@@ -1,10 +1,7 @@
 package moe.lukoa.launcher
 
-import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,36 +14,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.sp
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
 
 @Composable
 fun UpdateAvailableDialog(
@@ -69,13 +53,18 @@ fun UpdateAvailableDialog(
         updateInfo.apkDownloadUrl.isBlank() -> "打开发布页"
         else -> "立即更新"
     }
+    val primaryClick = rememberFeedbackClick(onInstall)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        titleContentColor = LukoaColors.Primary,
+        shape = RoundedCornerShape(16.dp),
+        titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = {
-            Text("发现${updateInfo.releaseTypeLabel} v${updateInfo.versionName}")
+            ReleaseNotesDialogHeader(
+                title = "发现${updateInfo.releaseTypeLabel} v${updateInfo.versionName}",
+            )
         },
         text = {
             Column(
@@ -85,121 +74,73 @@ fun UpdateAvailableDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Surface(
-                    color = LukoaColors.Elevated,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            VersionStatusValueCard(
-                                label = "当前版本",
-                                value = "v$currentVersionName",
-                                accentColor = LukoaColors.TextSecondary,
-                                modifier = Modifier.weight(1f),
-                            )
-                            VersionStatusValueCard(
-                                label = "新版本",
-                                value = "v${updateInfo.versionName}",
-                                accentColor = LukoaColors.Primary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        VersionInfoLine("版本类型", updateInfo.releaseTypeLabel)
-                        if (publishedText.isNotBlank()) {
-                            VersionInfoLine("发布时间", publishedText)
-                        }
-                        if (updateInfo.releaseName.isNotBlank() && updateInfo.releaseName != updateInfo.tagName) {
-                            VersionInfoLine("版本标题", updateInfo.releaseName)
-                        }
-                    }
-                }
-                if (updateInfo.prerelease) {
-                    Surface(
-                        color = LukoaColors.AccentSoft,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, LukoaColors.Accent.copy(alpha = 0.4f)),
-                    ) {
-                        Text(
-                            text = "这是测试版更新，功能会更早到，但稳定性可能不如正式版。",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            color = LukoaColors.Accent,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-
-                Text(
-                    text = "更新内容",
-                    color = LukoaColors.Primary,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleSmall,
+                ReleaseNotesMetadataCard(
+                    versionLine = "v$currentVersionName → v${updateInfo.versionName}",
+                    releaseTypeLabel = updateInfo.releaseTypeLabel,
+                    prerelease = updateInfo.prerelease,
+                    publishedText = publishedText,
+                    releaseTitle = updateInfo.releaseName
+                        .takeIf { it.isNotBlank() && it != updateInfo.tagName && it != updateInfo.versionName },
+                    showPrereleaseNotice = updateInfo.prerelease,
                 )
-                Surface(
-                    color = LukoaColors.Elevated,
+
+                ReleaseNotesBodyCard(document = releaseNotesDocument)
+
+                Button(
+                    onClick = primaryClick,
+                    enabled = !downloading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .testTag("update-dialog-primary"),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 96.dp, max = 220.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
-                    ) {
-                        GithubReleaseNotesContent(document = releaseNotesDocument)
-                    }
-                }
-                Surface(
-                    color = LukoaColors.Elevated,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LukoaColors.Border),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LukoaColors.Primary,
+                        contentColor = LukoaColors.OnPrimary,
+                        disabledContainerColor = LukoaColors.Surface,
+                        disabledContentColor = LukoaColors.Dim,
+                    ),
                 ) {
                     Text(
-                        text = "忽略后，这个版本不会再自动弹出提醒，但你之后仍然可以手动点右上角版本查看。",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
+                        text = primaryActionText,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                 }
-                ToneActionButton(
-                    text = primaryActionText,
-                    enabled = !downloading,
-                    tone = ActionTone.Safe,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onInstall,
-                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ToneActionButton(
-                        text = "详情",
+                    SecondaryActionButton(
+                        text = "打开发布页",
                         enabled = true,
-                        tone = ActionTone.Neutral,
+                        accentColor = LukoaColors.TextSecondary,
                         modifier = Modifier.weight(1f),
                         onClick = onOpenRelease,
                     )
-                    ToneActionButton(
+                    SecondaryActionButton(
                         text = "忽略这个版本",
                         enabled = true,
-                        tone = ActionTone.Neutral,
+                        accentColor = LukoaColors.TextSecondary,
                         modifier = Modifier.weight(1f),
                         onClick = onIgnoreVersion,
                     )
                 }
-                ToneActionButton(
+
+                SecondaryActionButton(
                     text = "稍后",
                     enabled = true,
-                    tone = ActionTone.Neutral,
+                    accentColor = LukoaColors.TextSecondary,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onDismiss,
+                )
+
+                Text(
+                    text = "忽略后不再自动提醒此版本，之后仍可点右上角版本号查看。",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    lineHeight = 17.sp,
                 )
             }
         },
@@ -207,6 +148,192 @@ fun UpdateAvailableDialog(
         dismissButton = {},
     )
 }
+
+@Composable
+internal fun CurrentVersionReleaseNotesDialog(
+    releaseInfo: GithubUpdateInfo,
+    onOpenRelease: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
+    val publishedText = remember(releaseInfo.publishedAt) {
+        formatGithubPublishedTime(releaseInfo.publishedAt)
+    }
+    val releaseNotesDocument = remember(releaseInfo.versionName, releaseInfo.body) {
+        GithubReleaseNotesFormatter.parse(releaseInfo.versionName, releaseInfo.body)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LukoaColors.Elevated,
+        shape = RoundedCornerShape(16.dp),
+        titleContentColor = LukoaColors.TextPrimary,
+        textContentColor = LukoaColors.TextPrimary,
+        title = {
+            ReleaseNotesDialogHeader(
+                title = "v${releaseInfo.versionName} 更新内容",
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ReleaseNotesMetadataCard(
+                    versionLine = "当前版本 v${releaseInfo.versionName}",
+                    releaseTypeLabel = releaseInfo.releaseTypeLabel,
+                    prerelease = releaseInfo.prerelease,
+                    publishedText = publishedText,
+                    releaseTitle = null,
+                    showPrereleaseNotice = false,
+                )
+
+                ReleaseNotesBodyCard(document = releaseNotesDocument)
+            }
+        },
+        confirmButton = {
+            SecondaryActionButton(
+                text = "关闭",
+                enabled = true,
+                accentColor = LukoaColors.Primary,
+                onClick = onDismiss,
+            )
+        },
+        dismissButton = if (onOpenRelease != null && releaseInfo.releaseUrl.isNotBlank()) {
+            {
+                SecondaryActionButton(
+                    text = "打开发布页",
+                    enabled = true,
+                    accentColor = LukoaColors.TextSecondary,
+                    onClick = onOpenRelease,
+                )
+            }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+private fun ReleaseNotesDialogHeader(title: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = title,
+            color = LukoaColors.TextPrimary,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        HorizontalDivider(color = LukoaColors.Border)
+    }
+}
+
+@Composable
+private fun ReleaseNotesMetadataCard(
+    versionLine: String,
+    releaseTypeLabel: String,
+    prerelease: Boolean,
+    publishedText: String,
+    releaseTitle: String?,
+    showPrereleaseNotice: Boolean,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("release-notes-meta-card"),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = versionLine,
+                    modifier = Modifier.weight(1f),
+                    color = LukoaColors.TextPrimary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (publishedText.isNotBlank() && releaseTitle.isNullOrBlank() && !showPrereleaseNotice) {
+                    Text(
+                        text = publishedText.take(10),
+                        color = LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
+                Surface(
+                    color = if (prerelease) LukoaColors.AccentSoft else LukoaColors.PrimarySoft,
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
+                ) {
+                    Text(
+                        text = releaseTypeLabel,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        color = if (prerelease) LukoaColors.Accent else LukoaColors.Primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            if (publishedText.isNotBlank() && (!releaseTitle.isNullOrBlank() || showPrereleaseNotice)) {
+                Text(
+                    text = "发布时间：$publishedText",
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            if (!releaseTitle.isNullOrBlank()) {
+                Text(
+                    text = releaseTitle,
+                    color = LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (showPrereleaseNotice) {
+                Text(
+                    text = "测试版会更早提供新功能，稳定性可能低于正式版。",
+                    color = LukoaColors.Accent,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReleaseNotesBodyCard(
+    document: GithubReleaseNotesDocument,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("release-notes-body-card"),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        GithubReleaseNotesContent(
+            document = document,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
 @Composable
 internal fun GithubUpdateStatusCard(
     githubUpdateState: GithubUpdateUiState,

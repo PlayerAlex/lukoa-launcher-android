@@ -57,7 +57,7 @@ fun ExportLogDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("导出运行日志") },
@@ -107,7 +107,7 @@ fun ClearLogScopeDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         titleContentColor = LukoaColors.TextPrimary,
         textContentColor = LukoaColors.TextPrimary,
         title = { Text("选择清除范围") },

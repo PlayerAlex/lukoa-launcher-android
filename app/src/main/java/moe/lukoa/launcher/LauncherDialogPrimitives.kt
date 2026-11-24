@@ -89,7 +89,7 @@ internal fun LauncherActionDialogScaffold(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         titleContentColor = titleTone.color(),
         textContentColor = LukoaColors.TextPrimary,
         title = {

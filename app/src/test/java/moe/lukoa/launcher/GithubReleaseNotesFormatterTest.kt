@@ -104,4 +104,30 @@ class GithubReleaseNotesFormatterTest {
         assertEquals("其他调整", document.sections.single().title)
         assertTrue(document.sections.single().items.single().contains("这个版本没有写列表"))
     }
+
+    @Test
+    fun `parse keeps notice bullets out of new features and classifies optimization headings`() {
+        val document = GithubReleaseNotesFormatter.parse(
+            versionName = "1.0.2-beta23",
+            body = """
+                ## v1.0.2-beta23 更新内容
+
+                ### 精简弹窗与界面统一
+                - **统一更新弹窗格式**：新版本弹窗与当前版本更新内容弹窗共享统一排版。
+
+                ### 验证说明
+                - 新增单元测试并完成全量回归验证。
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("体验优化", "使用说明"), document.sections.map { it.title })
+        assertEquals(
+            listOf("统一更新弹窗格式：新版本弹窗与当前版本更新内容弹窗共享统一排版"),
+            document.sections[0].items,
+        )
+        assertEquals(
+            listOf("新增单元测试并完成全量回归验证"),
+            document.sections[1].items,
+        )
+    }
 }

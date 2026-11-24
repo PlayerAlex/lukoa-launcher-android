@@ -91,10 +91,10 @@ object GithubReleaseNotesFormatter {
             val content = cleanInlineMarkdown(bulletText ?: line).trim()
             if (content.isBlank() || content == "本次更新") return@forEach
 
-            val section = if (bulletText == null) {
-                currentSection
-            } else {
-                sectionForText(content, currentSection)
+            val section = when {
+                bulletText == null -> currentSection
+                currentSection == GithubReleaseNoteSection.Notice -> GithubReleaseNoteSection.Notice
+                else -> sectionForText(content, currentSection)
             }
             if (shouldKeepAsItem(content, bulletText != null, currentSection)) {
                 orderedItems += section to content.trimEnd('。', '：', ':')
@@ -117,11 +117,28 @@ object GithubReleaseNotesFormatter {
     private fun sectionForHeading(text: String): GithubReleaseNoteSection {
         val normalized = text.lowercase()
         return when {
-            normalized.contains("新增") || normalized.contains("新功能") -> GithubReleaseNoteSection.New
-            normalized.contains("优化") || normalized.contains("改进") || normalized.contains("调整") -> GithubReleaseNoteSection.Optimize
-            normalized.contains("修复") -> GithubReleaseNoteSection.Fix
-            normalized.contains("说明") || normalized.contains("提示") || normalized.contains("注意") || normalized.contains("已知") ->
-                GithubReleaseNoteSection.Notice
+            normalized.contains("验证") ||
+                normalized.contains("说明") ||
+                normalized.contains("提示") ||
+                normalized.contains("注意") ||
+                normalized.contains("已知") -> GithubReleaseNoteSection.Notice
+            normalized.contains("修复") || normalized.contains("修正") || normalized.contains("解决") ->
+                GithubReleaseNoteSection.Fix
+            normalized.contains("新增") || normalized.contains("新功能") || normalized.contains("全新") ->
+                GithubReleaseNoteSection.New
+            normalized.contains("优化") ||
+                normalized.contains("改进") ||
+                normalized.contains("调整") ||
+                normalized.contains("重绘") ||
+                normalized.contains("重构") ||
+                normalized.contains("精简") ||
+                normalized.contains("去除") ||
+                normalized.contains("改为") ||
+                normalized.contains("升级") ||
+                normalized.contains("体验") ||
+                normalized.contains("界面") ||
+                normalized.contains("弹窗") ||
+                normalized.contains("引导") -> GithubReleaseNoteSection.Optimize
             else -> GithubReleaseNoteSection.Other
         }
     }
@@ -133,8 +150,14 @@ object GithubReleaseNotesFormatter {
         val normalized = text.lowercase()
         return when {
             normalized.startsWith("新增") || normalized.startsWith("支持") -> GithubReleaseNoteSection.New
-            normalized.startsWith("优化") || normalized.startsWith("改进") -> GithubReleaseNoteSection.Optimize
-            normalized.startsWith("修复") -> GithubReleaseNoteSection.Fix
+            normalized.startsWith("优化") ||
+                normalized.startsWith("改进") ||
+                normalized.startsWith("精简") ||
+                normalized.startsWith("移除") ||
+                normalized.startsWith("去掉") ||
+                normalized.startsWith("升级") ||
+                normalized.startsWith("重构") -> GithubReleaseNoteSection.Optimize
+            normalized.startsWith("修复") || normalized.startsWith("修正") -> GithubReleaseNoteSection.Fix
             normalized.startsWith("说明") || normalized.startsWith("注意") || normalized.startsWith("提示") ->
                 GithubReleaseNoteSection.Notice
             else -> fallback

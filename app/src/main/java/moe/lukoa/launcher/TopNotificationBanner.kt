@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -247,38 +249,139 @@ fun LukoaTopBannerHost(
 }
 
 @Composable
+private fun UnifiedTopBannerShell(
+    title: String,
+    detail: String = "",
+    tone: LukoaTopBannerTone = LukoaTopBannerTone.Neutral,
+    titleMaxLines: Int = 2,
+    modifier: Modifier = Modifier,
+    bottomProgress: Boolean = false,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    val containerColor = if (tone == LukoaTopBannerTone.Danger) {
+        LukoaColors.DangerSoft
+    } else {
+        LukoaColors.Elevated
+    }
+    val borderColor = if (tone == LukoaTopBannerTone.Danger) {
+        LukoaColors.Danger.copy(alpha = 0.50f)
+    } else {
+        LukoaColors.Border
+    }
+    val titleColor = if (tone == LukoaTopBannerTone.Warning) {
+        LukoaColors.Accent
+    } else {
+        LukoaColors.TextPrimary
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = containerColor,
+        shape = TOP_BANNER_SHAPE,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = 8.dp,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = title,
+                        color = titleColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = titleMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (detail.isNotBlank()) {
+                        Text(
+                            text = detail,
+                            color = LukoaColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                trailing()
+            }
+            if (bottomProgress) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    color = LukoaColors.Primary,
+                    trackColor = LukoaColors.Surface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBannerActionChip(
+    text: String,
+    emphasized: Boolean = true,
+    danger: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val backgroundColor = when {
+        danger -> LukoaColors.Danger.copy(alpha = 0.22f)
+        emphasized -> LukoaColors.PrimarySoft
+        else -> LukoaColors.Surface
+    }
+    val borderColor = if (danger) LukoaColors.Danger.copy(alpha = 0.55f) else LukoaColors.Border
+    val contentColor = when {
+        danger -> LukoaColors.Danger
+        emphasized -> LukoaColors.Primary
+        else -> LukoaColors.TextSecondary
+    }
+    val clickableModifier = if (onClick != null) {
+        modifier.clickable(role = Role.Button, onClick = onClick)
+    } else {
+        modifier
+    }
+
+    Surface(
+        modifier = clickableModifier,
+        color = backgroundColor,
+        shape = TOP_BANNER_ACTION_SHAPE,
+        border = BorderStroke(1.dp, borderColor),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            color = contentColor,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
 private fun TopBannerNotificationCard(
     message: LukoaTopBannerMessage,
     onAction: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var cumulativeDragY by remember(message.id) { mutableFloatStateOf(0f) }
-    val borderColor: Color
-    val containerColor: Color
-    val titleColor: Color
-    when (message.tone) {
-        LukoaTopBannerTone.Danger -> {
-            borderColor = LukoaColors.Danger.copy(alpha = 0.55f)
-            containerColor = LukoaColors.DangerSoft
-            titleColor = LukoaColors.TextPrimary
-        }
-        LukoaTopBannerTone.Warning -> {
-            borderColor = LukoaColors.Border
-            containerColor = LukoaColors.Elevated
-            titleColor = LukoaColors.Accent
-        }
-        LukoaTopBannerTone.Success,
-        LukoaTopBannerTone.Neutral,
-        -> {
-            borderColor = LukoaColors.Border
-            containerColor = LukoaColors.Elevated
-            titleColor = LukoaColors.TextPrimary
-        }
-    }
 
-    Surface(
+    UnifiedTopBannerShell(
+        title = message.title,
+        detail = message.detail,
+        tone = message.tone,
         modifier = Modifier
-            .fillMaxWidth()
             .testTag("top-notification-banner")
             .pointerInput(message.id) {
                 detectVerticalDragGestures(
@@ -296,73 +399,15 @@ private fun TopBannerNotificationCard(
                     }
                 }
             },
-        color = containerColor,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, borderColor),
-        shadowElevation = 10.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = message.title,
-                    color = titleColor,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (message.detail.isNotBlank()) {
-                    Text(
-                        text = message.detail,
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+        trailing = {
             if (!message.actionLabel.isNullOrBlank() && message.onAction != null) {
-                Surface(
-                    modifier = Modifier
-                        .testTag("top-notification-banner-action")
-                        .clickable(role = Role.Button, onClick = onAction),
-                    color = if (message.tone == LukoaTopBannerTone.Danger) {
-                        LukoaColors.Danger.copy(alpha = 0.22f)
-                    } else {
-                        LukoaColors.PrimarySoft
-                    },
-                    shape = LukoaCapsuleShape,
-                    border = BorderStroke(
-                        1.dp,
-                        if (message.tone == LukoaTopBannerTone.Danger) {
-                            LukoaColors.Danger.copy(alpha = 0.6f)
-                        } else {
-                            LukoaColors.Border
-                        },
-                    ),
-                ) {
-                    Text(
-                        text = message.actionLabel,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        color = if (message.tone == LukoaTopBannerTone.Danger) {
-                            LukoaColors.Danger
-                        } else {
-                            LukoaColors.Primary
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                    )
-                }
+                TopBannerActionChip(
+                    text = message.actionLabel,
+                    emphasized = true,
+                    danger = message.tone == LukoaTopBannerTone.Danger,
+                    modifier = Modifier.testTag("top-notification-banner-action"),
+                    onClick = onAction,
+                )
             }
             Box(
                 modifier = Modifier
@@ -378,8 +423,8 @@ private fun TopBannerNotificationCard(
                     modifier = Modifier.size(16.dp),
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -404,59 +449,20 @@ private fun FloatingBusyStatusBar(
     val elapsedText = BusyPanelPresentationResolver.formatElapsed(elapsedSeconds)
     val presentation = BusyPanelPresentationResolver.resolve(label, elapsedSeconds)
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("floating-busy-banner"),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.35f)),
-        shadowElevation = 8.dp,
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(1.dp),
-                ) {
-                    Text(
-                        text = label,
-                        color = LukoaColors.TextPrimary,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = presentation.activityText,
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                StatusPill(
-                    text = elapsedText,
-                    active = true,
-                    toneColor = LukoaColors.Primary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-            }
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp),
-                color = LukoaColors.Primary,
-                trackColor = LukoaColors.Surface,
+    UnifiedTopBannerShell(
+        title = label,
+        detail = presentation.activityText,
+        tone = LukoaTopBannerTone.Neutral,
+        titleMaxLines = 1,
+        modifier = Modifier.testTag("floating-busy-banner"),
+        bottomProgress = true,
+        trailing = {
+            TopBannerActionChip(
+                text = elapsedText,
+                emphasized = true,
             )
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -465,74 +471,30 @@ private fun FloatingPendingTaskBar(
     onContinue: (() -> Unit)?,
     onOpenDetails: (() -> Unit)?,
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("floating-pending-task-banner"),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, LukoaColors.Border),
-        shadowElevation = 8.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                Text(
-                    text = "有未确认任务：${task.title}",
-                    color = LukoaColors.TextPrimary,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = task.detail.ifBlank { "可继续检查最新结果或进入任务中心处理。" },
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+    UnifiedTopBannerShell(
+        title = "有未确认任务：${task.title}",
+        detail = task.detail.ifBlank { "可继续检查最新结果或进入任务中心处理。" },
+        tone = LukoaTopBannerTone.Neutral,
+        titleMaxLines = 1,
+        modifier = Modifier.testTag("floating-pending-task-banner"),
+        trailing = {
             if (onContinue != null) {
-                Surface(
-                    modifier = Modifier.clickable(role = Role.Button, onClick = onContinue),
-                    color = LukoaColors.PrimarySoft,
-                    shape = LukoaCapsuleShape,
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Text(
-                        text = "继续",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = LukoaColors.Primary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                TopBannerActionChip(
+                    text = "继续",
+                    emphasized = true,
+                    onClick = onContinue,
+                )
             }
             if (onOpenDetails != null) {
-                Surface(
-                    modifier = Modifier.clickable(role = Role.Button, onClick = onOpenDetails),
-                    color = LukoaColors.Surface,
-                    shape = LukoaCapsuleShape,
-                    border = BorderStroke(1.dp, LukoaColors.Border),
-                ) {
-                    Text(
-                        text = "详情",
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                        color = LukoaColors.TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+                TopBannerActionChip(
+                    text = "详情",
+                    emphasized = false,
+                    onClick = onOpenDetails,
+                )
             }
-        }
-    }
+        },
+    )
 }
+
+private val TOP_BANNER_SHAPE = RoundedCornerShape(14.dp)
+private val TOP_BANNER_ACTION_SHAPE = RoundedCornerShape(8.dp)

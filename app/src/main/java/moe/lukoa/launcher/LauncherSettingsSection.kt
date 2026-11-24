@@ -424,34 +424,10 @@ internal fun LauncherUpdateSettingsPanel(
     }
 
     if (showCurrentReleaseNotes && currentRelease != null) {
-        val releaseNotesDocument = remember(currentRelease.versionName, currentRelease.body) {
-            GithubReleaseNotesFormatter.parse(currentRelease.versionName, currentRelease.body)
-        }
-        AlertDialog(
-            onDismissRequest = { showCurrentReleaseNotes = false },
-            containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.Primary,
-            textContentColor = LukoaColors.TextPrimary,
-            title = { Text("v${currentRelease.versionName} 更新内容") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 520.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    GithubReleaseNotesContent(document = releaseNotesDocument)
-                }
-            },
-            confirmButton = {
-                SecondaryActionButton(
-                    text = "关闭",
-                    enabled = true,
-                    accentColor = LukoaColors.Primary,
-                    onClick = { showCurrentReleaseNotes = false },
-                )
-            },
-            dismissButton = null,
+        CurrentVersionReleaseNotesDialog(
+            releaseInfo = currentRelease,
+            onOpenRelease = onOpenRelease,
+            onDismiss = { showCurrentReleaseNotes = false },
         )
     }
 
