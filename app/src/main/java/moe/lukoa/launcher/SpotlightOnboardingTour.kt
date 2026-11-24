@@ -1,12 +1,21 @@
 package moe.lukoa.launcher
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateRectAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -78,102 +87,280 @@ enum class SpotlightTargetId {
     LaunchStatusCard,
     LaunchPrimaryAction,
     LaunchQuickTools,
+    SetupStepProgress,
+    SetupPrimaryAction,
+    SetupSecondaryActions,
     TavernHubGrid,
     ToolboxHealthCard,
+    SettingsQuickToggles,
     BottomTabSettings,
     DocsSpotlightReplay,
+}
+
+enum class SpotlightSetupStage {
+    InstallTermux,
+    RequestPermission,
+    EnableExternalApps,
+    PrepareEnvironment,
+    DetectTavern,
+    InstallTavern,
+    Ready,
 }
 
 data class SpotlightTourStep(
     val id: String,
     val targetId: SpotlightTargetId,
+    val fallbackTargetId: SpotlightTargetId? = null,
     val requiredTab: LauncherTab,
+    val requiredSecondaryPage: LauncherSecondaryPage? = null,
+    val badge: String = "新手引导",
     val title: String,
     val description: String,
     val cutoutPaddingDp: Float = 6f,
     val cutoutCornerRadiusDp: Float = 14f,
+    val nextLabel: String? = null,
     val actionLabel: String? = null,
+    val allowTargetTap: Boolean = false,
+    val targetTapHint: String? = null,
 )
 
 object SpotlightTourCatalog {
     const val STEP_LAUNCH_STATUS = "launch_status"
     const val STEP_LAUNCH_PRIMARY = "launch_primary"
+    const val STEP_SETUP_PROGRESS = "setup_progress"
+    const val STEP_SETUP_PRIMARY = "setup_primary"
+    const val STEP_SETUP_SECONDARY = "setup_secondary"
     const val STEP_LAUNCH_TOOLS = "launch_tools"
     const val STEP_TAVERN_HUB = "tavern_hub"
     const val STEP_TOOLBOX_HEALTH = "toolbox_health"
-    const val STEP_SETTINGS_TAB = "settings_tab"
+    const val STEP_SETTINGS_OVERVIEW = "settings_overview"
     const val STEP_DOCS_REPLAY = "docs_replay"
 
-    fun buildSteps(needsInitialSetup: Boolean): List<SpotlightTourStep> = listOf(
-        SpotlightTourStep(
-            id = STEP_LAUNCH_STATUS,
-            targetId = SpotlightTargetId.LaunchStatusCard,
-            requiredTab = LauncherTab.Launch,
-            title = "一眼看清酒馆状态",
-            description = "这里实时显示酒馆运行状态、当前版本与实用提示；开启多实例时，点这里还能快速切换不同酒馆分身。",
-            cutoutPaddingDp = 6f,
-            cutoutCornerRadiusDp = 18f,
-        ),
-        SpotlightTourStep(
-            id = STEP_LAUNCH_PRIMARY,
-            targetId = SpotlightTargetId.LaunchPrimaryAction,
-            requiredTab = LauncherTab.Launch,
-            title = if (needsInitialSetup) "从这里完成首次配置与启动" else "一键启动或停止酒馆",
-            description = if (needsInitialSetup) {
-                "首次使用点这个主按钮，即可按 4 步向导安装并授权 Termux、一键装好酒馆；配好后，日常点一下就能直接启停。"
-            } else {
-                "日常点这里即可启动或停止 SillyTavern；如果 Termux 在后台休眠了，可先点上方「唤醒 Termux 并返回」。"
-            },
-            cutoutPaddingDp = 6f,
-            cutoutCornerRadiusDp = 15f,
-            actionLabel = if (needsInitialSetup) "立即进入首次配置" else null,
-        ),
-        SpotlightTourStep(
-            id = STEP_LAUNCH_TOOLS,
-            targetId = SpotlightTargetId.LaunchQuickTools,
-            requiredTab = LauncherTab.Launch,
-            title = "返回网页与导出日志",
-            description = "酒馆跑起来后点「返回酒馆」直达浏览器，默认切回已有窗口避免堆叠十几个标签（长按可强制重开网址）；排查问题点「导出日志」。",
-            cutoutPaddingDp = 6f,
-            cutoutCornerRadiusDp = 16f,
-        ),
-        SpotlightTourStep(
-            id = STEP_TAVERN_HUB,
-            targetId = SpotlightTargetId.TavernHubGrid,
-            requiredTab = LauncherTab.Tavern,
-            title = "酒馆管理中心",
-            description = "切到底部「酒馆」页，可以备份与恢复聊天数据、更新或回退版本、批量快捷导入角色卡和世界书，以及管理扩展与局域网访问。",
-            cutoutPaddingDp = 6f,
-            cutoutCornerRadiusDp = 16f,
-        ),
-        SpotlightTourStep(
-            id = STEP_TOOLBOX_HEALTH,
-            targetId = SpotlightTargetId.ToolboxHealthCard,
-            requiredTab = LauncherTab.Toolbox,
-            title = "一键体检与守护工具箱",
-            description = "遇到打不开或报错先点「一键体检」自动排查；下方还内置聊天防丢档守护、空间清理、修复依赖与 Debug 诊断区。",
-            cutoutPaddingDp = 6f,
-            cutoutCornerRadiusDp = 14f,
-        ),
-        SpotlightTourStep(
-            id = STEP_SETTINGS_TAB,
-            targetId = SpotlightTargetId.BottomTabSettings,
-            requiredTab = LauncherTab.Settings,
-            title = "设置、外观与网络加速",
-            description = "「设置」页可切换日/夜间外观、指定默认浏览器、开启自动启动；国内网络下载慢时，可在「网络与镜像源」一键测速优选。",
-            cutoutPaddingDp = 4f,
-            cutoutCornerRadiusDp = 16f,
-        ),
-        SpotlightTourStep(
-            id = STEP_DOCS_REPLAY,
-            targetId = SpotlightTargetId.DocsSpotlightReplay,
-            requiredTab = LauncherTab.Docs,
-            title = "内置文档与随时重看指引",
-            description = "「文档」页整理了酒馆黑话、常见报错答疑与进阶玩法，支持关键词搜索；以后想再看一遍新手指引，随时点这里或去「设置」重新打开。",
-            cutoutPaddingDp = 5f,
-            cutoutCornerRadiusDp = 12f,
-        ),
-    )
+    fun resolveSetupStage(
+        termuxInstalled: Boolean,
+        runCommandPermissionGranted: Boolean,
+        externalAppsBlocked: Boolean,
+        termuxSetupRecommended: Boolean,
+        tavernInstallDetected: Boolean?,
+    ): SpotlightSetupStage = when {
+        !termuxInstalled -> SpotlightSetupStage.InstallTermux
+        !runCommandPermissionGranted -> SpotlightSetupStage.RequestPermission
+        externalAppsBlocked -> SpotlightSetupStage.EnableExternalApps
+        termuxSetupRecommended -> SpotlightSetupStage.PrepareEnvironment
+        tavernInstallDetected == null -> SpotlightSetupStage.DetectTavern
+        tavernInstallDetected == false -> SpotlightSetupStage.InstallTavern
+        else -> SpotlightSetupStage.Ready
+    }
+
+    fun buildSteps(
+        needsInitialSetup: Boolean,
+        setupStage: SpotlightSetupStage = if (needsInitialSetup) {
+            SpotlightSetupStage.InstallTermux
+        } else {
+            SpotlightSetupStage.Ready
+        },
+        includeFeatureTour: Boolean = true,
+    ): List<SpotlightTourStep> = buildList {
+        if (includeFeatureTour) {
+            add(
+                SpotlightTourStep(
+                    id = STEP_LAUNCH_STATUS,
+                    targetId = SpotlightTargetId.LaunchStatusCard,
+                    requiredTab = LauncherTab.Launch,
+                    badge = if (needsInitialSetup) "欢迎使用" else "新手引导",
+                    title = if (needsInitialSetup) "欢迎使用露科亚启动器" else "一眼看清酒馆状态",
+                    description = if (needsInitialSetup) {
+                        "顶部状态卡实时显示酒馆运行状态和当前版本。第一次使用别着急，接下来我会用聚光灯一步一步带你完成环境准备，再认识常用功能。"
+                    } else {
+                        "这里实时显示酒馆运行状态、当前版本与实用提示；配置多实例分身时，点这里还能快速切换不同酒馆。"
+                    },
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 18f,
+                    nextLabel = if (needsInitialSetup) "开始第 1 步" else "下一步",
+                ),
+            )
+
+            add(
+                SpotlightTourStep(
+                    id = STEP_LAUNCH_PRIMARY,
+                    targetId = SpotlightTargetId.LaunchPrimaryAction,
+                    requiredTab = LauncherTab.Launch,
+                    badge = if (needsInitialSetup) "首次配置" else "启动控制",
+                    title = if (needsInitialSetup) "从这里进入首次安装向导" else "一键启动或停止酒馆",
+                    description = if (needsInitialSetup) {
+                        "检测到当前还没配好 Termux 或酒馆。点高亮的主按钮（或下方按钮），我会继续用聚光灯在向导页里一步步带你装好。"
+                    } else {
+                        "日常点这里即可启动或停止 SillyTavern；如果 Termux 在后台休眠了，可以先点上方「唤醒 Termux 并返回」。"
+                    },
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 15f,
+                    nextLabel = if (needsInitialSetup) "打开安装向导" else "下一步",
+                    allowTargetTap = needsInitialSetup,
+                    targetTapHint = if (needsInitialSetup) "直接点亮处按钮，或点「打开安装向导」继续" else null,
+                ),
+            )
+        }
+
+        if (needsInitialSetup) {
+            addAll(buildSetupOnlySteps(setupStage = setupStage, followedByFeatureTour = includeFeatureTour))
+        }
+
+        if (includeFeatureTour) {
+            add(
+                SpotlightTourStep(
+                    id = STEP_LAUNCH_TOOLS,
+                    targetId = SpotlightTargetId.LaunchQuickTools,
+                    requiredTab = LauncherTab.Launch,
+                    badge = "日常操作",
+                    title = "返回网页与导出日志",
+                    description = "酒馆跑起来后点「返回酒馆」直达浏览器，默认切回已有窗口避免连开十几个标签（长按可强制重开网址）；排查问题点「导出日志」。",
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 16f,
+                ),
+            )
+            add(
+                SpotlightTourStep(
+                    id = STEP_TAVERN_HUB,
+                    targetId = SpotlightTargetId.TavernHubGrid,
+                    requiredTab = LauncherTab.Tavern,
+                    badge = "酒馆中心",
+                    title = "备份、版本与快捷导入",
+                    description = "切到底部「酒馆」页，可随时备份与恢复聊天数据、安全更新或回退酒馆版本、批量导入角色卡与世界书，以及管理扩展和局域网访问。",
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 16f,
+                ),
+            )
+            add(
+                SpotlightTourStep(
+                    id = STEP_TOOLBOX_HEALTH,
+                    targetId = SpotlightTargetId.ToolboxHealthCard,
+                    requiredTab = LauncherTab.Toolbox,
+                    badge = "守护排错",
+                    title = "一键体检与防丢档工具箱",
+                    description = "遇到打不开或报错先点「一键体检」自动排查；下方还内置防丢档的聊天守护、空间清理、修复依赖与 Debug 诊断区。",
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 14f,
+                ),
+            )
+            add(
+                SpotlightTourStep(
+                    id = STEP_SETTINGS_OVERVIEW,
+                    targetId = SpotlightTargetId.SettingsQuickToggles,
+                    fallbackTargetId = SpotlightTargetId.BottomTabSettings,
+                    requiredTab = LauncherTab.Settings,
+                    badge = "个性设置",
+                    title = "外观、浏览器与镜像加速",
+                    description = "「设置」页可切换日/夜间外观、指定默认浏览器、开启自动启动；国内网络安装慢时，往下进「网络与镜像源」一键测速优选即可。",
+                    cutoutPaddingDp = 6f,
+                    cutoutCornerRadiusDp = 14f,
+                ),
+            )
+            add(
+                SpotlightTourStep(
+                    id = STEP_DOCS_REPLAY,
+                    targetId = SpotlightTargetId.DocsSpotlightReplay,
+                    requiredTab = LauncherTab.Docs,
+                    badge = "随时重看",
+                    title = "内置文档与随时重看指引",
+                    description = "「文档」页整理了酒馆黑话、报错答疑与进阶玩法，支持关键词搜索；以后随时点亮处的「新手引导」就能再走一遍本指引。",
+                    cutoutPaddingDp = 5f,
+                    cutoutCornerRadiusDp = 12f,
+                    actionLabel = if (needsInitialSetup) "去完成首次安装" else null,
+                    nextLabel = "完成引导",
+                ),
+            )
+        }
+    }
+
+    fun buildSetupOnlySteps(
+        setupStage: SpotlightSetupStage,
+        followedByFeatureTour: Boolean = false,
+    ): List<SpotlightTourStep> {
+        val (primaryTitle, primaryDescription, primaryActionLabel) = when (setupStage) {
+            SpotlightSetupStage.InstallTermux -> Triple(
+                "当前步骤：安装并打开一次 Termux",
+                "点亮处的「下载 Termux」获取安装包；装好后一定要先打开一次 Termux 完成初始化，再切回启动器。",
+                "立即下载 Termux",
+            )
+            SpotlightSetupStage.RequestPermission -> Triple(
+                "当前步骤：允许启动器调用 Termux",
+                "点亮处的「请求系统权限」授权；如果手机没有弹出授权窗，再点下方「权限设置」手动允许即可。",
+                "立即请求权限",
+            )
+            SpotlightSetupStage.EnableExternalApps -> Triple(
+                "当前步骤：打开 Termux 外部调用",
+                "点亮处的「复制权限命令」，再打开 Termux 粘贴并回车执行一次，就能打通启动器与 Termux 的通信。",
+                "复制权限命令",
+            )
+            SpotlightSetupStage.PrepareEnvironment -> Triple(
+                "当前步骤：自动准备运行环境",
+                "点亮处的「准备 Termux 环境」，启动器会自动安装 Node.js 等基础组件，首次准备大约需要几分钟。",
+                "开始准备环境",
+            )
+            SpotlightSetupStage.DetectTavern -> Triple(
+                "当前步骤：检测本机是否已有酒馆",
+                "以前装过酒馆点亮处的「检测本机酒馆」即可直接接管；完全从零开始可点下方「第一次用，安装酒馆」。",
+                "立即检测酒馆",
+            )
+            SpotlightSetupStage.InstallTavern -> Triple(
+                "当前步骤：一键安装酒馆",
+                "默认稳定版最省心。点亮处的安装按钮即可开始部署（约 5–10 分钟）；若下载较慢，可先去设置页一键优选镜像源。",
+                "立即开始安装",
+            )
+            SpotlightSetupStage.Ready -> Triple(
+                "当前步骤：基础准备已全部完成",
+                "4 项准备都已经就绪！回到启动页点「启动酒馆」就能开始使用 SillyTavern。",
+                null,
+            )
+        }
+
+        return listOf(
+            SpotlightTourStep(
+                id = STEP_SETUP_PROGRESS,
+                targetId = SpotlightTargetId.SetupStepProgress,
+                requiredTab = LauncherTab.Launch,
+                requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
+                badge = "首次安装 · 进度",
+                title = "一共只需完成这 4 步",
+                description = "顶部进度条会清楚标出你目前在哪一步：装 Termux → 连权限 → 配环境 → 装酒馆。每完成一项就会自动推进到下一步。",
+                cutoutPaddingDp = 6f,
+                cutoutCornerRadiusDp = 16f,
+                nextLabel = "看当前操作",
+            ),
+            SpotlightTourStep(
+                id = STEP_SETUP_PRIMARY,
+                targetId = SpotlightTargetId.SetupPrimaryAction,
+                requiredTab = LauncherTab.Launch,
+                requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
+                badge = "首次安装 · 主操作",
+                title = primaryTitle,
+                description = primaryDescription,
+                cutoutPaddingDp = 6f,
+                cutoutCornerRadiusDp = 14f,
+                actionLabel = primaryActionLabel,
+                nextLabel = "下一步",
+                allowTargetTap = primaryActionLabel != null,
+                targetTapHint = if (primaryActionLabel != null) "可直接点亮处按钮执行，或先点「下一步」看完说明" else null,
+            ),
+            SpotlightTourStep(
+                id = STEP_SETUP_SECONDARY,
+                targetId = SpotlightTargetId.SetupSecondaryActions,
+                requiredTab = LauncherTab.Launch,
+                requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
+                badge = "首次安装 · 检测与备用",
+                title = "做完记得点这里重新检测",
+                description = if (followedByFeatureTour) {
+                    "装完软件或开完权限回到这里，点「重新检测」进度就会自动前进。你可以直接留在这开始安装，或点「下一步」继续逛逛其他页面。"
+                } else {
+                    "每次切到 Termux 或系统设置操作完成后，回来点这里的「重新检测」刷新状态，向导就会自动带你进入下一关。"
+                },
+                cutoutPaddingDp = 6f,
+                cutoutCornerRadiusDp = 14f,
+                actionLabel = if (followedByFeatureTour) "留在这里开始配置" else null,
+                nextLabel = if (followedByFeatureTour) "继续逛其他页面" else "知道了，开始操作",
+            ),
+        )
+    }
 }
 
 class SpotlightTargetRegistry {
@@ -325,12 +512,14 @@ fun SpotlightTourOverlay(
     currentStepIndex: Int,
     registry: SpotlightTargetRegistry,
     rootCoords: LayoutCoordinates?,
+    isTransitioning: Boolean = false,
     recheckKey: Any? = null,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSkip: () -> Unit,
     onFinish: () -> Unit,
     onStepAction: (SpotlightTourStep) -> Unit = {},
+    onTargetTap: (SpotlightTourStep) -> Unit = onStepAction,
 ) {
     val safeIndex = currentStepIndex.coerceIn(0, (steps.size - 1).coerceAtLeast(0))
     val currentStep = steps.getOrNull(safeIndex)
@@ -338,6 +527,7 @@ fun SpotlightTourOverlay(
     val isLastStep = safeIndex >= steps.lastIndex
 
     BackHandler(enabled = active) {
+        if (isTransitioning) return@BackHandler
         if (isFirstStep) {
             onSkip()
         } else {
@@ -347,11 +537,12 @@ fun SpotlightTourOverlay(
 
     AnimatedVisibility(
         visible = active && currentStep != null,
-        enter = fadeIn(animationSpec = tween(durationMillis = 220)),
-        exit = fadeOut(animationSpec = tween(durationMillis = 180)),
+        enter = fadeIn(animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)),
         modifier = Modifier.fillMaxSize(),
     ) {
         if (currentStep == null) return@AnimatedVisibility
+        val smoothEasing = remember { CubicBezierEasing(0.22f, 1f, 0.36f, 1f) }
         val density = LocalDensity.current
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
@@ -367,22 +558,48 @@ fun SpotlightTourOverlay(
         val cutoutPaddingPx = with(density) { currentStep.cutoutPaddingDp.dp.toPx() }
         val cutoutCornerPx = with(density) { currentStep.cutoutCornerRadiusDp.dp.toPx() }
 
-        val resolvedRawRect = registry.resolveRectInRoot(
-            id = currentStep.targetId,
-            rootCoords = rootCoords,
-            recheckKey = recheckKey,
-        )
+        val resolvedRawRect = if (isTransitioning) {
+            null
+        } else {
+            registry.resolveRectInRoot(
+                id = currentStep.targetId,
+                rootCoords = rootCoords,
+                recheckKey = recheckKey,
+            ) ?: currentStep.fallbackTargetId?.let { fallbackId ->
+                registry.resolveRectInRoot(
+                    id = fallbackId,
+                    rootCoords = rootCoords,
+                    recheckKey = recheckKey,
+                )
+            }
+        }
         var lastValidPaddedRect by remember { mutableStateOf<Rect?>(null) }
+
+        val infiniteTransition = rememberInfiniteTransition(label = "spotlight-halo-pulse")
+        val haloPulse by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "spotlight-halo-progress",
+        )
+        val scrimAlpha by animateFloatAsState(
+            targetValue = if (isTransitioning) 0.56f else 0.72f,
+            animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+            label = "spotlight-scrim-alpha",
+        )
+        val focusAlpha by animateFloatAsState(
+            targetValue = if (isTransitioning) 0f else 1f,
+            animationSpec = tween(durationMillis = 260, easing = smoothEasing),
+            label = "spotlight-focus-alpha",
+        )
 
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .testTag("spotlight-tour-overlay")
-                .pointerInput(safeIndex, steps.size) {
-                    detectTapGestures {
-                        // Consume scrim taps so underlying buttons cannot fire accidentally.
-                    }
-                },
+                .testTag("spotlight-tour-overlay"),
         ) {
             val containerWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
             val containerHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
@@ -401,23 +618,28 @@ fun SpotlightTourOverlay(
                 }
             }
             val effectiveCutoutTarget = paddedTargetRect ?: lastValidPaddedRect
-            val animatedCutoutRect by animateRectAsState(
-                targetValue = effectiveCutoutTarget ?: Rect.Zero,
-                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-                label = "spotlight-cutout-rect",
-            )
-            val showCutout = effectiveCutoutTarget != null &&
+            val animatedCutoutRect = if (effectiveCutoutTarget != null) {
+                animateRectAsState(
+                    targetValue = effectiveCutoutTarget,
+                    animationSpec = tween(durationMillis = 420, easing = smoothEasing),
+                    label = "spotlight-cutout-rect",
+                ).value
+            } else {
+                Rect.Zero
+            }
+            val showCutout = !isTransitioning &&
+                effectiveCutoutTarget != null &&
                 animatedCutoutRect.width > 2f &&
                 animatedCutoutRect.height > 2f
 
             var measuredCardHeightPx by remember { mutableIntStateOf(0) }
-            val fallbackCardHeightPx = with(density) { 216.dp.toPx() }
+            val fallbackCardHeightPx = with(density) { 224.dp.toPx() }
             val effectiveCardHeightPx = if (measuredCardHeightPx > 0) {
                 measuredCardHeightPx.toFloat()
             } else {
                 fallbackCardHeightPx
             }
-            val placement = SpotlightOverlayLayoutMath.computeCardPlacement(
+            val targetPlacement = SpotlightOverlayLayoutMath.computeCardPlacement(
                 containerWidthPx = containerWidthPx,
                 containerHeightPx = containerHeightPx,
                 safeTopPx = safeTopPx,
@@ -428,251 +650,314 @@ fun SpotlightTourOverlay(
                 gapPx = gapPx,
                 arrowEdgeInsetPx = arrowEdgeInsetPx,
             )
+            val animatedCardTopPx by animateFloatAsState(
+                targetValue = targetPlacement.topOffsetPx,
+                animationSpec = tween(durationMillis = 380, easing = smoothEasing),
+                label = "spotlight-card-top",
+            )
 
-            val ringPrimaryColor = LukoaColors.Primary
-            val ringHaloColor = LukoaColors.Primary.copy(alpha = 0.24f)
+            val ringPrimaryColor = LukoaColors.Primary.copy(alpha = focusAlpha)
+            val ringHaloColor = LukoaColors.Primary.copy(
+                alpha = (0.14f + 0.16f * haloPulse) * focusAlpha,
+            )
+            val haloStrokeDp = (4.5f + 3.5f * haloPulse).dp
             val cardFillColor = LukoaColors.Elevated
             val cardBorderColor = LukoaColors.Border
 
-            Canvas(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
-            ) {
-                drawRect(color = Color.Black.copy(alpha = 0.72f))
-                if (showCutout) {
-                    val topLeft = Offset(animatedCutoutRect.left, animatedCutoutRect.top)
-                    val rectSize = Size(animatedCutoutRect.width, animatedCutoutRect.height)
-                    val corner = CornerRadius(cutoutCornerPx, cutoutCornerPx)
-
-                    drawRoundRect(
-                        color = Color.Transparent,
-                        topLeft = topLeft,
-                        size = rectSize,
-                        cornerRadius = corner,
-                        blendMode = BlendMode.Clear,
-                    )
-                    drawRoundRect(
-                        color = ringHaloColor,
-                        topLeft = topLeft,
-                        size = rectSize,
-                        cornerRadius = corner,
-                        style = Stroke(width = 5.dp.toPx()),
-                    )
-                    drawRoundRect(
-                        color = ringPrimaryColor,
-                        topLeft = topLeft,
-                        size = rectSize,
-                        cornerRadius = corner,
-                        style = Stroke(width = 1.75.dp.toPx()),
-                    )
-                }
-
-                placement.arrowCenterXPx?.let { arrowX ->
-                    val halfW = arrowWidthPx / 2f
-                    val borderStrokePx = 1.dp.toPx()
-                    val arrowPath = Path()
-                    val outlinePath = Path()
-                    if (placement.placeBelow) {
-                        val baseY = placement.topOffsetPx + borderStrokePx
-                        val tipY = (placement.topOffsetPx - arrowHeightPx).coerceAtLeast(0f)
-                        arrowPath.moveTo(arrowX - halfW, baseY)
-                        arrowPath.lineTo(arrowX, tipY)
-                        arrowPath.lineTo(arrowX + halfW, baseY)
-                        arrowPath.close()
-
-                        outlinePath.moveTo(arrowX - halfW, baseY)
-                        outlinePath.lineTo(arrowX, tipY)
-                        outlinePath.lineTo(arrowX + halfW, baseY)
-                    } else {
-                        val baseY = placement.topOffsetPx + effectiveCardHeightPx - borderStrokePx
-                        val tipY = (placement.topOffsetPx + effectiveCardHeightPx + arrowHeightPx)
-                            .coerceAtMost(size.height)
-                        arrowPath.moveTo(arrowX - halfW, baseY)
-                        arrowPath.lineTo(arrowX, tipY)
-                        arrowPath.lineTo(arrowX + halfW, baseY)
-                        arrowPath.close()
-
-                        outlinePath.moveTo(arrowX - halfW, baseY)
-                        outlinePath.lineTo(arrowX, tipY)
-                        outlinePath.lineTo(arrowX + halfW, baseY)
-                    }
-                    drawPath(path = arrowPath, color = cardFillColor)
-                    drawPath(
-                        path = outlinePath,
-                        color = cardBorderColor,
-                        style = Stroke(width = borderStrokePx),
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = horizontalMarginDp)
-                    .offset { IntOffset(x = 0, y = placement.topOffsetPx.roundToInt()) }
-                    .onSizeChanged { size ->
-                        if (size.height > 0 && size.height != measuredCardHeightPx) {
-                            measuredCardHeightPx = size.height
+                    .pointerInput(currentStep.id, showCutout, isTransitioning, animatedCutoutRect) {
+                        detectTapGestures { tapOffset ->
+                            if (
+                                !isTransitioning &&
+                                showCutout &&
+                                currentStep.allowTargetTap &&
+                                animatedCutoutRect.contains(tapOffset)
+                            ) {
+                                onTargetTap(currentStep)
+                            }
                         }
-                    }
-                    .testTag("spotlight-tour-card"),
-                color = LukoaColors.Elevated,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, LukoaColors.Border),
-                shadowElevation = 10.dp,
+                    },
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                    drawRect(color = Color.Black.copy(alpha = scrimAlpha))
+                    if (showCutout && focusAlpha > 0.02f) {
+                        val topLeft = Offset(animatedCutoutRect.left, animatedCutoutRect.top)
+                        val rectSize = Size(animatedCutoutRect.width, animatedCutoutRect.height)
+                        val corner = CornerRadius(cutoutCornerPx, cutoutCornerPx)
+
+                        drawRoundRect(
+                            color = Color.Transparent,
+                            topLeft = topLeft,
+                            size = rectSize,
+                            cornerRadius = corner,
+                            blendMode = BlendMode.Clear,
+                        )
+                        drawRoundRect(
+                            color = ringHaloColor,
+                            topLeft = topLeft,
+                            size = rectSize,
+                            cornerRadius = corner,
+                            style = Stroke(width = haloStrokeDp.toPx()),
+                        )
+                        drawRoundRect(
+                            color = ringPrimaryColor,
+                            topLeft = topLeft,
+                            size = rectSize,
+                            cornerRadius = corner,
+                            style = Stroke(width = 1.75.dp.toPx()),
+                        )
+                    }
+                }
+
+                if (focusAlpha > 0.05f && targetPlacement.arrowCenterXPx != null) {
+                    val arrowX = targetPlacement.arrowCenterXPx
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = focusAlpha },
+                    ) {
+                        val halfW = arrowWidthPx / 2f
+                        val borderStrokePx = 1.dp.toPx()
+                        val arrowPath = Path()
+                        val outlinePath = Path()
+                        if (targetPlacement.placeBelow) {
+                            val baseY = animatedCardTopPx + 2.dp.toPx()
+                            val tipY = (animatedCardTopPx - arrowHeightPx).coerceAtLeast(0f)
+                            arrowPath.moveTo(arrowX - halfW, baseY)
+                            arrowPath.lineTo(arrowX, tipY)
+                            arrowPath.lineTo(arrowX + halfW, baseY)
+                            arrowPath.close()
+
+                            outlinePath.moveTo(arrowX - halfW, baseY)
+                            outlinePath.lineTo(arrowX, tipY)
+                            outlinePath.lineTo(arrowX + halfW, baseY)
+                        } else {
+                            val baseY = animatedCardTopPx + effectiveCardHeightPx - 2.dp.toPx()
+                            val tipY = (animatedCardTopPx + effectiveCardHeightPx + arrowHeightPx)
+                                .coerceAtMost(size.height)
+                            arrowPath.moveTo(arrowX - halfW, baseY)
+                            arrowPath.lineTo(arrowX, tipY)
+                            arrowPath.lineTo(arrowX + halfW, baseY)
+                            arrowPath.close()
+
+                            outlinePath.moveTo(arrowX - halfW, baseY)
+                            outlinePath.lineTo(arrowX, tipY)
+                            outlinePath.lineTo(arrowX + halfW, baseY)
+                        }
+                        drawPath(path = arrowPath, color = cardFillColor)
+                        drawPath(
+                            path = outlinePath,
+                            color = cardBorderColor,
+                            style = Stroke(width = borderStrokePx),
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalMarginDp)
+                        .offset { IntOffset(x = 0, y = animatedCardTopPx.roundToInt()) }
+                        .graphicsLayer { alpha = focusAlpha }
+                        .onSizeChanged { size ->
+                            if (size.height > 0 && size.height != measuredCardHeightPx) {
+                                measuredCardHeightPx = size.height
+                            }
+                        }
+                        .testTag("spotlight-tour-card"),
+                    color = LukoaColors.Elevated,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, LukoaColors.Border),
+                    shadowElevation = 10.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = "新手引导",
-                                color = LukoaColors.Primary,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                text = "${safeIndex + 1} / ${steps.size}",
-                                modifier = Modifier.testTag("spotlight-tour-step-indicator"),
-                                color = LukoaColors.TextSecondary,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        Text(
-                            text = "跳过指引",
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(role = Role.Button, onClick = onSkip)
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
-                                .testTag("spotlight-tour-skip"),
-                            color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        steps.indices.forEach { idx ->
-                            val activeSegment = idx <= safeIndex
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(3.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(
-                                        if (activeSegment) LukoaColors.Primary else LukoaColors.Border,
-                                    ),
-                            )
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(
-                            text = currentStep.title,
-                            color = LukoaColors.TextPrimary,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = currentStep.description,
-                            color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.bodyMedium,
-                            lineHeight = 21.sp,
-                        )
-                    }
-
-                    if (!currentStep.actionLabel.isNullOrBlank()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable(
-                                    role = Role.Button,
-                                    onClick = { onStepAction(currentStep) },
-                                )
-                                .testTag("spotlight-tour-step-action"),
-                            color = LukoaColors.PrimarySoft,
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.36f)),
-                        ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = currentStep.actionLabel,
+                                    text = currentStep.badge,
                                     color = LukoaColors.Primary,
                                     style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.Bold,
                                 )
                                 Text(
-                                    text = "›",
-                                    color = LukoaColors.Primary,
+                                    text = "${safeIndex + 1} / ${steps.size}",
+                                    modifier = Modifier.testTag("spotlight-tour-step-indicator"),
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            Text(
+                                text = "跳过指引",
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(
+                                        enabled = !isTransitioning,
+                                        role = Role.Button,
+                                        onClick = onSkip,
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                    .testTag("spotlight-tour-skip"),
+                                color = LukoaColors.TextSecondary,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            steps.indices.forEach { idx ->
+                                val activeSegment = idx <= safeIndex
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(3.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(
+                                            if (activeSegment) LukoaColors.Primary else LukoaColors.Border,
+                                        ),
+                                )
+                            }
+                        }
+
+                        AnimatedContent(
+                            targetState = currentStep,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(durationMillis = 240)) +
+                                    slideInVertically(animationSpec = tween(durationMillis = 240)) { it / 14 })
+                                    .togetherWith(fadeOut(animationSpec = tween(durationMillis = 130)))
+                            },
+                            label = "spotlight-step-body",
+                        ) { step ->
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = step.title,
+                                    color = LukoaColors.TextPrimary,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
+                                Text(
+                                    text = step.description,
+                                    color = LukoaColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    lineHeight = 21.sp,
+                                )
+                                if (!step.targetTapHint.isNullOrBlank()) {
+                                    Text(
+                                        text = step.targetTapHint,
+                                        color = LukoaColors.Primary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (!isFirstStep) {
+                        if (!currentStep.actionLabel.isNullOrBlank()) {
                             Surface(
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .clickable(role = Role.Button, onClick = onPrevious)
-                                    .testTag("spotlight-tour-prev"),
-                                color = LukoaColors.Surface,
+                                    .clickable(
+                                        enabled = !isTransitioning,
+                                        role = Role.Button,
+                                        onClick = { onStepAction(currentStep) },
+                                    )
+                                    .testTag("spotlight-tour-step-action"),
+                                color = LukoaColors.PrimarySoft,
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, LukoaColors.Border),
+                                border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.36f)),
                             ) {
-                                Text(
-                                    text = "上一步",
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                                    color = LukoaColors.TextPrimary,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = currentStep.actionLabel,
+                                        color = LukoaColors.Primary,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = "›",
+                                        color = LukoaColors.Primary,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
                             }
-                        } else {
-                            Spacer(modifier = Modifier.width(1.dp))
                         }
 
-                        Button(
-                            onClick = if (isLastStep) onFinish else onNext,
-                            modifier = Modifier.testTag("spotlight-tour-next"),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = LukoaColors.Primary,
-                                contentColor = LukoaColors.OnPrimary,
-                            ),
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = if (isLastStep) "开始使用" else "下一步",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                            if (!isFirstStep) {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable(
+                                            enabled = !isTransitioning,
+                                            role = Role.Button,
+                                            onClick = onPrevious,
+                                        )
+                                        .testTag("spotlight-tour-prev"),
+                                    color = LukoaColors.Surface,
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, LukoaColors.Border),
+                                ) {
+                                    Text(
+                                        text = "上一步",
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                        color = LukoaColors.TextPrimary,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(1.dp))
+                            }
+
+                            val nextButtonText = currentStep.nextLabel
+                                ?: if (isLastStep) "开始使用" else "下一步"
+                            Button(
+                                onClick = if (isLastStep) onFinish else onNext,
+                                enabled = !isTransitioning,
+                                modifier = Modifier.testTag("spotlight-tour-next"),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = LukoaColors.Primary,
+                                    contentColor = LukoaColors.OnPrimary,
+                                ),
+                            ) {
+                                Text(
+                                    text = nextButtonText,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
                 }

@@ -184,7 +184,10 @@ fun LukoaLauncherScreen(
     var firstTavernStartGuideSeen by remember { mutableStateOf(initialFirstTavernStartGuideSeen) }
     var spotlightTourSeen by rememberSaveable { mutableStateOf(initialSpotlightTourSeen) }
     var spotlightTourActive by rememberSaveable { mutableStateOf(false) }
-    var spotlightStepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var spotlightSetupOnlyMode by rememberSaveable { mutableStateOf(false) }
+    var spotlightRequestedStepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var spotlightDisplayedStepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var spotlightTransitioningPage by remember { mutableStateOf(false) }
     val spotlightRegistry = remember { SpotlightTargetRegistry() }
     var rootLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var allFilesAccessGranted by remember { mutableStateOf(initialAllFilesAccessGranted) }
@@ -3772,25 +3775,76 @@ fun LukoaLauncherScreen(
         termuxPermissionBlocked() ||
         setupRecommended ||
         tavernInstallDetected != true
-    val spotlightSteps = remember(needsInitialSetup) {
-        SpotlightTourCatalog.buildSteps(needsInitialSetup = needsInitialSetup)
+    val setupStage = SpotlightTourCatalog.resolveSetupStage(
+        termuxInstalled = termuxInstalled,
+        runCommandPermissionGranted = runCommandPermissionGranted,
+        externalAppsBlocked = termuxExternalAppsBlocked,
+        termuxSetupRecommended = setupRecommended,
+        tavernInstallDetected = tavernInstallDetected,
+    )
+    val spotlightSteps = remember(needsInitialSetup, setupStage, spotlightSetupOnlyMode) {
+        if (spotlightSetupOnlyMode) {
+            SpotlightTourCatalog.buildSetupOnlySteps(
+                setupStage = setupStage,
+                followedByFeatureTour = false,
+            )
+        } else {
+            SpotlightTourCatalog.buildSteps(
+                needsInitialSetup = needsInitialSetup,
+                setupStage = setupStage,
+                includeFeatureTour = true,
+            )
+        }
     }
 
     fun startSpotlightTour() {
+        spotlightSetupOnlyMode = false
         secondaryPage = null
         selectedTab = LauncherTab.Launch
-        spotlightStepIndex = 0
+        spotlightRequestedStepIndex = 0
+        spotlightDisplayedStepIndex = 0
+        spotlightTransitioningPage = false
+        spotlightTourActive = true
+    }
+
+    fun startSetupPageSpotlight() {
+        spotlightSetupOnlyMode = true
+        secondaryPage = LauncherSecondaryPage.SetupWizard
+        spotlightRequestedStepIndex = 0
+        spotlightDisplayedStepIndex = 0
+        spotlightTransitioningPage = false
         spotlightTourActive = true
     }
 
     fun closeSpotlightTour(returnToLaunch: Boolean = true) {
+        val wasSetupOnly = spotlightSetupOnlyMode
         spotlightTourActive = false
+        spotlightTransitioningPage = false
+        spotlightSetupOnlyMode = false
         if (!spotlightTourSeen) {
             spotlightTourSeen = true
             onMarkSpotlightTourSeen()
         }
-        if (returnToLaunch) {
+        if (returnToLaunch && !wasSetupOnly) {
+            secondaryPage = null
             selectedTab = LauncherTab.Launch
+        }
+    }
+
+    fun executeCurrentSetupPrimaryAction() {
+        when (setupStage) {
+            SpotlightSetupStage.InstallTermux -> {
+                openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
+            }
+            SpotlightSetupStage.RequestPermission -> requestRunCommandPermission()
+            SpotlightSetupStage.EnableExternalApps -> copyTermuxPermissionCommand()
+            SpotlightSetupStage.PrepareEnvironment -> prepareTermuxEnvironment()
+            SpotlightSetupStage.DetectTavern -> checkTavernInstall()
+            SpotlightSetupStage.InstallTavern -> installSelectedTavern()
+            SpotlightSetupStage.Ready -> {
+                secondaryPage = null
+                selectedTab = LauncherTab.Launch
+            }
         }
     }
 
@@ -3809,7 +3863,7 @@ fun LukoaLauncherScreen(
             !showPendingTaskDialog &&
             !showUpdateDialog
         ) {
-            delay(420L)
+            delay(560L)
             if (
                 !spotlightTourSeen &&
                 !spotlightTourActive &&
@@ -3822,14 +3876,29 @@ fun LukoaLauncherScreen(
         }
     }
 
-    LaunchedEffect(spotlightTourActive, spotlightStepIndex, spotlightSteps) {
-        if (!spotlightTourActive) return@LaunchedEffect
-        val step = spotlightSteps.getOrNull(spotlightStepIndex) ?: return@LaunchedEffect
-        if (secondaryPage != null) {
-            secondaryPage = null
+    LaunchedEffect(spotlightTourActive, spotlightRequestedStepIndex, spotlightSteps) {
+        if (!spotlightTourActive) {
+            spotlightTransitioningPage = false
+            return@LaunchedEffect
         }
-        if (selectedTab != step.requiredTab) {
-            selectedTab = step.requiredTab
+        val targetIndex = spotlightRequestedStepIndex.coerceIn(0, (spotlightSteps.size - 1).coerceAtLeast(0))
+        val targetStep = spotlightSteps.getOrNull(targetIndex) ?: return@LaunchedEffect
+        val needsPageSwitch = secondaryPage != targetStep.requiredSecondaryPage ||
+            selectedTab != targetStep.requiredTab
+        if (needsPageSwitch) {
+            spotlightTransitioningPage = true
+            delay(160L)
+            secondaryPage = targetStep.requiredSecondaryPage
+            if (selectedTab != targetStep.requiredTab) {
+                selectedTab = targetStep.requiredTab
+            }
+            delay(520L)
+            spotlightDisplayedStepIndex = targetIndex
+            delay(60L)
+            spotlightTransitioningPage = false
+        } else {
+            spotlightDisplayedStepIndex = targetIndex
+            spotlightTransitioningPage = false
         }
     }
 
@@ -3854,7 +3923,11 @@ fun LukoaLauncherScreen(
         if (pagerState.currentPage != selectedTab.ordinal) {
             pagerState.animateScrollToPage(
                 page = selectedTab.ordinal,
-                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+                animationSpec = if (spotlightTourActive) {
+                    tween(durationMillis = 460, easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f))
+                } else {
+                    tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                },
             )
         }
     }
@@ -4615,11 +4688,11 @@ fun LukoaLauncherScreen(
             val pageScale = 0.992f + ((1f - pageOffset) * 0.008f)
             val pageAlpha = 0.94f + ((1f - pageOffset) * 0.06f)
             val pageScrollState = rememberScrollState()
-            LaunchedEffect(spotlightTourActive, spotlightStepIndex, tab) {
+            LaunchedEffect(spotlightTourActive, spotlightRequestedStepIndex, tab) {
                 if (
                     spotlightTourActive &&
                     tab != LauncherTab.Docs &&
-                    spotlightSteps.getOrNull(spotlightStepIndex)?.requiredTab == tab
+                    spotlightSteps.getOrNull(spotlightRequestedStepIndex)?.requiredTab == tab
                 ) {
                     pageScrollState.scrollTo(0)
                 }
@@ -5107,10 +5180,19 @@ fun LukoaLauncherScreen(
                             infoText = activeSecondaryPage.infoText,
                             onBack = { secondaryPage = null },
                         )
+                        val secondaryScrollState = rememberScrollState()
+                        LaunchedEffect(spotlightTourActive, spotlightRequestedStepIndex, activeSecondaryPage) {
+                            if (
+                                spotlightTourActive &&
+                                spotlightSteps.getOrNull(spotlightRequestedStepIndex)?.requiredSecondaryPage == activeSecondaryPage
+                            ) {
+                                secondaryScrollState.scrollTo(0)
+                            }
+                        }
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .verticalScroll(rememberScrollState())
+                                .verticalScroll(secondaryScrollState)
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
@@ -5478,6 +5560,11 @@ fun LukoaLauncherScreen(
                                 onUseRecommendedVersion = ::useRecommendedTavernVersion,
                                 onInstallTavern = ::installSelectedTavern,
                                 showSectionContainer = false,
+                                onStartSetupSpotlight = ::startSetupPageSpotlight,
+                                onReturnToLaunch = {
+                                    secondaryPage = null
+                                    selectedTab = LauncherTab.Launch
+                                },
                             )
                             }
                         }
@@ -5498,34 +5585,68 @@ fun LukoaLauncherScreen(
             )
 
             SpotlightTourOverlay(
-                active = spotlightTourActive && secondaryPage == null,
+                active = spotlightTourActive &&
+                    (secondaryPage == null || secondaryPage == LauncherSecondaryPage.SetupWizard),
                 steps = spotlightSteps,
-                currentStepIndex = spotlightStepIndex,
+                currentStepIndex = spotlightDisplayedStepIndex,
                 registry = spotlightRegistry,
                 rootCoords = rootLayoutCoordinates,
+                isTransitioning = spotlightTransitioningPage,
                 recheckKey = if (spotlightTourActive) {
-                    pagerState.settledPage * 100 + pagerState.currentPage
+                    (secondaryPage?.ordinal ?: -1) * 10_000 +
+                        pagerState.settledPage * 100 +
+                        pagerState.currentPage +
+                        (if (spotlightTransitioningPage) 1_000_000 else 0)
                 } else {
                     0
                 },
                 onPrevious = {
-                    if (spotlightStepIndex > 0) {
-                        spotlightStepIndex -= 1
+                    if (!spotlightTransitioningPage && spotlightRequestedStepIndex > 0) {
+                        spotlightRequestedStepIndex -= 1
                     }
                 },
                 onNext = {
-                    if (spotlightStepIndex < spotlightSteps.lastIndex) {
-                        spotlightStepIndex += 1
+                    if (spotlightTransitioningPage) return@SpotlightTourOverlay
+                    if (spotlightRequestedStepIndex < spotlightSteps.lastIndex) {
+                        spotlightRequestedStepIndex += 1
                     } else {
-                        closeSpotlightTour(returnToLaunch = true)
+                        closeSpotlightTour(returnToLaunch = !spotlightSetupOnlyMode)
                     }
                 },
-                onSkip = { closeSpotlightTour(returnToLaunch = true) },
-                onFinish = { closeSpotlightTour(returnToLaunch = true) },
+                onSkip = { closeSpotlightTour(returnToLaunch = !spotlightSetupOnlyMode) },
+                onFinish = { closeSpotlightTour(returnToLaunch = !spotlightSetupOnlyMode) },
                 onStepAction = { step ->
-                    if (step.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY) {
-                        closeSpotlightTour(returnToLaunch = true)
-                        secondaryPage = LauncherSecondaryPage.SetupWizard
+                    when (step.id) {
+                        SpotlightTourCatalog.STEP_SETUP_PRIMARY -> {
+                            closeSpotlightTour(returnToLaunch = false)
+                            secondaryPage = LauncherSecondaryPage.SetupWizard
+                            executeCurrentSetupPrimaryAction()
+                        }
+                        SpotlightTourCatalog.STEP_SETUP_SECONDARY -> {
+                            closeSpotlightTour(returnToLaunch = false)
+                            secondaryPage = LauncherSecondaryPage.SetupWizard
+                        }
+                        SpotlightTourCatalog.STEP_DOCS_REPLAY -> {
+                            closeSpotlightTour(returnToLaunch = false)
+                            secondaryPage = LauncherSecondaryPage.SetupWizard
+                        }
+                        else -> Unit
+                    }
+                },
+                onTargetTap = { step ->
+                    if (spotlightTransitioningPage) return@SpotlightTourOverlay
+                    when (step.id) {
+                        SpotlightTourCatalog.STEP_LAUNCH_PRIMARY -> {
+                            if (spotlightRequestedStepIndex < spotlightSteps.lastIndex) {
+                                spotlightRequestedStepIndex += 1
+                            }
+                        }
+                        SpotlightTourCatalog.STEP_SETUP_PRIMARY -> {
+                            closeSpotlightTour(returnToLaunch = false)
+                            secondaryPage = LauncherSecondaryPage.SetupWizard
+                            executeCurrentSetupPrimaryAction()
+                        }
+                        else -> Unit
                     }
                 },
             )

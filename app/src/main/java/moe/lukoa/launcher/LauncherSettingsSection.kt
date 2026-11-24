@@ -668,7 +668,9 @@ internal fun InstanceManagementPanel(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsGroupLabel("启动与外观")
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .spotlightTarget(SpotlightTargetId.SettingsQuickToggles),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 SettingsQuickToggleCard(

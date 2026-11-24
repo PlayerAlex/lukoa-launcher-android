@@ -2,19 +2,23 @@ package moe.lukoa.launcher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -26,10 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun QuickStartGuideSection(
@@ -60,6 +69,8 @@ fun QuickStartGuideSection(
     onUseRecommendedVersion: () -> Unit,
     onInstallTavern: () -> Unit,
     showSectionContainer: Boolean = true,
+    onStartSetupSpotlight: (() -> Unit)? = null,
+    onReturnToLaunch: (() -> Unit)? = null,
 ) {
     val permissionReady = termuxInstalled && runCommandPermissionGranted && !externalAppsBlocked
     val effectiveSelectedVersion = selectedVersion ?: TavernInstallDefaults.releaseChoice(mirrorRepoUrl)
@@ -155,12 +166,12 @@ fun QuickStartGuideSection(
             tone = LukoaColors.Primary,
         )
         else -> WizardAction(
-            step = "完成",
-            title = "可以启动酒馆",
-            detail = "基础准备已经完成。",
-            primaryText = "完成",
-            primaryEnabled = false,
-            primary = {},
+            step = "已完成",
+            title = "可以启动酒馆了",
+            detail = "Termux、权限和酒馆环境都已就绪，现在可以回到启动页一键启动 SillyTavern。",
+            primaryText = if (onReturnToLaunch != null) "回到启动页" else "完成",
+            primaryEnabled = onReturnToLaunch != null,
+            primary = onReturnToLaunch ?: {},
             secondary = emptyList(),
             tone = LukoaColors.Primary,
         )
@@ -168,16 +179,18 @@ fun QuickStartGuideSection(
 
     val completedSteps = (stepIndex - 1).coerceIn(0, 4)
 
-    val guideBody: @Composable () -> Unit = {
+    val currentStepCard: @Composable () -> Unit = {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LukoaColors.Elevated,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, current.tone.copy(alpha = 0.48f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("setup-wizard-active-card"),
+            color = if (showSectionContainer) LukoaColors.Elevated else LukoaColors.Surface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, LukoaColors.Border),
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(11.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -186,27 +199,27 @@ fun QuickStartGuideSection(
                 ) {
                     Surface(
                         color = LukoaColors.PrimarySoft,
-                        shape = LukoaCapsuleShape,
-                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.42f)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.36f)),
                     ) {
                         Text(
                             text = current.step,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             color = LukoaColors.Primary,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                         )
                     }
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
                             text = "现在只做这一项",
                             color = LukoaColors.TextSecondary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
                         )
                         Text(
                             text = current.title,
@@ -219,32 +232,13 @@ fun QuickStartGuideSection(
 
                 Text(
                     text = current.detail,
-                    color = LukoaColors.TextPrimary,
+                    color = LukoaColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 21.sp,
                 )
 
                 if (current.commandText.isNotBlank()) {
                     CommandSnippet(text = current.commandText)
-                }
-
-                SecondaryActionButton(
-                    text = current.primaryText,
-                    enabled = current.primaryEnabled,
-                    accentColor = current.tone,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = current.primary,
-                )
-
-                if (current.secondary.isNotEmpty()) {
-                    current.secondary.take(2).forEach { action ->
-                        SecondaryActionButton(
-                            text = action.text,
-                            enabled = action.enabled,
-                            accentColor = LukoaColors.Primary,
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = action.onClick,
-                        )
-                    }
                 }
 
                 if (tavernInstallDetected == false && !termuxSetupRecommended && officialVersions.hasData) {
@@ -257,29 +251,62 @@ fun QuickStartGuideSection(
                     )
                 }
 
+                val primaryClick = rememberFeedbackClick(current.primary)
+                Button(
+                    onClick = primaryClick,
+                    enabled = current.primaryEnabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .spotlightTarget(SpotlightTargetId.SetupPrimaryAction)
+                        .testTag("setup-wizard-primary-action"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = current.tone,
+                        contentColor = LukoaColors.OnPrimary,
+                        disabledContainerColor = LukoaColors.Elevated,
+                        disabledContentColor = LukoaColors.Dim,
+                    ),
+                ) {
+                    Text(
+                        text = current.primaryText,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                if (current.secondary.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .spotlightTarget(SpotlightTargetId.SetupSecondaryActions)
+                            .testTag("setup-wizard-secondary-actions"),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        current.secondary.take(2).forEach { action ->
+                            SecondaryActionButton(
+                                text = action.text,
+                                enabled = action.enabled,
+                                accentColor = LukoaColors.TextSecondary,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = action.onClick,
+                            )
+                        }
+                    }
+                }
+
                 if (actionsLocked) {
                     Text(
                         text = "这一步正在执行，完成后按钮会自动恢复，不需要重复点击。",
-                        color = LukoaColors.TextPrimary,
+                        color = LukoaColors.Primary,
                         style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                     )
                 }
             }
         }
-
-        Text(
-            text = "准备进度",
-            color = LukoaColors.TextPrimary,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        OnboardingProgressList(currentStep = stepIndex)
-        Text(
-            text = "完成这 4 步后，回到启动页点「启动酒馆」即可开始使用。",
-            color = LukoaColors.TextSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 
     if (showSectionContainer) {
@@ -305,24 +332,65 @@ fun QuickStartGuideSection(
                 }
             },
         ) {
-            guideBody()
+            currentStepCard()
+            Text(
+                text = "准备进度",
+                color = LukoaColors.TextPrimary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            OnboardingProgressList(currentStep = stepIndex)
+            Text(
+                text = "完成这 4 步后，回到启动页点「启动酒馆」即可开始使用。",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SettingsGroupLabel("首次配置进度")
-                Text(
-                    text = "已完成 $completedSteps/4",
-                    color = if (completedSteps > 0) LukoaColors.Primary else LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
+                SettingsGroupLabel(
+                    title = "首次配置进度 · 已完成 $completedSteps/4",
+                    modifier = Modifier.weight(1f),
                 )
+                if (onStartSetupSpotlight != null) {
+                    Text(
+                        text = "聚光灯指引",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(
+                                role = Role.Button,
+                                onClick = rememberFeedbackClick(onStartSetupSpotlight),
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .testTag("setup-wizard-spotlight-button"),
+                        color = LukoaColors.Primary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
-            guideBody()
+
+            SetupHorizontalStepper(
+                currentStep = stepIndex,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .spotlightTarget(SpotlightTargetId.SetupStepProgress)
+                    .testTag("setup-wizard-stepper"),
+            )
+
+            currentStepCard()
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsGroupLabel("全部 4 步明细")
+                OnboardingProgressList(currentStep = stepIndex)
+            }
         }
     }
 }
@@ -346,6 +414,84 @@ private data class WizardSecondaryAction(
 )
 
 @Composable
+private fun SetupHorizontalStepper(
+    currentStep: Int,
+    modifier: Modifier = Modifier,
+) {
+    val shortLabels = listOf("Termux", "权限", "环境", "酒馆")
+    Surface(
+        modifier = modifier,
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LukoaColors.Border),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            shortLabels.forEachIndexed { index, label ->
+                val number = index + 1
+                val done = number < currentStep
+                val active = number == currentStep
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    done -> LukoaColors.Primary
+                                    active -> LukoaColors.PrimarySoft
+                                    else -> LukoaColors.Elevated
+                                },
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (done) "✓" else number.toString(),
+                            color = when {
+                                done -> LukoaColors.OnPrimary
+                                active -> LukoaColors.Primary
+                                else -> LukoaColors.TextSecondary
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        text = label,
+                        color = if (done || active) LukoaColors.TextPrimary else LukoaColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (index != shortLabels.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .width(18.dp)
+                            .height(2.dp)
+                            .padding(bottom = 0.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(
+                                if (number < currentStep) LukoaColors.Primary else LukoaColors.Border,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun OnboardingProgressList(currentStep: Int) {
     val steps = listOf(
         "安装 Termux",
@@ -355,14 +501,11 @@ private fun OnboardingProgressList(currentStep: Int) {
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = LukoaColors.Elevated,
-        shape = RoundedCornerShape(12.dp),
+        color = LukoaColors.Surface,
+        shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             steps.forEachIndexed { index, label ->
                 val number = index + 1
                 val done = number < currentStep
@@ -373,6 +516,12 @@ private fun OnboardingProgressList(currentStep: Int) {
                     done = done,
                     current = current,
                 )
+                if (index != steps.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        color = LukoaColors.Border,
+                    )
+                }
             }
         }
     }
@@ -387,20 +536,29 @@ private fun OnboardingProgressRow(
 ) {
     val tone = if (done || current) LukoaColors.Primary else LukoaColors.TextSecondary
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            color = if (done || current) LukoaColors.PrimarySoft else LukoaColors.Surface,
-            shape = LukoaCapsuleShape,
-            border = BorderStroke(1.dp, tone.copy(alpha = if (done || current) 0.48f else 0.28f)),
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(
+                    when {
+                        done -> LukoaColors.Primary
+                        current -> LukoaColors.PrimarySoft
+                        else -> LukoaColors.Elevated
+                    },
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = if (done) "✓" else number.toString(),
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                color = tone,
-                style = MaterialTheme.typography.labelMedium,
+                color = if (done) LukoaColors.OnPrimary else tone,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -433,14 +591,14 @@ private fun CommandSnippet(text: String) {
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .width(4.dp)
-                        .height(16.dp)
+                        .width(3.dp)
+                        .height(14.dp)
                         .background(LukoaColors.Primary, RoundedCornerShape(2.dp)),
                 )
                 Text(
@@ -481,8 +639,8 @@ private fun WizardVersionPicker(
         border = BorderStroke(1.dp, LukoaColors.Border),
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -512,9 +670,9 @@ private fun WizardVersionPicker(
                     OutlinedButton(
                         onClick = { expanded = true },
                         enabled = !actionsLocked && choices.isNotEmpty(),
-                        modifier = Modifier.height(40.dp),
+                        modifier = Modifier.height(38.dp),
                         border = BorderStroke(1.dp, LukoaColors.Primary.copy(alpha = 0.46f)),
-                        shape = LukoaCapsuleShape,
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent,
                             contentColor = LukoaColors.Primary,
@@ -582,12 +740,7 @@ private fun WizardVersionPicker(
                 }
             }
             Text(
-                text = "不懂就用默认稳定版；测试版可能不稳定。",
-                color = LukoaColors.TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                text = "当前源：${repoLabelFor(effectiveSelectedVersion.repoUrl)}",
+                text = "不懂就用默认稳定版；当前源：${repoLabelFor(effectiveSelectedVersion.repoUrl)}",
                 color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )

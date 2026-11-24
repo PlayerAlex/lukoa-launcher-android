@@ -1,16 +1,23 @@
 package moe.lukoa.launcher
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,11 +38,91 @@ class SpotlightOnboardingTourTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun catalog_coversAllTabsAndAdaptsSetupStep() {
-        val freshSteps = SpotlightTourCatalog.buildSteps(needsInitialSetup = true)
-        val readySteps = SpotlightTourCatalog.buildSteps(needsInitialSetup = false)
+    fun resolveSetupStage_mapsEveryFirstTimeConditionAccurately() {
+        assertEquals(
+            SpotlightSetupStage.InstallTermux,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = false,
+                runCommandPermissionGranted = false,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = null,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.RequestPermission,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = false,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = null,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.EnableExternalApps,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = true,
+                externalAppsBlocked = true,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = null,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.PrepareEnvironment,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = true,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = true,
+                tavernInstallDetected = null,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.DetectTavern,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = true,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = null,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.InstallTavern,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = true,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = false,
+            ),
+        )
+        assertEquals(
+            SpotlightSetupStage.Ready,
+            SpotlightTourCatalog.resolveSetupStage(
+                termuxInstalled = true,
+                runCommandPermissionGranted = true,
+                externalAppsBlocked = false,
+                termuxSetupRecommended = false,
+                tavernInstallDetected = true,
+            ),
+        )
+    }
 
-        assertEquals(7, freshSteps.size)
+    @Test
+    fun catalog_unifiesFirstTimeSetupStepsAndStreamlinesReadyTour() {
+        val freshSteps = SpotlightTourCatalog.buildSteps(
+            needsInitialSetup = true,
+            setupStage = SpotlightSetupStage.InstallTermux,
+        )
+        val readySteps = SpotlightTourCatalog.buildSteps(
+            needsInitialSetup = false,
+            setupStage = SpotlightSetupStage.Ready,
+        )
+
+        assertEquals(10, freshSteps.size)
         assertEquals(7, readySteps.size)
         assertEquals(
             setOf(
@@ -47,12 +134,34 @@ class SpotlightOnboardingTourTest {
             ),
             freshSteps.map { it.requiredTab }.toSet(),
         )
+        assertEquals(
+            3,
+            freshSteps.count { it.requiredSecondaryPage == LauncherSecondaryPage.SetupWizard },
+        )
+        assertEquals(
+            0,
+            readySteps.count { it.requiredSecondaryPage == LauncherSecondaryPage.SetupWizard },
+        )
 
-        val freshPrimary = freshSteps.first { it.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY }
+        val freshLaunchPrimary = freshSteps.first { it.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY }
+        assertTrue(freshLaunchPrimary.allowTargetTap)
+        assertEquals("打开安装向导", freshLaunchPrimary.nextLabel)
+
+        val setupPrimary = freshSteps.first { it.id == SpotlightTourCatalog.STEP_SETUP_PRIMARY }
+        assertTrue(setupPrimary.allowTargetTap)
+        assertEquals("立即下载 Termux", setupPrimary.actionLabel)
+
         val readyPrimary = readySteps.first { it.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY }
-        assertEquals("立即进入首次配置", freshPrimary.actionLabel)
-        assertNull(readyPrimary.actionLabel)
+        assertFalse(readyPrimary.allowTargetTap)
         assertEquals("一键启动或停止酒馆", readyPrimary.title)
+
+        val setupOnly = SpotlightTourCatalog.buildSetupOnlySteps(
+            setupStage = SpotlightSetupStage.EnableExternalApps,
+            followedByFeatureTour = false,
+        )
+        assertEquals(3, setupOnly.size)
+        assertEquals("复制权限命令", setupOnly[1].actionLabel)
+        assertNull(setupOnly[2].actionLabel)
     }
 
     @Test
@@ -85,7 +194,6 @@ class SpotlightOnboardingTourTest {
         )
         assertFalse(abovePlacement.placeBelow)
         assertEquals(1664f, abovePlacement.topOffsetPx, 0.5f)
-        // Clamped within right card edge inset: 1080 - 48 - 72 = 960
         assertEquals(960f, requireNotNull(abovePlacement.arrowCenterXPx), 0.5f)
 
         val fallbackPlacement = SpotlightOverlayLayoutMath.computeCardPlacement(
@@ -104,16 +212,23 @@ class SpotlightOnboardingTourTest {
     }
 
     @Test
-    fun spotlightOverlay_navigatesThroughStepsActionsAndFinish() {
-        val steps = SpotlightTourCatalog.buildSteps(needsInitialSetup = true)
+    fun spotlightOverlay_navigatesUnifiedFirstTimeFlowActionsAndFinish() {
+        val steps = SpotlightTourCatalog.buildSteps(
+            needsInitialSetup = true,
+            setupStage = SpotlightSetupStage.InstallTermux,
+        )
         val registry = SpotlightTargetRegistry().apply {
             setFixedRectForTest(SpotlightTargetId.LaunchStatusCard, Rect(40f, 120f, 360f, 260f))
             setFixedRectForTest(SpotlightTargetId.LaunchPrimaryAction, Rect(40f, 280f, 360f, 340f))
+            setFixedRectForTest(SpotlightTargetId.SetupStepProgress, Rect(40f, 120f, 360f, 210f))
+            setFixedRectForTest(SpotlightTargetId.SetupPrimaryAction, Rect(40f, 300f, 360f, 360f))
+            setFixedRectForTest(SpotlightTargetId.SetupSecondaryActions, Rect(40f, 380f, 360f, 460f))
+            setFixedRectForTest(SpotlightTargetId.BottomTabSettings, Rect(260f, 680f, 360f, 740f))
             setFixedRectForTest(SpotlightTargetId.DocsSpotlightReplay, Rect(240f, 90f, 350f, 140f))
         }
         var skippedCount = 0
         var finishedCount = 0
-        var triggeredActionStepId: String? = null
+        val triggeredActionStepIds = mutableListOf<String>()
 
         composeRule.setContent {
             LukoaTheme {
@@ -128,37 +243,67 @@ class SpotlightOnboardingTourTest {
                     onNext = { if (stepIndex < steps.lastIndex) stepIndex += 1 },
                     onSkip = { skippedCount += 1 },
                     onFinish = { finishedCount += 1 },
-                    onStepAction = { triggeredActionStepId = it.id },
+                    onStepAction = { triggeredActionStepIds += it.id },
                 )
             }
         }
 
         composeRule.onNodeWithTag("spotlight-tour-overlay").assertIsDisplayed()
-        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("1 / 7")
-        composeRule.onNodeWithText("一眼看清酒馆状态").assertIsDisplayed()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("1 / 10")
+        composeRule.onNodeWithText("欢迎使用露科亚启动器").assertIsDisplayed()
+        composeRule.onNodeWithText("开始第 1 步").assertIsDisplayed()
         composeRule.onNodeWithTag("spotlight-tour-prev").assertDoesNotExist()
 
+        // Step 2: Launch primary button -> opens setup wizard
         composeRule.onNodeWithTag("spotlight-tour-next").performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("2 / 10")
+        composeRule.onNodeWithText("从这里进入首次安装向导").assertIsDisplayed()
+        composeRule.onNodeWithText("打开安装向导").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("2 / 7")
-        composeRule.onNodeWithText("从这里完成首次配置与启动").assertIsDisplayed()
-        composeRule.onNodeWithTag("spotlight-tour-prev").assertIsDisplayed()
+        // Step 3: SetupWizard 4-step progress bar
+        composeRule.onNodeWithTag("spotlight-tour-next").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("3 / 10")
+        composeRule.onNodeWithText("一共只需完成这 4 步").assertIsDisplayed()
+
+        // Step 4: SetupWizard current stage primary action
+        composeRule.onNodeWithTag("spotlight-tour-next").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("4 / 10")
+        composeRule.onNodeWithText("当前步骤：安装并打开一次 Termux").assertIsDisplayed()
         composeRule.onNodeWithTag("spotlight-tour-step-action").assertIsDisplayed().performClick()
         composeRule.runOnIdle {
-            assertEquals(SpotlightTourCatalog.STEP_LAUNCH_PRIMARY, triggeredActionStepId)
+            assertEquals(listOf(SpotlightTourCatalog.STEP_SETUP_PRIMARY), triggeredActionStepIds)
         }
 
+        // Step 5: SetupWizard secondary / recheck actions
+        composeRule.onNodeWithTag("spotlight-tour-next").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("5 / 10")
+        composeRule.onNodeWithText("留在这里开始配置").assertIsDisplayed().performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                listOf(
+                    SpotlightTourCatalog.STEP_SETUP_PRIMARY,
+                    SpotlightTourCatalog.STEP_SETUP_SECONDARY,
+                ),
+                triggeredActionStepIds,
+            )
+        }
+
+        // Go back one step cleanly
         composeRule.onNodeWithTag("spotlight-tour-prev").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("1 / 7")
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("4 / 10")
 
-        repeat(steps.lastIndex) {
+        // Walk to final step (10 / 10)
+        repeat(steps.lastIndex - 3) {
             composeRule.onNodeWithTag("spotlight-tour-next").performClick()
             composeRule.waitForIdle()
         }
-        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("7 / 7")
-        composeRule.onNodeWithText("开始使用").assertIsDisplayed()
+        composeRule.onNodeWithTag("spotlight-tour-step-indicator").assertTextEquals("10 / 10")
+        composeRule.onNodeWithText("完成引导").assertIsDisplayed()
         composeRule.onNodeWithTag("spotlight-tour-next").performClick()
         composeRule.runOnIdle {
             assertEquals(1, finishedCount)
@@ -167,6 +312,92 @@ class SpotlightOnboardingTourTest {
         composeRule.onNodeWithTag("spotlight-tour-skip").performClick()
         composeRule.runOnIdle {
             assertEquals(1, skippedCount)
+        }
+    }
+
+    @Test
+    fun spotlightOverlay_locksNextButtonDuringCrossPageTransition() {
+        val steps = SpotlightTourCatalog.buildSteps(needsInitialSetup = false)
+        val registry = SpotlightTargetRegistry()
+
+        composeRule.setContent {
+            LukoaTheme {
+                SpotlightTourOverlay(
+                    active = true,
+                    steps = steps,
+                    currentStepIndex = 0,
+                    registry = registry,
+                    rootCoords = null,
+                    isTransitioning = true,
+                    onPrevious = {},
+                    onNext = {},
+                    onSkip = {},
+                    onFinish = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("spotlight-tour-next").assertIsNotEnabled()
+    }
+
+    @Test
+    fun setupWizardPage_rendersModernHorizontalStepperAndSpotlightTrigger() {
+        var spotlightClicks = 0
+        var primaryClicks = 0
+
+        composeRule.setContent {
+            LukoaTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    QuickStartGuideSection(
+                        termuxInstalled = false,
+                        runCommandPermissionGranted = false,
+                        externalAppsBlocked = false,
+                        tavernInstallDetected = null,
+                        tavernVersionChecking = false,
+                        termuxSetupRecommended = false,
+                        officialVersions = TavernOfficialVersions(),
+                        selectedVersion = null,
+                        mirrorRepoUrl = TavernMirrorDefaults.OFFICIAL_REPO,
+                        commandText = "allow-external-apps=true",
+                        actionsLocked = false,
+                        onOpenTermuxDownload = { primaryClicks += 1 },
+                        onOpenTermuxGithub = {},
+                        onRecheckTermux = {},
+                        onRequestPermission = {},
+                        onOpenPermissionSettings = {},
+                        onCopyPermissionCommand = {},
+                        onOpenTermux = {},
+                        onRecheckPermission = {},
+                        onPrepareTermux = {},
+                        onCheckTavern = {},
+                        onShowInstall = {},
+                        onRefreshOfficialVersions = {},
+                        onSelectVersion = {},
+                        onUseRecommendedVersion = {},
+                        onInstallTavern = {},
+                        showSectionContainer = false,
+                        onStartSetupSpotlight = { spotlightClicks += 1 },
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("setup-wizard-stepper").assertIsDisplayed()
+        composeRule.onNodeWithTag("setup-wizard-primary-action").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("setup-wizard-secondary-actions").performScrollTo().assertIsDisplayed()
+
+        advancePastClickDebounce()
+        composeRule.onNodeWithTag("setup-wizard-spotlight-button").performScrollTo().assertIsDisplayed().performClick()
+        advancePastClickDebounce()
+        composeRule.onNodeWithTag("setup-wizard-primary-action").performScrollTo().performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, spotlightClicks)
+            assertEquals(1, primaryClicks)
         }
     }
 
