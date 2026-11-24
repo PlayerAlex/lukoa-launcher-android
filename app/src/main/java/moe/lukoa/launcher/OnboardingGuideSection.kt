@@ -71,6 +71,7 @@ fun QuickStartGuideSection(
     showSectionContainer: Boolean = true,
     onStartSetupSpotlight: (() -> Unit)? = null,
     onReturnToLaunch: (() -> Unit)? = null,
+    onOpenMirrorSettings: (() -> Unit)? = null,
 ) {
     val permissionReady = termuxInstalled && runCommandPermissionGranted && !externalAppsBlocked
     val effectiveSelectedVersion = selectedVersion ?: TavernInstallDefaults.releaseChoice(mirrorRepoUrl)
@@ -85,7 +86,7 @@ fun QuickStartGuideSection(
         !termuxInstalled -> WizardAction(
             step = "第 1 步",
             title = "安装并打开一次 Termux",
-            detail = "先安装 Termux。安装完成后必须打开一次，让它做好初始准备，再回来重新检测。",
+            detail = "先安装 Termux。安装完成后必须打开一次完成初始化，再回来重新检测。若 F-Droid 或 GitHub 打不开、下载失败，请先开启代理再点下载。",
             primaryText = "下载 Termux",
             primaryEnabled = !actionsLocked,
             primary = onOpenTermuxDownload,
@@ -125,7 +126,7 @@ fun QuickStartGuideSection(
         termuxSetupRecommended -> WizardAction(
             step = "第 3 步",
             title = "准备 Termux 环境",
-            detail = "启动器会自动安装酒馆需要的基础工具。第一次准备可能需要几分钟。",
+            detail = "启动器会自动安装酒馆需要的基础工具，首次准备需要几分钟。若下载超时或失败，请开启代理，或先切到国内镜像源再重试。",
             primaryText = "准备 Termux 环境",
             primaryEnabled = !actionsLocked,
             primary = onPrepareTermux,
@@ -151,7 +152,7 @@ fun QuickStartGuideSection(
         tavernInstallDetected == false -> WizardAction(
             step = "第 4 步",
             title = "安装酒馆",
-            detail = "默认稳定版适合大多数人。安装通常需要 5–10 分钟，完成后就能启动酒馆。",
+            detail = "默认稳定版适合大多数人，安装通常需要 5–10 分钟。如果拉取失败或一直下不动，请先开启代理，或切换国内镜像源再试。",
             primaryText = "安装 ${effectiveSelectedVersion.label}",
             primaryEnabled = !actionsLocked,
             primary = onInstallTavern,
@@ -297,6 +298,24 @@ fun QuickStartGuideSection(
                     }
                 }
 
+                if (onOpenMirrorSettings != null && (stepIndex == 3 || stepIndex == 4)) {
+                    Text(
+                        text = "下载慢或连不上？去网络与镜像源一键优选 ›",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(
+                                enabled = !actionsLocked,
+                                role = Role.Button,
+                                onClick = rememberFeedbackClick(onOpenMirrorSettings),
+                            )
+                            .padding(vertical = 4.dp)
+                            .testTag("setup-wizard-mirror-shortcut"),
+                        color = LukoaColors.Primary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+
                 if (actionsLocked) {
                     Text(
                         text = "这一步正在执行，完成后按钮会自动恢复，不需要重复点击。",
@@ -356,7 +375,7 @@ fun QuickStartGuideSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SettingsGroupLabel(
-                    title = "首次配置进度 · 已完成 $completedSteps/4",
+                    title = "首次配置进度（$completedSteps/4）",
                     modifier = Modifier.weight(1f),
                 )
                 if (onStartSetupSpotlight != null) {
@@ -594,21 +613,12 @@ private fun CommandSnippet(text: String) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(14.dp)
-                        .background(LukoaColors.Primary, RoundedCornerShape(2.dp)),
-                )
-                Text(
-                    text = "复制后粘贴到 Termux，回车执行",
-                    modifier = Modifier.padding(start = 8.dp),
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            Text(
+                text = "复制后粘贴到 Termux，回车执行",
+                color = LukoaColors.TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             Text(
                 text = text,
                 color = LukoaColors.TextPrimary,

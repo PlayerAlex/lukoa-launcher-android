@@ -31,6 +31,26 @@ class LukoaPaletteStructureTest {
         )
     }
 
+    @Test
+    fun uiComponents_doNotUseDecorativeVerticalAccentBars() {
+        val sourceRoot = findSourceRoot()
+        val verticalBarPattern = Regex(
+            """\.width\(\s*[234]\.dp\s*\)\s*\n\s*\.height(?:In)?\(""",
+        )
+        val violations = sourceRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .mapNotNull { file ->
+                val text = file.readText(Charsets.UTF_8)
+                if (verticalBarPattern.containsMatchIn(text)) file.name else null
+            }
+            .toList()
+
+        assertTrue(
+            "不要在标题或提示卡左侧堆叠装饰性竖杠：${violations.joinToString(", ")}",
+            violations.isEmpty(),
+        )
+    }
+
     private fun findSourceRoot(): File {
         var cursor = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
         while (true) {

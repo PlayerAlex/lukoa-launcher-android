@@ -124,7 +124,7 @@ enum class LauncherSecondaryPage(
     ),
     MirrorSettings(
         title = "网络与镜像源",
-        infoText = "下载源决定安装、更新酒馆和下载依赖时走哪条线路，切换不会影响已有聊天或数据。\n不确定选哪个时，直接点「一键测速优选」，启动器会并行测速并自动挑出最快的可用源；Termux 包源点一下即可直接切换。",
+        infoText = "下载源决定安装、更新酒馆和下载依赖时走哪条线路，切换不会影响已有聊天或数据。\n国内直连慢或下不动时，可点「一键测速优选」自动挑最快镜像源，或直接开启代理后使用官方源；Termux 包源点一下即可切换。",
     ),
     SetupWizard(
         title = "首次安装向导",
@@ -224,23 +224,12 @@ fun BusyPanel(label: String, startedAtMillis: Long) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(8.dp)
-                            .height(8.dp)
-                            .background(LukoaColors.Primary, RoundedCornerShape(4.dp)),
-                    )
-                    Text(
-                        text = "命令执行中",
-                        color = LukoaColors.Primary,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                Text(
+                    text = "命令执行中",
+                    color = LukoaColors.Primary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 StatusPill(
                     text = elapsedText,
                     active = true,

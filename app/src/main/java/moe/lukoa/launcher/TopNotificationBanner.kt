@@ -221,27 +221,23 @@ private fun TopBannerNotificationCard(
     onDismiss: () -> Unit,
 ) {
     var cumulativeDragY by remember(message.id) { mutableFloatStateOf(0f) }
-    val barColor: Color
     val borderColor: Color
     val containerColor: Color
     val titleColor: Color
     when (message.tone) {
         LukoaTopBannerTone.Danger -> {
-            barColor = LukoaColors.Danger
             borderColor = LukoaColors.Danger.copy(alpha = 0.55f)
             containerColor = LukoaColors.DangerSoft
             titleColor = LukoaColors.TextPrimary
         }
         LukoaTopBannerTone.Warning -> {
-            barColor = LukoaColors.Accent
             borderColor = LukoaColors.Border
             containerColor = LukoaColors.Elevated
-            titleColor = LukoaColors.TextPrimary
+            titleColor = LukoaColors.Accent
         }
         LukoaTopBannerTone.Success,
         LukoaTopBannerTone.Neutral,
         -> {
-            barColor = LukoaColors.Primary
             borderColor = LukoaColors.Border
             containerColor = LukoaColors.Elevated
             titleColor = LukoaColors.TextPrimary
@@ -276,16 +272,10 @@ private fun TopBannerNotificationCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .heightIn(min = if (message.detail.isNotBlank()) 32.dp else 18.dp)
-                    .background(barColor, RoundedCornerShape(2.dp)),
-            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -395,15 +385,10 @@ private fun FloatingBusyStatusBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(LukoaColors.Primary, RoundedCornerShape(4.dp)),
-                )
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
@@ -460,16 +445,10 @@ private fun FloatingPendingTaskBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(26.dp)
-                    .background(LukoaColors.Accent, RoundedCornerShape(2.dp)),
-            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(1.dp),

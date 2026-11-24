@@ -389,15 +389,7 @@ fun LukoaLauncherScreen(
     }
     val initialPendingLauncherTask = remember { PendingLauncherTaskStore.load(context) }
     var pendingLauncherTask by remember { mutableStateOf(initialPendingLauncherTask) }
-    var showPendingTaskDialog by remember {
-        mutableStateOf(
-            PendingLauncherTaskSupport.shouldShowRecoveryUi(
-                task = initialPendingLauncherTask,
-                operationActive = initialRestoredOperationLock != null,
-                operationRestored = initialRestoredOperationLock != null,
-            ),
-        )
-    }
+    var showPendingTaskDialog by remember { mutableStateOf(false) }
     var showBackgroundTaskCenter by rememberSaveable { mutableStateOf(false) }
     var backgroundTaskCenterResults by remember { mutableStateOf<List<TermuxResultDisplay>>(emptyList()) }
     val actionInProgress = busyLabel != null
@@ -466,14 +458,6 @@ fun LukoaLauncherScreen(
             }
         }
         onDispose(stopObserving)
-    }
-
-    LaunchedEffect(autoBackupEnabled, backgroundRunPermissionGranted) {
-        if (autoBackupEnabled && !backgroundRunPermissionGranted && !backgroundPermissionPromptShown) {
-            backgroundPermissionPromptShown = true
-            delay(700)
-            showBackgroundRunPermissionDialog = true
-        }
     }
 
     fun currentState(): LauncherUiState {
@@ -1672,7 +1656,29 @@ fun LukoaLauncherScreen(
             persistAutoBackupConfig = onPersistAutoBackupConfig,
             configureAutoBackupSchedule = onConfigureAutoBackupSchedule,
             isBackgroundRunPermissionGranted = { backgroundRunPermissionGranted },
-            showBackgroundRunPermissionDialog = { showBackgroundRunPermissionDialog = true },
+            showBackgroundRunPermissionDialog = {
+                topBannerController.show(
+                    title = "建议允许后台运行以保证自动备份准时执行",
+                    detail = "未放行时系统可能延迟定时备份任务。",
+                    tone = LukoaTopBannerTone.Warning,
+                    actionLabel = "去授权",
+                    onAction = {
+                        val opened = onRequestBackgroundRunPermission()
+                        update(
+                            if (opened) {
+                                "已打开后台运行权限页面。允许后回启动器即可。"
+                            } else {
+                                "打开后台运行权限页面失败，请到系统设置里允许后台运行。"
+                            },
+                            "",
+                            opened,
+                            allowRunningInference = false,
+                        )
+                    },
+                    autoDismissMs = 7_500L,
+                    dedupeKey = "auto-backup-bg-permission",
+                )
+            },
             activeOperationLabel = { busyLabel ?: OperationLockStore.activeLabel(context) },
             beginBusy = ::beginBusy,
             isOperationActive = ::isBusyOperationActive,
@@ -2443,8 +2449,23 @@ fun LukoaLauncherScreen(
 
     fun openTermuxDownload(url: String, label: String) {
         val opened = onOpenExternalUrl(url)
+        topBannerController.show(
+            title = if (opened) "已打开 $label" else "打开下载页失败",
+            detail = if (opened) {
+                "若页面打不开或下不动，请先开启代理或改用「备用下载」；装好后先打开一次 Termux。"
+            } else {
+                "请检查浏览器，或开启代理后重试。"
+            },
+            tone = if (opened) LukoaTopBannerTone.Neutral else LukoaTopBannerTone.Warning,
+            autoDismissMs = 5_500L,
+            dedupeKey = "termux-download-$label",
+        )
         update(
-            if (opened) "已打开 $label。装好后回来重新检测。" else "打开失败，请检查浏览器。",
+            if (opened) {
+                "已打开 $label。若打不开或下不了请先开启代理，装好后回来重新检测。"
+            } else {
+                "打开失败，请检查浏览器或开启代理后重试。"
+            },
             "",
             opened,
             allowRunningInference = false,
@@ -4135,13 +4156,10 @@ fun LukoaLauncherScreen(
         }
     }
 
-    pendingAptConfigTask?.let { task ->
-        AptConfigPolicyDialog(
-            pendingTask = task,
-            actionsLocked = actionInProgress,
-            onChoose = ::chooseAptConfigPolicy,
-            onDismiss = ::clearPendingAptConfigTask,
-        )
+    LaunchedEffect(pendingAptConfigTask) {
+        if (pendingAptConfigTask != null) {
+            chooseAptConfigPolicy(AptConfigPolicy.KeepCurrent)
+        }
     }
 
     pendingLauncherTask?.takeIf { showPendingTaskDialog && pendingTaskNeedsRecovery }?.let { task ->
@@ -4248,23 +4266,28 @@ fun LukoaLauncherScreen(
         onChoose = profileCoordinator::chooseDetectedTavernDirectory,
     )
 
-    if (showStopConfirmDialog) {
-        StopTavernConfirmDialog(
-            profile = tavernPathConfig.activeProfile,
-            actionsLocked = actionInProgress,
-            onConfirm = ::confirmStopTavern,
-            onDismiss = { showStopConfirmDialog = false },
-        )
+    LaunchedEffect(showStopConfirmDialog) {
+        if (showStopConfirmDialog) {
+            topBannerController.show(
+                title = "正在停止酒馆",
+                tone = LukoaTopBannerTone.Neutral,
+                autoDismissMs = 2_600L,
+                dedupeKey = "stop-tavern-direct",
+            )
+            confirmStopTavern()
+        }
     }
 
-    if (showRestartConfirmDialog) {
-        RestartTavernConfirmDialog(
-            profile = tavernPathConfig.activeProfile,
-            launchMode = tavernLaunchMode,
-            actionsLocked = actionInProgress,
-            onConfirm = ::confirmRestartTavern,
-            onDismiss = { showRestartConfirmDialog = false },
-        )
+    LaunchedEffect(showRestartConfirmDialog) {
+        if (showRestartConfirmDialog) {
+            topBannerController.show(
+                title = "正在重启酒馆",
+                tone = LukoaTopBannerTone.Neutral,
+                autoDismissMs = 2_800L,
+                dedupeKey = "restart-tavern-direct",
+            )
+            confirmRestartTavern()
+        }
     }
 
     LaunchedEffect(opsUiState.chatGuardState.effectiveRescueCount) {
@@ -5564,6 +5587,9 @@ fun LukoaLauncherScreen(
                                 onReturnToLaunch = {
                                     secondaryPage = null
                                     selectedTab = LauncherTab.Launch
+                                },
+                                onOpenMirrorSettings = {
+                                    secondaryPage = LauncherSecondaryPage.MirrorSettings
                                 },
                             )
                             }

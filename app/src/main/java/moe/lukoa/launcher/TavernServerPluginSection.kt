@@ -35,7 +35,6 @@ fun TavernServerPluginSection(
     var showInstallDialog by rememberSaveable(instanceLabel) { mutableStateOf(false) }
     var repoInput by rememberSaveable(instanceLabel) { mutableStateOf("") }
     var pendingDelete by remember(instanceLabel) { mutableStateOf<TavernServerPluginRecord?>(null) }
-    var pendingUpdate by remember(instanceLabel) { mutableStateOf<TavernServerPluginRecord?>(null) }
     val lockedHint = if (actionsLocked) "当前有其他任务正在处理，请等任务完成后再试。" else null
     val repoError = repoInput.takeIf { it.isNotBlank() }?.let(TavernServerPluginCommandCodec::validateRepositoryUrl)
 
@@ -49,7 +48,7 @@ fun TavernServerPluginSection(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "粘贴插件作者提供的公开网址（以 https:// 开头）。启动器会自动下载并装好所需文件，不会覆盖已有同名插件。",
+                        text = "粘贴插件作者提供的公开网址（以 https:// 开头）。启动器会自动下载并装好所需文件，不会覆盖已有同名插件；若 GitHub 拉取失败，请先开启代理。",
                         color = LukoaColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -86,40 +85,6 @@ fun TavernServerPluginSection(
                     text = "取消",
                     tone = ActionTone.Neutral,
                     onClick = { showInstallDialog = false },
-                )
-            },
-        )
-    }
-
-    pendingUpdate?.let { plugin ->
-        AlertDialog(
-            onDismissRequest = { pendingUpdate = null },
-            containerColor = LukoaColors.Elevated,
-            titleContentColor = LukoaColors.TextPrimary,
-            textContentColor = LukoaColors.TextPrimary,
-            title = { Text("更新后端插件") },
-            text = {
-                Text(
-                    text = "会拉取「${plugin.displayName}」的最新版本并同步所需文件，更新后重启酒馆生效。",
-                    color = LukoaColors.TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            },
-            confirmButton = {
-                DialogActionButton(
-                    text = "确认更新",
-                    tone = ActionTone.Safe,
-                    onClick = {
-                        pendingUpdate = null
-                        onUpdate(plugin.directoryName)
-                    },
-                )
-            },
-            dismissButton = {
-                DialogActionButton(
-                    text = "取消",
-                    tone = ActionTone.Neutral,
-                    onClick = { pendingUpdate = null },
                 )
             },
         )
@@ -306,7 +271,7 @@ fun TavernServerPluginSection(
                                         modifier = Modifier.weight(1f),
                                         unavailableHint = lockedHint ?: "这个插件是手动放进去的，暂不支持一键更新。",
                                         onShowHint = onShowHint,
-                                        onClick = { pendingUpdate = plugin },
+                                        onClick = { onUpdate(plugin.directoryName) },
                                     )
                                     SettingsFeedbackActionButton(
                                         text = "删除",

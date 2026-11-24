@@ -150,6 +150,7 @@ class SpotlightOnboardingTourTest {
         val setupPrimary = freshSteps.first { it.id == SpotlightTourCatalog.STEP_SETUP_PRIMARY }
         assertTrue(setupPrimary.allowTargetTap)
         assertEquals("立即下载 Termux", setupPrimary.actionLabel)
+        assertTrue(setupPrimary.description.contains("开启代理"))
 
         val readyPrimary = readySteps.first { it.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY }
         assertFalse(readyPrimary.allowTargetTap)
@@ -162,6 +163,12 @@ class SpotlightOnboardingTourTest {
         assertEquals(3, setupOnly.size)
         assertEquals("复制权限命令", setupOnly[1].actionLabel)
         assertNull(setupOnly[2].actionLabel)
+
+        val installTavernGuide = SpotlightTourCatalog.buildSetupOnlySteps(
+            setupStage = SpotlightSetupStage.InstallTavern,
+            followedByFeatureTour = false,
+        )
+        assertTrue(installTavernGuide[1].description.contains("开启代理"))
     }
 
     @Test

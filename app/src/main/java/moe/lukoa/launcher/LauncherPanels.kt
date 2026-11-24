@@ -100,27 +100,11 @@ fun Header(
                         softWrap = false,
                         overflow = TextOverflow.Clip,
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = "Termux 控制台",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = LukoaColors.TextSecondary,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .background(
-                                    color = when {
-                                        tavernRunning || tavernStarting -> LukoaColors.Primary
-                                        else -> LukoaColors.Dim
-                                    },
-                                    shape = RoundedCornerShape(5.dp),
-                                ),
-                        )
-                    }
+                    Text(
+                        text = "Termux 控制台",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = LukoaColors.TextSecondary,
+                    )
                 }
             }
             Box(
@@ -179,15 +163,9 @@ fun SectionPanel(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(18.dp)
-                        .background(accentColor, RoundedCornerShape(2.dp)),
-                )
-                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),

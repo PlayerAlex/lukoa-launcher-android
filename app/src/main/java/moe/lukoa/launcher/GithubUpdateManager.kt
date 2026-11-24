@@ -184,7 +184,7 @@ class GithubUpdateManager(private val context: Context) {
         } catch (error: Exception) {
             GithubUpdateCheckResult(
                 ok = false,
-                message = "检查 GitHub 更新失败：${error.message ?: error.javaClass.simpleName}",
+                message = "检查 GitHub 更新失败（若直连不通请先开启代理）：${error.message ?: error.javaClass.simpleName}",
             )
         }
     }
@@ -321,7 +321,7 @@ class GithubUpdateManager(private val context: Context) {
 
             DownloadedApk(true, "新版 APK 已下载：${file.name}", file)
         } catch (error: Exception) {
-            DownloadedApk(false, "下载新版失败：${error.message ?: error.javaClass.simpleName}", null)
+            DownloadedApk(false, "下载新版失败（若下不动请先开启代理，或点「打开发布页」手动下载）：${error.message ?: error.javaClass.simpleName}", null)
         }
     }
 

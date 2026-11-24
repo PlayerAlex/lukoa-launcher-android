@@ -229,7 +229,7 @@ object TavernIssueAnalyzer {
             issues += TavernIssue(
                 title = "Termux 包源没准备好",
                 detail = "Termux 没有可用包源，基础依赖装不上。",
-                action = "先到设置里切换 Termux 清华源，再点“准备 Termux 环境”。",
+                action = "开启代理，或先到「设置 → 网络与镜像源」切换 Termux 清华源 / 中科大源，再点“准备 Termux 环境”。",
                 severity = IssueSeverity.Danger,
                 quickFixAction = LauncherQuickFixAction(
                     type = LauncherQuickFixActionType.OpenNetworkSettings,
@@ -380,8 +380,8 @@ object TavernIssueAnalyzer {
         ) {
             issues += TavernIssue(
                 title = "酒馆源码下载失败",
-                detail = "当前酒馆 Git 源可能连不上，国内网络常见。",
-                action = "到设置里的网络与镜像源，切换 GitHub 加速或填写可用镜像源。",
+                detail = "当前酒馆 Git 源连不上或被拦截，国内直连常见。",
+                action = "请开启代理，或到「设置 → 网络与镜像源」一键测速优选国内镜像源后重试。",
                 severity = IssueSeverity.Warning,
                 quickFixAction = LauncherQuickFixAction(
                     type = LauncherQuickFixActionType.OpenNetworkSettings,
@@ -397,8 +397,8 @@ object TavernIssueAnalyzer {
         ) {
             issues += TavernIssue(
                 title = "依赖下载失败",
-                detail = "npm 依赖源可能连不上或太慢。",
-                action = "到设置里的网络与镜像源，切换 npm 镜像后重试。",
+                detail = "npm 依赖源连不上或下载超时。",
+                action = "请开启代理，或到「设置 → 网络与镜像源」切换 npm 国内镜像后重试。",
                 severity = IssueSeverity.Warning,
                 quickFixAction = LauncherQuickFixAction(
                     type = LauncherQuickFixActionType.OpenNetworkSettings,

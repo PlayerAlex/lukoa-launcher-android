@@ -5,12 +5,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateRectAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -170,7 +166,7 @@ object SpotlightTourCatalog {
                     badge = if (needsInitialSetup) "欢迎使用" else "新手引导",
                     title = if (needsInitialSetup) "欢迎使用露科亚启动器" else "一眼看清酒馆状态",
                     description = if (needsInitialSetup) {
-                        "顶部状态卡实时显示酒馆运行状态和当前版本。第一次使用别着急，接下来我会用聚光灯一步一步带你完成环境准备，再认识常用功能。"
+                        "顶部状态卡实时显示酒馆运行状态和当前版本。首次使用按步骤完成环境准备后，再顺带看一遍常用功能。"
                     } else {
                         "这里实时显示酒馆运行状态、当前版本与实用提示；配置多实例分身时，点这里还能快速切换不同酒馆。"
                     },
@@ -188,7 +184,7 @@ object SpotlightTourCatalog {
                     badge = if (needsInitialSetup) "首次配置" else "启动控制",
                     title = if (needsInitialSetup) "从这里进入首次安装向导" else "一键启动或停止酒馆",
                     description = if (needsInitialSetup) {
-                        "检测到当前还没配好 Termux 或酒馆。点高亮的主按钮（或下方按钮），我会继续用聚光灯在向导页里一步步带你装好。"
+                        "当前还没检测到完整的 Termux 或酒馆环境。点击高亮的主按钮（或下方按钮）进入向导，按提示把 Termux 和酒馆装好。"
                     } else {
                         "日常点这里即可启动或停止 SillyTavern；如果 Termux 在后台休眠了，可以先点上方「唤醒 Termux 并返回」。"
                     },
@@ -279,7 +275,7 @@ object SpotlightTourCatalog {
         val (primaryTitle, primaryDescription, primaryActionLabel) = when (setupStage) {
             SpotlightSetupStage.InstallTermux -> Triple(
                 "当前步骤：安装并打开一次 Termux",
-                "点亮处的「下载 Termux」获取安装包；装好后一定要先打开一次 Termux 完成初始化，再切回启动器。",
+                "点亮处的「下载 Termux」获取安装包；若 F-Droid 或 GitHub 打不开、下不了，请先开启代理再试。装好后务必先打开一次 Termux 再切回来。",
                 "立即下载 Termux",
             )
             SpotlightSetupStage.RequestPermission -> Triple(
@@ -294,7 +290,7 @@ object SpotlightTourCatalog {
             )
             SpotlightSetupStage.PrepareEnvironment -> Triple(
                 "当前步骤：自动准备运行环境",
-                "点亮处的「准备 Termux 环境」，启动器会自动安装 Node.js 等基础组件，首次准备大约需要几分钟。",
+                "点亮处的「准备 Termux 环境」，启动器会自动安装 Node.js 等基础组件（首次需几分钟）；若下载失败或超时，请开启代理或去设置切国内包源。",
                 "开始准备环境",
             )
             SpotlightSetupStage.DetectTavern -> Triple(
@@ -304,7 +300,7 @@ object SpotlightTourCatalog {
             )
             SpotlightSetupStage.InstallTavern -> Triple(
                 "当前步骤：一键安装酒馆",
-                "默认稳定版最省心。点亮处的安装按钮即可开始部署（约 5–10 分钟）；若下载较慢，可先去设置页一键优选镜像源。",
+                "默认稳定版最省心。点亮处的安装按钮即可开始部署（约 5–10 分钟）；若一直下不动或报错，请开启代理，或先去「设置 → 网络与镜像源」一键测速优选。",
                 "立即开始安装",
             )
             SpotlightSetupStage.Ready -> Triple(
@@ -320,9 +316,9 @@ object SpotlightTourCatalog {
                 targetId = SpotlightTargetId.SetupStepProgress,
                 requiredTab = LauncherTab.Launch,
                 requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
-                badge = "首次安装 · 进度",
+                badge = "配置进度",
                 title = "一共只需完成这 4 步",
-                description = "顶部进度条会清楚标出你目前在哪一步：装 Termux → 连权限 → 配环境 → 装酒馆。每完成一项就会自动推进到下一步。",
+                description = "顶部进度条对应 4 个阶段：装 Termux、连权限、配环境、装酒馆。每完成一项会自动推进到下一步。",
                 cutoutPaddingDp = 6f,
                 cutoutCornerRadiusDp = 16f,
                 nextLabel = "看当前操作",
@@ -332,7 +328,7 @@ object SpotlightTourCatalog {
                 targetId = SpotlightTargetId.SetupPrimaryAction,
                 requiredTab = LauncherTab.Launch,
                 requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
-                badge = "首次安装 · 主操作",
+                badge = "当前操作",
                 title = primaryTitle,
                 description = primaryDescription,
                 cutoutPaddingDp = 6f,
@@ -347,12 +343,12 @@ object SpotlightTourCatalog {
                 targetId = SpotlightTargetId.SetupSecondaryActions,
                 requiredTab = LauncherTab.Launch,
                 requiredSecondaryPage = LauncherSecondaryPage.SetupWizard,
-                badge = "首次安装 · 检测与备用",
+                badge = "刷新与备用",
                 title = "做完记得点这里重新检测",
                 description = if (followedByFeatureTour) {
-                    "装完软件或开完权限回到这里，点「重新检测」进度就会自动前进。你可以直接留在这开始安装，或点「下一步」继续逛逛其他页面。"
+                    "装完软件或开完权限回到这里，点「重新检测」进度就会自动前进。可以直接留在这开始配置，或点「继续逛其他页面」。"
                 } else {
-                    "每次切到 Termux 或系统设置操作完成后，回来点这里的「重新检测」刷新状态，向导就会自动带你进入下一关。"
+                    "切到 Termux 或系统设置操作完成后，回来点这里的「重新检测」刷新状态，向导会自动进入下一步。"
                 },
                 cutoutPaddingDp = 6f,
                 cutoutCornerRadiusDp = 14f,
@@ -575,16 +571,6 @@ fun SpotlightTourOverlay(
         }
         var lastValidPaddedRect by remember { mutableStateOf<Rect?>(null) }
 
-        val infiniteTransition = rememberInfiniteTransition(label = "spotlight-halo-pulse")
-        val haloPulse by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "spotlight-halo-progress",
-        )
         val scrimAlpha by animateFloatAsState(
             targetValue = if (isTransitioning) 0.56f else 0.72f,
             animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
@@ -657,10 +643,6 @@ fun SpotlightTourOverlay(
             )
 
             val ringPrimaryColor = LukoaColors.Primary.copy(alpha = focusAlpha)
-            val ringHaloColor = LukoaColors.Primary.copy(
-                alpha = (0.14f + 0.16f * haloPulse) * focusAlpha,
-            )
-            val haloStrokeDp = (4.5f + 3.5f * haloPulse).dp
             val cardFillColor = LukoaColors.Elevated
             val cardBorderColor = LukoaColors.Border
 
@@ -699,18 +681,11 @@ fun SpotlightTourOverlay(
                             blendMode = BlendMode.Clear,
                         )
                         drawRoundRect(
-                            color = ringHaloColor,
-                            topLeft = topLeft,
-                            size = rectSize,
-                            cornerRadius = corner,
-                            style = Stroke(width = haloStrokeDp.toPx()),
-                        )
-                        drawRoundRect(
                             color = ringPrimaryColor,
                             topLeft = topLeft,
                             size = rectSize,
                             cornerRadius = corner,
-                            style = Stroke(width = 1.75.dp.toPx()),
+                            style = Stroke(width = 1.5.dp.toPx()),
                         )
                     }
                 }
