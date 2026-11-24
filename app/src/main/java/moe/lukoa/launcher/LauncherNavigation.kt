@@ -126,6 +126,10 @@ enum class LauncherSecondaryPage(
         title = "网络与镜像源",
         infoText = "下载源决定安装、更新酒馆和下载依赖时走哪条线路，切换不会影响已有聊天或数据。\n不确定选哪个时，直接点「一键测速优选」，启动器会并行测速并自动挑出最快的可用源；Termux 包源点一下即可直接切换。",
     ),
+    SetupWizard(
+        title = "首次安装向导",
+        infoText = "按顺序完成 Termux 安装、权限授权、环境准备和酒馆安装 4 步即可开始使用。酒馆默认安装到设置里的当前实例路径（~/SillyTavern），完成后回到启动页点「启动酒馆」即可。",
+    ),
 }
 
 @Composable
@@ -147,6 +151,11 @@ fun LauncherBottomBar(
                 LauncherTab.entries.forEach { tab ->
                     val selected = selectedTab == tab
                     NavigationBarItem(
+                        modifier = if (tab == LauncherTab.Settings) {
+                            Modifier.spotlightTarget(SpotlightTargetId.BottomTabSettings)
+                        } else {
+                            Modifier
+                        },
                         selected = selected,
                         onClick = { onSelectTab(tab) },
                         icon = {

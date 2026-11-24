@@ -93,6 +93,7 @@ fun DocumentationSection(
     modifier: Modifier = Modifier,
     initialMenuOpen: Boolean = false,
     onPagerLockChange: (Boolean) -> Unit = {},
+    onStartSpotlightTour: (() -> Unit)? = null,
 ) {
     var selectedPage by rememberSaveable { mutableStateOf(DocumentationPage.Home) }
     var menuOpen by rememberSaveable { mutableStateOf(initialMenuOpen) }
@@ -141,6 +142,7 @@ fun DocumentationSection(
                     DocumentationPageHeader(
                         title = selectedPage.pageTitle,
                         onOpenMenu = { menuOpen = true },
+                        onStartSpotlightTour = onStartSpotlightTour,
                     )
                     LukoaSearchField(
                         value = searchQuery,
@@ -193,10 +195,11 @@ fun DocumentationSection(
 private fun DocumentationPageHeader(
     title: String,
     onOpenMenu: () -> Unit,
+    onStartSpotlightTour: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
@@ -222,10 +225,33 @@ private fun DocumentationPageHeader(
         }
         Text(
             text = title,
+            modifier = Modifier.weight(1f),
             color = LukoaColors.TextPrimary,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
         )
+        if (onStartSpotlightTour != null) {
+            Surface(
+                modifier = Modifier
+                    .spotlightTarget(SpotlightTargetId.DocsSpotlightReplay)
+                    .testTag("documentation-spotlight-tour-button")
+                    .clickable(
+                        role = Role.Button,
+                        onClick = rememberFeedbackClick(onStartSpotlightTour),
+                    ),
+                color = LukoaColors.Elevated,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, LukoaColors.Border),
+            ) {
+                Text(
+                    text = "新手引导",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    color = LukoaColors.Primary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
     }
 }
 

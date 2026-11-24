@@ -59,6 +59,7 @@ fun QuickStartGuideSection(
     onSelectVersion: (TavernVersionChoice) -> Unit,
     onUseRecommendedVersion: () -> Unit,
     onInstallTavern: () -> Unit,
+    showSectionContainer: Boolean = true,
 ) {
     val permissionReady = termuxInstalled && runCommandPermissionGranted && !externalAppsBlocked
     val effectiveSelectedVersion = selectedVersion ?: TavernInstallDefaults.releaseChoice(mirrorRepoUrl)
@@ -167,28 +168,7 @@ fun QuickStartGuideSection(
 
     val completedSteps = (stepIndex - 1).coerceIn(0, 4)
 
-    SectionPanel(
-        title = "第一次使用",
-        accentColor = LukoaColors.Primary,
-        headerAction = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusPill(
-                    text = "已完成 $completedSteps/4",
-                    active = completedSteps > 0,
-                    toneColor = LukoaColors.Primary,
-                    activeBackground = LukoaColors.PrimarySoft,
-                )
-                InfoPopoverButton(
-                    contentDescription = "查看第一次使用说明",
-                    title = "第一次使用",
-                    body = "这里每次只推荐下一步，按绿色主按钮继续即可；灰色按钮用于重新检测或打开备用入口。\n酒馆会安装到设置里的当前实例路径，默认是 ~/SillyTavern。安装通常需要 5–10 分钟，期间保持 Termux 可以在后台运行。\n不知道版本怎么选时使用默认稳定版。完成安装后，回到启动页点击“启动酒馆”。",
-                )
-            }
-        },
-    ) {
+    val guideBody: @Composable () -> Unit = {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = LukoaColors.Elevated,
@@ -296,10 +276,54 @@ fun QuickStartGuideSection(
         )
         OnboardingProgressList(currentStep = stepIndex)
         Text(
-            text = "完成这 4 步后，新手指引会自动收起。",
+            text = "完成这 4 步后，回到启动页点「启动酒馆」即可开始使用。",
             color = LukoaColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+
+    if (showSectionContainer) {
+        SectionPanel(
+            title = "第一次使用",
+            accentColor = LukoaColors.Primary,
+            headerAction = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StatusPill(
+                        text = "已完成 $completedSteps/4",
+                        active = completedSteps > 0,
+                        toneColor = LukoaColors.Primary,
+                        activeBackground = LukoaColors.PrimarySoft,
+                    )
+                    InfoPopoverButton(
+                        contentDescription = "查看第一次使用说明",
+                        title = "第一次使用",
+                        body = "这里每次只推荐下一步，按主按钮继续即可；下方按钮用于重新检测或打开备用入口。\n酒馆会安装到设置里的当前实例路径，默认是 ~/SillyTavern。安装通常需要 5–10 分钟，期间保持 Termux 可以在后台运行。\n不知道版本怎么选时使用默认稳定版。完成安装后，回到启动页点击“启动酒馆”。",
+                    )
+                }
+            },
+        ) {
+            guideBody()
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingsGroupLabel("首次配置进度")
+                Text(
+                    text = "已完成 $completedSteps/4",
+                    color = if (completedSteps > 0) LukoaColors.Primary else LukoaColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            guideBody()
+        }
     }
 }
 

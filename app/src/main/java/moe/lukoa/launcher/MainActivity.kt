@@ -161,6 +161,7 @@ class MainActivity : ComponentActivity() {
         val initialTavernLaunchMode = tavernLaunchModeStore.load()
         val ignoredUpdateTag = githubUpdateStore.loadIgnoredUpdateTag()
         val firstTavernStartGuideSeen = stateStore.hasSeenFirstTavernStartGuide()
+        val spotlightTourSeen = stateStore.hasSeenSpotlightTour()
         val shouldRunStartupRefresh = isTermuxInstalled && hasRunCommandPermission
         val startupRefreshSignal = if (shouldRunStartupRefresh) 1 else 0
         val allFilesAccessGranted = hasAllFilesAccessPermission()
@@ -198,6 +199,7 @@ class MainActivity : ComponentActivity() {
                     initialBackgroundRunPermissionGranted = backgroundRunPermissionGranted,
                     initialTermuxBackgroundRunPermissionGranted = termuxBackgroundRunPermissionGranted,
                     initialFirstTavernStartGuideSeen = firstTavernStartGuideSeen,
+                    initialSpotlightTourSeen = spotlightTourSeen,
                     initialAllFilesAccessGranted = allFilesAccessGranted,
                     initialInstallUnknownAppsGranted = installUnknownAppsGranted,
                     startupRefreshSignal = startupRefreshSignal,
@@ -254,6 +256,7 @@ class MainActivity : ComponentActivity() {
                         BackgroundRunAccess.requestTermux(applicationContext)
                     },
                     onMarkFirstTavernStartGuideSeen = stateStore::markFirstTavernStartGuideSeen,
+                    onMarkSpotlightTourSeen = stateStore::markSpotlightTourSeen,
                     onCheckAllFilesAccessPermission = ::hasAllFilesAccessPermission,
                     onCheckInstallUnknownAppsPermission = ::canInstallUnknownApps,
                     onConfigureAutoBackupSchedule = { enabled, intervalMinutes, resetCountdown ->

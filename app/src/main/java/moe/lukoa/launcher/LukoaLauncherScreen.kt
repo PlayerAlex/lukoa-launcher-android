@@ -53,6 +53,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
@@ -86,6 +88,7 @@ fun LukoaLauncherScreen(
     initialBackgroundRunPermissionGranted: Boolean,
     initialTermuxBackgroundRunPermissionGranted: Boolean,
     initialFirstTavernStartGuideSeen: Boolean,
+    initialSpotlightTourSeen: Boolean = true,
     initialAllFilesAccessGranted: Boolean,
     initialInstallUnknownAppsGranted: Boolean,
     startupRefreshSignal: Int,
@@ -110,6 +113,7 @@ fun LukoaLauncherScreen(
     onCheckTermuxBackgroundRunPermission: () -> Boolean,
     onRequestTermuxBackgroundRunPermission: () -> Boolean,
     onMarkFirstTavernStartGuideSeen: () -> Unit,
+    onMarkSpotlightTourSeen: () -> Unit = {},
     onCheckAllFilesAccessPermission: () -> Boolean,
     onCheckInstallUnknownAppsPermission: () -> Boolean,
     onConfigureAutoBackupSchedule: (Boolean, Int, Boolean) -> Unit,
@@ -178,6 +182,11 @@ fun LukoaLauncherScreen(
         mutableStateOf(initialTermuxBackgroundRunPermissionGranted)
     }
     var firstTavernStartGuideSeen by remember { mutableStateOf(initialFirstTavernStartGuideSeen) }
+    var spotlightTourSeen by rememberSaveable { mutableStateOf(initialSpotlightTourSeen) }
+    var spotlightTourActive by rememberSaveable { mutableStateOf(false) }
+    var spotlightStepIndex by rememberSaveable { mutableIntStateOf(0) }
+    val spotlightRegistry = remember { SpotlightTargetRegistry() }
+    var rootLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var allFilesAccessGranted by remember { mutableStateOf(initialAllFilesAccessGranted) }
     var installUnknownAppsGranted by remember { mutableStateOf(initialInstallUnknownAppsGranted) }
     var termuxExternalAppsBlocked by remember {
@@ -3758,6 +3767,89 @@ fun LukoaLauncherScreen(
         }
     }
 
+    val setupRecommended = termuxSetupRecommended()
+    val needsInitialSetup = !termuxInstalled ||
+        termuxPermissionBlocked() ||
+        setupRecommended ||
+        tavernInstallDetected != true
+    val spotlightSteps = remember(needsInitialSetup) {
+        SpotlightTourCatalog.buildSteps(needsInitialSetup = needsInitialSetup)
+    }
+
+    fun startSpotlightTour() {
+        secondaryPage = null
+        selectedTab = LauncherTab.Launch
+        spotlightStepIndex = 0
+        spotlightTourActive = true
+    }
+
+    fun closeSpotlightTour(returnToLaunch: Boolean = true) {
+        spotlightTourActive = false
+        if (!spotlightTourSeen) {
+            spotlightTourSeen = true
+            onMarkSpotlightTourSeen()
+        }
+        if (returnToLaunch) {
+            selectedTab = LauncherTab.Launch
+        }
+    }
+
+    LaunchedEffect(
+        spotlightTourSeen,
+        quickStartRequestSignal,
+        secondaryPage,
+        showPendingTaskDialog,
+        showUpdateDialog,
+    ) {
+        if (
+            !spotlightTourSeen &&
+            !spotlightTourActive &&
+            quickStartRequestSignal == 0 &&
+            secondaryPage == null &&
+            !showPendingTaskDialog &&
+            !showUpdateDialog
+        ) {
+            delay(420L)
+            if (
+                !spotlightTourSeen &&
+                !spotlightTourActive &&
+                secondaryPage == null &&
+                !showPendingTaskDialog &&
+                !showUpdateDialog
+            ) {
+                startSpotlightTour()
+            }
+        }
+    }
+
+    LaunchedEffect(spotlightTourActive, spotlightStepIndex, spotlightSteps) {
+        if (!spotlightTourActive) return@LaunchedEffect
+        val step = spotlightSteps.getOrNull(spotlightStepIndex) ?: return@LaunchedEffect
+        if (secondaryPage != null) {
+            secondaryPage = null
+        }
+        if (selectedTab != step.requiredTab) {
+            selectedTab = step.requiredTab
+        }
+    }
+
+    LaunchedEffect(needsInitialSetup, secondaryPage) {
+        if (secondaryPage == LauncherSecondaryPage.SetupWizard && !needsInitialSetup) {
+            topBannerController.show(
+                title = "首次安装配置已完成",
+                detail = "回到启动页点击「启动酒馆」即可开始使用。",
+                tone = LukoaTopBannerTone.Success,
+                actionLabel = "回启动页",
+                onAction = {
+                    secondaryPage = null
+                    selectedTab = LauncherTab.Launch
+                },
+                autoDismissMs = 5_000L,
+                dedupeKey = "setup-wizard-completed",
+            )
+        }
+    }
+
     LaunchedEffect(selectedTab) {
         if (pagerState.currentPage != selectedTab.ordinal) {
             pagerState.animateScrollToPage(
@@ -4471,11 +4563,19 @@ fun LukoaLauncherScreen(
         label = "main-content-alpha",
     )
 
-    CompositionLocalProvider(LocalLukoaTopBanner provides topBannerController) {
+    CompositionLocalProvider(
+        LocalLukoaTopBanner provides topBannerController,
+        LocalSpotlightRegistry provides spotlightRegistry,
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(LukoaColors.Background),
+                .background(LukoaColors.Background)
+                .onGloballyPositioned { coords ->
+                    if (coords.isAttached) {
+                        rootLayoutCoordinates = coords
+                    }
+                },
         ) {
             Column(
                 modifier = Modifier
@@ -4506,7 +4606,7 @@ fun LukoaLauncherScreen(
             beyondViewportPageCount = 1,
             pageSpacing = 6.dp,
             contentPadding = PaddingValues(horizontal = 2.dp),
-            userScrollEnabled = !pagerInteractionLocked,
+            userScrollEnabled = !pagerInteractionLocked && !spotlightTourActive,
         ) { page ->
             val tab = LauncherTab.entries[page]
             val pageOffset = (
@@ -4515,6 +4615,15 @@ fun LukoaLauncherScreen(
             val pageScale = 0.992f + ((1f - pageOffset) * 0.008f)
             val pageAlpha = 0.94f + ((1f - pageOffset) * 0.06f)
             val pageScrollState = rememberScrollState()
+            LaunchedEffect(spotlightTourActive, spotlightStepIndex, tab) {
+                if (
+                    spotlightTourActive &&
+                    tab != LauncherTab.Docs &&
+                    spotlightSteps.getOrNull(spotlightStepIndex)?.requiredTab == tab
+                ) {
+                    pageScrollState.scrollTo(0)
+                }
+            }
 
             Box(
                 modifier = Modifier
@@ -4555,6 +4664,7 @@ fun LukoaLauncherScreen(
                         LauncherTab.Docs -> DocumentationSection(
                             modifier = Modifier.weight(1f),
                             onPagerLockChange = { pagerInteractionLocked = it },
+                            onStartSpotlightTour = ::startSpotlightTour,
                         )
                         LauncherTab.Tavern -> TavernHubSection(
                             tavernRunning = tavernRunning,
@@ -4580,45 +4690,6 @@ fun LukoaLauncherScreen(
                             },
                         )
                         LauncherTab.Launch -> {
-                            val setupRecommended = termuxSetupRecommended()
-                            val showQuickStartGuide = !termuxInstalled ||
-                                termuxPermissionBlocked() ||
-                                setupRecommended ||
-                                tavernInstallDetected != true
-                            if (showQuickStartGuide) {
-                                QuickStartGuideSection(
-                                    termuxInstalled = termuxInstalled,
-                                    runCommandPermissionGranted = runCommandPermissionGranted,
-                                    externalAppsBlocked = termuxExternalAppsBlocked,
-                                    tavernInstallDetected = tavernInstallDetected,
-                                    tavernVersionChecking = tavernVersionCheckInFlight,
-                                    termuxSetupRecommended = setupRecommended,
-                                    officialVersions = officialVersions,
-                                    selectedVersion = selectedTavernVersion,
-                                    mirrorRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
-                                    commandText = TERMUX_EXTERNAL_APPS_COMMAND,
-                                    actionsLocked = actionInProgress,
-                                    onOpenTermuxDownload = {
-                                        openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
-                                    },
-                                    onOpenTermuxGithub = {
-                                        openTermuxDownload(TERMUX_GITHUB_RELEASES_URL, "Termux GitHub Releases")
-                                    },
-                                    onRecheckTermux = ::recheckTermuxInstalled,
-                                    onRequestPermission = ::requestRunCommandPermission,
-                                    onOpenPermissionSettings = ::openLauncherPermissionSettings,
-                                    onCopyPermissionCommand = ::copyTermuxPermissionCommand,
-                                    onOpenTermux = ::openTermuxFromGuide,
-                                    onRecheckPermission = ::recheckRunCommandPermission,
-                                    onPrepareTermux = ::prepareTermuxEnvironment,
-                                    onCheckTavern = ::checkTavernInstall,
-                                    onShowInstall = ::enterTavernInstallFlow,
-                                    onRefreshOfficialVersions = ::refreshOfficialVersions,
-                                    onSelectVersion = { selectedTavernVersion = it },
-                                    onUseRecommendedVersion = ::useRecommendedTavernVersion,
-                                    onInstallTavern = ::installSelectedTavern,
-                                )
-                            }
                             TavernControlSection(
                                 tavernRunning = tavernRunning,
                                 tavernStarting = tavernStarting,
@@ -4669,6 +4740,11 @@ fun LukoaLauncherScreen(
                                         detail = if (copied) url else "请手动访问 $url",
                                         tone = if (copied) LukoaTopBannerTone.Success else LukoaTopBannerTone.Danger,
                                     )
+                                },
+                                onOpenSetupGuide = if (needsInitialSetup) {
+                                    { secondaryPage = LauncherSecondaryPage.SetupWizard }
+                                } else {
+                                    null
                                 },
                             )
                             LogPanel(
@@ -4982,6 +5058,11 @@ fun LukoaLauncherScreen(
                             },
                             onOpenMirrorSettingsPage = {
                                 secondaryPage = LauncherSecondaryPage.MirrorSettings
+                            },
+                            needsInitialSetup = needsInitialSetup,
+                            onStartSpotlightTour = ::startSpotlightTour,
+                            onOpenSetupWizard = {
+                                secondaryPage = LauncherSecondaryPage.SetupWizard
                             },
                         )
                     }
@@ -5364,6 +5445,40 @@ fun LukoaLauncherScreen(
                                 onApplyCustomTermuxMirror = profileCoordinator::applyCustomTermuxPackageMirror,
                                 onShowHint = { hint -> topBannerController.show(title = hint) },
                             )
+
+                            LauncherSecondaryPage.SetupWizard -> QuickStartGuideSection(
+                                termuxInstalled = termuxInstalled,
+                                runCommandPermissionGranted = runCommandPermissionGranted,
+                                externalAppsBlocked = termuxExternalAppsBlocked,
+                                tavernInstallDetected = tavernInstallDetected,
+                                tavernVersionChecking = tavernVersionCheckInFlight,
+                                termuxSetupRecommended = setupRecommended,
+                                officialVersions = officialVersions,
+                                selectedVersion = selectedTavernVersion,
+                                mirrorRepoUrl = tavernMirrorConfig.normalizedRepoUrl,
+                                commandText = TERMUX_EXTERNAL_APPS_COMMAND,
+                                actionsLocked = actionInProgress,
+                                onOpenTermuxDownload = {
+                                    openTermuxDownload(TERMUX_FDROID_URL, "F-Droid 的 Termux 页面")
+                                },
+                                onOpenTermuxGithub = {
+                                    openTermuxDownload(TERMUX_GITHUB_RELEASES_URL, "Termux GitHub Releases")
+                                },
+                                onRecheckTermux = ::recheckTermuxInstalled,
+                                onRequestPermission = ::requestRunCommandPermission,
+                                onOpenPermissionSettings = ::openLauncherPermissionSettings,
+                                onCopyPermissionCommand = ::copyTermuxPermissionCommand,
+                                onOpenTermux = ::openTermuxFromGuide,
+                                onRecheckPermission = ::recheckRunCommandPermission,
+                                onPrepareTermux = ::prepareTermuxEnvironment,
+                                onCheckTavern = ::checkTavernInstall,
+                                onShowInstall = ::enterTavernInstallFlow,
+                                onRefreshOfficialVersions = ::refreshOfficialVersions,
+                                onSelectVersion = { selectedTavernVersion = it },
+                                onUseRecommendedVersion = ::useRecommendedTavernVersion,
+                                onInstallTavern = ::installSelectedTavern,
+                                showSectionContainer = false,
+                            )
                             }
                         }
                     }
@@ -5380,6 +5495,39 @@ fun LukoaLauncherScreen(
                 onOpenPendingTaskDialog = { showPendingTaskDialog = true },
                 inSecondaryPage = secondaryPage != null,
                 modifier = Modifier.align(Alignment.TopCenter),
+            )
+
+            SpotlightTourOverlay(
+                active = spotlightTourActive && secondaryPage == null,
+                steps = spotlightSteps,
+                currentStepIndex = spotlightStepIndex,
+                registry = spotlightRegistry,
+                rootCoords = rootLayoutCoordinates,
+                recheckKey = if (spotlightTourActive) {
+                    pagerState.settledPage * 100 + pagerState.currentPage
+                } else {
+                    0
+                },
+                onPrevious = {
+                    if (spotlightStepIndex > 0) {
+                        spotlightStepIndex -= 1
+                    }
+                },
+                onNext = {
+                    if (spotlightStepIndex < spotlightSteps.lastIndex) {
+                        spotlightStepIndex += 1
+                    } else {
+                        closeSpotlightTour(returnToLaunch = true)
+                    }
+                },
+                onSkip = { closeSpotlightTour(returnToLaunch = true) },
+                onFinish = { closeSpotlightTour(returnToLaunch = true) },
+                onStepAction = { step ->
+                    if (step.id == SpotlightTourCatalog.STEP_LAUNCH_PRIMARY) {
+                        closeSpotlightTour(returnToLaunch = true)
+                        secondaryPage = LauncherSecondaryPage.SetupWizard
+                    }
+                },
             )
         }
     }

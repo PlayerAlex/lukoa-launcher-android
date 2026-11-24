@@ -128,6 +128,9 @@ fun SettingsSection(
     onToggleAutoStartTavern: () -> Unit = {},
     onOpenUserManagementPage: (() -> Unit)? = null,
     onOpenMirrorSettingsPage: (() -> Unit)? = null,
+    needsInitialSetup: Boolean = false,
+    onStartSpotlightTour: (() -> Unit)? = null,
+    onOpenSetupWizard: (() -> Unit)? = null,
 ) {
     val showHint = rememberTransientHint()
     val tavernPathError = TavernPathValidator.validate(tavernPathInput.trim())
@@ -352,6 +355,9 @@ fun SettingsSection(
             onToggleThemeStyle = onToggleThemeStyle,
             onToggleKeepScreenOn = onToggleKeepScreenOn,
             onToggleAutoStartTavern = onToggleAutoStartTavern,
+            needsInitialSetup = needsInitialSetup,
+            onStartSpotlightTour = onStartSpotlightTour,
+            onOpenSetupWizard = onOpenSetupWizard,
         )
         if (onOpenUserManagementPage == null) {
             TavernUserManagementSettingsPanel(
@@ -597,6 +603,9 @@ internal fun InstanceManagementPanel(
     onToggleThemeStyle: () -> Unit = {},
     onToggleKeepScreenOn: () -> Unit = {},
     onToggleAutoStartTavern: () -> Unit = {},
+    needsInitialSetup: Boolean = false,
+    onStartSpotlightTour: (() -> Unit)? = null,
+    onOpenSetupWizard: (() -> Unit)? = null,
 ) {
     val mirrorTone = mirrorProbeStatus.overallLevel.toneColor()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -696,6 +705,15 @@ internal fun InstanceManagementPanel(
                     valueColor = LukoaColors.TextSecondary,
                     onClick = onPinQuickStartShortcut,
                 )
+                if (onStartSpotlightTour != null) {
+                    SettingsEntryDivider()
+                    SettingsEntryRow(
+                        title = "新手功能引导",
+                        value = "重新查看",
+                        valueColor = LukoaColors.TextSecondary,
+                        onClick = onStartSpotlightTour,
+                    )
+                }
             }
             SettingsEntryGroup {
                 LukoaSwitchRow(
@@ -752,6 +770,15 @@ internal fun InstanceManagementPanel(
                     valueColor = LukoaColors.TextSecondary,
                     onClick = onOpenWakeDelaySettings,
                 )
+                if (onOpenSetupWizard != null) {
+                    SettingsEntryDivider()
+                    SettingsEntryRow(
+                        title = "首次安装向导",
+                        value = if (needsInitialSetup) "待完成" else "查看",
+                        valueColor = if (needsInitialSetup) LukoaColors.Primary else LukoaColors.TextSecondary,
+                        onClick = onOpenSetupWizard,
+                    )
+                }
             }
         }
     }

@@ -167,6 +167,18 @@ class LauncherStateStore(private val context: Context) {
             .apply()
     }
 
+    fun hasSeenSpotlightTour(): Boolean {
+        return context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+            .getBoolean(KEY_SPOTLIGHT_TOUR_SEEN, false)
+    }
+
+    fun markSpotlightTourSeen() {
+        context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_SPOTLIGHT_TOUR_SEEN, true)
+            .apply()
+    }
+
     @SuppressLint("ApplySharedPref")
     fun markClearOnNextLaunch() {
         context.getSharedPreferences(PREFS_UI_STATE, Context.MODE_PRIVATE)
@@ -240,6 +252,7 @@ class LauncherStateStore(private val context: Context) {
         const val KEY_LAST_HEALTH_CHECK = "last_health_check"
         const val KEY_LAST_TERMUX_WAKE_AT = "last_termux_wake_at"
         const val KEY_FIRST_TAVERN_START_GUIDE_SEEN = "first_tavern_start_guide_seen"
+        const val KEY_SPOTLIGHT_TOUR_SEEN = "spotlight_tour_seen"
         const val KEY_CLEAR_ON_NEXT_LAUNCH = "clear_on_next_launch"
         const val KEY_CLEAR_ON_NEXT_COLD_START = "clear_on_next_cold_start"
         const val MIN_TERMUX_RETURN_DELAY_MS = 300L

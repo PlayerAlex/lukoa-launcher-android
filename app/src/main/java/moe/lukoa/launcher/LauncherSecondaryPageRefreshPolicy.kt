@@ -45,6 +45,7 @@ class LauncherSecondaryPageRefreshTracker {
                 LauncherSecondaryPage.Debug,
                 LauncherSecondaryPage.TaskCenter,
                 LauncherSecondaryPage.MirrorSettings,
+                LauncherSecondaryPage.SetupWizard,
                 null -> null
             }
         }

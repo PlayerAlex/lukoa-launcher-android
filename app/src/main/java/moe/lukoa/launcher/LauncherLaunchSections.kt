@@ -76,11 +76,20 @@ fun TavernControlSection(
     onForceOpenTavern: (() -> Unit)? = null,
     onExportLog: () -> Unit,
     onCopyTavernUrl: (() -> Unit)? = null,
+    onOpenSetupGuide: (() -> Unit)? = null,
 ) {
     val wakeClick = rememberFeedbackClick(onWakeTermux)
+    val offeringStop = shouldOfferStopTavern(tavernRunning, tavernStarting)
+    val canTriggerSetupGuide = !primaryEnabled && !offeringStop && onOpenSetupGuide != null
     val primaryClick = rememberFeedbackClick(
-        onClick = onPrimaryAction,
-        minIntervalMs = if (shouldOfferStopTavern(tavernRunning, tavernStarting)) 0L else 260L,
+        onClick = {
+            if (primaryEnabled || offeringStop) {
+                onPrimaryAction()
+            } else {
+                onOpenSetupGuide?.invoke()
+            }
+        },
+        minIntervalMs = if (offeringStop) 0L else 260L,
     )
     val restartClick = rememberFeedbackClick(onRestartTavern)
     val launchModeClick = rememberFeedbackClick(onToggleLaunchMode)
@@ -107,7 +116,6 @@ fun TavernControlSection(
         primaryEnabled = primaryEnabled,
         primaryDisabledReason = primaryDisabledReason,
     )
-    val offeringStop = shouldOfferStopTavern(tavernRunning, tavernStarting)
     val primaryContainerColor = when {
         actionInProgress -> LukoaColors.Elevated
         offeringStop -> LukoaColors.DangerSoft
@@ -127,6 +135,7 @@ fun TavernControlSection(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .spotlightTarget(SpotlightTargetId.LaunchStatusCard)
                 .animateContentSize(),
             color = LukoaColors.Surface,
             shape = RoundedCornerShape(16.dp),
@@ -259,10 +268,11 @@ fun TavernControlSection(
         )
         Button(
             onClick = primaryClick,
-            enabled = !actionInProgress && primaryEnabled,
+            enabled = !actionInProgress && (primaryEnabled || canTriggerSetupGuide),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(52.dp)
+                .spotlightTarget(SpotlightTargetId.LaunchPrimaryAction),
             shape = RoundedCornerShape(12.dp),
             border = primaryBorder,
             colors = ButtonDefaults.buttonColors(
@@ -280,7 +290,11 @@ fun TavernControlSection(
         }
         if (!primaryEnabled && primaryDisabledReason != null) {
             Text(
-                text = primaryDisabledReason,
+                text = if (canTriggerSetupGuide) {
+                    "$primaryDisabledReason 点上方按钮按指引完成配置。"
+                } else {
+                    primaryDisabledReason
+                },
                 color = LukoaColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -298,7 +312,9 @@ fun TavernControlSection(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .spotlightTarget(SpotlightTargetId.LaunchQuickTools),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             TavernToolButton(

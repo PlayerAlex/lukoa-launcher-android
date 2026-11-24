@@ -132,7 +132,9 @@ private fun TavernManagementGrid(
     onOpenQuickImport: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .spotlightTarget(SpotlightTargetId.TavernHubGrid),
         color = LukoaColors.Surface,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, LukoaColors.Border),

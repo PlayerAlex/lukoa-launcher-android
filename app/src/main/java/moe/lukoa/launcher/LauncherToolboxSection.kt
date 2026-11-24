@@ -347,6 +347,7 @@ private fun ToolboxHealthCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .spotlightTarget(SpotlightTargetId.ToolboxHealthCard)
             .testTag("toolbox-health-card"),
         color = LukoaColors.Elevated,
         shape = RoundedCornerShape(10.dp),
