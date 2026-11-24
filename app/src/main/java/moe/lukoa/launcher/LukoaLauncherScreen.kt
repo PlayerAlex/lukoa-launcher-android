@@ -4268,24 +4268,12 @@ fun LukoaLauncherScreen(
 
     LaunchedEffect(showStopConfirmDialog) {
         if (showStopConfirmDialog) {
-            topBannerController.show(
-                title = "正在停止酒馆",
-                tone = LukoaTopBannerTone.Neutral,
-                autoDismissMs = 2_600L,
-                dedupeKey = "stop-tavern-direct",
-            )
             confirmStopTavern()
         }
     }
 
     LaunchedEffect(showRestartConfirmDialog) {
         if (showRestartConfirmDialog) {
-            topBannerController.show(
-                title = "正在重启酒馆",
-                tone = LukoaTopBannerTone.Neutral,
-                autoDismissMs = 2_800L,
-                dedupeKey = "restart-tavern-direct",
-            )
             confirmRestartTavern()
         }
     }

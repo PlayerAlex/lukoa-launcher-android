@@ -2,13 +2,15 @@ package moe.lukoa.launcher
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +22,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -73,8 +75,12 @@ data class LukoaTopBannerMessage(
 
 class LukoaTopBannerController {
     private var nextId: Long = 1L
-    var currentMessage by mutableStateOf<LukoaTopBannerMessage?>(null)
+
+    var messages by mutableStateOf<List<LukoaTopBannerMessage>>(emptyList())
         private set
+
+    val currentMessage: LukoaTopBannerMessage?
+        get() = messages.lastOrNull()
 
     fun show(
         title: String,
@@ -88,18 +94,20 @@ class LukoaTopBannerController {
         val cleanTitle = title.trim()
         if (cleanTitle.isEmpty()) return currentMessage?.id ?: 0L
         val cleanDetail = detail.trim()
-        val existing = currentMessage
-        if (
-            existing != null &&
-            dedupeKey != null &&
-            existing.dedupeKey == dedupeKey &&
-            existing.title == cleanTitle &&
-            existing.detail == cleanDetail
-        ) {
-            return existing.id
+
+        if (dedupeKey != null) {
+            val existingSameKey = messages.firstOrNull { it.dedupeKey == dedupeKey }
+            if (
+                existingSameKey != null &&
+                existingSameKey.title == cleanTitle &&
+                existingSameKey.detail == cleanDetail
+            ) {
+                return existingSameKey.id
+            }
         }
+
         val assignedId = nextId++
-        currentMessage = LukoaTopBannerMessage(
+        val nextMessage = LukoaTopBannerMessage(
             id = assignedId,
             title = cleanTitle,
             detail = cleanDetail,
@@ -109,14 +117,26 @@ class LukoaTopBannerController {
             autoDismissMs = autoDismissMs.coerceAtLeast(0L),
             dedupeKey = dedupeKey,
         )
+        val filtered = if (dedupeKey != null) {
+            messages.filterNot { it.dedupeKey == dedupeKey }
+        } else {
+            messages
+        }
+        messages = (filtered + nextMessage).takeLast(MAX_VISIBLE_MESSAGES)
         return assignedId
     }
 
     fun dismiss(id: Long? = null) {
-        val existing = currentMessage ?: return
-        if (id == null || existing.id == id) {
-            currentMessage = null
+        if (messages.isEmpty()) return
+        messages = if (id == null) {
+            emptyList()
+        } else {
+            messages.filterNot { it.id == id }
         }
+    }
+
+    companion object {
+        const val MAX_VISIBLE_MESSAGES = 4
     }
 }
 
@@ -146,15 +166,7 @@ fun LukoaTopBannerHost(
     inSecondaryPage: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val message = controller.currentMessage
-
-    LaunchedEffect(message?.id) {
-        val active = message ?: return@LaunchedEffect
-        if (active.autoDismissMs > 0L) {
-            delay(active.autoDismissMs)
-            controller.dismiss(active.id)
-        }
-    }
+    val activeMessages = controller.messages
 
     val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -163,28 +175,11 @@ fun LukoaTopBannerHost(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, top = safeTopPadding, end = 12.dp),
+            .padding(start = 12.dp, top = safeTopPadding, end = 12.dp)
+            .animateContentSize(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AnimatedVisibility(
-            visible = message != null,
-            enter = slideInVertically(animationSpec = tween(210)) { -it } + fadeIn(tween(180)),
-            exit = slideOutVertically(animationSpec = tween(180)) { -it } + fadeOut(tween(150)),
-        ) {
-            message?.let { activeMessage ->
-                TopBannerNotificationCard(
-                    message = activeMessage,
-                    onAction = {
-                        val callback = activeMessage.onAction
-                        controller.dismiss(activeMessage.id)
-                        callback?.invoke()
-                    },
-                    onDismiss = { controller.dismiss(activeMessage.id) },
-                )
-            }
-        }
-
         AnimatedVisibility(
             visible = !busyLabel.isNullOrBlank(),
             enter = slideInVertically(animationSpec = tween(200)) { -it } + fadeIn(tween(160)),
@@ -199,7 +194,7 @@ fun LukoaTopBannerHost(
         }
 
         AnimatedVisibility(
-            visible = busyLabel.isNullOrBlank() && pendingTask != null && message == null,
+            visible = busyLabel.isNullOrBlank() && pendingTask != null && activeMessages.isEmpty(),
             enter = slideInVertically(animationSpec = tween(200)) { -it } + fadeIn(tween(160)),
             exit = slideOutVertically(animationSpec = tween(160)) { -it } + fadeOut(tween(140)),
         ) {
@@ -209,6 +204,43 @@ fun LukoaTopBannerHost(
                     onContinue = onContinuePendingTask,
                     onOpenDetails = onOpenPendingTaskDialog,
                 )
+            }
+        }
+
+        activeMessages.forEach { activeMessage ->
+            key(activeMessage.id) {
+                LaunchedEffect(activeMessage.id) {
+                    if (activeMessage.autoDismissMs > 0L) {
+                        delay(activeMessage.autoDismissMs)
+                        controller.dismiss(activeMessage.id)
+                    }
+                }
+                val enterProgress = remember(activeMessage.id) { Animatable(0f) }
+                LaunchedEffect(activeMessage.id) {
+                    enterProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            val p = enterProgress.value
+                            alpha = p.coerceIn(0f, 1f)
+                            translationY = (1f - p) * -18f
+                        },
+                ) {
+                    TopBannerNotificationCard(
+                        message = activeMessage,
+                        onAction = {
+                            val callback = activeMessage.onAction
+                            controller.dismiss(activeMessage.id)
+                            callback?.invoke()
+                        },
+                        onDismiss = { controller.dismiss(activeMessage.id) },
+                    )
+                }
             }
         }
     }
